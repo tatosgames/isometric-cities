@@ -1,5 +1,13 @@
 # Verifica locale · 21 novembre 2026
 
+## Sterzo arcade · 22 novembre 2026
+
+La regressione deterministica della posa, eseguita anche da `npm.cmd test`, simula a 120 Hz. In rettilineo l'auto raggiunge 16,5 m/s. Con velocità iniziale di 13 m/s, dopo 100 ms di sterzo il muso è a **14,0°** dalla traiettoria, contro **7,2°** nella taratura precedente. Il test copre rollio verso l'interno, inversione entro 50 ms, rilascio, frenata, bassa velocità e limite di angolo dopo un urto. La posa lascia invariato lo stato fisico a parità di input e limite di velocità.
+
+Typecheck, build, regressione del percorso e suite browser superati. Su Chrome desktop (1440×900) e mobile emulato (390×844), provate sterzata e inversione vicino a Santa Ana e Casa de Colón, nelle viste isometrica e inseguimento. Una prova strumentata in Chrome con ingresso a 16,5 m/s ha verificato l'allineamento di scie, polvere e freccia con l'orientamento della carrozzeria. Su telefono fisico la sensazione di guida resta da verificare.
+
+## Verifica di base
+
 Windows, Node 24.13, Chrome desktop e Playwright. Controllo dei tipi superato con `npm.cmd run typecheck`. Build Vite completata con `npm.cmd run build`. Il bundle principale misura circa 604 kB minificato (154 kB gzip) e supera la soglia informativa predefinita di Vite.
 
 | Prova | Esito |

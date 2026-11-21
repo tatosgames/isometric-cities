@@ -19,7 +19,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 | Evento | Simulazione | Camera | Auto e scena | Interfaccia | Vibrazione |
 |---|---|---|---|---|---|
 | Moneta raccolta | – | – | La moneta è attirata entro 6 m | «+1» che sale dal punto, pillola delle monete che pulsa | 8 ms |
-| Sterzata e derapata | – | Zoom lento con la velocità | Coda che sbanda, rollio, segni a terra, polvere | Zona tattile accesa | – |
+| Sterzata e derapata | Rampa di sterzo da 200 ms | Zoom lento con la velocità | Muso in anticipo sulla traiettoria, rollio verso l'interno, segni a terra e polvere dal retro | Zona tattile accesa | – |
 | Frenata | – | – | Muso che si abbassa, segni, polvere | Entrambe le zone accese | – |
 | Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
 | Urto medio (oltre 6 m/s) | – | Spinta verso il muro, in proporzione | Saltello | – | 18 ms |
@@ -28,6 +28,13 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 | Schianto di una pattuglia | – | Spinta verso il rottame entro 40 m, più debole da lontano | Rottame scuro che gira, fumo per 3 s | «+2» con icona dell'urto | – |
 | Arrivo a destinazione | Fermo di 50 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande, nuova ficha | 40 ms |
 | Cattura | Fermo di 110 ms, poi fine partita | Spinta piena verso la pattuglia; dopo il fermo, avvicinamento lento del 14% | Polvere al rilascio | Pannello dopo altri 420 ms, record che pulsa se battuto | 140 ms |
+
+## Sterzata e derapata
+
+- L'auto raggiunge 16,5 m/s in rettilineo. La prima pattuglia conserva il vantaggio del 4%. Per la cattura vale la soglia di 4,5 m/s, per il richiamo delle monete il limite di 25 m/s.
+- La posa del giocatore si aggiorna a 120 Hz. Cresce tra 2 e 10 m/s. Con sterzo pieno, la rotazione aggiuntiva va da 10,5° a 21° e il rollio verso l'interno da 5° a 10°, secondo lo slittamento. L'angolo aggiuntivo può portare il muso fino a 45° dalla direzione di marcia quando amplifica lo slittamento.
+- Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms finché il controsterzo deve recuperare l'inclinazione verso il vecchio lato.
+- Sagoma, freccia, scie e polvere seguono la posa visiva. Scie e polvere partono dal retro a partire da 4 m/s di slittamento laterale. Camera e collisioni usano la simulazione.
 
 ## Hit-stop
 
