@@ -56,3 +56,14 @@ Inserisci in `content/las-palmas.json` una voce in `places` con un ID stabile, n
 Il catalogo contiene anche il centro del pilota e le personalizzazioni degli edifici comunali. I modelli procedurali dedicati si trovano in `landmarks.js`, i controlli dei luoghi in `places-ui.js`.
 
 Per estendere il perimetro, aggiornare le acquisizioni o preparare una nuova città, segui la [guida alla generazione e all’espansione](docs/EXPAND_CITY.md).
+
+## Modo «Conducir»
+
+El botón 🚗 de las herramientas abre una persecución arcade sobre la maqueta, inspirada en Pako. El coche acelera solo.
+
+- Táctil: pulsar la mitad izquierda o derecha para girar, ambas a la vez para frenar. Un deslizamiento horizontal equivale al lado hacia el que se desliza.
+- Teclado: flechas izquierda/derecha o A/D, ambas a la vez (o Espacio / flecha abajo) para frenar, Escape para salir.
+- Las monedas marcan la ruta por las calles hasta uno de los lugares; al llegar hay un bono y aparece otra ruta.
+- Las patrullas aumentan cada 18 s. Te atrapan si te alcanzan cuando vas despacio; a plena velocidad solo empujan. El récord se guarda en el navegador.
+
+Toda la física y el ritmo se ajustan en el objeto `TUNE` al inicio de `drive.js`.

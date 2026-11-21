@@ -8,6 +8,7 @@ Vegueta y Triana · Atlas insular: plastico urbano interattivo di Las Palmas de 
 |---|---|
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
 | `main.js` | Camera, input, filtro per area e recupero contesto WebGL |
+| `drive.js` | Modalità «Conducir» stile Pako: fisica arcade, collisioni, pattuglie, monete, HUD; costanti in `TUNE` |
 | `scene.js` | Costruzione scena: edifici, strade, superfici, alberi, mesh ottimizzate |
 | `content/las-palmas.json` | Catalogo dei luoghi, centro del pilota e stili per edificio |
 | `places-ui.js`, `landmarks.js` | Menu e marker con ID persistenti, modelli procedurali dedicati |

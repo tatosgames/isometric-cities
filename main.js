@@ -2,6 +2,7 @@ import { createPlacesUI } from './places-ui.js';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { makeCity } from './scene.js';
+import { makeDrive } from './drive.js';
 
 const el=id=>document.getElementById(id);
 async function start(){
@@ -32,7 +33,7 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
-  let frame=0,fit=1,flight=null,lost=false,lastView=null;
+  let frame=0,fit=1,flight=null,lost=false,lastView=null,drive=null,beforeDrive=null;
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
@@ -50,7 +51,7 @@ async function start(){
     camera.updateProjectionMatrix();camera.updateMatrixWorld();
     const box=new T.Box3().setFromPoints(border.map(p=>p.clone().applyMatrix4(camera.matrixWorldInverse)));
     fit=Math.min(w/(box.max.x-box.min.x+60),h/(box.max.y-box.min.y+65))*.92;
-    controls.minZoom=fit*.8;controls.maxZoom=Math.max(fit*12,4);
+    controls.minZoom=fit*.8;controls.maxZoom=drive?.active?Infinity:Math.max(fit*12,4);
   }
   function reset(){if(lost)return;flight=null;places.close();view(center,fit);}
   function fly(target,zoom,duration){
@@ -69,7 +70,7 @@ async function start(){
   controls.addEventListener('start',()=>{flight=null;gesture=true;});
   controls.addEventListener('end',stopGesture);
   function sampleGesture(time){
-    if(!gesture || !compact || dynamic)return;
+    if(!(gesture || drive?.active) || !compact || dynamic)return;
     if(previousTime)samples.push(time-previousTime);
     previousTime=time;
     if(samples.length<30)return;
@@ -84,7 +85,7 @@ async function start(){
   }
   const status=el('status');
   renderer.domElement.addEventListener('webglcontextlost',event=>{
-    event.preventDefault();lost=true;losses++;flight=null;
+    event.preventDefault();lost=true;losses++;flight=null;leaveDrive();
     cancelAnimationFrame(frame);frame=0;gesture=false;dynamic=false;previousTime=slowWindows=0;samples.length=0;
     controls.enabled=false;controls.disconnect();
     remember();
@@ -124,7 +125,7 @@ async function start(){
       renderer.render(scene,camera);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;
-      lastView={target:controls.target.toArray(),zoom:camera.zoom,selected:places.selected};
+      if(!drive?.active)lastView={target:controls.target.toArray(),zoom:camera.zoom,selected:places.selected};
       host.dataset.moving=String(!!flight);
       places.project(camera);
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
@@ -133,7 +134,7 @@ async function start(){
   function zoom(k){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),180);}
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
   host.onkeydown=e=>{
-    if(lost)return;
+    if(lost || drive.active)return;
     if(e.key.startsWith('Arrow'))flight=null;
     if(e.key==='Home')reset();else if(['+','='].includes(e.key))zoom(1.4);else if(e.key==='-')zoom(1/1.4);
     else if(e.key.startsWith('Arrow')){
@@ -143,6 +144,21 @@ async function start(){
       view(controls.target.clone().add(delta),camera.zoom);
     }else return;e.preventDefault();
   };
+  const map=el('map');
+  function leaveDrive(){
+    if(!drive?.active)return;
+    drive.exit();map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
+    if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
+    el('drive').focus({preventScroll:true});
+  }
+  drive=makeDrive({scene,host,data,locations,altitude,view,compact,onExit:leaveDrive});
+  el('drive').onclick=()=>{
+    if(lost || drive.active)return;
+    flight=null;places.close();document.querySelector('nav').classList.remove('open');
+    beforeDrive={target:controls.target.clone(),zoom:camera.zoom};
+    controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');drive.enter();
+  };
+  el('drive-exit').onclick=leaveDrive;
   controls.addEventListener('change',draw);
   let firstView=true;
   new ResizeObserver(()=>{

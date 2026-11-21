@@ -132,6 +132,44 @@ try{
     assert.match(await page.locator('article:visible h3').textContent(),/Santa Ana/);
 
   }
+  if(!process.argv.includes('pilot')){
+    // Driving mode: start, steer, collect, get caught, retry and leave.
+    await visit('/');
+    const before=await host.getAttribute('data-view');
+    const drive=async()=>(await host.getAttribute('data-drive')).split(',');
+    await page.locator('#drive').click();
+    await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
+    assert.equal(await page.locator('#pins').isVisible(),false);
+    assert.equal(await page.locator('footer').isVisible(),true);
+    const ready=await drive();assert.ok(Number(ready[6])>0,'Expected a coin trail');
+    const box=await host.boundingBox();
+    if(mobile){
+      const cdp=await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width*.2,y:box.y+box.height*.7,id:1}]});
+      await page.waitForTimeout(450);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    }else{
+      await page.keyboard.down('ArrowLeft');await page.waitForTimeout(450);await page.keyboard.up('ArrowLeft');
+    }
+    const turned=await drive();
+    assert.equal(turned[0],'playing');
+    assert.ok(Math.sin(turned[4]-ready[4])>.1,'Left input should turn the car anticlockwise');
+    assert.ok(Math.hypot(turned[2]-ready[2],turned[3]-ready[3])>.3,'Car should move by itself');
+    assert.notEqual(await host.getAttribute('data-view'),before);
+    // Left alone the car stops against a wall and a patrol reaches it.
+    await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
+    assert.equal(await page.locator('#over').isVisible(),true);
+    await page.locator('#again').click();
+    await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
+    assert.equal((await drive())[1],'0');
+    // A straight start runs along the first metres of the coin trail.
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive?.split(',')[1])>0,null,{timeout:20000});
+    await page.locator('#drive-exit').click();
+    assert.equal(await host.getAttribute('data-drive'),null);
+    assert.equal(await page.locator('#plus').isVisible(),true);
+    await page.waitForFunction(v=>document.querySelector('#scene').dataset.view===v,before);
+  }
   if(!mobile && !process.argv.includes('pilot')){
     let reorder=false;
     await page.route('**/data/poi.geojson',async route=>{
