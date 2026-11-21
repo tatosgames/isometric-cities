@@ -24,7 +24,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |
 | `scripts/roof-colours.py` | Palette tetti |
 | `scripts/qa.mjs`, `scripts/benchmark.mjs` | QA Playwright e benchmark |
-| `docs/UI_ANTI_SLOP.md`, `docs/CAMERA_FRAMING.md` | Regole UI (niente testi nel gioco, un fatto un indicatore) e contratto di inquadratura: da leggere prima di toccare HUD o camera |
+| `docs/UI_ANTI_SLOP.md`, `docs/CAMERA_FRAMING.md`, `docs/JUICE.md` | Regole UI (niente testi nel gioco, un fatto un indicatore), contratto di inquadratura e catalogo del game feel della guida (hit-stop, colpo di camera): da leggere prima di toccare HUD, camera o effetti |
 | `docs/DATA_SOURCES.md`, `docs/QA.md` | Fonti dati/attribuzioni, rapporto QA e screenshot |
 | `PLAN.md` | Brief originale per l'agente (perimetro, stile, checkpoint) |
 | `PROGRESS.md` | Checkpoint corrente (A Santa Ana, B Vegueta–Triana, C studio futuro) |

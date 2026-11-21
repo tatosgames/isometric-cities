@@ -6,7 +6,6 @@
 <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
 <symbol id="i-left" viewBox="0 0 24 24"><path d="M9 6l-5 5 5 5M4 11h9a6 6 0 0 1 6 6v1"/></symbol>
 <symbol id="i-right" viewBox="0 0 24 24"><path d="M15 6l5 5-5 5M20 11h-9a6 6 0 0 0-6 6v1"/></symbol>
-<symbol id="i-brake" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M5.5 6.5a9 9 0 0 0 0 11M18.5 6.5a9 9 0 0 1 0 11M12 10v2.5M12 14.4v.1"/></symbol>
 <symbol id="i-retry" viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.2-5.1M5 4v4h4"/></symbol>
 <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 5l6 2 5-2v12l-5 2-6-2-5 2V7zM9 5v12M15 7v12"/></symbol>
 <symbol id="i-point" viewBox="0 0 24 24"><path d="M12 3l7 9h-4.500v9h-5v-9H5z" fill="currentColor"/></symbol>
@@ -14,13 +13,13 @@
 </defs></svg><main id="map" aria-label="Las Palmas de Gran Canaria">
 <div id="scene" tabindex="0" aria-label="Mapa isométrico. Flechas para mover, más y menos para ampliar, Inicio para ver toda la ciudad."></div><div id="pins"></div>
 <button id="index-toggle" aria-label="Lugares de interés" title="Lugares de interés" aria-controls="places" aria-expanded="false">☰</button><nav aria-label="Lugares de interés"><div id="places"></div></nav>
-<div class="tools"><button id="plus" title="Acercar" aria-label="Acercar">+</button><button id="minus" title="Alejar" aria-label="Alejar">−</button><button id="reset" title="Vista general" aria-label="Vista general">⌖</button><button id="drive" title="Conducir" aria-label="Conducir"><svg class="ic" aria-hidden="true"><use href="#i-car"/></svg></button></div>
+<div class="tools"><button id="plus" title="Acercar" aria-label="Acercar">+</button><button id="minus" title="Alejar" aria-label="Alejar">−</button><button id="reset" title="Vista general" aria-label="Vista general">⌖</button></div><button id="drive" title="Play" aria-label="Play"><svg class="ic" aria-hidden="true"><use href="#i-car"/></svg><span>Play</span></button>
 <div id="hud" hidden>
 <div id="hud-stats"><span class="stat coin" id="stat-coins" aria-label="Monedas"><svg class="ic" aria-hidden="true"><use href="#i-coin"/></svg><b id="hud-coins">0</b></span><span class="stat" aria-label="Tiempo"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><span id="hud-time">0:00</span></span></div>
 <button id="drive-exit" title="Salir" aria-label="Salir del modo conducción"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
 <div id="goal" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-point"/></svg><b></b></div>
 <div id="pops" aria-hidden="true"></div>
-<div id="guide" aria-hidden="true"><span class="zone left"><svg class="ic" aria-hidden="true"><use href="#i-left"/></svg></span><span class="zone both"><svg class="ic" aria-hidden="true"><use href="#i-brake"/></svg></span><span class="zone right"><svg class="ic" aria-hidden="true"><use href="#i-right"/></svg></span></div>
+<div id="guide" aria-hidden="true"><span class="zone left"><svg class="ic" aria-hidden="true"><use href="#i-left"/></svg></span><span class="zone right"><svg class="ic" aria-hidden="true"><use href="#i-right"/></svg></span></div>
 <p id="hud-live" role="status"></p>
 </div>
 <section id="over" hidden role="dialog" aria-label="Atrapado"><div id="over-stats"><span class="stat coin" aria-label="Monedas"><svg class="ic" aria-hidden="true"><use href="#i-coin"/></svg><b id="over-coins">0</b></span><span class="stat" aria-label="Tiempo"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><span id="over-time">0:00</span></span><span class="stat best" aria-label="Récord"><svg class="ic" aria-hidden="true"><use href="#i-trophy"/></svg><span id="over-record">0</span></span></div><div class="actions"><button id="again" title="Otra vez" aria-label="Otra vez"><svg class="ic" aria-hidden="true"><use href="#i-retry"/></svg></button><button id="leave" title="Volver al mapa" aria-label="Volver al mapa"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg></button></div></section>

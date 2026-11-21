@@ -22,4 +22,6 @@ Durante la guida il contatore mostra monete e tempo. La coppa compare a fine par
 
 **F · Robustezza grafica.** La guida sopravvive alla perdita del contesto WebGL (corsa sospesa e ripresa al primo input), i materiali della modalità si compilano all’ingresso e la risoluzione segue la cadenza dei frame anche in guida e nei voli. Aggiunti `docs/UI_ANTI_SLOP.md`, `docs/CAMERA_FRAMING.md` e le skill `threejs-*`, `game-design`, `web-games`. Da fare: prova su telefono fisico; identificare lo shader ancora compilato in partita su desktop.
 
+**G · Game feel della guida.** Hit-stop (urto forte, arrivo, cattura) e colpo di camera direzionale con molla al posto del tremolio casuale; catalogo e regole in `docs/JUICE.md`. Senza audio per scelta. Da fare: prova in mano su telefono fisico.
+
 Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell’ortofoto PNOA. La panoramica, i settori dettagliati e il pilota condividono le tinte di `roof-tones.json`. Il viewer carica il JSON delle tinte e usa l’illuminazione della scena.

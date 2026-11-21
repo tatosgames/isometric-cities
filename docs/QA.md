@@ -77,6 +77,14 @@ Camera: anticipo smussato a parte, inseguimento stretto, zoom con costante di te
 - Il rilevatore di design segnala il footer a 10 px e il font Inter, preesistenti e non modificati.
 - Non provato su telefono fisico. La sensazione rispetto al video di Pako va giudicata giocando.
 
+### Hit-stop e colpo di camera · 22 novembre 2026
+
+Fermo della simulazione per urto forte (55 ms, oltre 9 m/s, al più uno ogni 0,6 s), arrivo (50 ms) e cattura (110 ms); polvere, camera e interfaccia continuano. Il tremolio casuale della camera è sostituito da una spinta verso ciò che ha colpito, con ritorno a molla. Regole e catalogo in [JUICE.md](JUICE.md).
+
+- Molla calcolata fuori dal browser con gli stessi passi del codice: colpo pieno 0,99 m di picco e rientro sotto 3 cm in 0,28 s a 60 fotogrammi al secondo; 0,93 m a 20.
+- `npm.cmd test` verifica che la cattura produca almeno un fermo e che lo spostamento della camera torni sotto 2 cm.
+- Non verificato: soglia e intervallo degli urti in una via stretta giocando a mano, e l'effetto dei fermi insieme alla vibrazione su telefono fisico.
+
 ## Corridoio Vegueta–Arenales–Ciudad Jardín
 
 La prova iniziale ha suddiviso i 487.313 m² originari in 17 settori. Sul viewport touch 390 × 844 l’apertura ha costruito 9 settori e 16,02 MB di array di dettaglio. Dopo San Telmo, Santa Ana e ritorno, 20,73 MB di array restavano residenti e il mirino mostrava soltanto il livello semplificato. Questa prima misura riguardava le geometrie prima dell’introduzione delle texture locali.

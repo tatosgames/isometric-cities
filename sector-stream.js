@@ -1,3 +1,4 @@
+import {surfaceStencil} from './building-stencil.js';
 import { sectorBuilder } from './sector-builder.js';
 import { overviewBuildings, overviewGround } from './overview.js';
 import * as T from 'three';
@@ -36,12 +37,13 @@ export function streamCity({data,neutral,tones,compact,refresh,host}){
     const xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]);
     byId.get(owner((Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2)).ground.push(ring);
   }
-  const solid=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,side:T.DoubleSide});
-  const groundMaterial=new T.MeshStandardMaterial({map:base.groundMap?.texture??null,
+  const solid=new T.MeshStandardMaterial({...surfaceStencil(true),vertexColors:true,flatShading:true,side:T.DoubleSide});
+  const overviewMaterials=[solid,Object.assign(solid.clone(),surfaceStencil())];
+  const groundMaterial=new T.MeshStandardMaterial({...surfaceStencil(),map:base.groundMap?.texture??null,
     color:neutral?'#e4dfd3':'white',flatShading:true,side:T.DoubleSide});
   const sectors=data.sectors.map(s=>{
     const batch=byId.get(s.id),low=new T.Group();
-    low.add(overviewBuildings(batch.buildings,batch.trees,base.altitude,tones,neutral,solid),
+    low.add(overviewBuildings(batch.buildings,batch.trees,base.altitude,tones,neutral,overviewMaterials),
       overviewGround(batch.ground,base.altitude,base.groundMap,groundMaterial));
     base.group.add(low);
     const [west,south,east,north]=s.bounds;

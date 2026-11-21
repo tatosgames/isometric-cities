@@ -24,7 +24,11 @@ La causa comune dei pattern scartati è sempre la stessa: abitudini da dashboard
 
 La prima versione mostrava «12 monedas · 23.4 s · Récord 30», «→ Teatro Pérez Galdós», un suggerimento di una riga («Toca izquierda o derecha…») e un pannello «¡Atrapado!» con due pulsanti di testo. Scartato: troppo da leggere mentre si guida.
 
-Al loro posto: pillole con icona e numero; due zone tattili che pulsano e si accendono al tocco; una lezione unica sul freno dopo alcuni secondi di guida; il numero del luogo su una ficha che punta al traguardo; i punti che saltano fuori dove si guadagnano; pulsanti con sola icona nel pannello finale. I nomi vanno alla regione per i lettori di schermo.
+Al loro posto: pillole con icona e numero; due zone tattili che pulsano e si accendono al tocco; il numero del luogo su una ficha che punta al traguardo; i punti che saltano fuori dove si guadagnano; pulsanti con sola icona nel pannello finale. I nomi vanno alla regione per i lettori di schermo.
+
+### Guida: indicatore tattile del freno (Luca, 22 novembre 2026)
+
+Rimosso il pulsante centrale col simbolo del freno e la relativa animazione didattica. La frenata resta attiva tenendo premuti entrambi i lati, oppure con Spazio/Freccia giù.
 
 ### Guida: icona emoji sul pulsante (21 novembre 2026)
 
@@ -40,7 +44,7 @@ La coppa con il record stava accanto a monete e tempo durante la partita. Ora co
 
 ### Guida: alone senza direzione (Luca, 21 novembre 2026)
 
-L'anello che tiene visibile l'auto dietro gli edifici non diceva da che parte fosse girata. Ora porta una freccia che segue l'orientamento visivo del veicolo, anche in derapata. Vale come esempio del principio 2: l'informazione sta sull'oggetto, non in un indicatore a parte.
+La parte dell’auto coperta da un edificio appare in giallo sulla sua superficie. Quando sparisce anche il centro della cabina, la freccia segue il muso durante la derapata.
 
 ## Prima di consegnare un'interfaccia
 

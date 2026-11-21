@@ -1,7 +1,8 @@
+import {surfaceStencil} from './building-stencil.js';
 import * as T from 'three';
 
 export function cityMaterials(neutral,groundMap){
-  const mat=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,side:T.DoubleSide,roughness:1});
+  const mat=new T.MeshStandardMaterial({...surfaceStencil(),vertexColors:true,flatShading:true,side:T.DoubleSide,roughness:1});
   if(!neutral) mat.onBeforeCompile=shader=>{
     shader.uniforms.groundColours={value:groundMap.texture};
     shader.uniforms.groundBounds={value:groundMap.bounds};
@@ -29,10 +30,13 @@ export function cityMaterials(neutral,groundMap){
       diffuseColor.rgb*=1.+grain*fade;
     `);
   };
+  const buildingMat=mat.clone();
+  buildingMat.onBeforeCompile=mat.onBeforeCompile;
+  Object.assign(buildingMat,surfaceStencil(true));
   const shadeMat=new T.ShaderMaterial({
     transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,
     vertexShader:'varying vec2 v; void main(){v=uv-.5;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}',
     fragmentShader:'varying vec2 v;void main(){gl_FragColor=vec4(.13,.14,.10,.22*(1.-smoothstep(.08,.50,length(v))));}'
   });
-  return {mat,shadeMat,wood:new T.MeshStandardMaterial({flatShading:true,roughness:1})};
+  return {mat,buildingMat,shadeMat,wood:new T.MeshStandardMaterial({...surfaceStencil(),flatShading:true,roughness:1})};
 }

@@ -7,11 +7,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export function makeCity(data, neutral, tones, compact=false, sharedGround=null) {
   const group = new T.Group();
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
-  const {mat,wood,shadeMat}=cityMaterials(neutral,groundMap);
+  const {mat,buildingMat,wood,shadeMat}=cityMaterials(neutral,groundMap);
   const buckets = new Map();
   function flush(bucket){
     if(!bucket.parts.length)return;
-    const mesh=new T.Mesh(mergeGeometries(bucket.parts),mat);
+    const mesh=new T.Mesh(mergeGeometries(bucket.parts),bucket.material);
     mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
     bucket.parts.length=0;bucket.vertices=0;
   }
@@ -23,7 +23,7 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
     const v=terrain.values, u=col%1, t=row%1;
     return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t);
   }
-  function add(g,color,x=0,y=0,surface=0,wallBase=null) {
+  function add(g,color,x=0,y=0,surface=0,wallBase=null,material=mat) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
     const normals=geom.attributes.normal;
@@ -39,8 +39,8 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
       rgb[i]=shade.r*ao;rgb[i+1]=shade.g*ao;rgb[i+2]=shade.b*ao;
     }
     geom.setAttribute('color',new T.BufferAttribute(rgb,3,true));
-    const key=Math.floor(x/120)+','+Math.floor(y/120);
-    if(!buckets.has(key)) buckets.set(key,{parts:[],vertices:0});
+    const key=Math.floor(x/120)+','+Math.floor(y/120)+','+material.id;
+    if(!buckets.has(key)) buckets.set(key,{parts:[],vertices:0,material});
     const bucket=buckets.get(key);bucket.parts.push(geom);bucket.vertices+=geom.attributes.position.count;
     if(bucket.vertices>=49152)flush(bucket);
   }
@@ -66,22 +66,25 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
       const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();add(g,'#bb9f7d',x,y);
     }
   }
+  function addBuilding(g,color,x,y,surface=0,wallBase=null){
+    add(g,color,x,y,surface,wallBase,buildingMat);
+  }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
   const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
   for(const b of data.buildings){
     const [x,y]=b.rings[0][0], s=shape(b.rings);
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
     const g=new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false}).translate(0,0,z-2).rotateX(-Math.PI/2);
-    add(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
+    addBuilding(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
-    add(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
+    addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
     if(b.roofFurniture!==false && b.id%6!==1){
       const {radius,rx,ry}=roofClearance(roof);
       if(radius>2.1){
         const size=Math.min(5,radius),angle=Math.atan2(b.rings[0][1][1]-y,b.rings[0][1][0]-x);
-        add(new T.BoxGeometry(size,1.8,size*.72).rotateY(angle).translate(rx,top+.9,-ry),'#dcd7c9',x,y);
-        add(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
-        if(radius>3.5 && b.id%3===0) add(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
+        addBuilding(new T.BoxGeometry(size,1.8,size*.72).rotateY(angle).translate(rx,top+.9,-ry),'#dcd7c9',x,y);
+        addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
+        if(radius>3.5 && b.id%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
       }
     }
     // Low parapets trace the actual perimeter and distinguish adjoining roofs.
@@ -117,17 +120,17 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
       if(!compact && b.windows!==false && count>=2 && len<65 && nx*-.82-ny*.68>0){
         const rot=Math.atan2(f-c,e-a);
         for(let level=3;level<h-2;level+=3.6){
-          add(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
+          addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
         }
       }
-      add(new T.BoxGeometry(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
+      addBuilding(new T.BoxGeometry(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
     }
     if(windows.length){
-      const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();add(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);
-      const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(sills,3));trim.computeVertexNormals();add(trim,'#ede8dc',x,y);
+      const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);
+      const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(sills,3));trim.computeVertexNormals();addBuilding(trim,'#ede8dc',x,y);
     }
   }
-  addLandmarks(data.buildings,add,altitude);
+  addLandmarks(data.buildings,addBuilding,altitude);
   const templates={
     crown:new T.IcosahedronGeometry(1,compact?0:1),
     trunk:new T.CylinderGeometry(.28,.35,1,6),
@@ -176,7 +179,7 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
     });
     mesh.castShadow=!shadow;mesh.receiveShadow=!shadow;mesh.computeBoundingSphere();group.add(mesh);
   }
-  return {group,altitude,groundMap,materials:{mat,wood,shadeMat}};
+  return {group,altitude,groundMap,materials:{mat,buildingMat,wood,shadeMat}};
 }
 
 // Find the largest inscribed circle among the triangulated roof faces.

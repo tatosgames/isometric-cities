@@ -30,6 +30,8 @@ export function makeDrivePhysics(tune){
     }
     const vn=b.vx*nx+b.vy*ny;
     if(vn>=0)return 0;
+    // Sum of the impacts, pointing into the obstacle: the camera kick reads it.
+    b.hitX+=vn*nx;b.hitY+=vn*ny;
     b.vx-=(1+tune.bounce)*vn*nx;b.vy-=(1+tune.bounce)*vn*ny;
     return -vn;
   }
@@ -42,6 +44,7 @@ export function makeDrivePhysics(tune){
     return push(b,tree[0],tree[1],r+tune.treeRadius);
   }
   function collide(b,world){
+    b.hitX=b.hitY=0;
     const hit=world.visitObstacles(b,tune.radius,wallContact,treeContact);
     if(hit){const k=1-tune.wallLoss*Math.min(1,hit/8);b.vx*=k;b.vy*=k;}
     return hit;

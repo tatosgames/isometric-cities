@@ -1,7 +1,7 @@
 import * as T from 'three';
 
-// Build only the silhouette and roof of each footprint. One mesh per sector.
-export function overviewBuildings(buildings,trees,altitude,tones,neutral,material){
+// Build only the silhouette and roof of each footprint. Keep buildings and trees in separate draw groups.
+export function overviewBuildings(buildings,trees,altitude,tones,neutral,materials){
   const positions=[],colours=[],color=new T.Color();
   const point=(p,h)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
   function tint(value){color.set(neutral?'#e4dfd3':value);}
@@ -19,6 +19,7 @@ export function overviewBuildings(buildings,trees,altitude,tones,neutral,materia
     const triangles=T.ShapeUtils.triangulateShape(vectors[0],vectors.slice(1)),all=outline.flat();
     for(const t of triangles)for(const i of t)point(all[i],top);
   }
+  const buildingVertices=positions.length/3;
   tint('#637b50');
   for(const [x,y] of trees){
     const z=altitude(x,y),crown=[[x-3,y],[x,y-3],[x+3,y],[x,y+3]];
@@ -28,7 +29,10 @@ export function overviewBuildings(buildings,trees,altitude,tones,neutral,materia
   g.setAttribute('position',new T.Float32BufferAttribute(positions,3));
   g.setAttribute('color',new T.Uint8BufferAttribute(colours,3,true));
   g.computeVertexNormals();
-  return new T.Mesh(g,material);
+  if(buildingVertices)g.addGroup(0,buildingVertices,0);
+  const treeVertices=positions.length/3-buildingVertices;
+  if(treeVertices)g.addGroup(buildingVertices,treeVertices,1);
+  return new T.Mesh(g,materials);
 }
 
 export function overviewGround(rings,altitude,map,material){

@@ -183,6 +183,9 @@ try{
     await page.locator('#over').waitFor({state:'visible'});
     assert.equal(await page.locator('#over-record').isVisible(),true);
     assert.equal(await page.locator('footer').isVisible(),true);
+    // The capture held the simulation at least once, and the camera kick has sprung back to rest.
+    assert.ok(Number((await drive())[10])>=1,'Capture should hit-stop');
+    await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[11])<.02,null,{timeout:3000});
     if(mobile)await page.screenshot({path:dir+'/conducir-fin.png'});
     await page.locator('#again').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));

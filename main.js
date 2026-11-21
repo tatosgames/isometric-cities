@@ -21,7 +21,7 @@ async function start(){
   try{resume=JSON.parse(sessionStorage.getItem(sessionKey));sessionStorage.removeItem(sessionKey);}catch{}
   let losses=Number(resume?.losses)||0;
   const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
-  const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true});
+  const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true,stencil:true});
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
@@ -55,7 +55,7 @@ async function start(){
     fit=Math.min(w/(box.max.x-box.min.x+60),h/(box.max.y-box.min.y+65))*.92;
     controls.minZoom=fit*.8;controls.maxZoom=drive?.active?Infinity:Math.max(fit*12,4);
   }
-  function reset(){if(lost)return;flight=null;places.close();view(center,fit);}
+  function reset(){if(lost)return;places.close();fly(center,fit,300);}
   function fly(target,zoom,duration){
     if(lost)return;
     host.dataset.moving='true';
@@ -141,7 +141,7 @@ async function start(){
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     });
   }
-  function zoom(k){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),180);}
+  function zoom(k){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
   host.onkeydown=e=>{
     if(lost || drive.active)return;
