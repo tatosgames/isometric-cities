@@ -54,3 +54,5 @@ Il modello mantiene la separazione geodati/scena e l’origine fissa del progett
 Inserisci in `content/las-palmas.json` una voce in `places` con un ID stabile, nome, riferimento OSM, aree di appartenenza e altezza del marker in metri. Rigenera i dati con i comandi della sezione precedente. Menu, marker e scheda leggono lo stesso elenco. Mantieni gli ID quando riordini o rinomini i luoghi per conservare le selezioni salvate.
 
 Il catalogo contiene anche il centro del pilota e le personalizzazioni degli edifici comunali. I modelli procedurali dedicati si trovano in `landmarks.js`, i controlli dei luoghi in `places-ui.js`.
+
+Per estendere il perimetro, aggiornare le acquisizioni o preparare una nuova città, segui la [guida alla generazione e all’espansione](docs/EXPAND_CITY.md).
