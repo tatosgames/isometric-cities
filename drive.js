@@ -209,7 +209,19 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   const beacon=new T.Mesh(new T.CylinderGeometry(3.2,3.2,26,20,1,true).translate(0,13,0),new T.MeshBasicMaterial({color:'#ffd84a',transparent:true,opacity:.22,depthWrite:false,side:T.DoubleSide}));
   group.add(beacon);
   // Drawn through buildings so the car stays readable in narrow streets.
-  const halo=new T.Mesh(new T.RingGeometry(2.3,2.75,28).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:'#fff7d6',transparent:true,opacity:.6,depthTest:false,depthWrite:false}));
+  const nose=new T.Shape();
+  nose.moveTo(2.24,0);
+  nose.lineTo(.5,.95);
+  nose.lineTo(.95,0);
+  nose.lineTo(.5,-.95);
+  nose.closePath();
+  const arrow=new T.ShapeGeometry(nose);
+  const inset=arrow.clone().translate(-1.25,0,0).scale(.70,.65,1).translate(1.25,0,0);
+  const marker=mergeGeometries([tint(new T.RingGeometry(2.3,2.75,28),'#fff7d6'),
+    tint(arrow,'#263831'),tint(inset,'#fff7d6')]);
+  const halo=new T.Mesh(marker.rotateX(-Math.PI/2),new T.MeshBasicMaterial({
+    vertexColors:true,transparent:true,opacity:.9,depthTest:false,depthWrite:false
+  }));
   halo.renderOrder=10;group.add(halo);
   const dummy=new T.Object3D();
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
@@ -478,6 +490,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
     place(player);
     halo.position.copy(player.blob.position);
+    halo.rotation.y=player.mesh.rotation.y;
     chasers.forEach((c,i)=>{place(c);c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;});
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!target;
     coinMesh.count=coins.length;
@@ -510,8 +523,6 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     // HUD
     el('hud-coins').textContent=String(score);
     el('hud-time').textContent=clock(time);
-    el('hud-record').textContent=String(Math.max(record,score));
-    el('danger').style.opacity=state==='playing'?String(T.MathUtils.clamp((26-nearest)/18,0,1)*(.6+.4*Math.sin(now/90))):'0';
     const {steer,brake}=input();
     zones.left.classList.toggle('on',state==='playing' && (steer>0 || brake));
     zones.right.classList.toggle('on',state==='playing' && (steer<0 || brake));

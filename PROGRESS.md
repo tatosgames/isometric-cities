@@ -17,3 +17,5 @@ Corretto l’affioramento del terreno attraverso le carreggiate. Il viewer compo
 Mappa, guida e HUD condividono lo stesso comportamento animato su tutti i dispositivi. La suite browser attende il completamento del volo verso Santa Ana prima di verificare il recupero della vista.
 
 **E · Estensione verso Ciudad Jardín.** Il corridoio ricavato da edifici comunali, OSM, MDT05 e PNOA copre 3,041 km² di terraferma (6,24×), con dieci luoghi e 80 settori da 240 m. Il viewer mantiene una panoramica residente, precarica il dettaglio in direzione di guida, scarta i risultati obsoleti e gestisce separatamente le risorse di ciascun settore. Guida e collisioni usano un grafo globale. Controllati viaggio fra quartieri, passaggio di confine nei due sensi, stabilità del budget e perdita di contesto durante il caricamento. Dettagli, limiti e misure in [QA](docs/QA.md); procedura in [EXPAND_CITY](docs/EXPAND_CITY.md).
+
+Durante la guida il contatore mostra monete e tempo. La coppa compare a fine partita. Una freccia nello stesso anello 3D segue l’orientamento visivo del veicolo, anche in derapata e dietro gli edifici. Rimossi il bordo di allarme e la sirena dal pannello finale.

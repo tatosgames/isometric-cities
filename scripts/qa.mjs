@@ -148,6 +148,12 @@ try{
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     assert.equal(await page.locator('#pins').isVisible(),false);
     assert.equal(await page.locator('footer').isVisible(),true);
+    assert.equal(await page.locator('#hud-stats .stat').count(),2);
+    assert.equal(await page.locator('#over-record').isVisible(),false);
+    if(mobile){
+      await page.waitForFunction(()=>Math.abs(Number(document.querySelector('#scene').dataset.drive.split(',')[8])-1)<.05);
+      await page.screenshot({path:dir+'/conducir-mobile.png'});
+    }
     const ready=await drive();assert.ok(Number(ready[6])>0,'Expected a coin trail');
     const box=await host.boundingBox();
     const waitForTurn=()=>page.waitForFunction(start=>{
@@ -170,6 +176,8 @@ try{
     // Left alone the car stops against a wall and a patrol reaches it.
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
     await page.locator('#over').waitFor({state:'visible'});
+    assert.equal(await page.locator('#over-record').isVisible(),true);
+    if(mobile)await page.screenshot({path:dir+'/conducir-fin.png'});
     await page.locator('#again').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     assert.equal((await drive())[1],'0');
