@@ -1,10 +1,49 @@
-import {BUILDING_BIT,surfaceStencil} from './building-stencil.js';
-import {buildDriveWorld} from './drive-world.js';
-import {makeDrivePhysics} from './drive-physics.js';
-import {makeDriveCamera} from './drive-camera.js';
-import {makeDriveInput} from './drive-input.js';
+import type { Altitude, CityData, Place, Point } from '../data/types.ts';
+import { element as el } from '../map/dom.ts';
+import { required } from '../required.ts';
+import type { Body } from './drive-physics.ts';
+import type { routesFrom } from './road-routing.ts';
+import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
+import {buildDriveWorld} from './drive-world.ts';
+import {makeDrivePhysics} from './drive-physics.ts';
+import {makeDriveCamera} from './drive-camera.ts';
+import {makeDriveInput} from './drive-input.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+interface DriveOptions {
+  scene: T.Scene;
+  camera: T.OrthographicCamera;
+  renderer: T.WebGLRenderer;
+  host: HTMLElement;
+  data: CityData;
+  locations: Place[];
+  altitude: Altitude;
+  view: (target: T.Vector3, zoom: number, offset: T.Vector3) => void;
+  mapDirection: T.Vector3;
+  compact: boolean;
+  onExit: () => void;
+}
+
+interface Vehicle extends Body {
+  mesh: T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;
+  blob: T.Mesh;
+  hop: number;
+  wreck: number;
+  stuck: number;
+  max: number;
+  trail: [number,number,number][] | null;
+  puff: number;
+  node: number;
+}
+
+interface Patrol extends Vehicle {
+  light: T.Mesh<T.BoxGeometry,T.MeshBasicMaterial>;
+}
+
+type DriveState = 'off' | 'ready' | 'playing' | 'caught';
+type RouteField = ReturnType<typeof routesFrom>;
+
 
 // Every gameplay number lives here. Metres, seconds, radians.
 export const TUNE={
@@ -25,16 +64,15 @@ export const TUNE={
   viewSpanCompact:62, viewSpanWide:95, lookAhead:.42
 };
 const SKIDS=600, DUST=48, COINS=220;
-const el=id=>document.getElementById(id);
-const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 
-function tint(geometry,color){
+function tint(geometry: T.BufferGeometry,color: T.ColorRepresentation){
   const c=new T.Color(color),n=geometry.attributes.position.count,a=new Float32Array(n*3);
   for(let i=0;i<n;i++)a.set([c.r,c.g,c.b],i*3);
   geometry.setAttribute('color',new T.BufferAttribute(a,3));
   return geometry;
 }
-function carGeometry(body,top,police){
+function carGeometry(body: string,top: string,police: boolean){
   const parts=[
     tint(new T.BoxGeometry(3,.7,1.5).translate(0,.6,0),body),
     tint(new T.BoxGeometry(1.5,.55,1.3).translate(-.2,1.2,0),top)
@@ -44,11 +82,12 @@ function carGeometry(body,top,police){
     parts.push(tint(new T.BoxGeometry(.9,.72,1.52).translate(1.06,.6,0),'#1f4a8f'));
     parts.push(tint(new T.BoxGeometry(.25,.2,.95).translate(-.2,1.57,0),'#3d7bff'));
   }
-  return mergeGeometries(parts);
+  return required(mergeGeometries(parts),"car geometry");
 }
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit}){
-  let world=null;
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit}: DriveOptions){
+  let world: ReturnType<typeof buildDriveWorld> | null=null;
+  const activeWorld=()=>required(world,"drive world");
   const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -68,12 +107,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     }
   };
   button.onclick=e=>{
-    if(e.pointerType==='touch')return;
+    if(e instanceof PointerEvent && e.pointerType==='touch')return;
     cycleCamera();host.focus({preventScroll:true});
   };
   const controls=makeDriveInput(host,go,onExit,cycleCamera);
-  function routes(source){
-    if(field?.source!==source)field=world.routesFrom(source);
+  function routes(source: number){
+    if(field?.source===source)return field;
+    field=activeWorld().routesFrom(source);
     return field;
   }
 
@@ -84,18 +124,19 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const wreckPaint=new T.MeshStandardMaterial({...surfaceStencil(),color:'#3a3a3a',flatShading:true,roughness:1});
   const blobGeometry=new T.CircleGeometry(2.3,16).rotateX(-Math.PI/2);
   const blobMaterial=new T.MeshBasicMaterial({color:'#15170f',transparent:true,opacity:.26,depthWrite:false});
-  function vehicle(geometry){
+  function vehicle(geometry: T.BufferGeometry): Vehicle{
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';
-    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,dive:0,way:1,wayHold:0,hitX:0,hitY:0,light:null,mesh,blob,wreck:0,stuck:0,max:0,trail:null,puff:0,node:-1};
+    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,dive:0,way:1,wayHold:0,hitX:0,hitY:0,mesh,blob,wreck:0,stuck:0,max:0,trail:null,puff:0,node:-1};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
   function patrol(){
     const c=vehicle(policeGeometry);
-    c.light=new T.Mesh(lightGeometry,lightRed);c.mesh.add(c.light);
-    return c;
+    const light=new T.Mesh(lightGeometry,lightRed);
+    c.mesh.add(light);
+    return Object.assign(c,{light});
   }
   const player=vehicle(playerGeometry);
   const silhouette=new T.Mesh(playerGeometry,new T.MeshBasicMaterial({
@@ -119,12 +160,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const arrow=new T.ShapeGeometry(nose);
   const inset=arrow.clone().translate(-1.25,0,0).scale(.70,.65,1).translate(1.25,0,0);
   const markerMaterial=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.9,depthTest:false,depthWrite:false});
-  const heading=new T.Mesh(mergeGeometries([tint(arrow,'#263831'),tint(inset,'#fff7d6')]).rotateX(-Math.PI/2),markerMaterial);
+  const heading=new T.Mesh(required(mergeGeometries([tint(arrow,'#263831'),tint(inset,'#fff7d6')]),'heading geometry').rotateX(-Math.PI/2),markerMaterial);
   heading.renderOrder=11;heading.visible=false;
   group.add(heading);
-  function cabinIsHidden(dx,dy){
+  function cabinIsHidden(dx: number,dy: number){
     const height=player.mesh.position.y+1.2*TUNE.visualScale;
-    return world.occluded(player.x,player.y,height,dx,dy);
+    return activeWorld().occluded(player.x,player.y,height,dx,dy);
   }
   const dummy=new T.Object3D();
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({...surfaceStencil(),color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
@@ -140,14 +181,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,life:0}));
   const dustColour=new T.Color('#d8cdbb'),smokeColour=new T.Color('#3b3836');
   let skidAt=0,dustAt=0;
-  function puff(x,y,dark){
+  function puff(x: number,y: number,dark: boolean){
     const p=dust[dustAt];
     Object.assign(p,{x,y,z:altitude(x,y)+1,life:1});
-    dustMesh.setColorAt(dustAt,dark?smokeColour:dustColour);dustMesh.instanceColor.needsUpdate=true;
+    dustMesh.setColorAt(dustAt,dark?smokeColour:dustColour);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
     dustAt=(dustAt+1)%DUST;
   }
-  function skid(b){
-    const fx=Math.cos(b.h),fy=Math.sin(b.h),now=[];
+  function skid(b: Vehicle){
+    const fx=Math.cos(b.h),fy=Math.sin(b.h),now: NonNullable<Vehicle["trail"]>=[];
     for(const side of [-.7,.7]){
       const x=b.x-fx*1.1-fy*side,y=b.y-fy*1.1+fx*side;
       now.push([x,altitude(x,y)+.78,-y]);
@@ -162,7 +203,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     }
     b.trail=now;
   }
-  function place(b){
+  function place(b: Vehicle){
     const z=altitude(b.x,b.y);
     // Tail swings out with the steering, the body rolls with the slide and hops after a hit.
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
@@ -171,46 +212,51 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   }
 
   // ---- game state ----
-  let state='off',score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,field=null,overAt=0,held=false,warmed=false;
-  let coins=[],target=null,chasers=[],zoomNow=1,paceEase=0,threat=0;
+  let state: DriveState='off';
+  let score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,overAt=0,held=false,warmed=false;
+  let coins: {x: number;y: number;z: number}[]=[];
+  let target: {poi: (typeof pois)[number];node: number} | null=null;
+  let chasers: Patrol[]=[];
+  let field: RouteField | null=null;
+  let zoomNow=1,paceEase=0,threat=0;
   let freeze=0,stopCool=0,stops=0,kickX=0,kickY=0,kickVX=0,kickVY=0;
-  /** @type {(()=>void)|null} */
-  let release=null;
+  let release: (() => void) | null=null;
   const lead=new T.Vector3(),screen=new T.Vector3();
   const focus=new T.Vector3();
   const pois=locations.map((f,i)=>({name:f.properties.name,number:String(i+1).padStart(2,'0'),x:f.properties.xy[0],y:f.properties.xy[1]}));
   try{record=Number(localStorage.getItem('drive-record'))||0;}catch{}
-  const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
-  const guide=el('guide'),zones={left:guide.querySelector('.left'),right:guide.querySelector('.right')};
+  const clock=(s: number)=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+  const guide=el('guide'),zones={left:required(guide.querySelector('.left'),'left guide'),right:required(guide.querySelector('.right'),'right guide')};
   // Screen position of a map point, in CSS pixels of the host.
-  function project(x,y,lift){
+  function project(x: number,y: number,lift: number): Point{
     screen.set(x,altitude(x,y)+lift,-y).project(camera);
     return [(screen.x+1)*host.clientWidth/2,(1-screen.y)*host.clientHeight/2];
   }
-  function pop(x,y,amount,icon,big){
+  function pop(x: number,y: number,amount: number,icon: "coin" | "crash",big: boolean){
     const [px,py]=project(x,y,3),node=document.createElement('span');
     node.className='pop'+(big?' big':'');node.style.left=px+'px';node.style.top=py+'px';
     node.innerHTML='<svg class="ic"><use href="#i-'+icon+'"/></svg>+'+amount;
     node.onanimationend=()=>node.remove();el('pops').append(node);
   }
-  function gain(amount){
+  function gain(amount: number){
     score+=amount;const chip=el('stat-coins');
     chip.classList.remove('bump');void chip.offsetWidth;chip.classList.add('bump');
   }
-  const buzz=ms=>{try{navigator.vibrate?.(ms);}catch{}};
+  const buzz=(ms: number)=>{try{navigator.vibrate?.(ms);}catch{}};
   // Hit-stop: the simulation holds for a few frames while dust, camera and HUD keep moving.
   // `then` runs when it lets go.
-  function stop(seconds,then=null){
+  function stop(seconds: number,then?: () => void){
     freeze=Math.max(freeze,seconds);stops++;
     if(then)release=then;
   }
   // Camera kick towards whatever hit, along (dx,dy) in map coordinates. Strength 0 to 1.
-  function kick(dx,dy,strength){
+  function kick(dx: number,dy: number,strength: number){
     const d=Math.hypot(dx,dy);
     if(d<1e-5)return;
     kickVX+=dx/d*strength*TUNE.kick;kickVY+=dy/d*strength*TUNE.kick;
   }
   function trail(){
+    const world=activeWorld();
     const from=world.nearestNode(player.x,player.y),options=pois.filter(p=>p!==target?.poi);
     const {prev,dist}=routes(from);
     const reachable=options.map(poi=>({poi,node:world.nearestNode(poi.x,poi.y)})).filter(o=>o.node!==from && Number.isFinite(dist[o.node]));
@@ -232,11 +278,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     }
     const end=world.nodes[target.node];
     beacon.position.set(end.x,altitude(end.x,end.y),-end.y);
-    el('goal').querySelector('b').textContent=target.poi.number;
+    required(el('goal').querySelector('b'),'goal label').textContent=target.poi.number;
     el('hud-live').textContent='Destino: '+target.poi.name;
     return path;
   }
-  function spawnChaser(c){
+  function spawnChaser(c: Patrol){
+    const world=activeWorld();
     const all=world.validNodes;
     const ring=all.filter(i=>{
       const d=Math.hypot(world.nodes[i].x-player.x,world.nodes[i].y-player.y);
@@ -246,12 +293,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const ahead=ring.filter(i=>(world.nodes[i].x-player.x)*player.vx+(world.nodes[i].y-player.y)*player.vy>0);
     const pool=ahead.length && Math.random()<.5?ahead:ring.length?ring:all;
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
-    const next=world.nodes[field?.prev[index]] ?? player;
+    const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
     Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,side:0});
     c.max=TUNE.maxSpeed*Math.min(TUNE.chaserSpeedMax,TUNE.chaserSpeed+TUNE.chaserSpeedStep*Math.floor(time/TUNE.chaserEvery));
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function restart(){
+    const world=activeWorld();
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;target=null;
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
@@ -266,7 +314,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     el('over').hidden=true;guide.className='ready';
     state='ready';
   }
-  function caught(by){
+  function caught(by: Vehicle){
     state='caught';buzz(140);guide.className='';
     kick(by.x-player.x,by.y-player.y,1);
     // The contact holds for a beat; dust and the push-in start when it lets go.
@@ -274,7 +322,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const best=score>record;
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
     el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
-    el('over-record').parentElement.classList.toggle('new',best);
+    required(el('over-record').parentElement,'record stat').classList.toggle('new',best);
     el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo rÃ©cord.':'');
     // A beat on the frozen scene before the result slides in.
     overAt=performance.now()+420+TUNE.stopCaught*1000;
@@ -286,7 +334,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     if(held){held=false;guide.className='play';}
   }
   // ---- simulation ----
-  function step(dt){
+  function step(dt: number){
+    const world=activeWorld();
     time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);
     const {steer,brake}=controls.read();
     steerBody(player,steer,brake,TUNE.maxSpeed,dt);
@@ -314,7 +363,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
         // Follow the road graph node by node: straight lines between nodes stay clear of buildings.
         let n=world.nodes[c.node];
         if(!n || Math.hypot(n.x-c.x,n.y-c.y)>60){c.node=world.nearestNode(c.x,c.y);n=world.nodes[c.node];}
-        for(let hop=0;hop<3 && field.prev[c.node]>=0 && Math.hypot(n.x-c.x,n.y-c.y)<5;hop++){c.node=field.prev[c.node];n=world.nodes[c.node];}
+        const prev=required(field,"route field").prev;
+        for(let hop=0;hop<3 && prev[c.node]>=0 && Math.hypot(n.x-c.x,n.y-c.y)<5;hop++){c.node=prev[c.node];n=world.nodes[c.node];}
         tx=n.x;ty=n.y;
       }else c.node=-1;
       let turn=T.MathUtils.clamp(wrap(Math.atan2(ty-c.y,tx-c.x)-c.h)*2.5,-1,1);
@@ -355,7 +405,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       if(b.puff<=0){b.puff=.07;puff(b.x-Math.cos(b.h)*1.3,b.y-Math.sin(b.h)*1.3,false);}
     }
   }
-  function wreck(c){
+  function wreck(c: Patrol){
     c.wreck=TUNE.wreckTime;c.vx=c.vy=0;c.trail=null;c.mesh.material=wreckPaint;c.hop=TUNE.hop;
     const far=Math.hypot(c.x-player.x,c.y-player.y);
     if(far<40)kick(c.x-player.x,c.y-player.y,.1+.4*(1-far/40));
@@ -363,7 +413,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     pop(c.x,c.y,TUNE.wreckBonus,'crash',false);gain(TUNE.wreckBonus);
   }
 
-  function frame(now){
+  function frame(now: number){
     raf=requestAnimationFrame(frame);
     const dt=Math.min(.05,(now-last)/1000||0);last=now;
     if(freeze){
@@ -431,7 +481,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const goal=el('goal');goal.hidden=!target || state==='caught';
     if(target){
       // The destination chip sits over the place, or slides along the screen edge and points at it.
-      const end=world.nodes[target.node],[gx,gy]=project(end.x,end.y,14);
+      const end=activeWorld().nodes[target.node],[gx,gy]=project(end.x,end.y,14);
       const w=host.clientWidth,h=host.clientHeight,pad=34,top=88,bottom=h-150;
       const px=T.MathUtils.clamp(gx,pad,w-pad),py=T.MathUtils.clamp(gy,top,bottom),off=px!==gx || py!==gy;
       goal.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';

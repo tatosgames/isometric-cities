@@ -1,7 +1,17 @@
+import type { Point } from '../data/types.ts';
+import type { buildDriveWorld, Segment } from './drive-world.ts';
+import type { TUNE } from './drive.ts';
 import * as T from 'three';
 
-export function makeDrivePhysics(tune){
-  function steerBody(b,steer,brake,max,dt,agility=1){
+export interface Body {
+  x: number; y: number; h: number; vx: number; vy: number;
+  wayHold: number; dive: number; hold: number; steer: number;
+  slip: number; side: number; way: number; hitX: number; hitY: number;
+}
+
+
+export function makeDrivePhysics(tune: Pick<typeof TUNE, "turn" | "brake" | "accel" | "brakeGrip" | "grip" | "driftGrip" | "driftDrag" | "deflect" | "bounce" | "treeRadius" | "radius" | "wallLoss">){
+  function steerBody(b: Body,steer: number,brake: boolean,max: number,dt: number,agility=1){
     const speed=Math.hypot(b.vx,b.vy);
     b.h+=steer*tune.turn*agility*Math.min(1,.35+speed/8)*dt;
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
@@ -16,7 +26,7 @@ export function makeDrivePhysics(tune){
     b.vx=fx*forward-fy*side;b.vy=fy*forward+fx*side;
     b.x+=b.vx*dt;b.y+=b.vy*dt;
   }
-  function push(b,px,py,r){
+  function push(b: Body,px: number,py: number,r: number){
     let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);
     if(d>=r || d<1e-5)return 0;
     nx/=d;ny/=d;b.x=px+nx*r;b.y=py+ny*r;
@@ -35,15 +45,15 @@ export function makeDrivePhysics(tune){
     b.vx-=(1+tune.bounce)*vn*nx;b.vy-=(1+tune.bounce)*vn*ny;
     return -vn;
   }
-  function wallContact(b,segment,r){
+  function wallContact(b: Body,segment: Segment,r: number){
     const [ax,ay,bx,by]=segment,dx=bx-ax,dy=by-ay;
     const t=T.MathUtils.clamp(((b.x-ax)*dx+(b.y-ay)*dy)/(dx*dx+dy*dy),0,1);
     return push(b,ax+dx*t,ay+dy*t,r);
   }
-  function treeContact(b,tree,r){
+  function treeContact(b: Body,tree: Point,r: number){
     return push(b,tree[0],tree[1],r+tune.treeRadius);
   }
-  function collide(b,world){
+  function collide(b: Body,world: Pick<ReturnType<typeof buildDriveWorld>, "visitObstacles">){
     b.hitX=b.hitY=0;
     const hit=world.visitObstacles(b,tune.radius,wallContact,treeContact);
     if(hit){const k=1-tune.wallLoss*Math.min(1,hit/8);b.vx*=k;b.vy*=k;}
@@ -51,7 +61,7 @@ export function makeDrivePhysics(tune){
   }
 
   // Returns the closing speed, or -1 when the two cars do not touch.
-  function bump(a,b){
+  function bump(a: Body,b: Body){
     const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),reach=tune.radius*2;
     if(d>=reach || d<1e-5)return -1;
     const nx=dx/d,ny=dy/d,overlap=(reach-d)/2;

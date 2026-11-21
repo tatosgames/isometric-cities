@@ -1,25 +1,32 @@
+import type { Altitude, Place } from '../data/types.ts';
+import { element } from './dom.ts';
+import { required } from '../required.ts';
 import * as T from 'three';
+
+interface PlaceControl {name: string; point: T.Vector3; pin: HTMLButtonElement; btn: HTMLButtonElement}
+
 
 // Numeric selections were written by the first viewer, in this fixed order.
 const legacyIds=['santa-ana','casa-de-colon','mercado-de-vegueta','teatro-perez-galdos','gabinete-literario','san-telmo'];
 
-export function createPlacesUI(features, altitude, onSelect){
-  const card=document.querySelector('article');
-  const nav=document.querySelector('nav');
-  const toggle=document.getElementById('index-toggle');
-  const closeButton=document.getElementById('close');
-  const places=new Map();
+export function createPlacesUI(features: Place[], altitude: Altitude, onSelect: (id: string,point: T.Vector3) => boolean){
+  const card=required(document.querySelector('article'),'place card');
+  const heading=required(card.querySelector('h3'),'place heading');
+  const nav=required(document.querySelector('nav'),'places navigation');
+  const toggle=element('index-toggle');
+  const closeButton=element('close');
+  const places=new Map<string,PlaceControl>();
   const projected=new T.Vector3();
-  let selected=null,returnTo=toggle;
-  function menu(open){
+  let selected: string | null=null,returnTo=toggle;
+  function menu(open: boolean){
     nav.classList.toggle('open',open);
     toggle.setAttribute('aria-expanded',String(open));
   }
-  function select(id){
-    const place=places.get(id);
+  function select(id: string | null){
+    const place=id===null?undefined:places.get(id);
     selected=place?id:null;
     card.hidden=!place;
-    if(place)card.querySelector('h3').textContent=place.name;
+    if(place)heading.textContent=place.name;
     for(const [key,{btn,pin}] of places){
       btn.setAttribute('aria-pressed',String(key===selected));
       pin.setAttribute('aria-pressed',String(key===selected));
@@ -35,7 +42,7 @@ export function createPlacesUI(features, altitude, onSelect){
     btn.append(label,p.name);pin.textContent=number;pin.className='pin';
     btn.dataset.placeId=pin.dataset.placeId=p.id;
     pin.setAttribute('aria-label',p.name);
-    document.getElementById('places').append(btn);document.getElementById('pins').append(pin);
+    element('places').append(btn);element('pins').append(pin);
     const [x,y]=p.xy,point=new T.Vector3(x,altitude(x,y)+p.markerHeight,-y);
     places.set(p.id,{name:p.name,point,pin,btn});
     for(const button of [btn,pin])button.onclick=()=>{
@@ -46,10 +53,10 @@ export function createPlacesUI(features, altitude, onSelect){
   select(null);
   return {
     get selected(){return selected;},
-    point:id=>places.get(id)?.point,
+    point:(id: string | null | undefined)=>id==null?undefined:places.get(id)?.point,
     close:()=>select(null),
-    restore:id=>select(typeof id==='number'?legacyIds[id]:id),
-    project(camera){
+    restore:(id: string | number | null | undefined)=>select((typeof id==='number'?legacyIds[id]:id)??null),
+    project(camera: T.Camera){
       for(const {point,pin} of places.values()){
         projected.copy(point).project(camera);
         pin.style.left=(projected.x+1)*50+'%';pin.style.top=(1-projected.y)*50+'%';

@@ -1,7 +1,7 @@
 import {MathUtils,Vector3} from 'three';
 
 const radians=MathUtils.degToRad;
-const shortest=a=>Math.atan2(Math.sin(a),Math.cos(a));
+const shortest=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 const modes=[
   {id:'fixed',label:'Isométrica',zoom:1,framing:0},
   {id:'high',label:'Aérea',pitch:radians(65),zoom:1,framing:.055},
@@ -9,7 +9,7 @@ const modes=[
 ];
 const key='drive-camera';
 
-export function makeDriveCamera(mapDirection){
+export function makeDriveCamera(mapDirection: Vector3){
   const mapYaw=Math.atan2(mapDirection.z,mapDirection.x),mapPitch=Math.asin(mapDirection.y);
   const pose={direction:new Vector3(),yaw:mapYaw,pitch:mapPitch,zoom:1,framing:0};
   let index=0,travelYaw=mapYaw,lift=0,clearTime=0,blend=1;
@@ -27,8 +27,8 @@ export function makeDriveCamera(mapDirection){
       index=(index+1)%modes.length;transition();
       try{localStorage.setItem(key,modes[index].id);}catch{}
     },
-    startHeading(h){travelYaw=shortest(Math.PI-h);lift=clearTime=0;transition();},
-    update(dt,car,occluded){
+    startHeading(h: number){travelYaw=shortest(Math.PI-h);lift=clearTime=0;transition();},
+    update(dt: number,car: {vx: number;vy: number},occluded: (dx: number,dy: number) => boolean){
       const mode=modes[index];
       if(Math.hypot(car.vx,car.vy)>=2){
         const error=shortest(Math.atan2(car.vy,-car.vx)-travelYaw);

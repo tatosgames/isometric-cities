@@ -1,10 +1,12 @@
+import type { Altitude, Building, Point, Ring, RoofTones } from '../data/types.ts';
+import type { GroundMap } from './ground-map.ts';
 import * as T from 'three';
 
 // Build only the silhouette and roof of each footprint. Keep buildings and trees in separate draw groups.
-export function overviewBuildings(buildings,trees,altitude,tones,neutral,materials){
-  const positions=[],colours=[],color=new T.Color();
-  const point=(p,h)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
-  function tint(value){color.set(neutral?'#e4dfd3':value);}
+export function overviewBuildings(buildings: Building[],trees: Point[],altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[]){
+  const positions: number[]=[],colours: number[]=[],color=new T.Color();
+  const point=(p: Point,h: number)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
+  function tint(value: string){color.set(neutral?'#e4dfd3':value);}
   for(const b of buildings){
     const base=altitude(...b.rings[0][0]),top=base+(b.heightOverride??b.height);
     const outline=b.rings.map(r=>r.slice(0,-1));
@@ -22,7 +24,7 @@ export function overviewBuildings(buildings,trees,altitude,tones,neutral,materia
   const buildingVertices=positions.length/3;
   tint('#637b50');
   for(const [x,y] of trees){
-    const z=altitude(x,y),crown=[[x-3,y],[x,y-3],[x+3,y],[x,y+3]];
+    const z=altitude(x,y),crown: Point[]=[[x-3,y],[x,y-3],[x+3,y],[x,y+3]];
     for(let i=0;i<4;i++){point(crown[i],z+3);point(crown[(i+1)%4],z+3);point([x,y],z+8);}
   }
   const g=new T.BufferGeometry();
@@ -35,7 +37,7 @@ export function overviewBuildings(buildings,trees,altitude,tones,neutral,materia
   return new T.Mesh(g,materials);
 }
 
-export function overviewGround(rings,altitude,map,material){
+export function overviewGround(rings: Ring[],altitude: Altitude,map: GroundMap | null,material: T.Material){
   const xyz=[],uv=[];
   for(const ring of rings){
     const points=ring.slice(0,-1).map(([x,y])=>new T.Vector2(x,y));

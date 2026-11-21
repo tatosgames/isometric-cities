@@ -1,24 +1,27 @@
 # AGENTS.md · Indice base
 
-Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran Canaria (Three.js + Vite, JS senza framework). Geodati elaborati in `public/data`, nessuna dipendenza da tile esterni.
+Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran Canaria (Three.js + Vite, TypeScript senza framework). Geodati elaborati in `public/data`, nessuna dipendenza da tile esterni.
 
 ## Mappa del progetto
 
 | Percorso | Ruolo |
 |---|---|
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
-| `main.js` | Camera, input, filtro per area e recupero contesto WebGL |
-| `adaptive-resolution.js` | Politica di risoluzione in base alla cadenza dei frame (mappa in movimento e guida) |
-| `drive.js` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
-| `drive-world.js` | Griglia degli ostacoli, visibilità e rete stradale della guida |
-| `drive-physics.js` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli |
-| `drive-input.js` | Comandi touch e tastiera, registrazione e rilascio degli input |
-| `sector-stream.js`, `sector-builder.js`, `sector-worker.js`, `overview.js` | Priorità e budget, costruzione fuori thread, panoramica |
-| `road-routing.js` | Indice dei nodi e percorsi delle pattuglie |
+| `src/main.ts` | Camera, input, filtro per area e recupero contesto WebGL |
+| `src/data/` | Contratti e validazione dei geodati e della vista salvata |
+| `src/drive/drive-camera.ts` | Calcolo delle pose e transizioni della camera in guida |
+| `tsconfig.json` | Controllo rigoroso del runtime browser e del worker |
+| `src/render/adaptive-resolution.ts` | Politica di risoluzione in base alla cadenza dei frame (mappa in movimento e guida) |
+| `src/drive/drive.ts` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
+| `src/drive/drive-world.ts` | Griglia degli ostacoli, visibilità e rete stradale della guida |
+| `src/drive/drive-physics.ts` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli |
+| `src/drive/drive-input.ts` | Comandi touch e tastiera, registrazione e rilascio degli input |
+| `src/render/sectors/sector-stream.ts`, `src/render/sectors/sector-builder.ts`, `src/render/sectors/sector-worker.ts`, `src/render/overview.ts` | Priorità e budget, costruzione fuori thread, panoramica |
+| `src/drive/road-routing.ts` | Indice dei nodi e percorsi delle pattuglie |
 | `scripts/sectors.py`, `scripts/qa-sectors.mjs` | Generazione dei settori e prova di attraversamento |
-| `scene.js` | Costruzione scena: edifici, strade, superfici, alberi, mesh ottimizzate |
+| `src/render/scene.ts` | Costruzione scena: edifici, strade, superfici, alberi, mesh ottimizzate |
 | `content/las-palmas.json` | Catalogo dei luoghi, centro del pilota e stili per edificio |
-| `places-ui.js`, `landmarks.js` | Menu e marker con ID persistenti, modelli procedurali dedicati |
+| `src/map/places-ui.ts`, `src/render/landmarks.ts` | Menu e marker con ID persistenti, modelli procedurali dedicati |
 | [Guida per ampliare la mappa](docs/EXPAND_CITY.md) | POI, quartieri, nuove città, cache e verifiche |
 | `public/data/` | `city.json`, `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp` |
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |

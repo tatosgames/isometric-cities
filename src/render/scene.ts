@@ -1,29 +1,40 @@
-import {cityMaterials} from './city-materials.js';
-import { makeGroundMap } from './ground-map.js';
-import { addLandmarks } from './landmarks.js';
+import type { CityData, Ring, RoofTones } from '../data/types.ts';
+import type { GroundMap } from './ground-map.ts';
+import {cityMaterials} from './city-materials.ts';
+import { makeGroundMap } from './ground-map.ts';
+import { addLandmarks } from './landmarks.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export function makeCity(data, neutral, tones, compact=false, sharedGround=null) {
+interface Bucket {
+  parts: T.BufferGeometry[];
+  vertices: number;
+  material: T.Material;
+}
+
+
+export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null) {
   const group = new T.Group();
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
   const {mat,buildingMat,wood,shadeMat}=cityMaterials(neutral,groundMap);
-  const buckets = new Map();
-  function flush(bucket){
+  const buckets = new Map<string, Bucket>();
+  function flush(bucket: Bucket){
     if(!bucket.parts.length)return;
-    const mesh=new T.Mesh(mergeGeometries(bucket.parts),bucket.material);
+    const geometry=mergeGeometries(bucket.parts);
+    if(!geometry)throw new Error("Incompatible city geometries");
+    const mesh=new T.Mesh(geometry,bucket.material);
     mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
     bucket.parts.length=0;bucket.vertices=0;
   }
   const terrain = data.terrain;
-  function altitude(x,y) {
+  function altitude(x: number,y: number) {
     const col=T.MathUtils.clamp((x-terrain.origin[0])/terrain.step,0,terrain.w-1.001);
     const row=T.MathUtils.clamp((terrain.origin[1]-y)/(terrain.stepY || terrain.step),0,terrain.h-1.001);
     const i=Math.floor(row)*terrain.w+Math.floor(col);
     const v=terrain.values, u=col%1, t=row%1;
     return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t);
   }
-  function add(g,color,x=0,y=0,surface=0,wallBase=null,material=mat) {
+  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface=0,wallBase: number | null=null,material=mat) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
     const normals=geom.attributes.normal;
@@ -40,15 +51,16 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
     }
     geom.setAttribute('color',new T.BufferAttribute(rgb,3,true));
     const key=Math.floor(x/120)+','+Math.floor(y/120)+','+material.id;
-    if(!buckets.has(key)) buckets.set(key,{parts:[],vertices:0,material});
-    const bucket=buckets.get(key);bucket.parts.push(geom);bucket.vertices+=geom.attributes.position.count;
+    let bucket=buckets.get(key);
+    if(!bucket){bucket={parts:[],vertices:0,material};buckets.set(key,bucket);}
+    bucket.parts.push(geom);bucket.vertices+=geom.attributes.position.count;
     if(bucket.vertices>=49152)flush(bucket);
   }
-  function shape(rings) {
+  function shape(rings: Ring[]) {
     const paths=rings.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
     const s=new T.Shape(paths[0]); s.holes=paths.slice(1).map(p=>new T.Path(p)); return s;
   }
-  function drape(g,lift) {
+  function drape(g: T.BufferGeometry,lift: number) {
     const p=g.attributes.position;
     for(let i=0;i<p.count;i++) p.setZ(i,altitude(p.getX(i),p.getY(i))+lift);
     g.computeVertexNormals(); return g.rotateX(-Math.PI/2);
@@ -66,7 +78,7 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
       const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();add(g,'#bb9f7d',x,y);
     }
   }
-  function addBuilding(g,color,x,y,surface=0,wallBase=null){
+  function addBuilding(g: T.BufferGeometry,color: T.ColorRepresentation,x: number,y: number,surface=0,wallBase: number | null=null){
     add(g,color,x,y,surface,wallBase,buildingMat);
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
@@ -136,12 +148,15 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
     trunk:new T.CylinderGeometry(.28,.35,1,6),
     shade:new T.PlaneGeometry(1,1).rotateX(-Math.PI/2)
   };
-  const treeCells=new Map(), transform=new T.Object3D();
-  function instance(kind,x,y,z,w,h,d,angle,color){
+  type Kind=keyof typeof templates;
+  type TreeCell={kind: Kind;items: [T.Matrix4,T.ColorRepresentation][]};
+  const treeCells=new Map<string,TreeCell>(), transform=new T.Object3D();
+  function instance(kind: Kind,x: number,y: number,z: number,w: number,h: number,d: number,angle: number,color: T.ColorRepresentation){
     const key=kind+Math.floor(x/320)+','+Math.floor(y/320);
-    if(!treeCells.has(key))treeCells.set(key,{kind,items:[]});
+    let cell=treeCells.get(key);
+    if(!cell){cell={kind,items:[]};treeCells.set(key,cell);}
     transform.position.set(x,z,-y);transform.scale.set(w,h,d);transform.rotation.y=angle;transform.updateMatrix();
-    treeCells.get(key).items.push([transform.matrix.clone(),neutral?'#e4dfd3':color]);
+    cell.items.push([transform.matrix.clone(),neutral?'#e4dfd3':color]);
   }
   for(const [x,y] of data.trees){
     const z=altitude(x,y),seed=Math.abs(Math.round(x*3+y));
@@ -152,7 +167,7 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
       const leaves=[];
       for(let k=0;k<(compact?8:13);k++){
         const angle=k*2.4+seed,reach=3.7+(k%3)*.7;
-        const leaf=(t,side)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
+        const leaf=(t: number,side: number)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
         for(let j=0;j<9;j++){
           const t=j/10,tip=(j+1.7)/11,width=.55*Math.sin((j+1)*Math.PI/11);
           for(const sign of [-1,1])leaves.push(...leaf(t,0),...leaf(tip,width*sign),...leaf(t+.11,0));
@@ -183,9 +198,10 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
 }
 
 // Find the largest inscribed circle among the triangulated roof faces.
-function roofClearance(roof){
+function roofClearance(roof: T.BufferGeometry){
   const pos=roof.attributes.position,idx=roof.index;
   let radius=0,rx=0,ry=0;
+  if(!idx)return {radius,rx,ry};
   for(let i=0;i<idx.count;i+=3){
     const a=idx.getX(i),b=idx.getX(i+1),c=idx.getX(i+2);
     const ax=pos.getX(a),ay=-pos.getZ(a),bx=pos.getX(b),by=-pos.getZ(b),cx=pos.getX(c),cy=-pos.getZ(c);

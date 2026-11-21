@@ -6,7 +6,7 @@ I valori citati sono quelli del codice al 22 novembre 2026. Se cambiano nel codi
 
 ## Regole comuni
 
-1. **Una sola camera, un solo proprietario.** La camera ortografica e la funzione `view(target, zoom, offset)` vivono in `main.js`. Nessun altro modulo sposta la camera: la guida chiede un'inquadratura chiamando `view`.
+1. **Una sola camera, un solo proprietario.** La camera ortografica e la funzione `view(target, zoom, offset)` vivono in `src/main.ts`. Nessun altro modulo sposta la camera: la guida chiede un'inquadratura chiamando `view`.
 2. **Orientamento.** La mappa e la prima vista di guida usano la direzione isometrica. Le altre viste di guida orientano la stessa camera ortografica lungo la traiettoria.
 3. **Lo zoom è in pixel per metro.** I bordi della camera sono in pixel CSS, quindi `camera.zoom` dice quanti pixel occupa un metro. Tutte le soglie si ragionano così.
 4. **Il bersaglio resta dentro il perimetro.** `draw()` riporta il bersaglio nel riquadro del confine a ogni frame.
@@ -50,7 +50,7 @@ L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita i
 - Rimettere uno spostamento casuale della camera.
 - Legare lo zoom a eventi istantanei (urto, moneta, comparsa di una pattuglia). Passa sempre dai due ingressi filtrati.
 - Risolvere un problema di leggibilità di una singola zona cambiando i valori globali di campo visivo. Si interviene sulla scena o sulla sagoma dell’auto.
-- Aggiungere una seconda camera o spostare la camera da un modulo diverso da `main.js`.
+- Aggiungere una seconda camera o spostare la camera da un modulo diverso da `src/main.ts`.
 
 ## Verifica
 

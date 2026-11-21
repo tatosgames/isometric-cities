@@ -12,7 +12,7 @@ Il catalogo di Las Palmas governa luoghi, appartenenza al pilota e personalizzaz
 
 Corretto l’affioramento del terreno attraverso le carreggiate. Il viewer compone strade, sentieri e superfici dai geodati direttamente sulla mesh del terreno. Aggiunta la cattura mobile del Teatro Pérez Galdós alla suite QA.
 
-**D · Modalità «Conducir».** Richiesta da Luca dopo la v1 (il brief originale escludeva il gameplay). Guida arcade stile Pako in `drive.js`: accelerazione automatica, sterzo sinistra/destra, freno con entrambi, derapata, deflessione lungo i muri, pattuglie in aumento che seguono il grafo stradale, scia di monete verso i luoghi, record locale. Interfaccia di gioco a sole icone con guida interattiva, zoom dinamico lento, calamita monete e lampeggianti. Suite browser verde su desktop e mobile emulato. Da fare: prova e taratura su telefono fisico, confronto di sensazione con il video di riferimento (Pako 3), eventuale audio.
+**D · Modalità «Conducir».** Richiesta da Luca dopo la v1 (il brief originale escludeva il gameplay). Guida arcade stile Pako in `src/drive/drive.ts`: accelerazione automatica, sterzo sinistra/destra, freno con entrambi, derapata, deflessione lungo i muri, pattuglie in aumento che seguono il grafo stradale, scia di monete verso i luoghi, record locale. Interfaccia di gioco a sole icone con guida interattiva, zoom dinamico lento, calamita monete e lampeggianti. Suite browser verde su desktop e mobile emulato. Da fare: prova e taratura su telefono fisico, confronto di sensazione con il video di riferimento (Pako 3), eventuale audio.
 
 Mappa, guida e HUD condividono lo stesso comportamento animato su tutti i dispositivi. La suite browser attende il completamento del volo verso Santa Ana prima di verificare il recupero della vista.
 
@@ -27,3 +27,5 @@ Durante la guida il contatore mostra monete e tempo. La coppa compare a fine par
 Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell’ortofoto PNOA. La panoramica, i settori dettagliati e il pilota condividono le tinte di `roof-tones.json`. Il viewer carica il JSON delle tinte e usa l’illuminazione della scena.
 
 **Camere di guida.** Il pulsante camera e C alternano la vista isometrica iniziale, una vista aerea che segue la traiettoria e un inseguimento rialzato. La scelta è salvata sul dispositivo. Le viste mobili si alzano quando un edificio copre la cabina. Le facciate dettagliate hanno finestre anche sui lati visibili ruotando.
+
+**G · Runtime TypeScript.** I moduli browser e il worker sono in `src/`, divisi per dati, mappa, rendering e guida. Il controllo TypeScript rigoroso copre tutto il runtime. I geodati e la vista salvata vengono controllati all’ingresso. Il worker e il thread principale condividono i tipi per richieste, geometrie trasferibili, bitmap ed errori. [Verifiche della migrazione](docs/QA.md#migrazione-typescript).

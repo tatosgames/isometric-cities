@@ -1,9 +1,10 @@
-import {surfaceStencil} from './building-stencil.js';
+import type { GroundMap } from './ground-map.ts';
+import {surfaceStencil} from './building-stencil.ts';
 import * as T from 'three';
 
-export function cityMaterials(neutral,groundMap){
+export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
   const mat=new T.MeshStandardMaterial({...surfaceStencil(),vertexColors:true,flatShading:true,side:T.DoubleSide,roughness:1});
-  if(!neutral) mat.onBeforeCompile=shader=>{
+  if(!neutral && groundMap) mat.onBeforeCompile=shader=>{
     shader.uniforms.groundColours={value:groundMap.texture};
     shader.uniforms.groundBounds={value:groundMap.bounds};
     shader.vertexShader='attribute float surface; varying float vKind; varying vec3 vMap;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vKind=surface; vMap=position;');

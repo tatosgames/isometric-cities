@@ -10,7 +10,7 @@ Il catalogo di lavoro è [las-palmas.json](../content/las-palmas.json). Esempio 
 
 Aggiungi la voce a `places`. Il nome è quello locale, l’ID è univoco e persistente, l’altezza del marker è in metri sopra il terreno. L’ordine governa la numerazione. La selezione salvata segue l’ID. Assegna `pilot` anche in `areas` se il luogo ricade nel pilota e deve comparirvi. `pilotFocus` identifica il luogo che centra quel ritaglio e la sua vista di dettaglio.
 
-Lo script legge una way poligonale oppure una relazione con un’unica way esterna e una way per ogni anello interno. Tutti i membri e i nodi devono essere presenti nell’XML. Per un POI puntuale, un bordo suddiviso in più way o una relazione con più esterni, estendi prima il lettore e verifica la geometria risultante. Il marker usa un punto rappresentativo interno. Casa de Colón è il caso di controllo per i tre cortili. Menu, scheda e pin leggono lo stesso GeoJSON tramite [places-ui.js](../places-ui.js) e il filtro per area del viewer.
+Lo script legge una way poligonale oppure una relazione con un’unica way esterna e una way per ogni anello interno. Tutti i membri e i nodi devono essere presenti nell’XML. Per un POI puntuale, un bordo suddiviso in più way o una relazione con più esterni, estendi prima il lettore e verifica la geometria risultante. Il marker usa un punto rappresentativo interno. Casa de Colón è il caso di controllo per i tre cortili. Menu, scheda e pin leggono lo stesso GeoJSON tramite [places-ui.ts](../src/map/places-ui.ts) e il filtro per area del viewer.
 
 ## Ampliare un quartiere
 
@@ -19,7 +19,7 @@ Lo script legge una way poligonale oppure una relazione con un’unica way ester
 3. Le risposte OSM, ArcGIS, MDT05 e PNOA sono in `.cache/sources`. Il nome contiene un digest dell’URL completo, compresi bbox e risoluzione. Per aggiornare una fonte allo stesso URL conserva lo snapshot precedente e avvia una nuova acquisizione in una cache separata.
 4. Controlla che il conteggio comunale coincida con gli OBJECTID univoci paginati. La pipeline ritaglia gli edifici, conserva i cortili e scarta frammenti sotto 2 m². Controlla il terreno MDT05 ai bordi. Il viewer interpola un’unica griglia su entrambe le facce di ogni confine.
 5. La pipeline ricava i limiti da pilota e città e scarica riquadri PNOA fino a 1024 px a 1 m/pixel. Il viewer legge le tinte per impronta da `roof-tones.json`. La pipeline genera ancora l’atlante WebP e i ritagli per i settori come asset legacy. Ogni impronta ha un solo proprietario, determinato dal centro del suo rettangolo di ingombro.
-6. Verifica apertura, mirino e limiti del pan. Il centro iniziale della scena cittadina resta in [main.js](../main.js). Un terzo stage richiede modifiche al generatore e al selettore del viewer, che oggi distinguono pilota e città.
+6. Verifica apertura, mirino e limiti del pan. Il centro iniziale della scena cittadina resta in [main.ts](../src/main.ts). Un terzo stage richiede modifiche al generatore e al selettore del viewer, che oggi distinguono pilota e città.
 
 ## Generazione riproducibile
 
@@ -49,7 +49,7 @@ La maglia del terreno è allineata all’origine metrica a passi di 15 m. Ogni c
 
 Nel catalogo, `buildings` è indicizzato per OBJECTID comunale. Usa `heightOverride`, `wallColor`, `windows` e `roofFurniture` per personalizzare il fabbricato. `pavedParks` contiene gli ID delle way OSM per i parchi pavimentati. Per Santa Ana, `split.osmWay` divide l’impronta comunale tra interno della maschera e resto. Il ramo `inside` definisce i propri attributi e `toneSuffix` distingue la tinta della navata a parità di OBJECTID.
 
-Per un modello dedicato registra la chiave `landmark` in [landmarks.js](../landmarks.js). Ogni chiave genera un modello per scena anche quando il ritaglio divide l’edificio in più parti. Verifica posizione, orientamento e quota del modello sulla sua impronta. Confronta pilota neutro e stilizzato a camera identica. Usa foto e Google Maps come riferimenti privati per sagome e palette. Distribuisci geodati e immagini derivate dalle fonti aperte documentate, con attribuzioni visibili e stime illustrative dichiarate. [Fonti e limiti](DATA_SOURCES.md)
+Per un modello dedicato registra la chiave `landmark` in [landmarks.ts](../src/render/landmarks.ts). Ogni chiave genera un modello per scena anche quando il ritaglio divide l’edificio in più parti. Verifica posizione, orientamento e quota del modello sulla sua impronta. Confronta pilota neutro e stilizzato a camera identica. Usa foto e Google Maps come riferimenti privati per sagome e palette. Distribuisci geodati e immagini derivate dalle fonti aperte documentate, con attribuzioni visibili e stime illustrative dichiarate. [Fonti e limiti](DATA_SOURCES.md)
 
 ## Portare la pipeline in un’altra città
 

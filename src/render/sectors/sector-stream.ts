@@ -1,17 +1,45 @@
-import {surfaceStencil} from './building-stencil.js';
-import { sectorBuilder } from './sector-builder.js';
-import { overviewBuildings, overviewGround } from './overview.js';
+import type { Building, CityData, Point, Ring, RoofTones, SectorIndex } from '../../data/types.ts';
+import { isLayers, loadData } from '../../data/load.ts';
+import { required } from '../../required.ts';
+import {surfaceStencil} from '../building-stencil.ts';
+import { sectorBuilder } from './sector-builder.ts';
+import { overviewBuildings, overviewGround } from '../overview.ts';
 import * as T from 'three';
-import { makeCity } from './scene.js';
+import { makeCity } from '../scene.ts';
+
+interface StreamOptions {
+  data: CityData & SectorIndex;
+  neutral: boolean;
+  tones: RoofTones | null;
+  compact: boolean;
+  refresh: () => void;
+  host: HTMLElement;
+}
+
+interface ResidentSector {
+  id: string;
+  file: string;
+  low: T.Group;
+  bounds: T.Box3;
+  prefetch: T.Box3;
+  detail: T.Group | null;
+  assets: ReturnType<typeof resources> | null;
+  used: number;
+  failed: number;
+  retry: number;
+  estimate: number;
+}
+
 
 // Count unique typed arrays. The overview terrain texture belongs to the base scene.
-function resources(group) {
-  const geometries=new Set(), materials=new Set(), arrays=new Set();
+function resources(group: T.Group) {
+  const geometries=new Set<T.BufferGeometry>(), materials=new Set<T.Material>(), arrays=new Set<T.TypedArray>();
   group.traverse(mesh=>{
-    if(!mesh.isMesh)return;
+    if(!(mesh instanceof T.Mesh))return;
     geometries.add(mesh.geometry);
-    materials.add(mesh.material);
-    for(const a of [...Object.values(mesh.geometry.attributes),mesh.geometry.index,mesh.instanceMatrix,mesh.instanceColor]){
+    for(const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material])materials.add(material);
+    for(const a of [...Object.values(mesh.geometry.attributes),mesh.geometry.index,
+      ...(mesh instanceof T.InstancedMesh ? [mesh.instanceMatrix,mesh.instanceColor] : [])]){
       if(a)arrays.add(a.array);
     }
   });
@@ -19,30 +47,31 @@ function resources(group) {
     bytes:[...arrays].reduce((n,a)=>n+a.byteLength,0),
     dispose(){
       group.removeFromParent();
-      group.traverse(mesh=>{if(mesh.isInstancedMesh)mesh.dispose();});
+      group.traverse(mesh=>{if(mesh instanceof T.InstancedMesh)mesh.dispose();});
       for(const geometry of geometries)geometry.dispose();
       for(const material of materials)material.dispose();
     }
   };
 }
 
-export function streamCity({data,neutral,tones,compact,refresh,host}){
+export function streamCity({data,neutral,tones,compact,refresh,host}: StreamOptions){
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
   const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact);
-  const byId=new Map(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
-  const owner=(x,y)=>Math.floor(x/data.sectorSize)+'_'+Math.floor(y/data.sectorSize);
-  data.buildings.forEach((b,i)=>byId.get(data.buildingOwners[i]).buildings.push(b));
-  for(const tree of data.trees)byId.get(owner(...tree)).trees.push(tree);
+  const byId=new Map<string,{buildings: Building[];trees: Point[];ground: Ring[]}>(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
+  const owner=(x: number,y: number)=>Math.floor(x/data.sectorSize)+'_'+Math.floor(y/data.sectorSize);
+  const batchFor=(id: string)=>required(byId.get(id),"sector "+id);
+  data.buildings.forEach((b,i)=>batchFor(data.buildingOwners[i]).buildings.push(b));
+  for(const tree of data.trees)batchFor(owner(...tree)).trees.push(tree);
   for(const ring of data.ground){
     const xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]);
-    byId.get(owner((Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2)).ground.push(ring);
+    batchFor(owner((Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2)).ground.push(ring);
   }
   const solid=new T.MeshStandardMaterial({...surfaceStencil(true),vertexColors:true,flatShading:true,side:T.DoubleSide});
   const overviewMaterials=[solid,Object.assign(solid.clone(),surfaceStencil())];
   const groundMaterial=new T.MeshStandardMaterial({...surfaceStencil(),map:base.groundMap?.texture??null,
     color:neutral?'#e4dfd3':'white',flatShading:true,side:T.DoubleSide});
-  const sectors=data.sectors.map(s=>{
-    const batch=byId.get(s.id),low=new T.Group();
+  const sectors: ResidentSector[]=data.sectors.map(s=>{
+    const batch=batchFor(s.id),low=new T.Group();
     low.add(overviewBuildings(batch.buildings,batch.trees,base.altitude,tones,neutral,overviewMaterials),
       overviewGround(batch.ground,base.altitude,base.groundMap,groundMaterial));
     base.group.add(low);
@@ -54,19 +83,20 @@ export function streamCity({data,neutral,tones,compact,refresh,host}){
   const budget=(compact?48:96)*1024*1024;
   const frustum=new T.Frustum(),matrix=new T.Matrix4(),projected=new T.Vector3();
   const lastTarget=new T.Vector3(),ahead=new T.Vector3(),aheadPoint=new T.Vector3();
-  let requested=[],pending=null,bytes=0,tick=0,evictions=0;
+  let requested: ResidentSector[]=[];
+  let pending: {s: ResidentSector;controller: AbortController} | null=null;
+  let bytes=0,tick=0,evictions=0;
 
-  function release(s){
+  function release(s: ResidentSector){
+    if(!s.assets)return;
     evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;s.low.visible=true;
   }
 
-  async function load(s){
+  async function load(s: ResidentSector){
     const controller=new AbortController();
     pending={s,controller};
     try{
-      const r=await fetch('./data/city-sectors/'+s.file,{signal:controller.signal});
-      if(!r.ok)throw Error('sector '+s.id+' HTTP '+r.status);
-      const layers=await r.json();
+      const layers=await loadData('city-sectors/'+s.file,isLayers,controller.signal);
       if(controller.signal.aborted || !requested.includes(s))return;
       const local=await build(layers,controller.signal);
       if(!local)return;
@@ -77,7 +107,7 @@ export function streamCity({data,neutral,tones,compact,refresh,host}){
         // Backing image plus RGBA texture and its mip chain, in addition to the geometry arrays.
         assets.bytes+=Math.ceil(texture.image.width*texture.image.height*4*(1+4/3));
         const releaseGeometry=assets.dispose;
-        assets.dispose=()=>{releaseGeometry();texture.dispose();texture.image.close?.();};
+        assets.dispose=()=>{releaseGeometry();texture.dispose();if ("close" in texture.image)texture.image.close();};
       }
       s.estimate=assets.bytes;
       const priority=requested.indexOf(s);
@@ -103,14 +133,14 @@ export function streamCity({data,neutral,tones,compact,refresh,host}){
   function suspend(){
     requested=[];pending?.controller.abort();
   }
-  function update(camera,target,driving){
+  function update(camera: T.OrthographicCamera,target: T.Vector3,driving=false){
     tick++;
     const span=Math.min(camera.right-camera.left,camera.top-camera.bottom)/camera.zoom;
     frustum.setFromProjectionMatrix(matrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
     if(driving && target.distanceToSquared(lastTarget)>.0025)ahead.subVectors(target,lastTarget).setY(0).normalize();
     lastTarget.copy(target);aheadPoint.copy(target).addScaledVector(ahead,driving?data.sectorSize*.5:0);
     requested=span>550&&!driving?[]:sectors.filter(s=>frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize));
-    function rank(s){
+    function rank(s: ResidentSector){
       s.bounds.getCenter(projected);
       return (frustum.intersectsBox(s.bounds)?0:1e10)+projected.distanceToSquared(aheadPoint);
     }
@@ -124,7 +154,7 @@ export function streamCity({data,neutral,tones,compact,refresh,host}){
     if(!pending){
       let reserved=0;
       for(const s of requested){
-        if(s.detail){reserved+=s.assets.bytes;continue;}
+        if(s.detail){reserved+=required(s.assets,"sector assets").bytes;continue;}
         if(s.retry>performance.now() || reserved+s.estimate>budget)continue;
         void load(s);break;
       }

@@ -5,7 +5,7 @@
 const WINDOW=30, SLOW_MEDIAN=33, FAST_P75=20, SLOW_WINDOWS=2, FAST_WINDOWS=6, MAX_FAST_WINDOWS=48;
 
 export function makeAdaptiveResolution(levels=[1,.85,.7]){
-  const samples=[];
+  const samples: number[]=[];
   let index=0,previous=0,slow=0,fast=0,need=FAST_WINDOWS,raised=false;
   function suspend(){previous=0;samples.length=0;slow=fast=0;}
   return {
@@ -19,7 +19,7 @@ export function makeAdaptiveResolution(levels=[1,.85,.7]){
       return changed;
     },
     // Returns the new scale when the level changes, otherwise null.
-    sample(time){
+    sample(time: number){
       if(!Number.isFinite(time))return null;
       if(!previous){previous=time;return null;}
       const interval=time-previous;previous=time;

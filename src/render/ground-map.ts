@@ -1,7 +1,14 @@
+import type { CityData, Point } from '../data/types.ts';
 import * as T from 'three';
 
+export interface GroundMap {
+  texture: T.Texture<HTMLCanvasElement | OffscreenCanvas | ImageBitmap>;
+  bounds: T.Vector4;
+}
+
+
 // Ground features share the terrain triangles. Paint their plan-view coverage once.
-export function makeGroundMap(data) {
+export function makeGroundMap(data: CityData): GroundMap {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
   if(data.textureBounds){
@@ -12,13 +19,15 @@ export function makeGroundMap(data) {
   const canvas = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
   canvas.width = Math.max(1, Math.ceil(size.x * scale));
   canvas.height = Math.max(1, Math.ceil(size.y * scale));
-  const ctx = /** @type {CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D} */ (canvas.getContext('2d', { alpha: false }));
+  const context = canvas.getContext('2d', { alpha: false });
+  if (!context || !('fillRect' in context)) throw new Error('Ground canvas requires a 2D context');
+  const ctx = context;
   const sx = canvas.width / size.x, sy = canvas.height / size.y;
   ctx.fillStyle = '#c7bcb2';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(sx, 0, 0, -sy, -extent.min.x * sx, extent.max.y * sy);
 
-  function trace(points) {
+  function trace(points: Point[]) {
     ctx.moveTo(points[0][0], points[0][1]);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
   }

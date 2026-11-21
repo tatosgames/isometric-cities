@@ -1,20 +1,24 @@
+import type { Altitude, Building } from '../data/types.ts';
 import * as T from 'three';
 
+type AddBuilding = (geometry: T.BufferGeometry, color: string, x: number, y: number) => void;
+
+
 // The horizontal axis follows each mapped facade; positive depth faces its plaza.
-function facade(add,x,y,dx,dy,base){
+function facade(add: AddBuilding,x: number,y: number,dx: number,dy: number,base: number){
   const angle=Math.atan2(dy,dx),cs=Math.cos(angle),sn=Math.sin(angle);
-  return (geometry,u,height,depth,color)=>{
+  return (geometry: T.BufferGeometry,u: number,height: number,depth: number,color: string)=>{
     const east=x+u*cs+depth*sn,north=y+u*sn-depth*cs;
     add(geometry.rotateY(angle).translate(east,base+height,-north),color,east,north);
   };
 }
-function arch(width,straight){
+function arch(width: number,straight: number){
   const r=width/2,s=new T.Shape();
   s.moveTo(-r,0);s.lineTo(r,0);s.lineTo(r,straight);s.absarc(0,straight,r,0,Math.PI,false);s.closePath();
   return new T.ShapeGeometry(s,8);
 }
 
-function santaAna(add,altitude){
+function santaAna(add: AddBuilding,altitude: Altitude){
   const stone='#928881',trim='#b5aba0',recess='#494443';
   const west=facade(add,-5.5,-477,17.4,-34.5,altitude(-5.5,-477));
   for(const u of [-18,18]){
@@ -51,7 +55,7 @@ function santaAna(add,altitude){
 }
 
 // Cairasco frontage: pale arcades, paired domed turrets and central clock.
-function gabineteLiterario(add,altitude,gabinete){
+function gabineteLiterario(add: AddBuilding,altitude: Altitude,gabinete: Building){
   const recess='#494443';
   const [x,y]=gabinete.rings[0][0];
   const front=facade(add,-147,-220,18,12,altitude(x,y));
@@ -76,14 +80,15 @@ function gabineteLiterario(add,altitude,gabinete){
   front(new T.BoxGeometry(.43,.09,.06),.18,17.1,.56,recess);
 }
 
-const models={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario};
+const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario};
 
-export function addLandmarks(buildings,add,altitude){
+export function addLandmarks(buildings: Building[],add: AddBuilding,altitude: Altitude){
   const built=new Set();
   for(const building of buildings){
     const key=building.landmark;
-    if(models[key] && !built.has(key)){
-      models[key](add,altitude,building);built.add(key);
+    const model=key && models[key];
+    if(key && model && !built.has(key)){
+      model(add,altitude,building);built.add(key);
     }
   }
 }

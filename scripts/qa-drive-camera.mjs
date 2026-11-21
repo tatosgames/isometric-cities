@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {Vector3,MathUtils} from 'three';
-import {makeDriveCamera} from '../drive-camera.js';
+import {makeDriveCamera} from '../src/drive/drive-camera.ts';
 
 const direction=new Vector3(-.82,1.15,.68).normalize();
 const clear=()=>false;

@@ -1,9 +1,16 @@
-import {blocksCamera} from './building-occlusion.js';
-import { routesFrom, indexRoadNodes } from './road-routing.js';
+import type { Altitude, CityData, Point, Ring } from '../data/types.ts';
+import type { BuildingBlock } from './building-occlusion.ts';
+import type { RoadNode } from './road-routing.ts';
+import {blocksCamera} from './building-occlusion.ts';
+import { routesFrom, indexRoadNodes } from './road-routing.ts';
 import * as T from 'three';
 
+export type Segment = [ax: number,ay: number,bx: number,by: number];
+interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[]}
+
+
 const CELL=20;
-function inRing(ring,x,y){
+function inRing(ring: Ring,x: number,y: number){
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
     const [ax,ay]=ring[i],[bx,by]=ring[j];
@@ -12,20 +19,21 @@ function inRing(ring,x,y){
   return inside;
 }
 
-export function buildDriveWorld(data,altitude,tune){
-  const grid=new Map();
+export function buildDriveWorld(data: CityData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number}){
+  const grid=new Map<string,Cell>();
   let highestRoof=-Infinity;
-  const cell=(cx,cy)=>{
+  const cell=(cx: number,cy: number)=>{
     const k=cx+','+cy;
-    if(!grid.has(k))grid.set(k,{segs:[],trees:[],blocks:[]});
-    return grid.get(k);
+    let entry=grid.get(k);
+    if(!entry){entry={segs:[],trees:[],blocks:[]};grid.set(k,entry);}
+    return entry;
   };
-  const span=(a,b)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
-  function wall(ring){
+  const span=(a: number,b: number)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
+  function wall(ring: Ring){
     for(let i=1;i<ring.length;i++){
       const [ax,ay]=ring[i-1],[bx,by]=ring[i];
       if(ax===bx && ay===by)continue;
-      const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg=[ax,ay,bx,by];
+      const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by];
       for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).segs.push(seg);
     }
   }
@@ -40,11 +48,14 @@ export function buildDriveWorld(data,altitude,tune){
   }
   wall(data.boundary);
   // Road graph: OSM vertices are already rounded to 0.1 m, so shared nodes share a key.
-  const index=new Map(),nodes=[];
-  const node=(x,y)=>{
+  const index=new Map<string,number>(),nodes: RoadNode[]=[];
+  const node=(x: number,y: number)=>{
     const k=x+','+y;
-    if(!index.has(k)){index.set(k,nodes.length);nodes.push({x,y,links:[],ok:false,part:-1});}
-    return index.get(k);
+    const known=index.get(k);
+    if(known!==undefined)return known;
+    const id=nodes.length;
+    index.set(k,id);nodes.push({x,y,links:[],ok:false,part:-1});
+    return id;
   };
   for(const road of data.roads){
     if(road.kind==='steps')continue;
@@ -62,7 +73,9 @@ export function buildDriveWorld(data,altitude,tune){
     if(start.part>=0)continue;
     const id=sizes.length,queue=[start];let count=0;start.part=id;
     while(queue.length){
-      const n=queue.pop();count++;
+      const n=queue.pop();
+      if(!n)break;
+      count++;
       for(const [m] of n.links)if(nodes[m].part<0){nodes[m].part=id;queue.push(nodes[m]);}
     }
     sizes.push(count);
@@ -70,7 +83,7 @@ export function buildDriveWorld(data,altitude,tune){
   const main=sizes.indexOf(Math.max(...sizes));
   for(const n of nodes)n.ok=n.part===main && free(n.x,n.y,1.7);
   const roadIndex=indexRoadNodes(nodes);
-  function near(x,y,r){
+  function near(x: number,y: number,r: number){
     for(let cx=Math.floor((x-r)/CELL);cx<=Math.floor((x+r)/CELL);cx++)for(let cy=Math.floor((y-r)/CELL);cy<=Math.floor((y+r)/CELL);cy++){
       const c=grid.get(cx+','+cy);
       if(!c)continue;
@@ -83,19 +96,19 @@ export function buildDriveWorld(data,altitude,tune){
     }
     return false;
   }
-  function free(x,y,r){
+  function free(x: number,y: number,r: number){
     if(!inRing(data.boundary,x,y) || near(x,y,r))return false;
     const c=grid.get(Math.floor(x/CELL)+','+Math.floor(y/CELL));
     return !c || !c.blocks.some(b=>inRing(b.rings[0],x,y));
   }
-  function sight(ax,ay,bx,by){
+  function sight(ax: number,ay: number,bx: number,by: number){
     const d=Math.hypot(bx-ax,by-ay),steps=Math.ceil(d/1.8);
     for(let i=1;i<steps;i++)if(near(ax+(bx-ax)*i/steps,ay+(by-ay)*i/steps,1))return false;
     return true;
   }
-  function nearestNode(x,y){return roadIndex.nearest(x,y);}
-  const checked=new Set();
-  function occluded(x,y,height,dx,dy){
+  function nearestNode(x: number,y: number){return roadIndex.nearest(x,y);}
+  const checked=new Set<BuildingBlock>();
+  function occluded(x: number,y: number,height: number,dx: number,dy: number){
     const distance=highestRoof-height;
     if(distance<=0)return false;
     const ex=x+dx*distance,ey=y+dy*distance;
@@ -114,7 +127,9 @@ export function buildDriveWorld(data,altitude,tune){
     return false;
   }
   // A contact may move the body into the next cell during this visit.
-  function visitObstacles(body,radius,wallContact,treeContact){
+  function visitObstacles<B extends {x: number;y: number}>(body: B,radius: number,
+    wallContact: (body: B, segment: Segment, radius: number) => number,
+    treeContact: (body: B, tree: Point, radius: number) => number){
     let hit=0;
     for(let cx=Math.floor((body.x-radius)/CELL);cx<=Math.floor((body.x+radius)/CELL);cx++){
       for(let cy=Math.floor((body.y-radius)/CELL);cy<=Math.floor((body.y+radius)/CELL);cy++){
@@ -128,6 +143,6 @@ export function buildDriveWorld(data,altitude,tune){
   }
   return {
     nodes,validNodes:roadIndex.valid,nearestNode,near,free,sight,occluded,visitObstacles,
-    routesFrom:source=>routesFrom(nodes,source)
+    routesFrom:(source: number)=>routesFrom(nodes,source)
   };
 }

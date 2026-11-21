@@ -1,32 +1,41 @@
-import { streamCity } from './sector-stream.js';
-import { createPlacesUI } from './places-ui.js';
+import { isCity, isPlaces, isRoofPalette, isSectorIndex, loadData, parseViewState } from './data/load.ts';
+import type { ViewState } from './data/types.ts';
+import { element as el } from './map/dom.ts';
+import { required } from './required.ts';
+import { streamCity } from './render/sectors/sector-stream.ts';
+import { createPlacesUI } from './map/places-ui.ts';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { makeCity } from './scene.js';
-import { makeDrive } from './drive.js';
-import { makeAdaptiveResolution } from './adaptive-resolution.js';
+import { makeCity } from './render/scene.ts';
+import { makeDrive } from './drive/drive.ts';
+import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
 
-const el=id=>document.getElementById(id);
+interface Flight {
+  start: number; duration: number;
+  from: T.Vector3; to: T.Vector3;
+  z0: number; z1: number;
+}
+
+
 async function start(){
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
-  const load=async path=>{const r=await fetch('./data/'+path);if(!r.ok)throw Error(path);return r.json();};
   const neutral=query.has('neutral');
-  const [data,poi,{tones},index]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
-    neutral?{tones:null}:load('roof-tones.json'),pilot?null:load('city-index.json')]);
+  const [data,poi,{tones},index]=await Promise.all([loadData((pilot?'pilot':'city')+'.json',isCity),loadData('poi.geojson',isPlaces),
+    neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData('city-index.json',isSectorIndex)]);
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
   const sessionKey='map-view:'+location.pathname+location.search;
-  let resume=null;
-  try{resume=JSON.parse(sessionStorage.getItem(sessionKey));sessionStorage.removeItem(sessionKey);}catch{}
+  let resume: ReturnType<typeof parseViewState>=null;
+  try{resume=parseViewState(sessionStorage.getItem(sessionKey));sessionStorage.removeItem(sessionKey);}catch{}
   let losses=Number(resume?.losses)||0;
   const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
   const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true,stencil:true});
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
-  const streamed=pilot?null:streamCity({data:{...data,...index},neutral,tones,compact,host,
-    refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}});
+  const streamed=index?streamCity({data:{...data,...index},neutral,tones,compact,host,
+    refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
   const {group,altitude}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
@@ -36,14 +45,18 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
-  let frame=0,fit=1,flight=null,lost=false,lastView=null,drive=null,beforeDrive=null;
+  let frame=0,fit=1,lost=false;
+  let flight: Flight | null=null;
+  let lastView: ViewState | null=null;
+  let drive: ReturnType<typeof makeDrive> | null=null;
+  let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
     if(lost)return false;
     fly(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245),320);
     return true;
   });
-  function view(target,zoom,offset=direction){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(offset,1500);controls.update();draw();}
+  function view(target: T.Vector3,zoom: number,offset=direction){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(offset,1500);controls.update();draw();}
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
   const center=new T.Box3().setFromPoints(border).getCenter(new T.Vector3());
   const bounds=new T.Box3().setFromPoints(border);
@@ -56,7 +69,7 @@ async function start(){
     controls.minZoom=fit*.8;controls.maxZoom=drive?.active?Infinity:Math.max(fit*12,4);
   }
   function reset(){if(lost)return;places.close();fly(center,fit,300);}
-  function fly(target,zoom,duration){
+  function fly(target: T.Vector3,zoom: number,duration: number){
     if(lost)return;
     host.dataset.moving='true';
     flight={start:performance.now(),duration,from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom};
@@ -74,7 +87,7 @@ async function start(){
   function stopGesture(){gesture=false;settle();}
   controls.addEventListener('start',()=>{flight=null;gesture=true;});
   controls.addEventListener('end',stopGesture);
-  function sampleCadence(time){
+  function sampleCadence(time: number){
     if(!moving()){adaptive.suspend();return;}
     const scale=adaptive.sample(time);
     if(scale!==null){renderer.setPixelRatio(baseRatio()*scale);host.dataset.scale=String(scale);}
@@ -141,10 +154,10 @@ async function start(){
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     });
   }
-  function zoom(k){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}
+  function zoom(k: number){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
   host.onkeydown=e=>{
-    if(lost || drive.active)return;
+    if(lost || drive?.active)return;
     if(e.key.startsWith('Arrow'))flight=null;
     if(e.key==='Home')reset();else if(['+','='].includes(e.key))zoom(1.4);else if(e.key==='-')zoom(1/1.4);
     else if(e.key.startsWith('Arrow')){
@@ -163,8 +176,8 @@ async function start(){
   }
   drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection:direction,compact,onExit:leaveDrive});
   el('drive').onclick=()=>{
-    if(lost || drive.active)return;
-    flight=null;places.close();document.querySelector('nav').classList.remove('open');
+    if(lost || !drive || drive.active)return;
+    flight=null;places.close();required(document.querySelector('nav'),'navigation').classList.remove('open');
     beforeDrive={target:controls.target.clone(),zoom:camera.zoom};
     controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');drive.enter();
   };
@@ -177,7 +190,7 @@ async function start(){
       firstView=false;
       const start=places.point(data.focus) ?? new T.Vector3(-95,11,218);
       view(start,Math.max(host.clientWidth/340,host.clientHeight/225));
-      if(Array.isArray(resume?.target) && resume.target.length===3 && resume.target.every(Number.isFinite) && Number.isFinite(resume.zoom) && resume.zoom>0){
+      if(resume){
         view(new T.Vector3().fromArray(resume.target),resume.zoom);
         places.restore(resume.selected);
       }

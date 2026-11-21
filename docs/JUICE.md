@@ -2,7 +2,7 @@
 
 Cosa risponde a cosa nella modalità «Conducir», con quali valori e con quali limiti. Va letto prima di aggiungere o ritoccare un effetto. Sul modello di `doc/JUICE.md` di Butter Run e delle regole di juice di Smash Royale, tenendo solo ciò che serve a una guida arcade vista dall'alto.
 
-I valori sono quelli di `TUNE` in `drive.js` al 22 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
+I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
 
 ## Regole
 
@@ -49,7 +49,7 @@ La camera scatta **verso ciò che ha colpito** e torna a riposo con una molla sm
 - **Molla:** `kickStiff` 220, `kickDamp` 22. Supera di poco lo zero al ritorno, una volta sola.
 - **Misure:** un colpo pieno sposta la vista di 0,99 m al massimo e rientra sotto i 3 cm in 0,28 s; un colpo a metà forza arriva a 0,49 m. Su telefono (6,3 px per metro) sono circa 6 e 3 pixel. A 20 fotogrammi al secondo il picco è 0,93 m.
 - **Limite:** `kickMax` 1,2 m, anche con più colpi nello stesso istante.
-- La direzione dell'urto contro i muri viene dalla fisica (`hitX`, `hitY` in `drive-physics.js`), non dalla velocità dell'auto.
+- La direzione dell'urto contro i muri viene dalla fisica (`hitX`, `hitY` in `src/drive/drive-physics.ts`), non dalla velocità dell'auto.
 - La molla sposta solo il bersaglio della camera. Non tocca lo zoom né l'anticipo lungo la marcia.
 
 ## Da non fare

@@ -1,10 +1,19 @@
+export interface RoadNode {
+  x: number;
+  y: number;
+  links: [node: number, cost: number][];
+  ok: boolean;
+  part: number;
+}
+
 /** Weighted shortest paths. Each predecessor points one hop back to source. */
-export function routesFrom(nodes,source){
+export function routesFrom(nodes: RoadNode[],source: number){
   const dist=new Float64Array(nodes.length).fill(Infinity);
   const prev=new Int32Array(nodes.length).fill(-1);
   dist[source]=0;
-  const queue=[[0,source]];
-  function push(entry){
+  type Entry=[distance: number,node: number];
+  const queue: Entry[]=[[0,source]];
+  function push(entry: Entry){
     let i=queue.length;
     queue.push(entry);
     while(i>0){
@@ -16,7 +25,7 @@ export function routesFrom(nodes,source){
   }
   function pop(){
     const top=queue[0],last=queue.pop();
-    if(!queue.length)return top;
+    if(!last || !queue.length)return top;
     let i=0;
     while(2*i+1<queue.length){
       let child=2*i+1;
@@ -39,20 +48,21 @@ export function routesFrom(nodes,source){
   return {source,dist,prev};
 }
 
-export function indexRoadNodes(nodes){
-  const size=80,cells=new Map(),valid=[];
+export function indexRoadNodes(nodes: RoadNode[]){
+  const size=80,cells=new Map<string,number[]>(),valid: number[]=[];
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   nodes.forEach((n,i)=>{
     if(!n.ok)return;
     const x=Math.floor(n.x/size),y=Math.floor(n.y/size),key=x+','+y;
     minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
-    if(!cells.has(key))cells.set(key,[]);
-    cells.get(key).push(i);valid.push(i);
+    let cell=cells.get(key);
+    if(!cell){cell=[];cells.set(key,cell);}
+    cell.push(i);valid.push(i);
   });
-  function nearest(x,y){
+  function nearest(x: number,y: number){
     const cx=Math.floor(x/size),cy=Math.floor(y/size);
     let best=-1,dist=Infinity;
-    function scan(i,j){
+    function scan(i: number,j: number){
       for(const id of cells.get(i+','+j)??[]){
         const n=nodes[id],d=(n.x-x)**2+(n.y-y)**2;
         if(d<dist||(d===dist&&id<best)){dist=d;best=id;}

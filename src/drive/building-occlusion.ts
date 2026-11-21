@@ -1,7 +1,11 @@
+import type { Ring } from '../data/types.ts';
+
+export interface BuildingBlock {rings: Ring[]; base: number; top: number}
+
 /** Intersect an upward camera ray with a building's extruded footprint, including courtyards.
  * Coordinates are east/north. dx and dy are horizontal metres per metre of elevation.
  */
-export function blocksCamera({rings,base,top},x,y,height,dx,dy){
+export function blocksCamera({rings,base,top}: BuildingBlock,x: number,y: number,height: number,dx: number,dy: number){
   if(top<=height)return false;
   const start=Math.max(0,base-height),stop=top-height;
   const ax=x+dx*start,ay=y+dy*start,bx=x+dx*stop,by=y+dy*stop;
