@@ -4,10 +4,10 @@ import { addLandmarks } from './landmarks.js';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export function makeCity(data, neutral, roofColours, roofAtlas, compact=false, sharedGround=null) {
+export function makeCity(data, neutral, tones, compact=false, sharedGround=null) {
   const group = new T.Group();
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
-  const {mat,wood,shadeMat}=cityMaterials(neutral,groundMap,roofColours,roofAtlas);
+  const {mat,wood,shadeMat}=cityMaterials(neutral,groundMap);
   const buckets = new Map();
   function flush(bucket){
     if(!bucket.parts.length)return;
@@ -74,7 +74,7 @@ export function makeCity(data, neutral, roofColours, roofAtlas, compact=false, s
     const g=new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false}).translate(0,0,z-2).rotateX(-Math.PI/2);
     add(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
-    add(roof,roofAtlas.tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,b.roofSurface??4);
+    add(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
     if(b.roofFurniture!==false && b.id%6!==1){
       const {radius,rx,ry}=roofClearance(roof);
       if(radius>2.1){

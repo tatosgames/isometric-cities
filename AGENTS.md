@@ -8,7 +8,11 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 |---|---|
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
 | `main.js` | Camera, input, filtro per area e recupero contesto WebGL |
-| `drive.js` | Modalità «Conducir» stile Pako: fisica arcade, collisioni, pattuglie, monete, HUD; costanti in `TUNE` |
+| `adaptive-resolution.js` | Politica di risoluzione in base alla cadenza dei frame (mappa in movimento e guida) |
+| `drive.js` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
+| `drive-world.js` | Griglia degli ostacoli, visibilità e rete stradale della guida |
+| `drive-physics.js` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli |
+| `drive-input.js` | Comandi touch e tastiera, registrazione e rilascio degli input |
 | `sector-stream.js`, `sector-builder.js`, `sector-worker.js`, `overview.js` | Priorità e budget, costruzione fuori thread, panoramica |
 | `road-routing.js` | Indice dei nodi e percorsi delle pattuglie |
 | `scripts/sectors.py`, `scripts/qa-sectors.mjs` | Generazione dei settori e prova di attraversamento |

@@ -1,14 +1,12 @@
 import * as T from 'three';
 
-export function cityMaterials(neutral,groundMap,roofColours,roofAtlas){
+export function cityMaterials(neutral,groundMap){
   const mat=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,side:T.DoubleSide,roughness:1});
   if(!neutral) mat.onBeforeCompile=shader=>{
     shader.uniforms.groundColours={value:groundMap.texture};
     shader.uniforms.groundBounds={value:groundMap.bounds};
-    shader.uniforms.roofColours={value:roofColours};
-    shader.uniforms.atlasBounds={value:new T.Vector4().fromArray(roofAtlas.bounds)};
     shader.vertexShader='attribute float surface; varying float vKind; varying vec3 vMap;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vKind=surface; vMap=position;');
-    shader.fragmentShader='uniform sampler2D groundColours; uniform vec4 groundBounds; uniform sampler2D roofColours; uniform vec4 atlasBounds; varying float vKind; varying vec3 vMap;\n'+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    shader.fragmentShader='uniform sampler2D groundColours; uniform vec4 groundBounds; varying float vKind; varying vec3 vMap;\n'+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       vec2 p=vMap.xz;
       float speck=fract(sin(dot(floor((p+vMap.y*.41)*5.),vec2(12.9898,78.233)))*4375.5453);
       float fade=1.-smoothstep(.13,.75,length(fwidth(p)));
@@ -26,16 +24,7 @@ export function cityMaterials(neutral,groundMap,roofColours,roofAtlas){
       }else if(vKind>4.5){
         grain+=(speck-.5)*.36+.07*sin(p.x*2.+p.y*3.);
       }else if(vKind>2.5){
-        // Same metric frame as scripts/roof-colours.py. Texture origin is southwest.
-        vec2 atlasUV=(vec2(p.x,-p.y)-atlasBounds.xy)/atlasBounds.zw;
-        vec3 roof=texture2D(roofColours,atlasUV).rgb;
-        diffuseColor.rgb=mix(diffuseColor.rgb,roof,vKind<3.5?.64:.20);
-        bool tile=roof.r>1.35*roof.b && roof.r>1.18*roof.g;
-        vec2 uv=tile?vec2(p.x*1.8+p.y*.42,p.y*2.-p.x*.38):p*.85;
-        uv.x+=mod(floor(uv.y),2.)*.5;
-        vec2 edge=min(fract(uv),1.-fract(uv));
-        float seam=1.-smoothstep(.015,.09,min(edge.x,edge.y));
-        grain+=tile?.12*cos(uv.x*6.283)-.17*seam:-.14*seam;
+        grain=0.;
       }
       diffuseColor.rgb*=1.+grain*fade;
     `);

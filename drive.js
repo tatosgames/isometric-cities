@@ -1,5 +1,6 @@
-import {blocksCamera} from './building-occlusion.js';
-import { routesFrom, indexRoadNodes } from './road-routing.js';
+import {buildDriveWorld} from './drive-world.js';
+import {makeDrivePhysics} from './drive-physics.js';
+import {makeDriveInput} from './drive-input.js';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -17,18 +18,10 @@ export const TUNE={
   coinStep:8, coinReach:2.6, arriveReach:16, arriveBonus:10, wreckBonus:2,
   viewSpanCompact:62, viewSpanWide:95, lookAhead:.42
 };
-const CELL=20, SKIDS=600, DUST=48, COINS=220;
+const SKIDS=600, DUST=48, COINS=220;
 const el=id=>document.getElementById(id);
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
-function inRing(ring,x,y){
-  let inside=false;
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
-    const [ax,ay]=ring[i],[bx,by]=ring[j];
-    if((ay>y)!==(by>y) && x<(bx-ax)*(y-ay)/(by-ay)+ax)inside=!inside;
-  }
-  return inside;
-}
 function tint(geometry,color){
   const c=new T.Color(color),n=geometry.attributes.position.count,a=new Float32Array(n*3);
   for(let i=0;i<n;i++)a.set([c.r,c.g,c.b],i*3);
@@ -49,145 +42,12 @@ function carGeometry(body,top,police){
 }
 
 export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,compact,onExit}){
-  // ---- static world: collision grid, road graph ----
   let world=null;
-  function build(){
-    const grid=new Map();
-    let highestRoof=-Infinity;
-    const cell=(cx,cy)=>{
-      const k=cx+','+cy;
-      if(!grid.has(k))grid.set(k,{segs:[],trees:[],blocks:[]});
-      return grid.get(k);
-    };
-    const span=(a,b)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
-    function wall(ring){
-      for(let i=1;i<ring.length;i++){
-        const [ax,ay]=ring[i-1],[bx,by]=ring[i];
-        if(ax===bx && ay===by)continue;
-        const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg=[ax,ay,bx,by];
-        for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).segs.push(seg);
-      }
-    }
-    for(const b of data.buildings){
-      for(const ring of b.rings)wall(ring);
-      const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
-      const [x0,x1]=span(Math.min(...xs),Math.max(...xs)),[y0,y1]=span(Math.min(...ys),Math.max(...ys));
-      const base=altitude(...b.rings[0][0]);
-      const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height)};
-      highestRoof=Math.max(highestRoof,block.top);
-      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
-    }
-    wall(data.boundary);
-    // Road graph: OSM vertices are already rounded to 0.1 m, so shared nodes share a key.
-    const index=new Map(),nodes=[];
-    const node=(x,y)=>{
-      const k=x+','+y;
-      if(!index.has(k)){index.set(k,nodes.length);nodes.push({x,y,links:[],ok:false,part:-1});}
-      return index.get(k);
-    };
-    for(const road of data.roads){
-      if(road.kind==='steps')continue;
-      for(let i=1;i<road.line.length;i++){
-        const a=node(...road.line[i-1]),b=node(...road.line[i]);
-        if(a===b)continue;
-        const d=Math.hypot(nodes[a].x-nodes[b].x,nodes[a].y-nodes[b].y);
-        nodes[a].links.push([b,d]);nodes[b].links.push([a,d]);
-      }
-    }
-    world={grid,nodes,highestRoof};
-    // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
-    for(const [x,y] of data.trees.filter(([x,y])=>!near(x,y,TUNE.treeClearance)))cell(Math.floor(x/CELL),Math.floor(y/CELL)).trees.push([x,y]);
-    const sizes=[];
-    for(const start of nodes){
-      if(start.part>=0)continue;
-      const id=sizes.length,queue=[start];let count=0;start.part=id;
-      while(queue.length){
-        const n=queue.pop();count++;
-        for(const [m] of n.links)if(nodes[m].part<0){nodes[m].part=id;queue.push(nodes[m]);}
-      }
-      sizes.push(count);
-    }
-    const main=sizes.indexOf(Math.max(...sizes));
-    for(const n of nodes)n.ok=n.part===main && free(n.x,n.y,1.7);
-    world.index=indexRoadNodes(nodes);
-  }
-  function near(x,y,r){
-    const g=world.grid;
-    for(let cx=Math.floor((x-r)/CELL);cx<=Math.floor((x+r)/CELL);cx++)for(let cy=Math.floor((y-r)/CELL);cy<=Math.floor((y+r)/CELL);cy++){
-      const c=g.get(cx+','+cy);
-      if(!c)continue;
-      for(const s of c.segs){
-        const dx=s[2]-s[0],dy=s[3]-s[1];
-        const t=T.MathUtils.clamp(((x-s[0])*dx+(y-s[1])*dy)/(dx*dx+dy*dy),0,1);
-        if(Math.hypot(x-s[0]-dx*t,y-s[1]-dy*t)<r)return true;
-      }
-      for(const t of c.trees)if(Math.hypot(x-t[0],y-t[1])<r+TUNE.treeRadius)return true;
-    }
-    return false;
-  }
-  function free(x,y,r){
-    if(!inRing(data.boundary,x,y) || near(x,y,r))return false;
-    const c=world.grid.get(Math.floor(x/CELL)+','+Math.floor(y/CELL));
-    return !c || !c.blocks.some(b=>inRing(b.rings[0],x,y));
-  }
-  function sight(ax,ay,bx,by){
-    const d=Math.hypot(bx-ax,by-ay),steps=Math.ceil(d/1.8);
-    for(let i=1;i<steps;i++)if(near(ax+(bx-ax)*i/steps,ay+(by-ay)*i/steps,1))return false;
-    return true;
-  }
-  function nearestNode(x,y){return world.index.nearest(x,y);}
+  const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
+  const controls=makeDriveInput(host,go,onExit);
   function routes(source){
-    if(field?.source!==source)field=routesFrom(world.nodes,source);
+    if(field?.source!==source)field=world.routesFrom(source);
     return field;
-  }
-
-  // ---- physics ----
-  function steerBody(b,steer,brake,max,dt,agility=1){
-    const speed=Math.hypot(b.vx,b.vy);
-    b.h+=steer*TUNE.turn*agility*Math.min(1,.35+speed/8)*dt;
-    const fx=Math.cos(b.h),fy=Math.sin(b.h);
-    let forward=b.vx*fx+b.vy*fy,side=-b.vx*fy+b.vy*fx;
-    forward=brake?Math.max(0,forward-TUNE.brake*dt):forward>max?Math.max(max,forward-TUNE.brake*dt):Math.min(max,forward+TUNE.accel*dt);
-    b.wayHold-=dt;b.dive+=((brake?1:0)-b.dive)*Math.min(1,dt*8);
-    b.hold=steer?Math.min(1,b.hold+dt*2.2):Math.max(0,b.hold-dt*6);
-    b.steer+=(steer-b.steer)*Math.min(1,dt*9);
-    side*=Math.exp(-(brake?TUNE.brakeGrip:T.MathUtils.lerp(TUNE.grip,TUNE.driftGrip,b.hold))*dt);
-    forward*=1-TUNE.driftDrag*Math.abs(side)*dt;
-    b.slip=Math.abs(side);b.side=side;
-    b.vx=fx*forward-fy*side;b.vy=fy*forward+fx*side;
-    b.x+=b.vx*dt;b.y+=b.vy*dt;
-  }
-  function push(b,px,py,r){
-    let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);
-    if(d>=r || d<1e-5)return 0;
-    nx/=d;ny/=d;b.x=px+nx*r;b.y=py+ny*r;
-    // Glance off: a nose pointing into the obstacle swings towards the wall line, so cars keep rolling.
-    const fx=Math.cos(b.h),fy=Math.sin(b.h),into=fx*nx+fy*ny;
-    if(into<0){
-      const cross=fx*ny-fy*nx;
-      if(b.wayHold<=0)b.way=Math.abs(cross)>.08?-Math.sign(cross):(b.steer<0?-1:1);
-      b.wayHold=.5;const way=b.way;
-      b.h+=way*Math.min(TUNE.deflect/120,Math.acos(Math.max(-1,into))-Math.PI/2+.02);
-    }
-    const vn=b.vx*nx+b.vy*ny;
-    if(vn>=0)return 0;
-    b.vx-=(1+TUNE.bounce)*vn*nx;b.vy-=(1+TUNE.bounce)*vn*ny;
-    return -vn;
-  }
-  function collide(b){
-    const r=TUNE.radius;let hit=0;
-    for(let cx=Math.floor((b.x-r)/CELL);cx<=Math.floor((b.x+r)/CELL);cx++)for(let cy=Math.floor((b.y-r)/CELL);cy<=Math.floor((b.y+r)/CELL);cy++){
-      const c=world.grid.get(cx+','+cy);
-      if(!c)continue;
-      for(const s of c.segs){
-        const dx=s[2]-s[0],dy=s[3]-s[1];
-        const t=T.MathUtils.clamp(((b.x-s[0])*dx+(b.y-s[1])*dy)/(dx*dx+dy*dy),0,1);
-        hit=Math.max(hit,push(b,s[0]+dx*t,s[1]+dy*t,r));
-      }
-      for(const t of c.trees)hit=Math.max(hit,push(b,t[0],t[1],r+TUNE.treeRadius));
-    }
-    if(hit){const k=1-TUNE.wallLoss*Math.min(1,hit/8);b.vx*=k;b.vy*=k;}
-    return hit;
   }
 
   // ---- scene objects ----
@@ -227,26 +87,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const heading=new T.Mesh(mergeGeometries([tint(arrow,'#263831'),tint(inset,'#fff7d6')]).rotateX(-Math.PI/2),markerMaterial);
   halo.renderOrder=10;heading.renderOrder=11;heading.visible=false;
   halo.add(heading);group.add(halo);
-  const checked=new Set();
   function cabinIsHidden(){
     const height=player.mesh.position.y+1.2*TUNE.visualScale;
-    const m=camera.matrixWorld.elements,dx=m[8]/m[9],dy=-m[10]/m[9];
-    const distance=world.highestRoof-height;
-    if(distance<=0)return false;
-    const x=player.x,y=player.y,ex=x+dx*distance,ey=y+dy*distance;
-    checked.clear();
-    for(let cx=Math.floor(Math.min(x,ex)/CELL);cx<=Math.floor(Math.max(x,ex)/CELL);cx++){
-      for(let cy=Math.floor(Math.min(y,ey)/CELL);cy<=Math.floor(Math.max(y,ey)/CELL);cy++){
-        const cell=world.grid.get(cx+','+cy);
-        if(!cell)continue;
-        for(const block of cell.blocks){
-          if(checked.has(block))continue;
-          checked.add(block);
-          if(blocksCamera(block,x,y,height,dx,dy))return true;
-        }
-      }
-    }
-    return false;
+    const m=camera.matrixWorld.elements;
+    return world.occluded(player.x,player.y,height,m[8]/m[9],-m[10]/m[9]);
   }
   const dummy=new T.Object3D();
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
@@ -256,6 +100,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const skidMesh=new T.Mesh(skidGeometry,new T.MeshBasicMaterial({color:'#1d1c1f',transparent:true,opacity:.34,depthWrite:false,side:T.DoubleSide}));
   skidMesh.frustumCulled=false;group.add(skidMesh);
   const dustMesh=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),new T.MeshBasicMaterial({transparent:true,opacity:.5,depthWrite:false}),DUST);
+  // Colours exist from the start: adding them at the first puff would build a second shader mid-run.
+  for(let i=0;i<DUST;i++)dustMesh.setColorAt(i,new T.Color('#d8cdbb'));
   dustMesh.frustumCulled=false;group.add(dustMesh);
   const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,life:0}));
   const dustColour=new T.Color('#d8cdbb'),smokeColour=new T.Color('#3b3836');
@@ -316,9 +162,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   }
   const buzz=ms=>{try{navigator.vibrate?.(ms);}catch{}};
   function trail(){
-    const from=nearestNode(player.x,player.y),options=pois.filter(p=>p!==target?.poi);
+    const from=world.nearestNode(player.x,player.y),options=pois.filter(p=>p!==target?.poi);
     const {prev,dist}=routes(from);
-    const reachable=options.map(poi=>({poi,node:nearestNode(poi.x,poi.y)})).filter(o=>o.node!==from && Number.isFinite(dist[o.node]));
+    const reachable=options.map(poi=>({poi,node:world.nearestNode(poi.x,poi.y)})).filter(o=>o.node!==from && Number.isFinite(dist[o.node]));
     target=reachable[Math.floor(Math.random()*reachable.length)] ?? null;
     coins=[];
     if(!target)return null;
@@ -331,7 +177,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       const a=path[i-1],b=path[i],len=Math.hypot(b.x-a.x,b.y-a.y);
       for(;carry<len && coins.length<COINS;carry+=TUNE.coinStep){
         const x=a.x+(b.x-a.x)*carry/len,y=a.y+(b.y-a.y)*carry/len;
-        if(free(x,y,1.2))coins.push({x,y,z:altitude(x,y)+2});
+        if(world.free(x,y,1.2))coins.push({x,y,z:altitude(x,y)+2});
       }
       carry-=len;
     }
@@ -342,7 +188,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     return path;
   }
   function spawnChaser(c){
-    const all=world.index.valid;
+    const all=world.validNodes;
     const ring=all.filter(i=>{
       const d=Math.hypot(world.nodes[i].x-player.x,world.nodes[i].y-player.y);
       return d>75 && d<120;
@@ -361,7 +207,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     chasers=[];held=false;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;target=null;
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
-    const poi=pois[round++%pois.length],n=world.nodes[nearestNode(poi.x,poi.y)];
+    const poi=pois[round++%pois.length],n=world.nodes[world.nearestNode(poi.x,poi.y)];
     Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0});
     brakeHint=0;paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     const path=trail();
@@ -377,50 +223,20 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
     el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
     el('over-record').parentElement.classList.toggle('new',best);
-    el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo récord.':'');
+    el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo rÃ©cord.':'');
     // A beat on the frozen scene before the result slides in.
     overAt=performance.now()+420;
   }
 
-  // ---- input ----
-  const pointers=new Map(),keys=new Set();
-  function input(){
-    let left=keys.has('ArrowLeft')||keys.has('a'),right=keys.has('ArrowRight')||keys.has('d');
-    for(const p of pointers.values()){if(p.side<0)left=true;else right=true;}
-    return {steer:(left?1:0)-(right?1:0),brake:(left&&right)||keys.has(' ')||keys.has('ArrowDown')};
-  }
   function go(){
     if(state==='ready'){state='playing';guide.className='play';}
     // A run held after an interruption continues on the next input, never by itself.
     if(held){held=false;guide.className='play';}
   }
-  function release(){pointers.clear();keys.clear();}
-  const hidden=()=>{if(document.hidden)release();};
-  function down(e){
-    if(state==='off')return;
-    const box=host.getBoundingClientRect();
-    pointers.set(e.pointerId,{side:e.clientX<box.left+box.width/2?-1:1,anchor:e.clientX});
-    go();e.preventDefault();
-  }
-  function move(e){
-    const p=pointers.get(e.pointerId);
-    if(!p)return;
-    // A horizontal swipe overrides the half of the screen where the finger landed.
-    if(Math.abs(e.clientX-p.anchor)>24){p.side=Math.sign(e.clientX-p.anchor);p.anchor=e.clientX;}
-  }
-  const up=e=>pointers.delete(e.pointerId);
-  function key(e){
-    const k=e.key.length===1?e.key.toLowerCase():e.key;
-    if(e.type==='keyup'){keys.delete(k);return;}
-    if(k==='Escape'){onExit();return;}
-    if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement)return;
-    keys.add(k);go();e.preventDefault();
-  }
-
   // ---- simulation ----
   function step(dt){
     time+=dt;grace=Math.max(0,grace-dt);
-    const {steer,brake}=input();
+    const {steer,brake}=controls.read();
     // One contextual lesson: after a few seconds of driving, show that both sides together brake.
     if(!learned){
       brakeHint+=dt;
@@ -429,13 +245,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       else if(brakeHint>=10)guide.className='play';
     }
     steerBody(player,steer,brake,TUNE.maxSpeed,dt);
-    const knock=collide(player);
+    const knock=collide(player,world);
     if(knock>3)player.hop=Math.min(TUNE.hop,knock*.05);
     if(knock>6)shake=Math.max(shake,Math.min(1,knock/14));
     if(knock>6)buzz(18);
     const speed=Math.hypot(player.vx,player.vy);
     routeAge+=dt;
-    if(routeAge>.6){routeAge=0;field=routes(nearestNode(player.x,player.y));}
+    if(routeAge>.6){routeAge=0;field=routes(world.nearestNode(player.x,player.y));}
     const wanted=Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery));
     while(chasers.length<wanted){const c=patrol();chasers.push(c);spawnChaser(c);}
     for(const c of chasers){
@@ -448,18 +264,18 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       let tx=player.x+player.vx*.4,ty=player.y+player.vy*.4;
       const gap=Math.hypot(player.x-c.x,player.y-c.y);
       if(gap>TUNE.chaserLost){spawnChaser(c);continue;}
-      if(gap>TUNE.chaserSight || !sight(c.x,c.y,player.x,player.y)){
+      if(gap>TUNE.chaserSight || !world.sight(c.x,c.y,player.x,player.y)){
         // Follow the road graph node by node: straight lines between nodes stay clear of buildings.
         let n=world.nodes[c.node];
-        if(!n || Math.hypot(n.x-c.x,n.y-c.y)>60){c.node=nearestNode(c.x,c.y);n=world.nodes[c.node];}
+        if(!n || Math.hypot(n.x-c.x,n.y-c.y)>60){c.node=world.nearestNode(c.x,c.y);n=world.nodes[c.node];}
         for(let hop=0;hop<3 && field.prev[c.node]>=0 && Math.hypot(n.x-c.x,n.y-c.y)<5;hop++){c.node=field.prev[c.node];n=world.nodes[c.node];}
         tx=n.x;ty=n.y;
       }else c.node=-1;
       let turn=T.MathUtils.clamp(wrap(Math.atan2(ty-c.y,tx-c.x)-c.h)*2.5,-1,1);
-      for(const side of [-1,1])if(near(c.x+Math.cos(c.h+side*.45)*6,c.y+Math.sin(c.h+side*.45)*6,1.2))turn-=side*.9;
-      const ahead=near(c.x+Math.cos(c.h)*4,c.y+Math.sin(c.h)*4,1.1);
+      for(const side of [-1,1])if(world.near(c.x+Math.cos(c.h+side*.45)*6,c.y+Math.sin(c.h+side*.45)*6,1.2))turn-=side*.9;
+      const ahead=world.near(c.x+Math.cos(c.h)*4,c.y+Math.sin(c.h)*4,1.1);
       steerBody(c,T.MathUtils.clamp(turn,-1,1),ahead && Math.hypot(c.vx,c.vy)>8,c.max,dt,TUNE.chaserTurn);
-      const hit=collide(c),pace=Math.hypot(c.vx,c.vy);
+      const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
       c.stuck=pace<1.5?c.stuck+dt:0;
       if(hit>TUNE.wreckImpact)wreck(c);
@@ -491,17 +307,6 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       skid(b);b.puff-=dt;
       if(b.puff<=0){b.puff=.07;puff(b.x-Math.cos(b.h)*1.3,b.y-Math.sin(b.h)*1.3,false);}
     }
-  }
-  // Returns the closing speed, or -1 when the two cars do not touch.
-  function bump(a,b){
-    const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),reach=TUNE.radius*2;
-    if(d>=reach || d<1e-5)return -1;
-    const nx=dx/d,ny=dy/d,overlap=(reach-d)/2;
-    a.x-=nx*overlap;a.y-=ny*overlap;b.x+=nx*overlap;b.y+=ny*overlap;
-    const closing=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
-    if(closing<=0)return 0;
-    a.vx-=closing*nx*.6;a.vy-=closing*ny*.6;b.vx+=closing*nx*.6;b.vy+=closing*ny*.6;
-    return closing;
   }
   function wreck(c){
     c.wreck=TUNE.wreckTime;c.vx=c.vy=0;c.trail=null;c.mesh.material=wreckPaint;c.hop=TUNE.hop;
@@ -555,7 +360,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     // HUD
     el('hud-coins').textContent=String(score);
     el('hud-time').textContent=clock(time);
-    const {steer,brake}=input();
+    const {steer,brake}=controls.read();
     zones.left.classList.toggle('on',state==='playing' && (steer>0 || brake));
     zones.right.classList.toggle('on',state==='playing' && (steer<0 || brake));
     zones.both.classList.toggle('on',state==='playing' && brake);
@@ -590,12 +395,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     get active(){return state!=='off';},
     enter(){
       if(state!=='off')return;
-      if(!world)build();
-      scene.add(group);pointers.clear();keys.clear();
-      host.addEventListener('pointerdown',down);host.addEventListener('pointermove',move);
-      for(const type of ['pointerup','pointercancel','pointerleave'])host.addEventListener(type,up);
-      window.addEventListener('keydown',key);window.addEventListener('keyup',key);
-      window.addEventListener('blur',release);document.addEventListener('visibilitychange',hidden);
+      world??=buildDriveWorld(data,altitude,TUNE);
+      scene.add(group);
+      controls.activate();
       el('hud').hidden=false;
       restart();
       warm();
@@ -607,10 +409,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     exit(){
       if(state==='off')return;
       state='off';cancelAnimationFrame(raf);scene.remove(group);
-      host.removeEventListener('pointerdown',down);host.removeEventListener('pointermove',move);
-      for(const type of ['pointerup','pointercancel','pointerleave'])host.removeEventListener(type,up);
-      window.removeEventListener('keydown',key);window.removeEventListener('keyup',key);
-      window.removeEventListener('blur',release);document.removeEventListener('visibilitychange',hidden);
+      controls.deactivate();
       held=false;
       el('hud').hidden=el('over').hidden=true;guide.className='';el('pops').replaceChildren();
       delete host.dataset.drive;
@@ -618,7 +417,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     // Graphics interruption: stop drawing and stepping, drop any touch in progress, keep the run.
     suspend(){
       if(state==='off')return;
-      cancelAnimationFrame(raf);raf=0;release();
+      cancelAnimationFrame(raf);raf=0;controls.release();
       if(state==='playing'){held=true;guide.className='ready';}
     },
     resume(){

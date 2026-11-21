@@ -105,3 +105,15 @@ Ripetuta l’intera generazione da cache in ordine pilota, città, colori e sett
 Nel secondo e terzo giro di controllo i conteggi WebGL di buffer/texture agli arresti sono stati rispettivamente 922/30 e 922/30 a Santa Ana, 944/32 e 944/32 a Plaza de la Feria, 1.010/36 e 1.010/36 a Doramas, 1.040/36 e 1.036/36 a Metropole. Si tratta di contatori di risorse, non di byte di VRAM.
 
 I crediti si vedono con il menu dei luoghi, la scheda di un luogo, il riepilogo finale e il popup di recupero WebGL. Si nascondono durante l’esplorazione e la guida.
+
+## Robustezza grafica · 21 novembre 2026
+
+- **Perdita del contesto in guida.** La partita resta sospesa invece di chiudersi: punteggio, pattuglie e posizione sono conservati, nessun passo di simulazione senza grafica, e la corsa riparte solo al primo input dopo il ripristino. Coperto da `npm.cmd test` su desktop e mobile emulato (stato `held` in `data-drive`). Cambiare scheda o finestra rilascia i tocchi in corso, senza pannello di pausa.
+- **Risoluzione adattiva continua** (`adaptive-resolution.js`, dal criterio di superstudiorecover). Attiva durante trascinamento, voli e guida, su tutti i dispositivi; tre livelli (1, 0,85, 0,7 del pixel ratio di base). Scende dopo due finestre di 30 frame con mediana oltre 33 ms, risale dopo sei finestre con 75º percentile sotto 20 ms, e raddoppia l’attesa se il livello appena risalito non regge. A vista ferma torna subito al pieno. Simulazione: 40 ms per frame porta a 0,85 dopo 60 frame e a 0,7 dopo 120; a 16 ms risale a 0,85 dopo 190 frame e a 1 dopo 370.
+- **Warm-up degli shader.** All’ingresso in guida si compilano tutti i materiali della modalità, compresi quelli che compaiono dopo (rottami, lampeggianti, colori della polvere). Programmi contati in 45 s di guida con una cattura: 15 all’ingresso e 15 al massimo su mobile emulato; 16 e 17 su desktop.
+
+Limiti: sul desktop resta un programma compilato a partita in corso, non identificato (probabile materiale di un settore caricato in streaming). In Chrome con rendering software la guida scende a 0,7 per il caricamento dei settori: non è una misura di un telefono. La prima esecuzione della suite dopo la modifica ha segnalato quattro richieste di settori fallite durante la perdita del contesto in guida; non si è ripetuto nelle sei esecuzioni successive e la causa non è accertata. Nessuna prova su telefono fisico.
+
+## Coperture a tinta unita
+
+Verificate le tinte PNOA per tutte le 4.698 parti di edificio della città e le 1.108 del pilota. A Parque Doramas, con Chrome mobile emulato e la stessa camera, la cattura della build coincide con la variante piatta del confronto visivo. La build carica zero WebP nel pilota e nei settori, sia con il worker sia con costruzione sincrona. Typecheck e build superati.

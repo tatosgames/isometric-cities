@@ -6,8 +6,7 @@ self.onmessage=async({data})=>{
   if(data.config){config=data.config;return;}
   try{
     const {terrain,compact,neutral,tones}=config;
-    const result=makeCity({...data.layers,boundary:[],terrain},neutral,null,
-      {tones,bounds:data.layers.roofBounds},compact);
+    const result=makeCity({...data.layers,boundary:[],terrain},neutral,tones,compact);
     const transfer=new Set(),geometries=[],ids=new Map();
     function attribute(a){
       if(!a)return null;

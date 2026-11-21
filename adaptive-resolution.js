@@ -23,8 +23,9 @@ export function makeAdaptiveResolution(levels=[1,.85,.7]){
       if(!Number.isFinite(time))return null;
       if(!previous){previous=time;return null;}
       const interval=time-previous;previous=time;
-      // A gap is a pause (hidden tab, idle map), not a slow frame.
-      if(interval<=0 || interval>250){suspend();return null;}
+      // The caller suspends when the view rests, so a long interval here is a real stall and counts
+      // as one slow sample. One sample after a hidden tab cannot move a median of thirty.
+      if(interval<=0)return null;
       samples.push(interval);
       if(samples.length<WINDOW)return null;
       samples.sort((a,b)=>a-b);

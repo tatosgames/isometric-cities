@@ -12,9 +12,8 @@ async function start(){
   const pilot=query.get('area')==='pilot';
   const load=async path=>{const r=await fetch('./data/'+path);if(!r.ok)throw Error(path);return r.json();};
   const neutral=query.has('neutral');
-  const [data,poi,roofColours,roofAtlas,index]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
-    neutral?null:new T.TextureLoader().loadAsync('./data/roof-colours.webp'),neutral?{}:load('roof-tones.json'),pilot?null:load('city-index.json')]);
-  if(roofColours)roofColours.colorSpace=T.SRGBColorSpace;
+  const [data,poi,{tones},index]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
+    neutral?{tones:null}:load('roof-tones.json'),pilot?null:load('city-index.json')]);
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
   const sessionKey='map-view:'+location.pathname+location.search;
@@ -26,9 +25,9 @@ async function start(){
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
-  const streamed=pilot?null:streamCity({data:{...data,...index},neutral,roofColours,roofAtlas,compact,host,
+  const streamed=pilot?null:streamCity({data:{...data,...index},neutral,tones,compact,host,
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}});
-  const {group,altitude}=streamed??makeCity(data,neutral,roofColours,roofAtlas,compact);scene.add(group);
+  const {group,altitude}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});

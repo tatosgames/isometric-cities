@@ -1,9 +1,9 @@
-import { sectorBuilder, bitmapTexture } from './sector-builder.js';
+import { sectorBuilder } from './sector-builder.js';
 import { overviewBuildings, overviewGround } from './overview.js';
 import * as T from 'three';
 import { makeCity } from './scene.js';
 
-// Count unique typed arrays. Shared roof and terrain textures belong to the base scene.
+// Count unique typed arrays. The overview terrain texture belongs to the base scene.
 function resources(group) {
   const geometries=new Set(), materials=new Set(), arrays=new Set();
   group.traverse(mesh=>{
@@ -25,9 +25,9 @@ function resources(group) {
   };
 }
 
-export function streamCity({data,neutral,roofColours,roofAtlas,compact,refresh,host}){
-  const build=sectorBuilder(data.terrain,compact,neutral,roofAtlas.tones);
-  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,roofColours,roofAtlas,compact);
+export function streamCity({data,neutral,tones,compact,refresh,host}){
+  const build=sectorBuilder(data.terrain,compact,neutral,tones);
+  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact);
   const byId=new Map(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
   const owner=(x,y)=>Math.floor(x/data.sectorSize)+'_'+Math.floor(y/data.sectorSize);
   data.buildings.forEach((b,i)=>byId.get(data.buildingOwners[i]).buildings.push(b));
@@ -41,7 +41,7 @@ export function streamCity({data,neutral,roofColours,roofAtlas,compact,refresh,h
     color:neutral?'#e4dfd3':'white',flatShading:true,side:T.DoubleSide});
   const sectors=data.sectors.map(s=>{
     const batch=byId.get(s.id),low=new T.Group();
-    low.add(overviewBuildings(batch.buildings,batch.trees,base.altitude,roofAtlas.tones,neutral,solid),
+    low.add(overviewBuildings(batch.buildings,batch.trees,base.altitude,tones,neutral,solid),
       overviewGround(batch.ground,base.altitude,base.groundMap,groundMaterial));
     base.group.add(low);
     const [west,south,east,north]=s.bounds;
@@ -61,29 +61,22 @@ export function streamCity({data,neutral,roofColours,roofAtlas,compact,refresh,h
   async function load(s){
     const controller=new AbortController();
     pending={s,controller};
-    let localRoof=null;
     try{
       const r=await fetch('./data/city-sectors/'+s.file,{signal:controller.signal});
       if(!r.ok)throw Error('sector '+s.id+' HTTP '+r.status);
       const layers=await r.json();
       if(controller.signal.aborted || !requested.includes(s))return;
-      if(!neutral){
-        const response=await fetch('./data/city-sectors/'+layers.roofFile,{signal:controller.signal});
-        if(!response.ok)throw Error('roof '+response.status);
-        const bitmap=await createImageBitmap(await response.blob(),{imageOrientation:'flipY',colorSpaceConversion:'none'});
-        if(controller.signal.aborted || !requested.includes(s)){bitmap.close();return;}
-        localRoof=bitmapTexture(bitmap);
-      }
-      const local=await build(layers,localRoof,controller.signal);
+      const local=await build(layers,controller.signal);
       if(!local)return;
       const detail=local.group;
       const assets=resources(detail);
-      const textures=[local.groundMap?.texture,localRoof].filter(Boolean);
-      // Backing image plus RGBA texture and its mip chain, in addition to the geometry arrays.
-      for(const t of textures)assets.bytes+=Math.ceil(t.image.width*t.image.height*4*(1+4/3));
-      localRoof=null; // ownership transferred to the sector
-      const releaseGeometry=assets.dispose;
-      assets.dispose=()=>{releaseGeometry();for(const t of textures){t.dispose();t.image.close?.();}};
+      const texture=local.groundMap?.texture;
+      if(texture){
+        // Backing image plus RGBA texture and its mip chain, in addition to the geometry arrays.
+        assets.bytes+=Math.ceil(texture.image.width*texture.image.height*4*(1+4/3));
+        const releaseGeometry=assets.dispose;
+        assets.dispose=()=>{releaseGeometry();texture.dispose();texture.image.close?.();};
+      }
       s.estimate=assets.bytes;
       const priority=requested.indexOf(s);
       const victims=sectors.filter(other=>other.detail &&
@@ -102,7 +95,6 @@ export function streamCity({data,neutral,roofColours,roofAtlas,compact,refresh,h
         setTimeout(()=>{if(requested.includes(s))refresh();},s.retry-performance.now()+10);
       }
     }finally{
-      if(localRoof){localRoof.image.close();localRoof.dispose();}
       pending=null;refresh();
     }
   }

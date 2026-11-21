@@ -2,7 +2,7 @@ import * as T from 'three';
 import { cityMaterials } from './city-materials.js';
 import { makeCity } from './scene.js';
 
-export function bitmapTexture(bitmap){
+function bitmapTexture(bitmap){
   const texture=new T.Texture(bitmap);
   texture.flipY=false;texture.colorSpace=T.SRGBColorSpace;texture.needsUpdate=true;
   return texture;
@@ -17,9 +17,8 @@ export function sectorBuilder(terrain,compact,neutral,tones){
     worker.postMessage({config:{terrain:{...terrain,values},compact,neutral,tones}},[values.buffer]);
   }
   const attr=a=>new T.BufferAttribute(a.array,a.size,a.normalized);
-  return async(layers,roof,signal)=>{
-    const atlas={tones,bounds:layers.roofBounds};
-    if(!worker)return makeCity({...layers,boundary:[],terrain},neutral,roof,atlas,compact);
+  return async(layers,signal)=>{
+    if(!worker)return makeCity({...layers,boundary:[],terrain},neutral,tones,compact);
     const result=await new Promise((resolve,reject)=>{
       worker.onmessage=({data})=>data.error?reject(Error(data.error)):resolve(data);
       worker.onerror=event=>{worker.terminate();worker=null;reject(Error(event.message));};
@@ -27,7 +26,7 @@ export function sectorBuilder(terrain,compact,neutral,tones){
     });
     if(signal.aborted){result.image?.close();return null;}
     const groundMap=result.image?{texture:bitmapTexture(result.image),bounds:new T.Vector4().fromArray(result.bounds)}:null;
-    const materials=cityMaterials(neutral,groundMap,roof,atlas);
+    const materials=cityMaterials(neutral,groundMap);
     const geometries=result.geometries.map(record=>{
       const geometry=new T.BufferGeometry();
       if(record.index)geometry.setIndex(attr(record.index));
