@@ -56,6 +56,42 @@
         "city"
       ],
       "markerHeight": 2
+    },
+    {
+      "id": "plaza-de-la-feria",
+      "name": "Plaza de la Feria",
+      "osm": "way/30913318",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 3
+    },
+    {
+      "id": "el-obelisco",
+      "name": "El Obelisco",
+      "osm": "way/582805814",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 3
+    },
+    {
+      "id": "parque-doramas",
+      "name": "Parque Doramas",
+      "osm": "way/30801597",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 3
+    },
+    {
+      "id": "metropole",
+      "name": "Club de Natación Metropole",
+      "osm": "way/30801615",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 3
     }
   ],
   "buildings": {
@@ -91,5 +127,49 @@
     "584041194",
     "168978301",
     "251673532"
-  ]
+  ],
+  "coverage": {
+    "bounds": [
+      -15.438,
+      28.096,
+      -15.41,
+      28.132
+    ],
+    "grid": [
+      3,
+      4
+    ],
+    "historicPlaces": [
+      "santa-ana",
+      "casa-de-colon",
+      "mercado-de-vegueta",
+      "teatro-perez-galdos",
+      "gabinete-literario",
+      "san-telmo"
+    ],
+    "axis": [
+      [
+        -15.417,
+        28.1085
+      ],
+      [
+        -15.4208,
+        28.1124
+      ],
+      [
+        -15.4239,
+        28.1161
+      ],
+      [
+        -15.4272,
+        28.1207
+      ],
+      [
+        -15.4292,
+        28.1242
+      ]
+    ],
+    "radius": 570,
+    "minimumLandM2": 2436567
+  }
 }

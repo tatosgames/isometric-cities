@@ -1,32 +1,27 @@
 """Build local metric scene layers. Run from the project root."""
-import json, math, sys, subprocess, time
+import json, math, sys, time
 started=time.perf_counter()
 from pathlib import Path
 from urllib.parse import urlencode
-import xml.etree.ElementTree as ET
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 from shapely.geometry import Polygon, LineString, Point, shape, mapping, box, MultiPoint
-from shapely.ops import transform
+from shapely.ops import transform, unary_union, polygonize
 from shapely import make_valid
 from pyproj import Transformer
 import rasterio
+from source_cache import fetch
+from osm_extract import acquire
 
 cache = Path('.cache')
 out = Path('public/data')
 cache.mkdir(exist_ok=True)
 out.mkdir(exist_ok=True, parents=True)
-def fetch(name, url):
-    path = cache / name
-    if not path.exists():
-        tmp = path.with_suffix('.part')
-        subprocess.run(['curl','-fsSL','--max-time','90',url,'-o',str(tmp)],check=True)
-        tmp.replace(path)
-    return path
 def save(name, data):
     (out/name).write_text(json.dumps(data,ensure_ascii=False,separators=(',',':')),encoding='utf8')
 
-bbox = '-15.4195,28.0974,-15.4113,28.1116'
-osm = ET.parse(fetch('osm-full.xml','https://api.openstreetmap.org/api/0.6/map?bbox='+bbox))
+catalog=json.loads(Path('content/las-palmas.json').read_text(encoding='utf8'))
+coverage=catalog['coverage']
+osm=acquire(coverage)
 utm = Transformer.from_crs(4326,32628,always_xy=True)
 geo = Transformer.from_crs(32628,4326,always_xy=True)
 ox,oy = utm.transform(-15.415,28.105)
@@ -39,7 +34,6 @@ def tags(e):
     return {t.get('k'):t.get('v') for t in e.findall('tag')}
 nodes={e.get('id'):project(float(e.get('lon')),float(e.get('lat'))) for e in osm.findall('node')}
 ways={e.get('id'):(tags(e),[nodes[n.get('ref')] for n in e.findall('nd')]) for e in osm.findall('way')}
-catalog=json.loads(Path('content/las-palmas.json').read_text(encoding='utf8'))
 def place_polygon(reference):
     kind, ref = reference.split('/')
     if kind == 'way':
@@ -61,7 +55,18 @@ for p in places:
     point=polygons[p['id']].representative_point()
     features.append(feature(point,dict(p,xy=[point.x,point.y])))
 save('poi.geojson',dict(type='FeatureCollection',features=features))
-aoi=MultiPoint([v for p in places if 'city' in p['areas'] for v in polygons[p['id']].exterior.coords]).convex_hull.buffer(95,quad_segs=2)
+historic=MultiPoint([v for key in coverage['historicPlaces'] for v in polygons[key].exterior.coords]).convex_hull.buffer(95,quad_segs=2)
+corridor=LineString([project(*p) for p in coverage['axis']]).buffer(coverage['radius'])
+# Classify the coast partitions inside the acquisition window using the known inland plaza.
+window=transform(project,box(*coverage['bounds']))
+coast=[LineString(v).intersection(window) for t,v in ways.values() if t.get('natural')=='coastline']
+partitions=list(polygonize(unary_union([window.boundary,*coast])))
+land=next(p for p in partitions if p.contains(polygons[catalog['pilotFocus']].representative_point()))
+assert len(partitions)>1 and land.area<window.area*.99, 'Coastline failed to split the acquisition window'
+aoi=historic.union(corridor).intersection(land)
+assert aoi.geom_type=='Polygon' and aoi.area>=coverage['minimumLandM2'], aoi.area
+assert all(aoi.covers(poly.representative_point()) for poly in polygons.values())
+print('Land area',round(aoi.area),'m2',flush=True)
 stage=sys.argv[1] if len(sys.argv)>1 else 'city'
 a=polygons[catalog['pilotFocus']].representative_point()
 pilot=box(a.x-325,a.y-325,a.x+325,a.y+325)
@@ -122,7 +127,7 @@ with rasterio.open(fetch(stage+'-dem.tif',url)) as dem:
     grid=dem.read(1,masked=True)
     assert grid.count()
     elev=dict(origin=[dem.transform.c+dem.transform.a/2-ox,dem.transform.f+dem.transform.e/2-oy],stepY=-dem.transform.e,step=dem.transform.a,w=dem.width,h=dem.height,values=grid.filled(0).round(1).flatten().tolist())
-ground=[coords(p.exterior.coords) for x in range(math.floor(x0),math.ceil(x1),15) for y in range(math.floor(y0),math.ceil(y1),15) for p in parts(area.intersection(box(x,y,x+15,y+15)),'Polygon') if p.area>0.01]
+ground=[coords(p.exterior.coords) for x in range(15*math.floor(x0/15),math.ceil(x1),15) for y in range(15*math.floor(y0/15),math.ceil(y1),15) for p in parts(area.intersection(box(x,y,x+15,y+15)),'Polygon') if p.area>0.01]
 save(stage+'.json',dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
 print(stage,count,len(buildings),len(roads),len(trees),elev['step'],round(time.perf_counter()-started,2),'s')
 

@@ -1,3 +1,4 @@
+import { routesFrom, indexRoadNodes } from './road-routing.js';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -103,6 +104,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     }
     const main=sizes.indexOf(Math.max(...sizes));
     for(const n of nodes)n.ok=n.part===main && free(n.x,n.y,1.7);
+    world.index=indexRoadNodes(nodes);
   }
   function near(x,y,r){
     const g=world.grid;
@@ -128,27 +130,10 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     for(let i=1;i<steps;i++)if(near(ax+(bx-ax)*i/steps,ay+(by-ay)*i/steps,1))return false;
     return true;
   }
-  function nearestNode(x,y){
-    let best=-1,dist=Infinity;
-    world.nodes.forEach((n,i)=>{
-      if(!n.ok)return;
-      const d=(n.x-x)**2+(n.y-y)**2;
-      if(d<dist){dist=d;best=i;}
-    });
-    return best;
-  }
-  // Dijkstra from one node; prev[n] is the next hop from n back towards the source.
+  function nearestNode(x,y){return world.index.nearest(x,y);}
   function routes(source){
-    const nodes=world.nodes,dist=new Float64Array(nodes.length).fill(Infinity),prev=new Int32Array(nodes.length).fill(-1);
-    const heap=[[0,source]];dist[source]=0;
-    while(heap.length){
-      let top=0;
-      for(let i=1;i<heap.length;i++)if(heap[i][0]<heap[top][0])top=i;
-      const [d,n]=heap[top];heap[top]=heap[heap.length-1];heap.pop();
-      if(d>dist[n])continue;
-      for(const [m,w] of nodes[n].links)if(d+w<dist[m]){dist[m]=d+w;prev[m]=n;heap.push([d+w,m]);}
-    }
-    return {dist,prev};
+    if(field?.source!==source)field=routesFrom(world.nodes,source);
+    return field;
   }
 
   // ---- physics ----
@@ -275,7 +260,6 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   const focus=new T.Vector3();
   const pois=locations.map((f,i)=>({name:f.properties.name,number:String(i+1).padStart(2,'0'),x:f.properties.xy[0],y:f.properties.xy[1]}));
   try{record=Number(localStorage.getItem('drive-record'))||0;learned=localStorage.getItem('drive-learned')==='1';}catch{}
-  const still=matchMedia('(prefers-reduced-motion: reduce)');
   const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
   const guide=el('guide'),zones={left:guide.querySelector('.left'),right:guide.querySelector('.right'),both:guide.querySelector('.both')};
   // Screen position of a map point, in CSS pixels of the host.
@@ -321,7 +305,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     return path;
   }
   function spawnChaser(c){
-    const all=world.nodes.map((n,i)=>i).filter(i=>world.nodes[i].ok);
+    const all=world.index.valid;
     const ring=all.filter(i=>{
       const d=Math.hypot(world.nodes[i].x-player.x,world.nodes[i].y-player.y);
       return d>75 && d<120;
@@ -358,7 +342,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     el('over-record').parentElement.classList.toggle('new',best);
     el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo récord.':'');
     // A beat on the frozen scene before the result slides in.
-    overAt=performance.now()+(still.matches?0:420);
+    overAt=performance.now()+420;
   }
 
   // ---- input ----
@@ -510,17 +494,16 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     dustMesh.instanceMatrix.needsUpdate=true;
     // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
     // the follow itself is tight, which keeps the car steady on screen.
-    const calm=still.matches;
     lead.lerp(new T.Vector3(player.vx,0,-player.vy).multiplyScalar(TUNE.lookAhead),Math.min(1,dt*TUNE.leadRate));
     const cx=player.x+lead.x,cy=player.y-lead.z;
     focus.lerp(new T.Vector3(cx,altitude(player.x,player.y),-cy),Math.min(1,dt*TUNE.followRate));
     shake=Math.max(0,shake-dt*4);
-    const jolt=calm?0:shake*shake*TUNE.shake;
+    const jolt=shake*shake*TUNE.shake;
     const nearest=Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y)));
     paceEase+=(Math.hypot(player.vx,player.vy)/TUNE.maxSpeed-paceEase)*Math.min(1,dt*TUNE.paceRate);
     threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*Math.min(1,dt*TUNE.paceRate);
     // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
-    const wantZoom=calm?1:state==='caught'?1+TUNE.zoomCaught:1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
+    const wantZoom=state==='caught'?1+TUNE.zoomCaught:1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
     zoomNow+=(wantZoom-zoomNow)*Math.min(1,dt*TUNE.zoomRate);
     const base=Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide);
     view(focus.clone().add(new T.Vector3((Math.random()-.5)*jolt,0,(Math.random()-.5)*jolt)),base*zoomNow);
@@ -528,7 +511,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     el('hud-coins').textContent=String(score);
     el('hud-time').textContent=clock(time);
     el('hud-record').textContent=String(Math.max(record,score));
-    el('danger').style.opacity=state==='playing'?String(T.MathUtils.clamp((26-nearest)/18,0,1)*(calm?.6:.6+.4*Math.sin(now/90))):'0';
+    el('danger').style.opacity=state==='playing'?String(T.MathUtils.clamp((26-nearest)/18,0,1)*(.6+.4*Math.sin(now/90))):'0';
     const {steer,brake}=input();
     zones.left.classList.toggle('on',state==='playing' && (steer>0 || brake));
     zones.right.classList.toggle('on',state==='playing' && (steer<0 || brake));
@@ -561,8 +544,8 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
       el('hud').hidden=false;
       restart();
       // Glide in from the map zoom instead of cutting to the play zoom.
-      zoomNow=still.matches?1:T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
-      if(!still.matches)focus.copy(camera.position).addScaledVector(camera.getWorldDirection(new T.Vector3()),1500);
+      zoomNow=T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
+      focus.copy(camera.position).addScaledVector(camera.getWorldDirection(new T.Vector3()),1500);
       last=0;raf=requestAnimationFrame(frame);
     },
     exit(){

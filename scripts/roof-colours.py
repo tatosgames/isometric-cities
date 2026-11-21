@@ -2,34 +2,45 @@
 from pathlib import Path
 from urllib.parse import urlencode
 import json
-import subprocess
 import sys
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 from pyproj import Transformer
 
-# One metre per pixel, east/north relative to the common scene origin.
-west, south, width, height = -410, -850, 800, 1500
+# Keep the 1 m grid fixed to the original scene origin. Adjacent requests share edges.
+from source_cache import fetch
+from math import floor, ceil
+stages = [json.loads(Path(f'public/data/{s}.json').read_bytes()) for s in ('pilot','city')]
+xs,ys = zip(*(p for stage in stages for p in stage['boundary']))
+west,south=floor(min(xs))-8,floor(min(ys))-8
+width,height=ceil(max(xs))-west+8,ceil(max(ys))-south+8
 ox, oy = Transformer.from_crs(4326, 4083, always_xy=True).transform(-15.415, 28.105)
-params = dict(SERVICE='WMS', VERSION='1.3.0', REQUEST='GetMap', LAYERS='OI.OrthoimageCoverage',
-              STYLES='', CRS='EPSG:4083', FORMAT='image/jpeg', WIDTH=width, HEIGHT=height,
-              BBOX=','.join(map(str, [ox+west, oy+south, ox+west+width, oy+south+height])))
-source = Path('.cache/pnoa-roofs.jpg')
-if not source.exists():
-    subprocess.run(['curl','-fsSL','--max-time','60','https://www.ign.es/wms-inspire/pnoa-ma?'+urlencode(params),'-o',str(source)],check=True)
-with Image.open(source) as im:
-    assert im.size == (width,height)
+def mosaic():
+    image=Image.new('RGB',(width,height))
+    for x in range(0,width,1024):
+        for y in range(0,height,1024):
+            w,h=min(1024,width-x),min(1024,height-y)
+            bounds=[ox+west+x,oy+south+y,ox+west+x+w,oy+south+y+h]
+            params=dict(SERVICE='WMS',VERSION='1.3.0',REQUEST='GetMap',LAYERS='OI.OrthoimageCoverage',
+                STYLES='',CRS='EPSG:4083',FORMAT='image/jpeg',WIDTH=w,HEIGHT=h,BBOX=','.join(map(str,bounds)))
+            url='https://www.ign.es/wms-inspire/pnoa-ma?'+urlencode(params)
+            with Image.open(fetch('roof.jpg',url)) as tile:
+                assert tile.size==(w,h)
+                image.paste(tile,(x,height-y-h))
+    return image
+with mosaic() as im:
     # Suppress narrow aerial shadows and tiny roof furniture before applying live lighting.
     smooth = im.convert('RGB').filter(ImageFilter.MedianFilter(5))
-    rgb = np.asarray(smooth,dtype=float)
+    rgb = np.asarray(smooth,dtype=np.float32)
     shade = np.maximum(0, 105-rgb.mean(axis=2,keepdims=True))
     rgb = np.clip(rgb + shade*.67,0,255)
-    Image.fromarray(rgb.astype('uint8')).save('public/data/roof-colours.webp',quality=86)
+    atlas=Image.fromarray(rgb.astype('uint8'))
+    atlas.save('.cache/roof-atlas.png')
+    atlas.resize((max(1,width//2),max(1,height//2)),Image.Resampling.LANCZOS).save('public/data/roof-colours.webp',quality=86)
 # Robust midtone from the inside of each footprint; holes and dark occlusions do not set its hue.
 colours = {}
-for stage in ['pilot','city']:
-    scene = json.loads(Path('public/data/'+stage+'.json').read_text(encoding='utf8'))
+for scene in stages:
     for b in scene['buildings']:
         rings = [[(x-west,height-1-(y-south)) for x,y in ring] for ring in b['rings']]
         xs,ys=zip(*rings[0])

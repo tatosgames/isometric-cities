@@ -30,7 +30,7 @@ Il profilo touch/schermo piccolo usa DPR massimo 1, antialiasing multisample dis
 
 ## Camera, memoria e recupero progressivo
 
-Confronto con il commit 1c8f8c0. Chrome locale in Playwright, viewport touch 390×844, stessa build Vite per ciascuna revisione. Il percorso alterna Santa Ana e San Telmo, con otto piccoli pan da tastiera per tappa. Movimento ridotto attivo nel benchmark per isolare il costo del disegno dalle nuove transizioni. Venti tappe misurate dopo le prime due di riscaldamento.
+Confronto con il commit 1c8f8c0. Chrome locale in Playwright, viewport touch 390×844, stessa build Vite per ciascuna revisione. Il percorso alterna Santa Ana e San Telmo, con otto piccoli pan da tastiera per tappa. Nella misurazione storica le transizioni erano disattivate. Il benchmark corrente attende la fine del volo della camera prima di misurare il pan. Venti tappe misurate dopo le prime due di riscaldamento.
 
 | Misura | Versione precedente | Versione attuale |
 |---|---:|---:|
@@ -45,7 +45,7 @@ Confronto con il commit 1c8f8c0. Chrome locale in Playwright, viewport touch 390
 
 Le istanze per cella riducono i dati duplicati e aumentano i disegni separati. I buffer e le texture WebGL conteggiati nella nuova versione restano a 245 e 6 tra la fine del riscaldamento e la ventesima tappa misurata. L’apertura e il percentile sono misure di una sessione, sensibili a browser, GPU e carico del computer. Il picco RSS comprende l’intero processo isolato; il campionamento Chrome non misura la VRAM. Ripetizione sul build locale con `node scripts/benchmark.mjs`; un argomento facoltativo seleziona un’altra cartella di build.
 
-La suite browser copre orientamento del viewport, zoom e centro conservati, movimento ridotto, tre perdite consecutive (pan, transizione, scheda), ripristino dei pixel, profilo ridotto dalla seconda perdita e recupero tramite il pulsante di ricarica. Su mobile verifica anche pinch dopo il ripristino e riduzione temporanea della risoluzione durante un gesto prolungato con intervalli lenti. Controllati i confronti visivi di [Santa Ana](screenshots/santa-ana-styled.png), [Mercado](screenshots/mercado-teatro.png) e [San Telmo](screenshots/san-telmo.png).
+La suite browser copre orientamento del viewport, zoom e centro conservati, tre perdite consecutive (pan, transizione, scheda), ripristino dei pixel, profilo ridotto dalla seconda perdita e recupero tramite il pulsante di ricarica. Su mobile verifica anche pinch dopo il ripristino e riduzione temporanea della risoluzione durante un gesto prolungato con intervalli lenti. Controllati i confronti visivi di [Santa Ana](screenshots/santa-ana-styled.png), [Mercado](screenshots/mercado-teatro.png) e [San Telmo](screenshots/san-telmo.png).
 
 Verifica dei monumenti: typecheck, build, confronto neutro/stilizzato a Santa Ana e smoke test desktop/mobile completati. Inquadrature di controllo: [cattedrale](screenshots/santa-ana-styled.png) e [Gabinete Literario](screenshots/triana-mobile.png). Tutte le risorse grafiche della demo vengono servite dal progetto.
 
@@ -71,8 +71,35 @@ Limiti noti: nessuna prova su telefono fisico (tocco reale, vibrazione, prestazi
 
 HUD, guida e pannello finale senza testo visibile: icone SVG proprie, numeri, zone tattili animate (lezione del freno dopo 4 s, una sola volta, ricordata nel browser), indicatore di destinazione con il numero del luogo, fascio luminoso sul traguardo, bordo rosso di pericolo. Etichette e annunci restano per i lettori di schermo. Aggiunti: calamita delle monete, numeri che saltano fuori alla raccolta, lampeggianti delle pattuglie, testacoda dei rottami, muso che si abbassa in frenata, pausa prima del pannello di cattura.
 
-Camera: anticipo smussato a parte, inseguimento stretto, zoom con costante di tempo di circa 1 s. Misurato a campioni di 0,5 s durante la guida: zoom tra 0,91 e 0,97 del valore base, variazione massima fra due campioni 0,012. Ingresso in planata dallo zoom della mappa in circa 1,5 s. Con movimento ridotto attivo zoom e scossa sono disattivati.
+Camera: anticipo smussato a parte, inseguimento stretto, zoom con costante di tempo di circa 1 s. Misurato a campioni di 0,5 s durante la guida: zoom tra 0,91 e 0,97 del valore base, variazione massima fra due campioni 0,012. Ingresso in planata dallo zoom della mappa in circa 1,5 s.
 
 - [Guida del freno su mobile](screenshots/conducir-mobile.png) · [pannello di cattura](screenshots/conducir-fin.png).
 - Il rilevatore di design segnala il footer a 10 px e il font Inter, preesistenti e non modificati, e il bordo rosso di pericolo, voluto.
 - Non provato su telefono fisico. La sensazione rispetto al video di Pako va giudicata giocando.
+
+## Corridoio Vegueta–Arenales–Ciudad Jardín
+
+La prova iniziale ha suddiviso i 487.313 m² originari in 17 settori. Sul viewport touch 390 × 844 l’apertura ha costruito 9 settori e 16,02 MB di array di dettaglio. Dopo San Telmo, Santa Ana e ritorno, 20,73 MB di array restavano residenti e il mirino mostrava soltanto il livello semplificato. Questa prima misura riguardava le geometrie prima dell’introduzione delle texture locali.
+
+L’area finale ritagliata sulla costa misura 3.040.938 m² (6,24×); i vertici esportati con precisione di un decimetro danno 3.040.955 m². Il controllo sui dati generati ha confrontato i multinsiemi degli edifici, dei poligoni di terreno e degli alberi tra sorgente e settori. Ogni elemento ha un proprietario, tutti i tratti stradali sono rappresentati e i 160 file richiamati dagli 80 settori sono presenti. I sei POI originali hanno mantenuto le coordinate locali e gli ID. [Panoramica](screenshots/overview.png) · [Parque Doramas](screenshots/ciudad-jardin.png)
+
+| Benchmark in Chrome con viewport mobile emulato | Prima, 0,487 km² | Dopo, 3,041 km² |
+|---|---:|---:|
+| Prima vista navigabile | 2,29 s | 2,48 s |
+| Picco campionato sull’isolate principale durante l’apertura | 102,2 MB | 86,1 MB |
+| Intervallo p95 durante il pan | 18,2 ms | 18,4 ms |
+| Draw call medie per frame | 32,44 | 70,75 |
+| Triangoli medi per frame | 144.863 | 185.226 |
+| Disegni in 5 s a riposo | 0 | 0 |
+
+Misure di una singola esecuzione locale per versione. Il percorso alterna Santa Ana e San Telmo. La versione a settori attende il dettaglio prima di campionare il pan. La prima vista è già esplorabile mentre il worker prepara il dettaglio. L'heap campionato esclude il worker e la VRAM. Il percentile durante il pan non misura il picco di un caricamento a freddo. La versione ampliata invia più draw call e triangoli. In un primo prototipo la preparazione sincrona del dettaglio interferiva con le interazioni; il risultato finale usa un worker e array trasferibili.
+
+La prova specifica `node scripts/qa-sectors.mjs` blocca la prima richiesta di dettaglio, forza la perdita WebGL e verifica il ritorno del dettaglio dopo il ripristino. Visita Santa Ana, Plaza de la Feria, Parque Doramas e Metropole per tre giri e verifica espulsioni, budget e stabilizzazione. Nel giro osservato, dopo il riscaldamento, il dettaglio ai quattro arresti occupava circa 45–50 MB entro 48 MiB (50,33 MB). Queste cifre stimano i dati dei settori residenti. Poi usa come punti di partenza e arrivo due nodi stradali reali su Calle Luis Doreste Silva e guida in entrambi i sensi attraverso il confine x = −480 m, con veicolo e pattuglia attivi. Il grafo del gioco, la fisica e i comandi sono quelli di produzione.
+
+Sul grafo stradale di 5.067 nodi i dieci punti di interesse hanno dato gli stessi nodi più vicini e gli stessi vettori di distanze del calcolo esaustivo. Con Node locale, media su dieci posizioni, la ricerca del nodo ha richiesto 0,0043 ms con indice e 0,0638 ms con scansione lineare. Il percorso completo ha richiesto 0,67 ms con la coda a priorità e 0,76 ms con la vecchia scansione. A sorgente invariata il campo si riusa.
+
+ADB era disponibile e la lista dei dispositivi collegati era vuota. Le verifiche di tocco, orientamento, pressione di memoria e recupero sono prove browser simulate. Temperatura, VRAM e fluidità su telefono fisico restano da misurare.
+
+Ripetuta l’intera generazione da cache in ordine pilota, città, colori e settori. I 168 file sotto `public/data` hanno mantenuto lo stesso SHA-256.
+
+Nel secondo e terzo giro di controllo i conteggi WebGL di buffer/texture agli arresti sono stati rispettivamente 922/30 e 922/30 a Santa Ana, 944/32 e 944/32 a Plaza de la Feria, 1.010/36 e 1.010/36 a Doramas, 1.040/36 e 1.036/36 a Metropole. Si tratta di contatori di risorse, non di byte di VRAM.

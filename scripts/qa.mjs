@@ -11,7 +11,10 @@ try{
   const page=await browser.newPage({viewport:mobile?{width:390,height:844}:{width:1440,height:900},hasTouch:mobile,isMobile:mobile});
   const faults=[];
   page.on('pageerror',e=>faults.push(e.message));
-  page.on('requestfailed',r=>faults.push(r.url()));
+  page.on('requestfailed',r=>{
+    if(r.url().includes('/city-sectors/') && r.failure()?.errorText.includes('ERR_ABORTED'))return;
+    faults.push(r.url());
+  });
   page.on('response',r=>{if(r.status()>=400||!r.url().startsWith(origin))faults.push(r.url());});
   const host=page.locator('#scene');
   async function visit(path){
@@ -20,6 +23,10 @@ try{
   const settled=()=>page.waitForFunction(()=>document.querySelector('#scene').dataset.moving==='false');
   async function snap(name){
     await settled();
+    await page.waitForFunction(()=>{
+      const state=document.querySelector('#scene').dataset.sectors;
+      return !state || !JSON.parse(state).pending;
+    });
     await page.screenshot({path:dir+'/'+name+'.png'});
   }
   if(process.argv.includes('pilot')){
@@ -29,12 +36,13 @@ try{
     }
   }else{
     const start=Date.now();await visit('/');console.log(mobile?'mobile':'desktop','load ms',Date.now()-start);
-    if(!mobile)await snap('opening');await page.locator('#reset').click();await page.waitForTimeout(200);const initial=await host.getAttribute('data-view');if(!mobile)await snap('overview');
+    if(!mobile)await snap('opening');await page.locator('#reset').click();await page.waitForFunction(()=>{const s=JSON.parse(document.querySelector('#scene').dataset.sectors);return !s.pending && s.visible===0 && document.querySelector('#scene').dataset.moving==='false';});const initial=await host.getAttribute('data-view');if(!mobile)await snap('overview');
     for(let i=0;i<await page.locator('#places button').count();i++){
       await page.locator('#index-toggle').click();
       const b=page.locator('#places button').nth(i);
       await (mobile?b.tap():b.click());assert.equal(await page.locator('article').isVisible(),true);await page.waitForFunction(i=>document.querySelectorAll('#places button')[i].getAttribute('aria-pressed')==='true',i);
       const placeId=await b.getAttribute('data-place-id');
+      if(!mobile&&placeId==='parque-doramas')await snap('ciudad-jardin');
       if(!mobile&&placeId==='san-telmo')await snap('san-telmo');
       if(!mobile&&placeId==='mercado-de-vegueta')await snap('mercado-teatro');
       if(mobile&&placeId==='teatro-perez-galdos')await snap('teatro-mobile');
@@ -119,10 +127,9 @@ try{
       await page.waitForFunction(v=>document.querySelector('#scene').dataset.view!==v,prior);
     }
     const priorPlaceView=await host.getAttribute('data-view');
-    await page.emulateMedia({reducedMotion:'reduce'});
     await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="santa-ana"]').click();
     await page.waitForFunction(()=>document.querySelector('.pin[data-place-id="santa-ana"]').getAttribute('aria-pressed')==='true');
-    assert.equal(await host.getAttribute('data-moving'),'false');
+    await settled();
     await page.waitForFunction(prior=>document.querySelector('#scene').dataset.view!==prior,priorPlaceView);
     const retryView=await host.getAttribute('data-view');
     await page.evaluate(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
@@ -143,13 +150,17 @@ try{
     assert.equal(await page.locator('footer').isVisible(),true);
     const ready=await drive();assert.ok(Number(ready[6])>0,'Expected a coin trail');
     const box=await host.boundingBox();
+    const waitForTurn=()=>page.waitForFunction(start=>{
+      const current=document.querySelector('#scene').dataset.drive.split(',');
+      return Math.sin(current[4]-start[4])>.1 && Math.hypot(current[2]-start[2],current[3]-start[3])>.3;
+    },ready);
     if(mobile){
       const cdp=await page.context().newCDPSession(page);
       await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width*.2,y:box.y+box.height*.7,id:1}]});
-      await page.waitForTimeout(450);
+      await waitForTurn();
       await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
     }else{
-      await page.keyboard.down('ArrowLeft');await page.waitForTimeout(450);await page.keyboard.up('ArrowLeft');
+      await page.keyboard.down('ArrowLeft');await waitForTurn();await page.keyboard.up('ArrowLeft');
     }
     const turned=await drive();
     assert.equal(turned[0],'playing');

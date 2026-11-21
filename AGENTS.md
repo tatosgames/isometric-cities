@@ -1,6 +1,6 @@
 # AGENTS.md · Indice base
 
-Vegueta y Triana · Atlas insular: plastico urbano interattivo di Las Palmas de Gran Canaria (Three.js + Vite, JS senza framework). Geodati elaborati in `public/data`, nessuna dipendenza da tile esterni.
+Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran Canaria (Three.js + Vite, JS senza framework). Geodati elaborati in `public/data`, nessuna dipendenza da tile esterni.
 
 ## Mappa del progetto
 
@@ -9,6 +9,9 @@ Vegueta y Triana · Atlas insular: plastico urbano interattivo di Las Palmas de 
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
 | `main.js` | Camera, input, filtro per area e recupero contesto WebGL |
 | `drive.js` | Modalità «Conducir» stile Pako: fisica arcade, collisioni, pattuglie, monete, HUD; costanti in `TUNE` |
+| `sector-stream.js`, `sector-builder.js`, `sector-worker.js`, `overview.js` | Priorità e budget, costruzione fuori thread, panoramica |
+| `road-routing.js` | Indice dei nodi e percorsi delle pattuglie |
+| `scripts/sectors.py`, `scripts/qa-sectors.mjs` | Generazione dei settori e prova di attraversamento |
 | `scene.js` | Costruzione scena: edifici, strade, superfici, alberi, mesh ottimizzate |
 | `content/las-palmas.json` | Catalogo dei luoghi, centro del pilota e stili per edificio |
 | `places-ui.js`, `landmarks.js` | Menu e marker con ID persistenti, modelli procedurali dedicati |
@@ -33,6 +36,8 @@ npm.cmd test            # scripts/qa.mjs, richiede Chrome
 ```
 
 ## Regole
+
+- Mantenere un solo comportamento animato per camera, guida e interfaccia su tutti i dispositivi, indipendentemente dalle preferenze di movimento del sistema.
 
 - Leggere `PLAN.md` e `PROGRESS.md` prima di cambiare perimetro, stile o dati.
 - Non inventare strade, edifici o acqua; nomi dei luoghi in spagnolo; mantenere le attribuzioni visibili.

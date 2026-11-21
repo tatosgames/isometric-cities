@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --allowJs --checkJs --noEmit --target es2022 --module esnext --moduleResolution bundler --skipLibCheck --strict false main.js scene.js drive.js",
+    "typecheck": "tsc --allowJs --checkJs --noEmit --target es2022 --module esnext --moduleResolution bundler --skipLibCheck --strict false main.js scene.js drive.js sector-worker.js",
     "test": "node scripts/qa.mjs"
   },
   "dependencies": {

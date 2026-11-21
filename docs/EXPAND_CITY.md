@@ -14,11 +14,11 @@ Lo script legge una way poligonale oppure una relazione con un’unica way ester
 
 ## Ampliare un quartiere
 
-1. Ricava il nuovo perimetro dalle impronte dei luoghi. Lo stage `city` prende l’inviluppo convesso dei vertici esterni dei POI con area `city` e aggiunge 95 m. Anche una sola nuova voce può cambiare le richieste dati. Il pilota è un quadrato di 650 m centrato sul punto interno di `pilotFocus`.
-2. Verifica che la bbox WGS84 in [data.py](../scripts/data.py) comprenda il nuovo perimetro e che l’estratto contenga gli oggetti OSM completi. Per aree vaste valuta un estratto regionale ritagliato e un adattamento del lettore XML. Conserva l’origine pubblicata a longitudine −15.415, latitudine 28.105. Gli anelli locali sono in metri est/nord in EPSG:32628, Three.js usa (est, quota, −nord). I GeoJSON pubblici usano longitudine/latitudine.
-3. Conserva gli input precedenti. In un checkout pulito porta le modifiche al catalogo e agli script, quindi rigenera con cache nuova quando cambia la richiesta. `.cache/osm-full.xml` dipende dalla bbox, `<stage>-count.json` e le pagine `<stage>-<offset>.json` dall’estensione comunale, `<stage>-dem.tif` dal ritaglio WCS, `pnoa-roofs.jpg` dall’origine e dall’estensione WMS. I nomi non includono quei parametri. Una risposta vecchia può superare i controlli di conteggio o di dimensioni. Per una riproduzione identica usa invece lo snapshot originale.
-4. Controlla le pagine comunali ordinate per OBJECTID, il conteggio univoco e la copertura ai bordi. La pipeline ripara e ritaglia gli edifici, conserva i cortili e scarta parti sotto 2 m². Le altezze comunali sono provvisorie, il ripiego è 9 m. Verifica la copertura del MDT05 e le zone senza dati, che vengono riempite con zero. Il terreno usa campioni di circa 5 m e una maglia visiva di 15 m.
-5. Imposta in [roof-colours.py](../scripts/roof-colours.py) un rettangolo che contenga interamente pilota e città, inclusi i bordi dei tetti, con margine per il campionamento. A 1 m/pixel, `west,south,width,height` sono metri locali. Il WMS usa EPSG:4083. L’immagine ha il nord in alto. Lo script attenua le ombre, campiona i mezzitoni escludendo i cortili e scrive il WebP insieme a `roof-tones.json` con `tones` e `bounds`. Lo shader legge quei limiti.
+1. Modifica `coverage` nel catalogo. `axis` contiene le coppie longitudine/latitudine del corridoio, `radius` è in metri e `historicPlaces` conserva l’inviluppo dei sei luoghi iniziali con margine di 95 m. L’unione viene ritagliata sulla terraferma usando la costa OSM e Santa Ana come punto interno. Verifica che il risultato sia un poligono continuo, includa tutti i luoghi e raggiunga `minimumLandM2`. Il pilota rimane un quadrato di 650 m attorno a `pilotFocus`.
+2. Estendi `coverage.bounds` oltre il nuovo perimetro. La costa deve attraversare il bordo della finestra e dividerla in terra e mare. `coverage.grid` indica colonne e righe delle piccole richieste alla Map API. Lo script unisce nodi, way e relazioni per tipo e ID, conservando la versione più recente. Per aree maggiori valuta un estratto regionale. Conserva l’origine WGS84 (−15.415, 28.105) e il CRS metrico EPSG:32628.
+3. Le risposte OSM, ArcGIS, MDT05 e PNOA sono in `.cache/sources`. Il nome contiene un digest dell’URL completo, compresi bbox e risoluzione. Per aggiornare una fonte allo stesso URL conserva lo snapshot precedente e avvia una nuova acquisizione in una cache separata.
+4. Controlla che il conteggio comunale coincida con gli OBJECTID univoci paginati. La pipeline ritaglia gli edifici, conserva i cortili e scarta frammenti sotto 2 m². Controlla il terreno MDT05 ai bordi. Il viewer interpola un’unica griglia su entrambe le facce di ogni confine.
+5. L’atlante ricava i limiti da pilota e città e scarica riquadri PNOA fino a 1024 px a 1 m/pixel. La pipeline produce una vista globale a metà risoluzione e ritagli dei tetti per settore. Non spostare una porzione di edificio in un altro settore durante il ritaglio. Ogni impronta ha un solo proprietario, determinato dal centro del suo rettangolo di ingombro.
 6. Verifica apertura, mirino e limiti del pan. Il centro iniziale della scena cittadina resta in [main.js](../main.js). Un terzo stage richiede modifiche al generatore e al selettore del viewer, che oggi distinguono pilota e città.
 
 ## Generazione riproducibile
@@ -30,9 +30,20 @@ python -m pip install --target .cache/pylib -r scripts/requirements.txt
 python scripts/data.py pilot
 python scripts/data.py city
 python scripts/roof-colours.py
+python scripts/sectors.py
 ```
 
 Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson` condiviso e i due file dei tetti. Entrambi gli stage riscrivono i POI condivisi. L’atlante usa entrambe le scene già generate. Confronta i confini prima/dopo e le coordinate dei luoghi preesistenti. Per un’estensione verifica su ogni nuovo bordo la continuità di strade, suolo, edifici e colori.
+
+## Settori, guida e memoria
+
+Il catalogo dei settori è `public/data/city-index.json`. I JSON e i WebP dettagliati in `city-sectors/` hanno nomi derivati dal contenuto. Distribuiscili insieme all’indice. Il passaggio `sectors.py` rimuove i propri vecchi file generati. Per una rigenerazione ripetibile conserva il mosaico intermedio `.cache/roof-atlas.png` oppure rigeneralo prima.
+
+La panoramica contiene sagome, chiome semplificate e terreno. Il passaggio al dettaglio usa la dimensione in metri della vista. I gruppi piccoli mantengono il frustum culling di Three.js. La priorità dei settori segue la camera e, in guida, anticipa la direzione di avanzamento. Un worker crea mesh trasferibili e bitmap. Una risposta obsoleta viene scartata prima del caricamento sulla GPU. Il materiale globale rimane di proprietà della panoramica. Ogni dettaglio possiede le proprie geometrie, istanze, materiali e bitmap, che vengono liberati allo scaricamento.
+
+Il budget del dettaglio è 48 MiB nel profilo compatto e 96 MiB su desktop. Comprende array geometrici, pixel delle bitmap e una stima delle texture RGBA con mipmap. La memoria totale del browser comprende anche scena base, worker, driver e risorse temporanee. Misura sul dispositivo obiettivo. Leggi i contatori `data-sectors` sul contenitore della scena per settore in attesa, residenti, visibili, espulsioni e byte stimati.
+
+La maglia del terreno è allineata all’origine metrica a passi di 15 m. Ogni cella da 240 m include i tratti OSM che intersecano un margine e dipinge il terreno a 2 px/m, con 5 m esterni per il filtro. Il grafo stradale e la griglia di collisione sono residenti a prescindere dai settori visivi. I percorsi riusano il campo di distanze quando il nodo sorgente è lo stesso.
 
 ## Architettura e resa visiva
 
@@ -52,9 +63,10 @@ npm.cmd run typecheck
 npm.cmd run build
 node scripts/qa.mjs pilot
 npm.cmd test
+node scripts/qa-sectors.mjs
 node scripts/benchmark.mjs
 ```
 
-I test richiedono Chrome. Confronta la coppia neutro/stilizzato di Santa Ana, apri i nuovi marker e verifica nomi, indice, zoom e ripristino dopo riordino. La suite cittadina include un settimo luogo di prova, rotazione del viewport, pinch e perdite simulate del contesto WebGL. Per espansioni consistenti confronta la build precedente e quella nuova sullo stesso dispositivo e browser. Il benchmark accetta la directory di build come argomento. Controlla draw call e triangoli per frame, picco heap, stabilità di buffer e texture dopo le transizioni e draw call a riposo. Il ripristino deve riportare la geometria visibile, oltre ai marker HTML. Su un telefono reale verifica anche una sessione prolungata quando cambia il carico GPU.
+I test richiedono Chrome. Confronta la coppia neutro/stilizzato di Santa Ana, apri i nuovi marker e verifica nomi, indice, zoom e ripristino dopo riordino. La suite cittadina include un luogo aggiuntivo di prova, rotazione del viewport, pinch e perdite simulate del contesto WebGL. Per espansioni consistenti confronta la build precedente e quella nuova sullo stesso dispositivo e browser. Il benchmark accetta la directory di build come argomento. Controlla draw call e triangoli per frame, picco heap, stabilità di buffer e texture dopo le transizioni e draw call a riposo. Il ripristino deve riportare la geometria visibile, oltre ai marker HTML. Su un telefono reale verifica anche una sessione prolungata quando cambia il carico GPU.
 
 Registra fonti o aggiornamenti in [DATA_SOURCES.md](DATA_SOURCES.md), confronti e risultati effettivi in [QA.md](QA.md), stato e approssimazioni in [PROGRESS.md](../PROGRESS.md). Il workflow Pages ricostruisce la demo dai dati versionati su push a main. Cache private, riferimenti visivi e build temporanee restano locali.

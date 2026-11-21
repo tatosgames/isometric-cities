@@ -1,3 +1,4 @@
+import { streamCity } from './sector-stream.js';
 import { createPlacesUI } from './places-ui.js';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -10,8 +11,8 @@ async function start(){
   const pilot=query.get('area')==='pilot';
   const load=async path=>{const r=await fetch('./data/'+path);if(!r.ok)throw Error(path);return r.json();};
   const neutral=query.has('neutral');
-  const [data,poi,roofColours,roofAtlas]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
-    neutral?null:new T.TextureLoader().loadAsync('./data/roof-colours.webp'),neutral?{}:load('roof-tones.json')]);
+  const [data,poi,roofColours,roofAtlas,index]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
+    neutral?null:new T.TextureLoader().loadAsync('./data/roof-colours.webp'),neutral?{}:load('roof-tones.json'),pilot?null:load('city-index.json')]);
   if(roofColours)roofColours.colorSpace=T.SRGBColorSpace;
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
@@ -24,17 +25,18 @@ async function start(){
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
-  const {group,altitude}=makeCity(data,neutral,roofColours,roofAtlas,compact);scene.add(group);
+  const streamed=pilot?null:streamCity({data:{...data,...index},neutral,roofColours,roofAtlas,compact,host,
+    refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}});
+  const {group,altitude}=streamed??makeCity(data,neutral,roofColours,roofAtlas,compact);scene.add(group);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
-  sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.00035;sun.shadow.normalBias=.4;scene.add(sun);
+  sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);
   const controls=new OrbitControls(camera,renderer.domElement);
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
   let frame=0,fit=1,flight=null,lost=false,lastView=null,drive=null,beforeDrive=null;
-  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
     if(lost)return false;
@@ -56,7 +58,6 @@ async function start(){
   function reset(){if(lost)return;flight=null;places.close();view(center,fit);}
   function fly(target,zoom,duration){
     if(lost)return;
-    if(reducedMotion.matches){flight=null;view(target,zoom);return;}
     host.dataset.moving='true';
     flight={start:performance.now(),duration,from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom};
     draw();
@@ -85,7 +86,7 @@ async function start(){
   }
   const status=el('status');
   renderer.domElement.addEventListener('webglcontextlost',event=>{
-    event.preventDefault();lost=true;losses++;flight=null;leaveDrive();
+    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;leaveDrive();
     cancelAnimationFrame(frame);frame=0;gesture=false;dynamic=false;previousTime=slowWindows=0;samples.length=0;
     controls.enabled=false;controls.disconnect();
     remember();
@@ -122,6 +123,14 @@ async function start(){
       const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
       camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
       camera.updateMatrixWorld();
+      if(renderer.shadowMap.enabled){
+        const sx=Math.round(controls.target.x/240)*240,sz=Math.round(controls.target.z/240)*240;
+        if(sun.target.position.x!==sx || sun.target.position.z!==sz){
+          sun.target.position.set(sx,0,sz);sun.position.set(sx-550,690,sz-370);
+          renderer.shadowMap.needsUpdate=true;
+        }
+      }
+      streamed?.update(camera,controls.target,drive?.active);
       renderer.render(scene,camera);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;

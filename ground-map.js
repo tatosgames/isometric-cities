@@ -4,12 +4,15 @@ import * as T from 'three';
 export function makeGroundMap(data) {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
+  if(data.textureBounds){
+    extent.min.fromArray(data.textureBounds);extent.max.fromArray(data.textureBounds,2);
+  }
   const size = extent.getSize(new T.Vector2());
-  const scale = Math.min(3, 2048 / Math.max(size.x, size.y));
-  const canvas = document.createElement('canvas');
+  const scale = Math.min(data.textureBounds ? 2 : 3, 2048 / Math.max(size.x, size.y));
+  const canvas = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
   canvas.width = Math.max(1, Math.ceil(size.x * scale));
   canvas.height = Math.max(1, Math.ceil(size.y * scale));
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = /** @type {CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D} */ (canvas.getContext('2d', { alpha: false }));
   const sx = canvas.width / size.x, sy = canvas.height / size.y;
   ctx.fillStyle = '#c7bcb2';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
