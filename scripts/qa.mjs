@@ -37,10 +37,14 @@ try{
   }else{
     const start=Date.now();await visit('/');console.log(mobile?'mobile':'desktop','load ms',Date.now()-start);
     if(!mobile)await snap('opening');await page.locator('#reset').click();await page.waitForFunction(()=>{const s=JSON.parse(document.querySelector('#scene').dataset.sectors);return !s.pending && s.visible===0 && document.querySelector('#scene').dataset.moving==='false';});const initial=await host.getAttribute('data-view');if(!mobile)await snap('overview');
+    const credits=page.locator('footer');
+    assert.equal(await credits.isVisible(),false);
     for(let i=0;i<await page.locator('#places button').count();i++){
       await page.locator('#index-toggle').click();
+      assert.equal(await credits.isVisible(),true);
       const b=page.locator('#places button').nth(i);
       await (mobile?b.tap():b.click());assert.equal(await page.locator('article').isVisible(),true);await page.waitForFunction(i=>document.querySelectorAll('#places button')[i].getAttribute('aria-pressed')==='true',i);
+      assert.equal(await credits.isVisible(),true);
       const placeId=await b.getAttribute('data-place-id');
       if(!mobile&&placeId==='parque-doramas')await snap('ciudad-jardin');
       if(!mobile&&placeId==='san-telmo')await snap('san-telmo');
@@ -48,6 +52,7 @@ try{
       if(mobile&&placeId==='teatro-perez-galdos')await snap('teatro-mobile');
       if(mobile&&placeId==='gabinete-literario')await snap('triana-mobile');
       await page.locator('#close').click();
+      assert.equal(await credits.isVisible(),false);
     }
     await page.locator('#reset').click();await page.waitForTimeout(150);
     await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);
@@ -147,7 +152,7 @@ try{
     await page.locator('#drive').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     assert.equal(await page.locator('#pins').isVisible(),false);
-    assert.equal(await page.locator('footer').isVisible(),true);
+    assert.equal(await page.locator('footer').isVisible(),false);
     assert.equal(await page.locator('#hud-stats .stat').count(),2);
     assert.equal(await page.locator('#over-record').isVisible(),false);
     if(mobile){
@@ -177,6 +182,7 @@ try{
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
     await page.locator('#over').waitFor({state:'visible'});
     assert.equal(await page.locator('#over-record').isVisible(),true);
+    assert.equal(await page.locator('footer').isVisible(),true);
     if(mobile)await page.screenshot({path:dir+'/conducir-fin.png'});
     await page.locator('#again').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));

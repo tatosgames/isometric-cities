@@ -14,7 +14,7 @@ Windows, Node 24.13, Chrome desktop e Playwright. Controllo dei tipi superato co
 ## Prove visive
 
 - [Vista iniziale a tutto schermo](screenshots/opening.png) · dettaglio di Triana.
-- [Panoramica fino a San Telmo](screenshots/overview.png) · perimetro continuo, marker e attribuzione.
+- [Panoramica fino a San Telmo](screenshots/overview.png) · perimetro continuo e marker.
 - [Santa Ana neutra](screenshots/santa-ana-neutral.png) e [Santa Ana stilizzata](screenshots/santa-ana-styled.png) · stesse geometrie, vista e scala.
 - [Mercado e Teatro](screenshots/mercado-teatro.png) · posizione reciproca e attraversamento urbano lungo l’antico Guiniguada.
 - [Triana mobile](screenshots/triana-mobile.png) · nome del Gabinete, controlli e attribuzione.
@@ -103,3 +103,5 @@ ADB era disponibile e la lista dei dispositivi collegati era vuota. Le verifiche
 Ripetuta l’intera generazione da cache in ordine pilota, città, colori e settori. I 168 file sotto `public/data` hanno mantenuto lo stesso SHA-256.
 
 Nel secondo e terzo giro di controllo i conteggi WebGL di buffer/texture agli arresti sono stati rispettivamente 922/30 e 922/30 a Santa Ana, 944/32 e 944/32 a Plaza de la Feria, 1.010/36 e 1.010/36 a Doramas, 1.040/36 e 1.036/36 a Metropole. Si tratta di contatori di risorse, non di byte di VRAM.
+
+I crediti si vedono con il menu dei luoghi, la scheda di un luogo, il riepilogo finale e il popup di recupero WebGL. Si nascondono durante l’esplorazione e la guida.
