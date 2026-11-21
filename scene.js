@@ -3,7 +3,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
   const group = new T.Group();
+  const mat=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,side:T.DoubleSide,roughness:1});
   const buckets = new Map();
+  function flush(bucket){
+    if(!bucket.parts.length)return;
+    const mesh=new T.Mesh(mergeGeometries(bucket.parts),mat);
+    mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
+    bucket.parts.length=0;bucket.vertices=0;
+  }
   const terrain = data.terrain;
   function altitude(x,y) {
     const col=T.MathUtils.clamp((x-terrain.origin[0])/terrain.step,0,terrain.w-1.001);
@@ -12,18 +19,26 @@ export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
     const v=terrain.values, u=col%1, t=row%1;
     return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t);
   }
-  function add(g,color,x=0,y=0,surface=0) {
+  function add(g,color,x=0,y=0,surface=0,wallBase=null) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
+    const normals=geom.attributes.normal;
+    const packed=new Int8Array(normals.count*3);
+    for(let i=0;i<packed.length;i++)packed[i]=Math.round(normals.array[i]*127);
+    geom.setAttribute('normal',new T.BufferAttribute(packed,3,true));
     geom.setAttribute('surface',new T.BufferAttribute(new Uint8Array(geom.attributes.position.count).fill(surface),1));
     const shade=new T.Color(neutral ? '#e4dfd3' : color);
     const rgb=new Uint8Array(geom.attributes.position.count*3);
     shade.multiplyScalar(255);
-    for(let i=0;i<rgb.length;i+=3) shade.toArray(rgb,i);
+    for(let i=0;i<rgb.length;i+=3){
+      const ao=compact && wallBase!==null ? .80+.20*T.MathUtils.clamp((geom.attributes.position.getY(i/3)-wallBase)/4,0,1) : 1;
+      rgb[i]=shade.r*ao;rgb[i+1]=shade.g*ao;rgb[i+2]=shade.b*ao;
+    }
     geom.setAttribute('color',new T.BufferAttribute(rgb,3,true));
     const key=Math.floor(x/120)+','+Math.floor(y/120);
-    if(!buckets.has(key)) buckets.set(key,[]);
-    buckets.get(key).push(geom);
+    if(!buckets.has(key)) buckets.set(key,{parts:[],vertices:0});
+    const bucket=buckets.get(key);bucket.parts.push(geom);bucket.vertices+=geom.attributes.position.count;
+    if(bucket.vertices>=49152)flush(bucket);
   }
   function shape(rings) {
     const paths=rings.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
@@ -72,7 +87,7 @@ export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
     const [x,y]=b.rings[0][0], s=shape(b.rings);
     const z=altitude(x,y), h=b.cathedral?19:b.id===41119?12:b.height, top=z+h;
     const g=new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false}).translate(0,0,z-2).rotateX(-Math.PI/2);
-    add(g,b.cathedral?'#827e80':walls[b.id%walls.length],x,y);
+    add(g,b.cathedral?'#827e80':walls[b.id%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
     add(roof,roofTones[String(b.id)+(b.cathedral?'-nave':'')] ?? roofs[b.id%roofs.length],x,y,b.id===41434?3:4);
     // The incircle of the largest roof triangle keeps terrace details inside the footprint.
@@ -148,11 +163,30 @@ export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
     const arch=new T.Shape();arch.moveTo(-2.2,0);arch.lineTo(2.2,0);arch.lineTo(2.2,6);arch.absarc(0,6,2.2,0,Math.PI,false);arch.closePath();
     add(new T.ShapeGeometry(arch).rotateY(Math.atan2(frontage.y,frontage.x)).translate(x,altitude(x,y),-y),'#635e52',x,y);
   }
+  const wood=new T.MeshStandardMaterial({flatShading:true,roughness:1});
+  const templates={
+    crown:new T.IcosahedronGeometry(1,compact?0:1),
+    trunk:new T.CylinderGeometry(.28,.35,1,6),
+    shade:new T.PlaneGeometry(1,1).rotateX(-Math.PI/2)
+  };
+  const shadeMat=new T.ShaderMaterial({
+    transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,
+    vertexShader:'varying vec2 v; void main(){v=uv-.5;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}',
+    fragmentShader:'varying vec2 v;void main(){gl_FragColor=vec4(.13,.14,.10,.22*(1.-smoothstep(.08,.50,length(v))));}'
+  });
+  const treeCells=new Map(), transform=new T.Object3D();
+  function instance(kind,x,y,z,w,h,d,angle,color){
+    const key=kind+Math.floor(x/320)+','+Math.floor(y/320);
+    if(!treeCells.has(key))treeCells.set(key,{kind,items:[]});
+    transform.position.set(x,z,-y);transform.scale.set(w,h,d);transform.rotation.y=angle;transform.updateMatrix();
+    treeCells.get(key).items.push([transform.matrix.clone(),neutral?'#e4dfd3':color]);
+  }
   for(const [x,y] of data.trees){
     const z=altitude(x,y),seed=Math.abs(Math.round(x*3+y));
+    if(compact)instance('shade',x,y,z+.76,7,1,6.4,seed,0);
     if(seed%5===0){
       const height=7+seed%4;
-      add(new T.CylinderGeometry(.28,.46,height,7).translate(x,z+height/2,-y),'#8b7756',x,y);
+      instance('trunk',x,y,z+height/2,1.2,height,1.2,0,'#8b7756');
       const leaves=[];
       for(let k=0;k<(compact?8:13);k++){
         const angle=k*2.4+seed,reach=3.7+(k%3)*.7;
@@ -165,16 +199,14 @@ export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
       const fronds=new T.BufferGeometry();fronds.setAttribute('position',new T.Float32BufferAttribute(leaves,3));fronds.computeVertexNormals();add(fronds,'#628536',x,y,5);
       continue;
     }
-    add(new T.CylinderGeometry(.28,.35,4,5).translate(x,z+2,-y),'#887451',x,y);
+    instance('trunk',x,y,z+2,1,4,1,0,'#887451');
     const palette=[['#3d533e','#59714c','#778352'],['#324d43','#4a6a53','#68805d'],['#4f6040','#687b50','#85935d']][seed%3];
     for(let k=0;k<(compact?4:7);k++){
       const angle=k*2.4+seed,rad=k===0?0:2.05,sz=2.3+(seed%7)*.14;
-      const crown=new T.IcosahedronGeometry(sz,compact?0:1).scale(1,1.08,.86).rotateY(angle);
-      crown.translate(x+Math.cos(angle)*rad,z+5.3+(k===0?1.6:Math.sin(k+seed)*.65),-y+Math.sin(angle)*rad);
-      add(crown,palette[k%3],x,y,5);
+      instance('crown',x+Math.cos(angle)*rad,y-Math.sin(angle)*rad,z+5.3+(k===0?1.6:Math.sin(k+seed)*.65),sz,sz*1.08,sz*.86,angle,palette[k%3]);
     }
   }
-  const mat=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,side:T.DoubleSide,roughness:1});
+
   if(!neutral) mat.onBeforeCompile=shader=>{
     shader.uniforms.roofColours={value:roofColours};
     shader.vertexShader='attribute float surface; varying float vKind; varying vec3 vMap;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vKind=surface; vMap=position;');
@@ -205,13 +237,15 @@ export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
       diffuseColor.rgb*=1.+grain*fade;
     `);
   };
-  for(const bucket of buckets.values()){
-    const mesh=new T.Mesh(mergeGeometries(bucket),mat);
-    bucket.length=0;
-    mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
+  for(const bucket of buckets.values())flush(bucket);
+  for(const {kind,items} of treeCells.values()){
+    const shadow=kind==='shade';
+    const mesh=new T.InstancedMesh(templates[kind],shadow?shadeMat:wood,items.length);
+    items.forEach(([matrix,color],i)=>{
+      mesh.setMatrixAt(i,matrix);
+      if(!shadow)mesh.setColorAt(i,new T.Color(color));
+    });
+    mesh.castShadow=!shadow;mesh.receiveShadow=!shadow;mesh.computeBoundingSphere();group.add(mesh);
   }
   return {group,altitude};
 }
-
-
-

@@ -17,7 +17,11 @@ try{
   async function visit(path){
     await page.goto(origin+path);await page.waitForSelector('#scene[data-view]',{timeout:60000});
   }
-  const snap=name=>page.screenshot({path:dir+'/'+name+'.png'});
+  const settled=()=>page.waitForFunction(()=>document.querySelector('#scene').dataset.moving==='false');
+  async function snap(name){
+    await settled();
+    await page.screenshot({path:dir+'/'+name+'.png'});
+  }
   if(process.argv.includes('pilot')){
     if(mobile)break;
     for(const mode of ['styled','neutral']){
@@ -43,6 +47,19 @@ try{
     const moved=await host.getAttribute('data-view');await page.mouse.wheel(0,-180);await page.waitForTimeout(150);assert.notEqual(await host.getAttribute('data-view'),moved);
     await host.focus();await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.waitForTimeout(150);assert.notEqual(await host.getAttribute('data-view'),initial);
     await page.locator('#reset').click();
+    // Hold one gesture across two slow sampling windows, then release it.
+    if(mobile){
+      const width=await page.locator('canvas').evaluate(c=>c.width);
+      await page.mouse.move(x,y);await page.mouse.down();
+      for(let i=0;i<70;i++){
+        await page.mouse.move(x+(i%2?12:0),y);
+        await page.waitForTimeout(40);
+      }
+      await page.waitForFunction(w=>document.querySelector('canvas').width===Math.floor(w*.85),width);
+      await page.mouse.up();
+      await page.waitForFunction(w=>document.querySelector('canvas').width===w,width);
+      await page.locator('#reset').click();
+    }
     if(mobile){
       const cdp=await page.context().newCDPSession(page);
       const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
@@ -53,15 +70,31 @@ try{
     }
     await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);await page.locator('.pin').last().waitFor({state:'visible'});await page.locator('.pin').last().focus();await page.keyboard.press('Enter');assert.match(await page.locator('h3').textContent(),/San Telmo/);
     await page.waitForFunction(()=>document.querySelector('.pin:last-child').getAttribute('aria-pressed')==='true');
-    const savedView=await host.getAttribute('data-view');
-    for(let cycle=0;cycle<2;cycle++){
+    await settled();
+    const beforeRotation=await host.getAttribute('data-view');
+    const originalSize=page.viewportSize();const fullWidth=await page.locator('canvas').evaluate(c=>c.width);
+    await page.setViewportSize({width:originalSize.height,height:originalSize.width});
+    await page.waitForTimeout(120);assert.equal(await host.getAttribute('data-view'),beforeRotation);
+    await page.setViewportSize(originalSize);
+    await page.waitForFunction(w=>document.querySelector('canvas').width===w,fullWidth);
+    for(let cycle=0;cycle<3;cycle++){
       const ext=await page.evaluateHandle(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context'));
-      await ext.evaluate(e=>e.loseContext());
+      if(cycle===0){
+        await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+15,y+8,{steps:3});
+      }
+      if(cycle===1){
+        await page.locator('#plus').click();
+      }
+      const savedView=await ext.evaluate(e=>{
+        const view=document.querySelector('#scene').dataset.view;e.loseContext();return view;
+      });
       await page.locator('#status').waitFor({state:'visible'});
+      if(cycle===0)await page.mouse.up();
       await ext.evaluate(e=>e.restoreContext());
       await page.locator('#status').waitFor({state:'hidden'});
       assert.equal(await host.getAttribute('data-view'),savedView);
       assert.equal(await page.locator('article').isVisible(),true);
+      if(cycle>=1)assert.ok(await page.locator('canvas').evaluate(c=>c.width)<fullWidth);
       // Inspect the central map without the DOM controls: a cleared canvas is a failure.
       const rect=await host.boundingBox();
       const png=await page.screenshot({clip:{x:rect.x+rect.width/2-80,y:rect.y+rect.height/2-80,width:160,height:160}});
@@ -75,13 +108,26 @@ try{
       assert.ok(colours>150,'Expected rendered map after restoration, got '+colours+' colours');
       await ext.dispose();
     }
+    if(mobile){
+      const cdp=await page.context().newCDPSession(page);
+      const prior=await host.getAttribute('data-view');
+      for(const [type,d] of [['touchStart',15],['touchMove',25],['touchMove',45],['touchEnd',0]]){
+        await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:d?[{x:x-d,y,id:1},{x:x+d,y,id:2}]:[]});
+      }
+      await page.waitForFunction(v=>document.querySelector('#scene').dataset.view!==v,prior);
+    }
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.locator('#index-toggle').click();await page.locator('#places button').first().click();
+    await page.waitForFunction(()=>document.querySelector('.pin').getAttribute('aria-pressed')==='true');
+    assert.equal(await host.getAttribute('data-moving'),'false');
+    const retryView=await host.getAttribute('data-view');
+    await page.evaluate(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+    await page.getByRole('button',{name:'Recargar'}).click();
+    await page.waitForSelector('#scene[data-view]');
+    assert.equal(await host.getAttribute('data-view'),retryView);
+    assert.match(await page.locator('article:visible h3').textContent(),/Santa Ana/);
 
   }
   assert.deepEqual(faults,[]);await page.close();
  }
 }finally{await browser.close();if(server)await server.close();}
-
-
-
-
-

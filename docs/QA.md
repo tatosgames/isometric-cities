@@ -27,3 +27,22 @@ Le prove coprono panoramica e dettaglio. La scena è continua, raggruppata in ce
 La prova seleziona San Telmo, forza due cicli consecutivi di perdita e ripristino del contesto sullo stesso canvas e controlla proiezione, scheda e varietà dei pixel al centro della mappa. La suite passa a 1440×900 e 390×844 in Chrome con Playwright. Il test simula l’interruzione WebGL, senza simulare la terminazione del processo del browser da parte del sistema operativo.
 
 Il profilo touch/schermo piccolo usa DPR massimo 1, antialiasing multisample disattivato, illuminazione diretta senza shadow map e geometrie più leggere per alberi e facciate. Per la scena completa, la somma dei byte degli attributi nelle geometrie finali passa da 87.888.600 a 35.822.556; i triangoli da 732.405 a 426.459. Questi valori misurano gli array della mesh e non la memoria totale del dispositivo.
+
+## Camera, memoria e recupero progressivo
+
+Confronto con il commit 1c8f8c0. Chrome locale in Playwright, viewport touch 390×844, stessa build Vite per ciascuna revisione. Il percorso alterna Santa Ana e San Telmo, con otto piccoli pan da tastiera per tappa. Movimento ridotto attivo nel benchmark per isolare il costo del disegno dalle nuove transizioni. Venti tappe misurate dopo le prime due di riscaldamento.
+
+| Misura | Versione precedente | Versione attuale |
+|---|---:|---:|
+| Array geometrici mobile, inclusi indici, colori e matrici delle istanze | 35.822.556 byte | 21.252.343 byte |
+| Picco RSS del processo Node isolato durante la costruzione della scena | 348.628 KiB | 298.176 KiB |
+| Massimo campionato di heap e backing storage all’apertura in Chrome | 104,6 MB | 91,0 MB |
+| Apertura nel singolo run del benchmark | 2,37 s | 2,47 s |
+| Intervallo al 95º percentile durante il pan | 34,6 ms | 34,0 ms |
+| Draw call WebGL per frame, media | 17,75 | 30 |
+| Triangoli inviati per frame, media | 147.010 | 139.674 |
+| Draw call nei cinque secondi a riposo | 0 | 0 |
+
+Le istanze per cella riducono i dati duplicati e aumentano i disegni separati. I buffer e le texture WebGL conteggiati nella nuova versione restano a 245 e 6 tra la fine del riscaldamento e la ventesima tappa misurata. L’apertura e il percentile sono misure di una sessione, sensibili a browser, GPU e carico del computer. Il picco RSS comprende l’intero processo isolato; il campionamento Chrome non misura la VRAM. Ripetizione sul build locale con `node scripts/benchmark.mjs`; un argomento facoltativo seleziona un’altra cartella di build.
+
+La suite browser copre orientamento del viewport, zoom e centro conservati, movimento ridotto, tre perdite consecutive (pan, transizione, scheda), ripristino dei pixel, profilo ridotto dalla seconda perdita e recupero tramite il pulsante di ricarica. Su mobile verifica anche pinch dopo il ripristino e riduzione temporanea della risoluzione durante un gesto prolungato con intervalli lenti. Controllati i confronti visivi di [Santa Ana](screenshots/santa-ana-styled.png), [Mercado](screenshots/mercado-teatro.png) e [San Telmo](screenshots/san-telmo.png).

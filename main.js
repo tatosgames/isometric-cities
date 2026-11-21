@@ -13,9 +13,14 @@ async function start(){
   if(roofColours)roofColours.colorSpace=T.SRGBColorSpace;
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
+  const sessionKey='map-view:'+location.pathname+location.search;
+  let resume=null;
+  try{resume=JSON.parse(sessionStorage.getItem(sessionKey));sessionStorage.removeItem(sessionKey);}catch{}
+  let losses=Number(resume?.losses)||0;
+  const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
   const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.75));
-  renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
+  renderer.setPixelRatio(baseRatio());
+  renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
   const {group,altitude}=makeCity(data,neutral,roofColours,roofTones,compact);scene.add(group);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
@@ -32,6 +37,8 @@ async function start(){
   function menu(open){nav.classList.toggle('open',open);toggle.setAttribute('aria-expanded',String(open));}
   toggle.onclick=()=>menu(!nav.classList.contains('open'));
   let selected=-1,returnTo,frame=0,fit=1;
+  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  let flight=null,lost=false,lastView=null;
   const pins=locations.map((f,i)=>{
     const p=f.properties, btn=document.createElement('button'), pin=document.createElement('button');
     const num=String(i+1).padStart(2,'0');
@@ -39,9 +46,10 @@ async function start(){
     el('places').append(btn);el('pins').append(pin);
     const [x,y]=p.xy,point=new T.Vector3(x,altitude(x,y)+(i===0||i===5?2:18),-y);
     for(const button of [btn,pin])button.onclick=()=>{
+      if(lost)return;
       returnTo=button;menu(false);selected=i;card.hidden=false;
       document.querySelector('h3').textContent=p.name;
-      view(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245));el('close').focus({preventScroll:true});
+      fly(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245),320);el('close').focus({preventScroll:true});
     };
     return {btn,pin,point};
   });
@@ -51,42 +59,87 @@ async function start(){
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
   const center=new T.Box3().setFromPoints(border).getCenter(new T.Vector3());
   const bounds=new T.Box3().setFromPoints(border);
-  function reset(){
-    close();const w=host.clientWidth,h=host.clientHeight;
+  function sizeCamera(){
+    const w=host.clientWidth,h=host.clientHeight;
     camera.left=-w/2;camera.right=w/2;camera.top=h/2;camera.bottom=-h/2;
-    view(center,1);camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();camera.updateMatrixWorld();
     const box=new T.Box3().setFromPoints(border.map(p=>p.clone().applyMatrix4(camera.matrixWorldInverse)));
     fit=Math.min(w/(box.max.x-box.min.x+60),h/(box.max.y-box.min.y+65))*.92;
     controls.minZoom=fit*.8;controls.maxZoom=Math.max(fit*12,4);
-    view(center,fit);
   }
-  let lost=false;
+  function reset(){if(lost)return;flight=null;close();view(center,fit);}
+  function fly(target,zoom,duration){
+    if(lost)return;
+    if(reducedMotion.matches){flight=null;view(target,zoom);return;}
+    flight={start:performance.now(),duration,from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom};
+    draw();
+  }
+  let gesture=false,previousTime=0,slowWindows=0,dynamic=false;
+  const samples=[];
+  function stopGesture(){
+    gesture=false;previousTime=0;slowWindows=0;samples.length=0;
+    if(dynamic){dynamic=false;renderer.setPixelRatio(baseRatio());draw();}
+  }
+  controls.addEventListener('start',()=>{flight=null;gesture=true;});
+  controls.addEventListener('end',stopGesture);
+  function sampleGesture(time){
+    if(!gesture || !compact || dynamic)return;
+    if(previousTime)samples.push(time-previousTime);
+    previousTime=time;
+    if(samples.length<30)return;
+    samples.sort((a,b)=>a-b);
+    slowWindows=(samples[14]+samples[15])/2>33?slowWindows+1:0;
+    samples.length=0;
+    if(slowWindows>=2){dynamic=true;renderer.setPixelRatio(baseRatio()*.85);}
+  }
+  function remember(){
+    if(!lastView)return;
+    try{sessionStorage.setItem(sessionKey,JSON.stringify({...lastView,losses}));}catch{}
+  }
   const status=el('status');
   renderer.domElement.addEventListener('webglcontextlost',event=>{
-    event.preventDefault();
-    lost=true;
-    cancelAnimationFrame(frame);frame=0;
+    event.preventDefault();lost=true;losses++;flight=null;
+    cancelAnimationFrame(frame);frame=0;gesture=false;dynamic=false;previousTime=slowWindows=0;samples.length=0;
+    controls.enabled=false;controls.disconnect();
+    remember();
     status.textContent='Restableciendo el mapa... ';
     const retry=document.createElement('button');
-    retry.textContent='Recargar';
-    retry.onclick=()=>location.reload();
+    retry.textContent='Recargar';retry.onclick=()=>{remember();location.reload();};
     status.append(retry);status.hidden=false;
   });
+  function syncSize(){
+    renderer.setSize(host.clientWidth,host.clientHeight);
+    sizeCamera();draw();
+  }
   renderer.domElement.addEventListener('webglcontextrestored',()=>{
-    lost=false;
+    lost=false;controls.connect(renderer.domElement);controls.enabled=true;
+    renderer.setPixelRatio(baseRatio());renderer.shadowMap.enabled=!compact && losses<2;
     renderer.shadowMap.needsUpdate=true;
-    draw();
+    if(lastView)view(new T.Vector3().fromArray(lastView.target),lastView.zoom);
+    syncSize();
+  });
+  window.addEventListener('pagehide',remember);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){flight=null;stopGesture();remember();}
+    else if(!lost)syncSize();
   });
   function draw(){
     if(frame || lost)return;
-    frame=requestAnimationFrame(()=>{
-      frame=0;
+    frame=requestAnimationFrame(time=>{
+      frame=0;sampleGesture(time);
+      if(flight){
+        const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
+        view(flight.from.clone().lerp(flight.to,ease),Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease)));
+        if(t>=1)flight=null;
+      }
       const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
       camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
       camera.updateMatrixWorld();
       renderer.render(scene,camera);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;
+      lastView={target:controls.target.toArray(),zoom:camera.zoom,selected};
+      host.dataset.moving=String(!!flight);
       pins.forEach(({pin,btn,point},i)=>{
         const v=point.clone().project(camera);pin.style.left=(v.x+1)*50+'%';pin.style.top=(1-v.y)*50+'%';
         pin.hidden=Math.abs(v.x)>1||Math.abs(v.y)>1;pin.setAttribute('aria-pressed',String(i===selected));btn.setAttribute('aria-pressed',String(i===selected));
@@ -94,9 +147,11 @@ async function start(){
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     });
   }
-  function zoom(k){camera.zoom=T.MathUtils.clamp(camera.zoom*k,controls.minZoom,controls.maxZoom);camera.updateProjectionMatrix();draw();}
+  function zoom(k){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),180);}
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
   host.onkeydown=e=>{
+    if(lost)return;
+    if(e.key.startsWith('Arrow'))flight=null;
     if(e.key==='Home')reset();else if(['+','='].includes(e.key))zoom(1.4);else if(e.key==='-')zoom(1/1.4);
     else if(e.key.startsWith('Arrow')){
       const right=new T.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
@@ -107,8 +162,22 @@ async function start(){
   };
   controls.addEventListener('change',draw);
   let firstView=true;
-  new ResizeObserver(()=>{renderer.setSize(host.clientWidth,host.clientHeight);reset();if(firstView){firstView=false;const start=pilot?pins[0].point:new T.Vector3(-95,11,218);view(start,Math.max(host.clientWidth/340,host.clientHeight/225));}}).observe(host);
+  new ResizeObserver(()=>{
+    if(lost || !host.clientWidth || !host.clientHeight)return;
+    if(firstView){
+      firstView=false;
+      const start=pilot?pins[0].point:new T.Vector3(-95,11,218);
+      view(start,Math.max(host.clientWidth/340,host.clientHeight/225));
+      if(Array.isArray(resume?.target) && resume.target.length===3 && resume.target.every(Number.isFinite) && Number.isFinite(resume.zoom) && resume.zoom>0){
+        view(new T.Vector3().fromArray(resume.target),resume.zoom);
+        if(pins[resume.selected]){
+          selected=resume.selected;returnTo=toggle;card.hidden=false;
+          document.querySelector('h3').textContent=locations[selected].properties.name;
+        }
+      }
+    }
+    syncSize();
+  }).observe(host);
   el('status').hidden=true;
 }
 start().catch(e=>{console.error(e);el('status').textContent='No se pudo abrir el mapa. Comprueba WebGL y los datos locales.';});
-
