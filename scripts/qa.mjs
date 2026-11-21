@@ -158,7 +158,7 @@ try{
     assert.notEqual(await host.getAttribute('data-view'),before);
     // Left alone the car stops against a wall and a patrol reaches it.
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
-    assert.equal(await page.locator('#over').isVisible(),true);
+    await page.locator('#over').waitFor({state:'visible'});
     await page.locator('#again').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     assert.equal((await drive())[1],'0');

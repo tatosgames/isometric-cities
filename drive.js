@@ -6,12 +6,14 @@ export const TUNE={
   maxSpeed:15, accel:9, turn:2.6, grip:7.5, driftGrip:3.2, driftDrag:.035, brake:16, brakeGrip:2.2,
   // Juice: visual only, no effect on collisions.
   deflect:4.5,
-  roll:.035, tailSwing:.3, hop:.5, shake:1.4, speedZoom:.12,
+  roll:.035, tailSwing:.3, hop:.5, dive:.09, shake:.55, magnet:6,
+  // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.
+  zoomSpeed:.1, zoomThreat:.08, zoomCaught:.14, zoomRate:1.1, paceRate:.7, leadRate:2.4, followRate:9,
   radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:1.3,
   catchRatio:.3, catchReach:4, grace:2.5,
   chaserEvery:18, chaserSpeed:1.04, chaserSpeedStep:.02, chaserSpeedMax:1.16, chaserTurn:.8, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
   coinStep:8, coinReach:2.6, arriveReach:16, arriveBonus:10, wreckBonus:2,
-  viewSpanCompact:62, viewSpanWide:95, lookAhead:.35
+  viewSpanCompact:62, viewSpanWide:95, lookAhead:.42
 };
 const CELL=20, SKIDS=600, DUST=48, COINS=220;
 const el=id=>document.getElementById(id);
@@ -44,7 +46,7 @@ function carGeometry(body,top,police){
   return mergeGeometries(parts);
 }
 
-export function makeDrive({scene,host,data,locations,altitude,view,compact,onExit}){
+export function makeDrive({scene,camera,host,data,locations,altitude,view,compact,onExit}){
   // ---- static world: collision grid, road graph ----
   let world=null;
   function build(){
@@ -156,7 +158,7 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
     let forward=b.vx*fx+b.vy*fy,side=-b.vx*fy+b.vy*fx;
     forward=brake?Math.max(0,forward-TUNE.brake*dt):forward>max?Math.max(max,forward-TUNE.brake*dt):Math.min(max,forward+TUNE.accel*dt);
-    b.wayHold-=dt;
+    b.wayHold-=dt;b.dive+=((brake?1:0)-b.dive)*Math.min(1,dt*8);
     b.hold=steer?Math.min(1,b.hold+dt*2.2):Math.max(0,b.hold-dt*6);
     b.steer+=(steer-b.steer)*Math.min(1,dt*9);
     side*=Math.exp(-(brake?TUNE.brakeGrip:T.MathUtils.lerp(TUNE.grip,TUNE.driftGrip,b.hold))*dt);
@@ -209,9 +211,18 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';
-    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,way:1,wayHold:0,mesh,blob,wreck:0,stuck:0,max:0,trail:null,puff:0,node:-1};
+    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,dive:0,way:1,wayHold:0,light:null,mesh,blob,wreck:0,stuck:0,max:0,trail:null,puff:0,node:-1};
+  }
+  const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
+  const lightRed=new T.MeshBasicMaterial({color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({color:'#2f7bff'});
+  function patrol(){
+    const c=vehicle(policeGeometry);
+    c.light=new T.Mesh(lightGeometry,lightRed);c.mesh.add(c.light);
+    return c;
   }
   const player=vehicle(playerGeometry);
+  const beacon=new T.Mesh(new T.CylinderGeometry(3.2,3.2,26,20,1,true).translate(0,13,0),new T.MeshBasicMaterial({color:'#ffd84a',transparent:true,opacity:.22,depthWrite:false,side:T.DoubleSide}));
+  group.add(beacon);
   // Drawn through buildings so the car stays readable in narrow streets.
   const halo=new T.Mesh(new T.RingGeometry(2.3,2.75,28).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:'#fff7d6',transparent:true,opacity:.6,depthTest:false,depthWrite:false}));
   halo.renderOrder=10;group.add(halo);
@@ -253,16 +264,35 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
     const z=altitude(b.x,b.y);
     // Tail swings out with the steering, the body rolls with the slide and hops after a hit.
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
-    b.mesh.rotation.set(T.MathUtils.clamp(b.side*TUNE.roll,-.32,.32),b.h+b.steer*TUNE.tailSwing*Math.min(1,b.slip/5+.25),0);
+    b.mesh.rotation.set(T.MathUtils.clamp(b.side*TUNE.roll,-.32,.32),b.h+b.steer*TUNE.tailSwing*Math.min(1,b.slip/5+.25),-b.dive*TUNE.dive);
     b.blob.position.set(b.x,z+.76,-b.y);
   }
 
   // ---- game state ----
-  let state='off',score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,field=null,toastUntil=0;
-  let coins=[],target=null,chasers=[],shake=0,zoomEase=0;
+  let state='off',score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,field=null,brakeHint=0,learned=false,overAt=0;
+  let coins=[],target=null,chasers=[],shake=0,zoomNow=1,paceEase=0,threat=0;
+  const lead=new T.Vector3(),screen=new T.Vector3();
   const focus=new T.Vector3();
-  const pois=locations.map(f=>({name:f.properties.name,x:f.properties.xy[0],y:f.properties.xy[1]}));
-  try{record=Number(localStorage.getItem('drive-record'))||0;}catch{}
+  const pois=locations.map((f,i)=>({name:f.properties.name,number:String(i+1).padStart(2,'0'),x:f.properties.xy[0],y:f.properties.xy[1]}));
+  try{record=Number(localStorage.getItem('drive-record'))||0;learned=localStorage.getItem('drive-learned')==='1';}catch{}
+  const still=matchMedia('(prefers-reduced-motion: reduce)');
+  const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+  const guide=el('guide'),zones={left:guide.querySelector('.left'),right:guide.querySelector('.right'),both:guide.querySelector('.both')};
+  // Screen position of a map point, in CSS pixels of the host.
+  function project(x,y,lift){
+    screen.set(x,altitude(x,y)+lift,-y).project(camera);
+    return [(screen.x+1)*host.clientWidth/2,(1-screen.y)*host.clientHeight/2];
+  }
+  function pop(x,y,amount,icon,big){
+    const [px,py]=project(x,y,3),node=document.createElement('span');
+    node.className='pop'+(big?' big':'');node.style.left=px+'px';node.style.top=py+'px';
+    node.innerHTML='<svg class="ic"><use href="#i-'+icon+'"/></svg>+'+amount;
+    node.onanimationend=()=>node.remove();el('pops').append(node);
+  }
+  function gain(amount){
+    score+=amount;const chip=el('stat-coins');
+    chip.classList.remove('bump');void chip.offsetWidth;chip.classList.add('bump');
+  }
   const buzz=ms=>{try{navigator.vibrate?.(ms);}catch{}};
   function trail(){
     const from=nearestNode(player.x,player.y),options=pois.filter(p=>p!==target?.poi);
@@ -284,7 +314,10 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
       }
       carry-=len;
     }
-    el('hud-goal').textContent='→ '+target.poi.name;
+    const end=world.nodes[target.node];
+    beacon.position.set(end.x,altitude(end.x,end.y),-end.y);
+    el('goal').querySelector('b').textContent=target.poi.number;
+    el('hud-live').textContent='Destino: '+target.poi.name;
     return path;
   }
   function spawnChaser(c){
@@ -308,19 +341,24 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
     const poi=pois[round++%pois.length],n=world.nodes[nearestNode(poi.x,poi.y)];
-    Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0});
+    Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0});
+    brakeHint=0;paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     const path=trail();
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
     focus.set(player.x,altitude(player.x,player.y),-player.y);
-    el('over').hidden=true;el('drive-hint').hidden=false;
+    el('over').hidden=true;guide.className='ready';
     state='ready';
   }
   function caught(){
-    state='caught';buzz(140);shake=1;
+    state='caught';buzz(140);shake=1;guide.className='';
+    for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5,false);
     const best=score>record;
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
-    el('over-score').textContent=score+' monedas · '+time.toFixed(1)+' s'+(best?' · ¡nuevo récord!':' · récord '+record);
-    el('over').hidden=false;el('again').focus({preventScroll:true});
+    el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
+    el('over-record').parentElement.classList.toggle('new',best);
+    el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo récord.':'');
+    // A beat on the frozen scene before the result slides in.
+    overAt=performance.now()+(still.matches?0:420);
   }
 
   // ---- input ----
@@ -330,7 +368,7 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
     for(const p of pointers.values()){if(p.side<0)left=true;else right=true;}
     return {steer:(left?1:0)-(right?1:0),brake:(left&&right)||keys.has(' ')||keys.has('ArrowDown')};
   }
-  function go(){if(state==='ready'){state='playing';el('drive-hint').hidden=true;}}
+  function go(){if(state==='ready'){state='playing';guide.className='play';}}
   function down(e){
     if(state==='off')return;
     const box=host.getBoundingClientRect();
@@ -356,18 +394,26 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
   function step(dt){
     time+=dt;grace=Math.max(0,grace-dt);
     const {steer,brake}=input();
+    // One contextual lesson: after a few seconds of driving, show that both sides together brake.
+    if(!learned){
+      brakeHint+=dt;
+      if(brake && brakeHint>.3){learned=true;guide.className='play';try{localStorage.setItem('drive-learned','1');}catch{}}
+      else if(brakeHint>4 && brakeHint<10)guide.className='teach';
+      else if(brakeHint>=10)guide.className='play';
+    }
     steerBody(player,steer,brake,TUNE.maxSpeed,dt);
     const knock=collide(player);
-    if(knock>3){player.hop=Math.min(TUNE.hop,knock*.05);shake=Math.max(shake,Math.min(1,knock/12));}
+    if(knock>3)player.hop=Math.min(TUNE.hop,knock*.05);
+    if(knock>6)shake=Math.max(shake,Math.min(1,knock/14));
     if(knock>6)buzz(18);
     const speed=Math.hypot(player.vx,player.vy);
     routeAge+=dt;
     if(routeAge>.6){routeAge=0;field=routes(nearestNode(player.x,player.y));}
     const wanted=Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery));
-    while(chasers.length<wanted){const c=vehicle(policeGeometry);chasers.push(c);spawnChaser(c);}
+    while(chasers.length<wanted){const c=patrol();chasers.push(c);spawnChaser(c);}
     for(const c of chasers){
       if(c.wreck>0){
-        c.wreck-=dt;c.puff-=dt;
+        c.wreck-=dt;c.puff-=dt;c.h+=dt*14*Math.max(0,c.wreck-TUNE.wreckTime+.45);
         if(c.puff<=0){c.puff=.12;puff(c.x,c.y,true);}
         if(c.wreck<=0)spawnChaser(c);
         continue;
@@ -403,10 +449,15 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
       if(!a.wreck && !grace && speed<TUNE.maxSpeed*TUNE.catchRatio && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){caught();return;}
     }
     for(let i=coins.length-1;i>=0;i--){
-      if(Math.hypot(coins[i].x-player.x,coins[i].y-player.y)<TUNE.coinReach){puff(coins[i].x,coins[i].y,false);coins.splice(i,1);score++;buzz(8);}
+      const coin=coins[i],dx=player.x-coin.x,dy=player.y-coin.y,gap=Math.hypot(dx,dy);
+      if(gap<TUNE.coinReach){pop(coin.x,coin.y,1,'coin',false);coins.splice(i,1);gain(1);buzz(8);}
+      // Nearby coins are pulled in, so a close pass is enough.
+      else if(gap<TUNE.magnet){const pull=Math.min(gap,(TUNE.maxSpeed+10)*dt);coin.x+=dx/gap*pull;coin.y+=dy/gap*pull;}
     }
     if(target && Math.hypot(world.nodes[target.node].x-player.x,world.nodes[target.node].y-player.y)<TUNE.arriveReach){
-      score+=TUNE.arriveBonus;toast('+'+TUNE.arriveBonus+' · '+target.poi.name);buzz(40);trail();
+      pop(player.x,player.y,TUNE.arriveBonus,'coin',true);gain(TUNE.arriveBonus);buzz(40);
+      for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5,false);
+      trail();
     }
     for(const b of [player,...chasers]){
       if(b.wreck>0 || b.slip<4){b.trail=null;continue;}
@@ -428,9 +479,9 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
   function wreck(c){
     c.wreck=TUNE.wreckTime;c.vx=c.vy=0;c.trail=null;c.mesh.material=wreckPaint;c.hop=TUNE.hop;
     if(Math.hypot(c.x-player.x,c.y-player.y)<40)shake=Math.max(shake,.5);
-    score+=TUNE.wreckBonus;toast('+'+TUNE.wreckBonus+' · ¡choque!');
+    for(let k=0;k<6;k++)puff(c.x+Math.cos(k)*1.4,c.y+Math.sin(k)*1.4,true);
+    pop(c.x,c.y,TUNE.wreckBonus,'crash',false);gain(TUNE.wreckBonus);
   }
-  function toast(text){el('hud-toast').textContent=text;toastUntil=performance.now()+1600;}
 
   function frame(now){
     raf=requestAnimationFrame(frame);
@@ -443,7 +494,8 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
     place(player);
     halo.position.copy(player.blob.position);
-    for(const c of chasers)place(c);
+    chasers.forEach((c,i)=>{place(c);c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;});
+    beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!target;
     coinMesh.count=coins.length;
     coins.forEach((c,i)=>{
       dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);dummy.rotation.set(0,spin+i*.7,0);dummy.scale.setScalar(1);
@@ -456,18 +508,43 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
       dummy.updateMatrix();dustMesh.setMatrixAt(i,dummy.matrix);
     });
     dustMesh.instanceMatrix.needsUpdate=true;
-    const ax=player.x+player.vx*TUNE.lookAhead,ay=player.y+player.vy*TUNE.lookAhead;
-    focus.lerp(new T.Vector3(ax,altitude(ax,ay),-ay),Math.min(1,dt*5));
-    shake=Math.max(0,shake-dt*3);
-    const still=matchMedia('(prefers-reduced-motion: reduce)').matches,jolt=still?0:shake*TUNE.shake;
-    const pace=Math.hypot(player.vx,player.vy)/TUNE.maxSpeed;
-    zoomEase+=((still?0:pace)-zoomEase)*Math.min(1,dt*2);
-    view(focus.clone().add(new T.Vector3((Math.random()-.5)*jolt,0,(Math.random()-.5)*jolt)),Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)/(1+zoomEase*TUNE.speedZoom));
+    // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
+    // the follow itself is tight, which keeps the car steady on screen.
+    const calm=still.matches;
+    lead.lerp(new T.Vector3(player.vx,0,-player.vy).multiplyScalar(TUNE.lookAhead),Math.min(1,dt*TUNE.leadRate));
+    const cx=player.x+lead.x,cy=player.y-lead.z;
+    focus.lerp(new T.Vector3(cx,altitude(player.x,player.y),-cy),Math.min(1,dt*TUNE.followRate));
+    shake=Math.max(0,shake-dt*4);
+    const jolt=calm?0:shake*shake*TUNE.shake;
+    const nearest=Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y)));
+    paceEase+=(Math.hypot(player.vx,player.vy)/TUNE.maxSpeed-paceEase)*Math.min(1,dt*TUNE.paceRate);
+    threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*Math.min(1,dt*TUNE.paceRate);
+    // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
+    const wantZoom=calm?1:state==='caught'?1+TUNE.zoomCaught:1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
+    zoomNow+=(wantZoom-zoomNow)*Math.min(1,dt*TUNE.zoomRate);
+    const base=Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide);
+    view(focus.clone().add(new T.Vector3((Math.random()-.5)*jolt,0,(Math.random()-.5)*jolt)),base*zoomNow);
+    // HUD
     el('hud-coins').textContent=String(score);
-    el('hud-time').textContent=time.toFixed(1)+' s';
-    el('hud-record').textContent='Récord '+Math.max(record,score);
-    if(now>toastUntil)el('hud-toast').textContent='';
-    host.dataset.drive=[state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y))).toFixed(0)].join(',');
+    el('hud-time').textContent=clock(time);
+    el('hud-record').textContent=String(Math.max(record,score));
+    el('danger').style.opacity=state==='playing'?String(T.MathUtils.clamp((26-nearest)/18,0,1)*(calm?.6:.6+.4*Math.sin(now/90))):'0';
+    const {steer,brake}=input();
+    zones.left.classList.toggle('on',state==='playing' && (steer>0 || brake));
+    zones.right.classList.toggle('on',state==='playing' && (steer<0 || brake));
+    zones.both.classList.toggle('on',state==='playing' && brake);
+    const goal=el('goal');goal.hidden=!target || state==='caught';
+    if(target){
+      // The destination chip sits over the place, or slides along the screen edge and points at it.
+      const end=world.nodes[target.node],[gx,gy]=project(end.x,end.y,14);
+      const w=host.clientWidth,h=host.clientHeight,pad=34,top=88,bottom=h-150;
+      const px=T.MathUtils.clamp(gx,pad,w-pad),py=T.MathUtils.clamp(gy,top,bottom),off=px!==gx || py!==gy;
+      goal.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
+      goal.classList.toggle('near',!off);
+      goal.style.setProperty('--turn',(Math.atan2(gy-py,gx-px)+Math.PI/2).toFixed(2)+'rad');
+    }
+    if(state==='caught' && overAt && now>=overAt){overAt=0;el('over').hidden=false;el('again').focus({preventScroll:true});}
+    host.dataset.drive=[state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3)].join(',');
   }
 
   el('again').onclick=()=>restart();
@@ -482,7 +559,11 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
       for(const type of ['pointerup','pointercancel','pointerleave'])host.addEventListener(type,up);
       window.addEventListener('keydown',key);window.addEventListener('keyup',key);
       el('hud').hidden=false;
-      restart();last=0;raf=requestAnimationFrame(frame);
+      restart();
+      // Glide in from the map zoom instead of cutting to the play zoom.
+      zoomNow=still.matches?1:T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
+      if(!still.matches)focus.copy(camera.position).addScaledVector(camera.getWorldDirection(new T.Vector3()),1500);
+      last=0;raf=requestAnimationFrame(frame);
     },
     exit(){
       if(state==='off')return;
@@ -490,7 +571,7 @@ export function makeDrive({scene,host,data,locations,altitude,view,compact,onExi
       host.removeEventListener('pointerdown',down);host.removeEventListener('pointermove',move);
       for(const type of ['pointerup','pointercancel','pointerleave'])host.removeEventListener(type,up);
       window.removeEventListener('keydown',key);window.removeEventListener('keyup',key);
-      el('hud').hidden=el('over').hidden=el('drive-hint').hidden=true;
+      el('hud').hidden=el('over').hidden=true;guide.className='';el('pops').replaceChildren();
       delete host.dataset.drive;
     }
   };

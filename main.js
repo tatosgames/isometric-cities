@@ -151,7 +151,7 @@ async function start(){
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,host,data,locations,altitude,view,compact,onExit:leaveDrive});
+  drive=makeDrive({scene,camera,host,data,locations,altitude,view,compact,onExit:leaveDrive});
   el('drive').onclick=()=>{
     if(lost || drive.active)return;
     flight=null;places.close();document.querySelector('nav').classList.remove('open');

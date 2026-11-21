@@ -66,3 +66,13 @@ La [vista mobile del Teatro Pérez Galdós](screenshots/teatro-mobile.png) copre
 - [Schermata mobile](screenshots/conducir-mobile.png).
 
 Limiti noti: nessuna prova su telefono fisico (tocco reale, vibrazione, prestazioni). Lo swipe non ha un test automatico. La cattura nel test dipende dall'arrivo casuale delle pattuglie, con attesa massima di 120 s. Le auto sono cerchi di 1,15 m di raggio; solo gli alberi a più di 4,5 m da una facciata sono ostacoli. Le ombre dinamiche sono macchie, la shadow map resta statica. Gli edifici possono coprire l'auto nelle vie strette: un alone resta visibile attraverso i volumi.
+
+### Interfaccia a icone e game feel
+
+HUD, guida e pannello finale senza testo visibile: icone SVG proprie, numeri, zone tattili animate (lezione del freno dopo 4 s, una sola volta, ricordata nel browser), indicatore di destinazione con il numero del luogo, fascio luminoso sul traguardo, bordo rosso di pericolo. Etichette e annunci restano per i lettori di schermo. Aggiunti: calamita delle monete, numeri che saltano fuori alla raccolta, lampeggianti delle pattuglie, testacoda dei rottami, muso che si abbassa in frenata, pausa prima del pannello di cattura.
+
+Camera: anticipo smussato a parte, inseguimento stretto, zoom con costante di tempo di circa 1 s. Misurato a campioni di 0,5 s durante la guida: zoom tra 0,91 e 0,97 del valore base, variazione massima fra due campioni 0,012. Ingresso in planata dallo zoom della mappa in circa 1,5 s. Con movimento ridotto attivo zoom e scossa sono disattivati.
+
+- [Guida del freno su mobile](screenshots/conducir-mobile.png) · [pannello di cattura](screenshots/conducir-fin.png).
+- Il rilevatore di design segnala il footer a 10 px e il font Inter, preesistenti e non modificati, e il bordo rosso di pericolo, voluto.
+- Non provato su telefono fisico. La sensazione rispetto al video di Pako va giudicata giocando.
