@@ -14,7 +14,7 @@ type RouteTuning = {
   coinStep: number;
   coinReach: number;
   magnet: number;
-  maxSpeed: number;
+  coinPullSpeed: number;
   arriveReach: number;
   arriveBonus: number;
 };
@@ -71,7 +71,7 @@ export function makeDriveRoute(places: Destination[], altitude: Altitude, tune: 
           coins.splice(i, 1);
           emit({type:'coin', coin, points:1});
         } else if (gap < tune.magnet) {
-          const pull = Math.min(gap, (tune.maxSpeed + 10) * dt);
+          const pull = Math.min(gap, tune.coinPullSpeed * dt);
           coin.x += dx / gap * pull;
           coin.y += dy / gap * pull;
         }

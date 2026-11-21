@@ -6,6 +6,7 @@ import type { routesFrom } from './road-routing.ts';
 import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
 import {buildDriveWorld} from './drive-world.ts';
 import {makeDrivePhysics} from './drive-physics.ts';
+import {makeDrivePose} from './drive-pose.ts';
 import {makeDriveCamera} from './drive-camera.ts';
 import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
@@ -50,10 +51,12 @@ type RouteField = ReturnType<typeof routesFrom>;
 
 // Every gameplay number lives here. Metres, seconds, radians.
 export const TUNE={
-  maxSpeed:15, accel:9, turn:2.6, turnRamp:.2, grip:7.5, driftGrip:3.2, driftDrag:.035, brake:16, brakeGrip:2.2,
-  // Juice: visual only, no effect on collisions.
+  maxSpeed:16.5, accel:9, turn:2.6, turnRamp:.2, grip:7.5, driftGrip:3.2, driftDrag:.035, brake:16, brakeGrip:2.2,
   deflect:4.5,
-  roll:.035, tailSwing:.3, hop:.5, dive:.09, magnet:6,
+  // Juice: visual only, no effect on collisions.
+  roll:.035, tailSwing:.3, hop:.5, dive:.09, skidSpeed:4,
+  poseYaw:T.MathUtils.degToRad(21), poseRoll:T.MathUtils.degToRad(10), poseYawLimit:T.MathUtils.degToRad(45),
+  poseMinSpeed:2, poseFullSpeed:10, poseAttack:.085, poseRelease:.17, poseReverse:.04,
   // Hit-stop: seconds of held simulation per event, the wall impact that earns one and the least gap between two.
   stopImpact:9, stopWall:.055, stopArrive:.05, stopCaught:.11, stopGap:.6,
   // Camera kick: launch speed of a full hit (m/s), spring back to rest, hard limit in metres.
@@ -61,9 +64,9 @@ export const TUNE={
   // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.
   zoomSpeed:.1, zoomThreat:.08, zoomCaught:.14, zoomRate:1.1, paceRate:.7, leadRate:2.4, followRate:9,
   radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:1.3,
-  catchRatio:.3, catchReach:4, grace:2.5,
+  catchSpeed:4.5, catchReach:4, grace:2.5,
   chaserEvery:18, chaserSpeed:1.04, chaserSpeedStep:.02, chaserSpeedMax:1.16, chaserTurn:.8, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
-  coinStep:8, coinReach:2.6, arriveReach:16, arriveBonus:10, wreckBonus:2,
+  coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
   viewSpanCompact:62, viewSpanWide:95, lookAhead:.42
 };
 const SKIDS=600, DUST=48, COINS=220;
@@ -92,6 +95,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   const activeWorld=()=>required(world,"drive world");
   const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
+  const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
   function showMode(){
@@ -190,10 +194,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     dustMesh.setColorAt(dustAt,dark?smokeColour:dustColour);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
     dustAt=(dustAt+1)%DUST;
   }
-  function skid(b: Vehicle){
-    const fx=Math.cos(b.h),fy=Math.sin(b.h),now: NonNullable<Vehicle["trail"]>=[];
+  function skid(b: Vehicle,fx: number,fy: number,scale: number){
+    const now: NonNullable<Vehicle["trail"]>=[];
     for(const side of [-.7,.7]){
-      const x=b.x-fx*1.1-fy*side,y=b.y-fy*1.1+fx*side;
+      const x=b.x-(fx*1.1+fy*side)*scale,y=b.y+(-fy*1.1+fx*side)*scale;
       now.push([x,altitude(x,y)+.78,-y]);
     }
     if(b.trail){
@@ -206,11 +210,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     }
     b.trail=now;
   }
-  function place(b: Vehicle){
+  function place(b: Vehicle,yaw: number,roll: number){
     const z=altitude(b.x,b.y);
-    // Tail swings out with the steering, the body rolls with the slide and hops after a hit.
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
-    b.mesh.rotation.set(T.MathUtils.clamp(b.side*TUNE.roll,-.32,.32),b.h+b.steer*TUNE.tailSwing*Math.min(1,b.slip/5+.25),-b.dive*TUNE.dive);
+    b.mesh.rotation.set(roll,yaw,-b.dive*TUNE.dive);
     b.blob.position.set(b.x,z+.76,-b.y);
   }
 
@@ -310,6 +313,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
     steerTime=steerDirection=0;
+    playerPose.reset();
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
     Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0});
@@ -395,13 +399,20 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       const shove=bump(a,player);
       if(shove>6)kick(a.x-player.x,a.y-player.y,Math.min(1,shove/14)*.7);
       // Close enough counts as contact: a tree or a corner must not save a stopped car.
-      if(!a.wreck && !grace && speed<TUNE.maxSpeed*TUNE.catchRatio && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){caught(a);return;}
+      if(!a.wreck && !grace && speed<TUNE.catchSpeed && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){
+        playerPose.update(player,steer,dt);
+        caught(a);return;
+      }
     }
+    const playerSlip=playerPose.update(player,steer,dt);
     route.advance(player,world.nodes,dt,handleRouteEvent);
     for(const b of [player,...chasers]){
-      if(b.wreck>0 || b.slip<4){b.trail=null;continue;}
-      skid(b);b.puff-=dt;
-      if(b.puff<=0){b.puff=.07;puff(b.x-Math.cos(b.h)*1.3,b.y-Math.sin(b.h)*1.3,false);}
+      const isPlayer=b===player;
+      if(b.wreck>0 || (isPlayer?playerSlip:b.slip)<TUNE.skidSpeed){b.trail=null;continue;}
+      const yaw=b.h+(isPlayer?playerPose.yaw:0),fx=Math.cos(yaw),fy=Math.sin(yaw);
+      const scale=isPlayer?TUNE.visualScale:1;
+      skid(b,fx,fy,scale);b.puff-=dt;
+      if(b.puff<=0){b.puff=.07;puff(b.x-fx*1.3*scale,b.y-fy*1.3*scale,false);}
     }
   }
   function wreck(c: Patrol){
@@ -422,14 +433,19 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       acc+=dt;
       for(;acc>=1/120 && state==='playing' && !freeze;acc-=1/120)step(1/120);
       if(freeze)acc=0;
+    }else if(state==='caught'){
+      playerPose.release(dt);
     }
     spin+=dt*4;
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
-    place(player);
+    place(player,player.h+playerPose.yaw,playerPose.roll);
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
-    chasers.forEach((c,i)=>{place(c);c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;});
+    chasers.forEach((c,i)=>{
+      place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32));
+      c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;
+    });
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target;
     coinMesh.count=coins.length;
     coins.forEach((c,i)=>{
@@ -541,6 +557,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       if(state==='off')return;
       cancelAnimationFrame(raf);raf=0;controls.release();
       steerTime=steerDirection=0;
+      playerPose.reset();
       if(state==='playing'){held=true;guide.className='ready';}
     },
     resume(){

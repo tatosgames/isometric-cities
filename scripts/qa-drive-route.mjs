@@ -12,7 +12,7 @@ const places = [
   {name:'Goal',number:'02',x:40,y:0},
   {name:'Disconnected',number:'03',x:80,y:0}
 ];
-const tune = {coinStep:8,coinReach:2.6,magnet:6,maxSpeed:15,arriveReach:16,arriveBonus:10};
+const tune = {coinStep:8,coinReach:2.6,magnet:6,coinPullSpeed:25,arriveReach:16,arriveBonus:10};
 const route = makeDriveRoute(places,()=>0,tune,220);
 const first = route.choose(world,routesFrom(nodes,0),()=>0);
 assert.equal(first.target.poi.name,'Goal');
