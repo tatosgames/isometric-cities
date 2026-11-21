@@ -1,3 +1,4 @@
+import {blocksCamera} from './building-occlusion.js';
 import { routesFrom, indexRoadNodes } from './road-routing.js';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -52,6 +53,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   let world=null;
   function build(){
     const grid=new Map();
+    let highestRoof=-Infinity;
     const cell=(cx,cy)=>{
       const k=cx+','+cy;
       if(!grid.has(k))grid.set(k,{segs:[],trees:[],blocks:[]});
@@ -70,7 +72,10 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
       for(const ring of b.rings)wall(ring);
       const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
       const [x0,x1]=span(Math.min(...xs),Math.max(...xs)),[y0,y1]=span(Math.min(...ys),Math.max(...ys));
-      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(b.rings[0]);
+      const base=altitude(...b.rings[0][0]);
+      const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height)};
+      highestRoof=Math.max(highestRoof,block.top);
+      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
     }
     wall(data.boundary);
     // Road graph: OSM vertices are already rounded to 0.1 m, so shared nodes share a key.
@@ -89,7 +94,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
         nodes[a].links.push([b,d]);nodes[b].links.push([a,d]);
       }
     }
-    world={grid,nodes};
+    world={grid,nodes,highestRoof};
     // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
     for(const [x,y] of data.trees.filter(([x,y])=>!near(x,y,TUNE.treeClearance)))cell(Math.floor(x/CELL),Math.floor(y/CELL)).trees.push([x,y]);
     const sizes=[];
@@ -123,7 +128,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   function free(x,y,r){
     if(!inRing(data.boundary,x,y) || near(x,y,r))return false;
     const c=world.grid.get(Math.floor(x/CELL)+','+Math.floor(y/CELL));
-    return !c || !c.blocks.some(ring=>inRing(ring,x,y));
+    return !c || !c.blocks.some(b=>inRing(b.rings[0],x,y));
   }
   function sight(ax,ay,bx,by){
     const d=Math.hypot(bx-ax,by-ay),steps=Math.ceil(d/1.8);
@@ -217,12 +222,32 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   nose.closePath();
   const arrow=new T.ShapeGeometry(nose);
   const inset=arrow.clone().translate(-1.25,0,0).scale(.70,.65,1).translate(1.25,0,0);
-  const marker=mergeGeometries([tint(new T.RingGeometry(2.3,2.75,28),'#fff7d6'),
-    tint(arrow,'#263831'),tint(inset,'#fff7d6')]);
-  const halo=new T.Mesh(marker.rotateX(-Math.PI/2),new T.MeshBasicMaterial({
-    vertexColors:true,transparent:true,opacity:.9,depthTest:false,depthWrite:false
-  }));
-  halo.renderOrder=10;group.add(halo);
+  const markerMaterial=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.9,depthTest:false,depthWrite:false});
+  const halo=new T.Mesh(tint(new T.RingGeometry(2.3,2.75,28),'#fff7d6').rotateX(-Math.PI/2),markerMaterial);
+  const heading=new T.Mesh(mergeGeometries([tint(arrow,'#263831'),tint(inset,'#fff7d6')]).rotateX(-Math.PI/2),markerMaterial);
+  halo.renderOrder=10;heading.renderOrder=11;heading.visible=false;
+  halo.add(heading);group.add(halo);
+  const checked=new Set();
+  function cabinIsHidden(){
+    const height=player.mesh.position.y+1.2*TUNE.visualScale;
+    const m=camera.matrixWorld.elements,dx=m[8]/m[9],dy=-m[10]/m[9];
+    const distance=world.highestRoof-height;
+    if(distance<=0)return false;
+    const x=player.x,y=player.y,ex=x+dx*distance,ey=y+dy*distance;
+    checked.clear();
+    for(let cx=Math.floor(Math.min(x,ex)/CELL);cx<=Math.floor(Math.max(x,ex)/CELL);cx++){
+      for(let cy=Math.floor(Math.min(y,ey)/CELL);cy<=Math.floor(Math.max(y,ey)/CELL);cy++){
+        const cell=world.grid.get(cx+','+cy);
+        if(!cell)continue;
+        for(const block of cell.blocks){
+          if(checked.has(block))continue;
+          checked.add(block);
+          if(blocksCamera(block,x,y,height,dx,dy))return true;
+        }
+      }
+    }
+    return false;
+  }
   const dummy=new T.Object3D();
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
   coinMesh.frustumCulled=false;coinMesh.count=0;group.add(coinMesh);
@@ -497,6 +522,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     coins.forEach((c,i)=>{
       dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);dummy.rotation.set(0,spin+i*.7,0);dummy.scale.setScalar(1);
       dummy.updateMatrix();coinMesh.setMatrixAt(i,dummy.matrix);
+    heading.visible=cabinIsHidden();
     });
     coinMesh.instanceMatrix.needsUpdate=true;
     dust.forEach((p,i)=>{
