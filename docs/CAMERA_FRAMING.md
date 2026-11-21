@@ -34,7 +34,7 @@ I valori citati sono quelli del codice al 21 novembre 2026. Se cambiano nel codi
 
 ## Cosa deve restare visibile in guida
 
-- L'auto, sempre: dietro gli edifici resta l'anello con la freccia, disegnato sopra i volumi.
+- La parte nascosta dell’auto si legge come sagoma sulla facciata o sul tetto. La freccia segue il muso quando il centro della cabina è coperto.
 - Le prossime monete della scia lungo la direzione di marcia.
 - Una pattuglia che si avvicina, prima che arrivi a contatto: è la ragione dell'allargamento del punto 4.
 - La destinazione: sulla scena con il fascio di luce, o sul bordo dello schermo con la ficha numerata quando è fuori campo.
@@ -47,7 +47,7 @@ L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita i
 - Ruotare la camera con l'auto. La direzione fissa è una scelta di prodotto.
 - Rimettere uno spostamento casuale della camera.
 - Legare lo zoom a eventi istantanei (urto, moneta, comparsa di una pattuglia). Passa sempre dai due ingressi filtrati.
-- Risolvere un problema di leggibilità di una singola zona cambiando i valori globali di campo visivo. Si interviene sulla scena o sull'anello dell'auto.
+- Risolvere un problema di leggibilità di una singola zona cambiando i valori globali di campo visivo. Si interviene sulla scena o sulla sagoma dell’auto.
 - Aggiungere una seconda camera o spostare la camera da un modulo diverso da `main.js`.
 
 ## Verifica

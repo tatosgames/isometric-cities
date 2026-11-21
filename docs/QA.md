@@ -65,7 +65,7 @@ La [vista mobile del Teatro Pérez Galdós](screenshots/teatro-mobile.png) copre
 - Chrome con emulazione 390×844, 10 s di guida: intervallo mediano fra frame 17,5 ms, 95º percentile 18,3 ms. È il computer di sviluppo, non un telefono.
 - [Schermata mobile](screenshots/conducir-mobile.png).
 
-Limiti noti: nessuna prova su telefono fisico (tocco reale, vibrazione, prestazioni). Lo swipe non ha un test automatico. La cattura nel test dipende dall'arrivo casuale delle pattuglie, con attesa massima di 120 s. Le auto sono cerchi di 1,15 m di raggio; solo gli alberi a più di 4,5 m da una facciata sono ostacoli. Le ombre dinamiche sono macchie, la shadow map resta statica. Gli edifici possono coprire l'auto nelle vie strette: l’anello identifica il veicolo; la freccia interna compare quando un volume edilizio copre il centro dell’abitacolo.
+Limiti noti: nessuna prova su telefono fisico (tocco reale, vibrazione, prestazioni). Lo swipe non ha un test automatico. La cattura nel test dipende dall'arrivo casuale delle pattuglie, con attesa massima di 120 s. Le auto sono cerchi di 1,15 m di raggio; solo gli alberi a più di 4,5 m da una facciata sono ostacoli. Le ombre dinamiche sono macchie, la shadow map resta statica. Gli edifici possono coprire l'auto nelle vie strette: la sagoma gialla segue i pixel coperti e la freccia compare quando un volume edilizio copre il centro dell’abitacolo.
 
 ### Interfaccia a icone e game feel
 
