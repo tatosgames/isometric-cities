@@ -1,4 +1,5 @@
 import { isCity, isPlaces, isRoofPalette, isSectorIndex, loadData, parseViewState } from './data/load.ts';
+import { validateSectorIndex } from './data/sector-index.ts';
 import type { ViewState } from './data/types.ts';
 import { element as el } from './map/dom.ts';
 import { required } from './required.ts';
@@ -23,6 +24,7 @@ async function start(){
   const neutral=query.has('neutral');
   const [data,poi,{tones},index]=await Promise.all([loadData((pilot?'pilot':'city')+'.json',isCity),loadData('poi.geojson',isPlaces),
     neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData('city-index.json',isSectorIndex)]);
+  if(index)validateSectorIndex(data,index);
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
   const sessionKey='map-view:'+location.pathname+location.search;
@@ -175,11 +177,18 @@ async function start(){
     el('drive').focus({preventScroll:true});
   }
   drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection:direction,compact,onExit:leaveDrive});
-  el('drive').onclick=()=>{
-    if(lost || !drive || drive.active)return;
+  const play=el('drive');
+  play.onclick=()=>{
+    if(lost || !drive || drive.active || play.getAttribute('aria-disabled')==='true')return;
+    if(drive.enter()==='unavailable'){
+      play.setAttribute('aria-disabled','true');
+      play.setAttribute('aria-label','Play · Modo de conducción no disponible');
+      play.title='Modo de conducción no disponible';
+      return;
+    }
     flight=null;places.close();required(document.querySelector('nav'),'navigation').classList.remove('open');
     beforeDrive={target:controls.target.clone(),zoom:camera.zoom};
-    controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');drive.enter();
+    controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');
   };
   el('drive-exit').onclick=leaveDrive;
   controls.addEventListener('change',draw);

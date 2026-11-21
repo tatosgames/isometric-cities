@@ -1,4 +1,5 @@
 import type { Building, CityData, Point, Ring, RoofTones, SectorIndex } from '../../data/types.ts';
+import { ringCenter, sectorOwner } from '../../data/sector-index.ts';
 import { isLayers, loadData } from '../../data/load.ts';
 import { required } from '../../required.ts';
 import {surfaceStencil} from '../building-stencil.ts';
@@ -58,14 +59,11 @@ export function streamCity({data,neutral,tones,compact,refresh,host}: StreamOpti
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
   const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact);
   const byId=new Map<string,{buildings: Building[];trees: Point[];ground: Ring[]}>(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
-  const owner=(x: number,y: number)=>Math.floor(x/data.sectorSize)+'_'+Math.floor(y/data.sectorSize);
+  const owner=(x: number,y: number)=>sectorOwner(x,y,data.sectorSize);
   const batchFor=(id: string)=>required(byId.get(id),"sector "+id);
   data.buildings.forEach((b,i)=>batchFor(data.buildingOwners[i]).buildings.push(b));
   for(const tree of data.trees)batchFor(owner(...tree)).trees.push(tree);
-  for(const ring of data.ground){
-    const xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]);
-    batchFor(owner((Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2)).ground.push(ring);
-  }
+  for(const ring of data.ground)batchFor(owner(...ringCenter(ring))).ground.push(ring);
   const solid=new T.MeshStandardMaterial({...surfaceStencil(true),vertexColors:true,flatShading:true,side:T.DoubleSide});
   const overviewMaterials=[solid,Object.assign(solid.clone(),surfaceStencil())];
   const groundMaterial=new T.MeshStandardMaterial({...surfaceStencil(),map:base.groundMap?.texture??null,

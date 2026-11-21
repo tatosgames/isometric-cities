@@ -146,3 +146,10 @@ Registrate sei clip dello stesso avvio e sequenza di sterzo su Chrome a 390×844
 La suite browser completa, il pilota neutro e stilizzato e il circuito dei settori passano sia sulla build JavaScript di riferimento sia sulla build TypeScript. Il circuito mantiene lo stesso massimo osservato di 49.868.015 byte di dettaglio residente, entro il budget mobile di 48 MiB. La guida attraversa lo stesso confine di settore in entrambi i sensi con una pattuglia attiva.
 
 Tre aperture in Chrome mobile emulato con un nuovo processo per prova, eseguite alternando le build, danno una mediana di 1.675 ms per JavaScript e 1.672 ms per TypeScript. Il confronto misura il tempo fino alla prima vista navigabile, su questa macchina.
+
+## Avvio della guida, indice e recupero dello streaming
+
+- `npm.cmd run build` verifica prima le scene, il catalogo, la palette e gli 80 settori distribuiti. Un indice con un’associazione edificio–settore mancante è respinto anche all’apertura nel browser, prima di creare il renderer.
+- `node scripts/qa-recovery.mjs` verifica che la mappa resti navigabile senza strade o senza luoghi. Verifica anche il passaggio alla costruzione locale quando il worker non risponde per 10 s, sia con il settore ancora richiesto sia dopo l’annullamento.
+- `node scripts/qa-drive-route.mjs` verifica la scelta del percorso, la spaziatura delle monete, la calamita, gli eventi di punteggio, il bonus assegnato una volta sola e il cambio di destinazione. `node scripts/qa-drive-camera.mjs` passa anche dopo il refactoring.
+- Superati anche la suite browser desktop e mobile emulato, il pilota e il circuito dei settori. Nel circuito il picco osservato del dettaglio residente è stato di 49.868.015 byte su un budget compatto di 48 MiB. La guida ha attraversato il confine di settore in entrambi i sensi con una pattuglia attiva.

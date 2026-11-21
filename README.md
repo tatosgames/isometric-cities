@@ -41,6 +41,8 @@ npm.cmd run build
 node scripts/qa.mjs pilot
 npm.cmd test
 node scripts/qa-sectors.mjs
+node scripts/qa-drive-route.mjs
+node scripts/qa-recovery.mjs
 ```
 
 I test avviano un server temporaneo della build e lo chiudono alla fine. Richiedono Chrome installato. `MAP_URL` permette di puntare a un server già avviato.

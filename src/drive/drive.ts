@@ -7,6 +7,9 @@ import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
 import {buildDriveWorld} from './drive-world.ts';
 import {makeDrivePhysics} from './drive-physics.ts';
 import {makeDriveCamera} from './drive-camera.ts';
+import {makeDriveRoute} from './drive-route.ts';
+import type { RouteEvent } from './drive-route.ts';
+import type { RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -47,7 +50,7 @@ type RouteField = ReturnType<typeof routesFrom>;
 
 // Every gameplay number lives here. Metres, seconds, radians.
 export const TUNE={
-  maxSpeed:15, accel:9, turn:2.6, grip:7.5, driftGrip:3.2, driftDrag:.035, brake:16, brakeGrip:2.2,
+  maxSpeed:15, accel:9, turn:2.6, turnRamp:.2, grip:7.5, driftGrip:3.2, driftDrag:.035, brake:16, brakeGrip:2.2,
   // Juice: visual only, no effect on collisions.
   deflect:4.5,
   roll:.035, tailSwing:.3, hop:.5, dive:.09, magnet:6,
@@ -214,8 +217,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   // ---- game state ----
   let state: DriveState='off';
   let score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,overAt=0,held=false,warmed=false;
-  let coins: {x: number;y: number;z: number}[]=[];
-  let target: {poi: (typeof pois)[number];node: number} | null=null;
+  let steerTime=0,steerDirection=0;
   let chasers: Patrol[]=[];
   let field: RouteField | null=null;
   let zoomNow=1,paceEase=0,threat=0;
@@ -224,6 +226,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const lead=new T.Vector3(),screen=new T.Vector3();
   const focus=new T.Vector3();
   const pois=locations.map((f,i)=>({name:f.properties.name,number:String(i+1).padStart(2,'0'),x:f.properties.xy[0],y:f.properties.xy[1]}));
+  const route=makeDriveRoute(pois,altitude,TUNE,COINS);
+  const {coins}=route;
   try{record=Number(localStorage.getItem('drive-record'))||0;}catch{}
   const clock=(s: number)=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
   const guide=el('guide'),zones={left:required(guide.querySelector('.left'),'left guide'),right:required(guide.querySelector('.right'),'right guide')};
@@ -257,30 +261,26 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   }
   function trail(){
     const world=activeWorld();
-    const from=world.nearestNode(player.x,player.y),options=pois.filter(p=>p!==target?.poi);
-    const {prev,dist}=routes(from);
-    const reachable=options.map(poi=>({poi,node:world.nearestNode(poi.x,poi.y)})).filter(o=>o.node!==from && Number.isFinite(dist[o.node]));
-    target=reachable[Math.floor(Math.random()*reachable.length)] ?? null;
-    coins=[];
-    if(!target)return null;
-    const path=[];
-    for(let n=target.node;n>=0;n=prev[n])path.push(world.nodes[n]);
-    path.reverse();
-    // The first coin sits right ahead of the car, the rest follow at a regular step.
-    let carry=3;
-    for(let i=1;i<path.length && coins.length<COINS;i++){
-      const a=path[i-1],b=path[i],len=Math.hypot(b.x-a.x,b.y-a.y);
-      for(;carry<len && coins.length<COINS;carry+=TUNE.coinStep){
-        const x=a.x+(b.x-a.x)*carry/len,y=a.y+(b.y-a.y)*carry/len;
-        if(world.free(x,y,1.2))coins.push({x,y,z:altitude(x,y)+2});
-      }
-      carry-=len;
-    }
+    const from=world.nearestNode(player.x,player.y);
+    const next=route.choose(world,routes(from));
+    if(!next)return null;
+    const {target,path}=next;
     const end=world.nodes[target.node];
     beacon.position.set(end.x,altitude(end.x,end.y),-end.y);
     required(el('goal').querySelector('b'),'goal label').textContent=target.poi.number;
     el('hud-live').textContent='Destino: '+target.poi.name;
     return path;
+  }
+  function handleRouteEvent(event: RouteEvent){
+    if(event.type==='coin'){
+      pop(event.coin.x,event.coin.y,event.points,'coin',false);
+      gain(event.points);buzz(8);
+      return;
+    }
+    pop(player.x,player.y,event.points,'coin',true);
+    gain(event.points);buzz(40);stop(TUNE.stopArrive);
+    for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5,false);
+    trail();
   }
   function spawnChaser(c: Patrol){
     const world=activeWorld();
@@ -298,13 +298,20 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     c.max=TUNE.maxSpeed*Math.min(TUNE.chaserSpeedMax,TUNE.chaserSpeed+TUNE.chaserSpeedStep*Math.floor(time/TUNE.chaserEvery));
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
-  function restart(){
+  function nextStart(){
+    if(!pois.length)return undefined;
     const world=activeWorld();
+    const poi=pois[round%pois.length];
+    const node=world.nodes[world.nearestNode(poi.x,poi.y)];
+    if(node)round++;
+    return node;
+  }
+  function restart(n: RoadNode){
     for(const c of chasers)group.remove(c.mesh,c.blob);
-    chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;target=null;
+    chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
+    steerTime=steerDirection=0;
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
-    const poi=pois[round++%pois.length],n=world.nodes[world.nearestNode(poi.x,poi.y)];
     Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     const path=trail();
@@ -338,7 +345,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const world=activeWorld();
     time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);
     const {steer,brake}=controls.read();
-    steerBody(player,steer,brake,TUNE.maxSpeed,dt);
+    if(steer!==steerDirection){steerTime=0;steerDirection=steer;}
+    if(steer)steerTime=Math.min(TUNE.turnRamp,steerTime+dt);
+    steerBody(player,steer,brake,TUNE.maxSpeed,dt,steerTime/TUNE.turnRamp);
     const knock=collide(player,world);
     if(knock>3)player.hop=Math.min(TUNE.hop,knock*.05);
     if(knock>6){kick(player.hitX,player.hitY,Math.min(1,knock/14));buzz(18);}
@@ -388,17 +397,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       // Close enough counts as contact: a tree or a corner must not save a stopped car.
       if(!a.wreck && !grace && speed<TUNE.maxSpeed*TUNE.catchRatio && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){caught(a);return;}
     }
-    for(let i=coins.length-1;i>=0;i--){
-      const coin=coins[i],dx=player.x-coin.x,dy=player.y-coin.y,gap=Math.hypot(dx,dy);
-      if(gap<TUNE.coinReach){pop(coin.x,coin.y,1,'coin',false);coins.splice(i,1);gain(1);buzz(8);}
-      // Nearby coins are pulled in, so a close pass is enough.
-      else if(gap<TUNE.magnet){const pull=Math.min(gap,(TUNE.maxSpeed+10)*dt);coin.x+=dx/gap*pull;coin.y+=dy/gap*pull;}
-    }
-    if(target && Math.hypot(world.nodes[target.node].x-player.x,world.nodes[target.node].y-player.y)<TUNE.arriveReach){
-      pop(player.x,player.y,TUNE.arriveBonus,'coin',true);gain(TUNE.arriveBonus);buzz(40);stop(TUNE.stopArrive);
-      for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5,false);
-      trail();
-    }
+    route.advance(player,world.nodes,dt,handleRouteEvent);
     for(const b of [player,...chasers]){
       if(b.wreck>0 || b.slip<4){b.trail=null;continue;}
       skid(b);b.puff-=dt;
@@ -431,7 +430,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     heading.rotation.y=player.mesh.rotation.y;
 
     chasers.forEach((c,i)=>{place(c);c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;});
-    beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!target;
+    beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target;
     coinMesh.count=coins.length;
     coins.forEach((c,i)=>{
       dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);dummy.rotation.set(0,spin+i*.7,0);dummy.scale.setScalar(1);
@@ -478,7 +477,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const {steer,brake}=controls.read();
     zones.left.classList.toggle('on',state==='playing' && (steer>0 || brake));
     zones.right.classList.toggle('on',state==='playing' && (steer<0 || brake));
-    const goal=el('goal');goal.hidden=!target || state==='caught';
+    const target=route.target,goal=el('goal');goal.hidden=!target || state==='caught';
     if(target){
       // The destination chip sits over the place, or slides along the screen edge and points at it.
       const end=activeWorld().nodes[target.node],[gx,gy]=project(end.x,end.y,14);
@@ -503,23 +502,31 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     try{renderer.compile(scene,camera);}catch{}
     group.remove(...stand);
   }
-  el('again').onclick=()=>restart();
+  el('again').onclick=()=>{
+    if(state!=='caught')return;
+    const start=nextStart();
+    if(start)restart(start);
+  };
   el('leave').onclick=()=>onExit();
   return {
     get active(){return state!=='off';},
-    enter(){
-      if(state!=='off')return;
+    enter(): 'started' | 'unavailable'{
+      if(state!=='off')return 'started';
+      if(!pois.length)return 'unavailable';
       world??=buildDriveWorld(data,altitude,TUNE);
+      const start=nextStart();
+      if(!start)return 'unavailable';
       scene.add(group);
       rig.enter();showMode();
       controls.activate();
       el('hud').hidden=false;
-      restart();
+      restart(start);
       warm();
       // Glide in from the map zoom instead of cutting to the play zoom.
       zoomNow=T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
       focus.copy(camera.position).addScaledVector(camera.getWorldDirection(new T.Vector3()),1500);
       last=0;raf=requestAnimationFrame(frame);
+      return 'started';
     },
     exit(){
       if(state==='off')return;
@@ -533,6 +540,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     suspend(){
       if(state==='off')return;
       cancelAnimationFrame(raf);raf=0;controls.release();
+      steerTime=steerDirection=0;
       if(state==='playing'){held=true;guide.className='ready';}
     },
     resume(){

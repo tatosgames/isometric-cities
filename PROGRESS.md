@@ -29,3 +29,5 @@ Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell�
 **Camere di guida.** Il pulsante camera e C alternano la vista isometrica iniziale, una vista aerea che segue la traiettoria e un inseguimento rialzato. La scelta è salvata sul dispositivo. Le viste mobili si alzano quando un edificio copre la cabina. Le facciate dettagliate hanno finestre anche sui lati visibili ruotando.
 
 **G · Runtime TypeScript.** I moduli browser e il worker sono in `src/`, divisi per dati, mappa, rendering e guida. Il controllo TypeScript rigoroso copre tutto il runtime. I geodati e la vista salvata vengono controllati all’ingresso. Il worker e il thread principale condividono i tipi per richieste, geometrie trasferibili, bitmap ed errori. [Verifiche della migrazione](docs/QA.md#migrazione-typescript).
+
+**H · Avvio e recupero.** La guida verifica il punto di partenza prima di prendere il controllo della mappa. Il caricamento dei settori passa al thread principale se il worker non risponde entro 10 s. La build verifica la coerenza dell’indice dei geodati. La logica di destinazioni e monete è separata dal rendering e verificabile in Node.

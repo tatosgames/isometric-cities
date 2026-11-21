@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run check:data && vite build",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node scripts/qa.mjs"
+    "test": "node scripts/qa.mjs",
+    "check:data": "node scripts/check-data.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

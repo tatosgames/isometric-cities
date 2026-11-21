@@ -13,21 +13,48 @@ function bitmapTexture(bitmap: ImageBitmap){
 
 // The streamer serializes builds. A cancelled result is discarded before GPU upload.
 export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean,tones: RoofTones | null){
+  const timeoutMs=10000;
   let worker: Worker | null=null;
   if(typeof OffscreenCanvas!=='undefined'){
-    worker=new Worker(new URL('./sector-worker.ts',import.meta.url),{type:'module'});
-    const values=Float32Array.from(terrain.values);
-    worker.postMessage({config:{terrain:{...terrain,values},compact,neutral,tones}} satisfies WorkerRequest,[values.buffer]);
+    try {
+      worker=new Worker(new URL('./sector-worker.ts',import.meta.url),{type:'module'});
+      const values=Float32Array.from(terrain.values);
+      worker.postMessage({config:{terrain:{...terrain,values},compact,neutral,tones}} satisfies WorkerRequest,[values.buffer]);
+    } catch (error) {
+      worker?.terminate();
+      worker=null;
+      console.info('Sector worker unavailable',error);
+    }
   }
   const attr=(a: AttributeData)=>new T.BufferAttribute(a.array,a.size,a.normalized);
   return async(layers: Layers,signal: AbortSignal)=>{
-    if(!worker)return makeCity({...layers,boundary:[],terrain},neutral,tones,compact);
+    if(signal.aborted)return null;
+    const buildLocally=()=>makeCity({...layers,boundary:[],terrain},neutral,tones,compact);
+    if(!worker)return buildLocally();
     const activeWorker=worker;
-    const result=await new Promise<WorkerResult>((resolve,reject)=>{
-      activeWorker.onmessage=({data}: MessageEvent<WorkerReply>)=> "error" in data ? reject(Error(data.error)) : resolve(data);
-      activeWorker.onerror=event=>{activeWorker.terminate();worker=null;reject(Error(event.message));};
-      activeWorker.postMessage({layers} satisfies WorkerRequest);
-    });
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let result: WorkerResult;
+    try {
+      result=await new Promise<WorkerResult>((resolve,reject)=>{
+        timeout=setTimeout(()=>reject(new Error('Sector worker timed out')),timeoutMs);
+        activeWorker.onmessage=({data}: MessageEvent<WorkerReply>)=>
+          'error' in data ? reject(new Error(data.error)) : resolve(data);
+        activeWorker.onerror=event=>{
+          event.preventDefault();
+          reject(new Error(event.message));
+        };
+        activeWorker.onmessageerror=()=>reject(new Error('Invalid sector worker message'));
+        activeWorker.postMessage({layers} satisfies WorkerRequest);
+      });
+    } catch (error) {
+      activeWorker.terminate();
+      worker=null;
+      console.info('Sector worker fallback',error);
+      return signal.aborted ? null : buildLocally();
+    } finally {
+      clearTimeout(timeout);
+      activeWorker.onmessage=activeWorker.onerror=activeWorker.onmessageerror=null;
+    }
     if(signal.aborted){result.image?.close();return null;}
     const groundMap: GroundMap | null=result.image?{texture:bitmapTexture(result.image),bounds:new T.Vector4().fromArray(result.bounds)}:null;
     const materials=cityMaterials(neutral,groundMap);

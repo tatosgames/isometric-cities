@@ -68,7 +68,7 @@ export const isRoofPalette = (v: unknown): v is {tones: RoofTones} =>
   record(v) && record(v.tones) && Object.values(v.tones).every(string);
 
 export async function loadData<T>(path: string, valid: (v: unknown) => v is T, signal?: AbortSignal): Promise<T> {
-  const response = await fetch('./data/' + path, {signal});
+  const response = await fetch('./data/' + path, {signal: signal ?? null});
   if (!response.ok) throw new Error(path + ' HTTP ' + response.status);
   const payload: unknown = await response.json();
   if (!valid(payload)) throw new Error('Invalid map data: ' + path);
