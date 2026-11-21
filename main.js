@@ -12,11 +12,12 @@ async function start(){
     neutral?null:new T.TextureLoader().loadAsync('./data/roof-colours.webp'),neutral?{}:load('roof-tones.json')]);
   if(roofColours)roofColours.colorSpace=T.SRGBColorSpace;
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
-  const renderer=new T.WebGLRenderer({antialias:true,alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
-  renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
+  const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
+  const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.75));
+  renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
-  const {group,altitude}=makeCity(data,neutral,roofColours,roofTones);scene.add(group);
+  const {group,altitude}=makeCity(data,neutral,roofColours,roofTones,compact);scene.add(group);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
@@ -59,14 +60,33 @@ async function start(){
     controls.minZoom=fit*.8;controls.maxZoom=Math.max(fit*12,4);
     view(center,fit);
   }
+  let lost=false;
+  const status=el('status');
+  renderer.domElement.addEventListener('webglcontextlost',event=>{
+    event.preventDefault();
+    lost=true;
+    cancelAnimationFrame(frame);frame=0;
+    status.textContent='Restableciendo el mapa... ';
+    const retry=document.createElement('button');
+    retry.textContent='Recargar';
+    retry.onclick=()=>location.reload();
+    status.append(retry);status.hidden=false;
+  });
+  renderer.domElement.addEventListener('webglcontextrestored',()=>{
+    lost=false;
+    renderer.shadowMap.needsUpdate=true;
+    draw();
+  });
   function draw(){
-    if(frame)return;
+    if(frame || lost)return;
     frame=requestAnimationFrame(()=>{
       frame=0;
       const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
       camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
       camera.updateMatrixWorld();
       renderer.render(scene,camera);
+      if(renderer.getContext().isContextLost())return;
+      status.hidden=true;
       pins.forEach(({pin,btn,point},i)=>{
         const v=point.clone().project(camera);pin.style.left=(v.x+1)*50+'%';pin.style.top=(1-v.y)*50+'%';
         pin.hidden=Math.abs(v.x)>1||Math.abs(v.y)>1;pin.setAttribute('aria-pressed',String(i===selected));btn.setAttribute('aria-pressed',String(i===selected));

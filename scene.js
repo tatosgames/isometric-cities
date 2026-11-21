@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export function makeCity(data, neutral, roofColours, roofTones) {
+export function makeCity(data, neutral, roofColours, roofTones, compact=false) {
   const group = new T.Group();
   const buckets = new Map();
   const terrain = data.terrain;
@@ -15,11 +15,12 @@ export function makeCity(data, neutral, roofColours, roofTones) {
   function add(g,color,x=0,y=0,surface=0) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
-    geom.setAttribute('surface',new T.Float32BufferAttribute(new Float32Array(geom.attributes.position.count).fill(surface),1));
+    geom.setAttribute('surface',new T.BufferAttribute(new Uint8Array(geom.attributes.position.count).fill(surface),1));
     const shade=new T.Color(neutral ? '#e4dfd3' : color);
-    const rgb=new Float32Array(geom.attributes.position.count*3);
+    const rgb=new Uint8Array(geom.attributes.position.count*3);
+    shade.multiplyScalar(255);
     for(let i=0;i<rgb.length;i+=3) shade.toArray(rgb,i);
-    geom.setAttribute('color',new T.BufferAttribute(rgb,3));
+    geom.setAttribute('color',new T.BufferAttribute(rgb,3,true));
     const key=Math.floor(x/120)+','+Math.floor(y/120);
     if(!buckets.has(key)) buckets.set(key,[]);
     buckets.get(key).push(geom);
@@ -119,7 +120,7 @@ export function makeCity(data, neutral, roofColours, roofTones) {
           }
         }
       }
-      if(!b.cathedral && count>=2 && len<65 && nx*-.82-ny*.68>0){
+      if(!compact && !b.cathedral && count>=2 && len<65 && nx*-.82-ny*.68>0){
         const rot=Math.atan2(f-c,e-a);
         for(let level=3;level<h-2;level+=3.6){
           add(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
@@ -153,7 +154,7 @@ export function makeCity(data, neutral, roofColours, roofTones) {
       const height=7+seed%4;
       add(new T.CylinderGeometry(.28,.46,height,7).translate(x,z+height/2,-y),'#8b7756',x,y);
       const leaves=[];
-      for(let k=0;k<13;k++){
+      for(let k=0;k<(compact?8:13);k++){
         const angle=k*2.4+seed,reach=3.7+(k%3)*.7;
         const leaf=(t,side)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
         for(let j=0;j<9;j++){
@@ -166,9 +167,9 @@ export function makeCity(data, neutral, roofColours, roofTones) {
     }
     add(new T.CylinderGeometry(.28,.35,4,5).translate(x,z+2,-y),'#887451',x,y);
     const palette=[['#3d533e','#59714c','#778352'],['#324d43','#4a6a53','#68805d'],['#4f6040','#687b50','#85935d']][seed%3];
-    for(let k=0;k<7;k++){
+    for(let k=0;k<(compact?4:7);k++){
       const angle=k*2.4+seed,rad=k===0?0:2.05,sz=2.3+(seed%7)*.14;
-      const crown=new T.IcosahedronGeometry(sz,1).scale(1,1.08,.86).rotateY(angle);
+      const crown=new T.IcosahedronGeometry(sz,compact?0:1).scale(1,1.08,.86).rotateY(angle);
       crown.translate(x+Math.cos(angle)*rad,z+5.3+(k===0?1.6:Math.sin(k+seed)*.65),-y+Math.sin(angle)*rad);
       add(crown,palette[k%3],x,y,5);
     }
@@ -206,6 +207,7 @@ export function makeCity(data, neutral, roofColours, roofTones) {
   };
   for(const bucket of buckets.values()){
     const mesh=new T.Mesh(mergeGeometries(bucket),mat);
+    bucket.length=0;
     mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
   }
   return {group,altitude};

@@ -51,11 +51,36 @@ try{
       await page.waitForTimeout(180);assert.ok(Number((await host.getAttribute('data-view')).split(',')[2])>Number(initial.split(',')[2]));
       await page.locator('#reset').click();
     }
-    await page.locator('.pin').last().focus();await page.keyboard.press('Enter');assert.match(await page.locator('h3').textContent(),/San Telmo/);
+    await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);await page.locator('.pin').last().waitFor({state:'visible'});await page.locator('.pin').last().focus();await page.keyboard.press('Enter');assert.match(await page.locator('h3').textContent(),/San Telmo/);
+    await page.waitForFunction(()=>document.querySelector('.pin:last-child').getAttribute('aria-pressed')==='true');
+    const savedView=await host.getAttribute('data-view');
+    for(let cycle=0;cycle<2;cycle++){
+      const ext=await page.evaluateHandle(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context'));
+      await ext.evaluate(e=>e.loseContext());
+      await page.locator('#status').waitFor({state:'visible'});
+      await ext.evaluate(e=>e.restoreContext());
+      await page.locator('#status').waitFor({state:'hidden'});
+      assert.equal(await host.getAttribute('data-view'),savedView);
+      assert.equal(await page.locator('article').isVisible(),true);
+      // Inspect the central map without the DOM controls: a cleared canvas is a failure.
+      const rect=await host.boundingBox();
+      const png=await page.screenshot({clip:{x:rect.x+rect.width/2-80,y:rect.y+rect.height/2-80,width:160,height:160}});
+      const colours=await page.evaluate(async base64=>{
+        const img=new Image();img.src='data:image/png;base64,'+base64;await img.decode();
+        const c=document.createElement('canvas');c.width=c.height=160;
+        const ctx=c.getContext('2d');ctx.drawImage(img,0,0);
+        const pixels=ctx.getImageData(0,0,160,160).data;
+        return new Set(new Uint32Array(pixels.buffer)).size;
+      },png.toString('base64'));
+      assert.ok(colours>150,'Expected rendered map after restoration, got '+colours+' colours');
+      await ext.dispose();
+    }
+
   }
   assert.deepEqual(faults,[]);await page.close();
  }
 }finally{await browser.close();if(server)await server.close();}
+
 
 
 
