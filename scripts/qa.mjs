@@ -37,6 +37,7 @@ try{
       const placeId=await b.getAttribute('data-place-id');
       if(!mobile&&placeId==='san-telmo')await snap('san-telmo');
       if(!mobile&&placeId==='mercado-de-vegueta')await snap('mercado-teatro');
+      if(mobile&&placeId==='teatro-perez-galdos')await snap('teatro-mobile');
       if(mobile&&placeId==='gabinete-literario')await snap('triana-mobile');
       await page.locator('#close').click();
     }
@@ -117,10 +118,12 @@ try{
       }
       await page.waitForFunction(v=>document.querySelector('#scene').dataset.view!==v,prior);
     }
+    const priorPlaceView=await host.getAttribute('data-view');
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="santa-ana"]').click();
     await page.waitForFunction(()=>document.querySelector('.pin[data-place-id="santa-ana"]').getAttribute('aria-pressed')==='true');
     assert.equal(await host.getAttribute('data-moving'),'false');
+    await page.waitForFunction(prior=>document.querySelector('#scene').dataset.view!==prior,priorPlaceView);
     const retryView=await host.getAttribute('data-view');
     await page.evaluate(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
     await page.getByRole('button',{name:'Recargar'}).click();

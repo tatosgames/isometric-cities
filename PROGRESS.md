@@ -9,3 +9,5 @@
 Santa Ana e Gabinete Literario hanno ora facciate procedurali dedicate e profili dei tetti distinti. Le immagini di consultazione restano nella cache privata. Catture aggiornate nella cartella QA.
 
 Il catalogo di Las Palmas governa luoghi, appartenenza al pilota e personalizzazioni degli edifici. Menu e modelli dei monumenti sono moduli separati. Verificati riordino, settimo luogo di prova e recupero del contesto nel browser. La mappa pubblicata conserva i sei luoghi originali.
+
+Corretto l’affioramento del terreno attraverso le carreggiate. Il viewer compone strade, sentieri e superfici dai geodati direttamente sulla mesh del terreno. Aggiunta la cattura mobile del Teatro Pérez Galdós alla suite QA.

@@ -1,3 +1,4 @@
+import { makeGroundMap } from './ground-map.js';
 import { addLandmarks } from './landmarks.js';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -51,7 +52,7 @@ export function makeCity(data, neutral, roofColours, roofAtlas, compact=false) {
     g.computeVertexNormals(); return g.rotateX(-Math.PI/2);
   }
   // Subdivide the ground before clipping so local relief survives triangulation.
-  for(const ring of data.ground) add(drape(new T.ShapeGeometry(shape([ring])),0),'#c7bcb2',ring[0][0],ring[0][1],1);
+  for(const ring of data.ground) add(drape(new T.ShapeGeometry(shape([ring])),0),'#ffffff',ring[0][0],ring[0][1],6);
   const boundary=data.boundary;
   for(let k=1;k<boundary.length;k++){
     const [a,b]=boundary[k-1],[c,d]=boundary[k];
@@ -61,24 +62,6 @@ export function makeCity(data, neutral, roofColours, roofAtlas, compact=false) {
       const xx=T.MathUtils.lerp(a,c,(j+1)/steps),yy=T.MathUtils.lerp(b,d,(j+1)/steps);
       const v=[x,altitude(x,y),-y,xx,altitude(xx,yy),-yy,x,-5,-y,xx,altitude(xx,yy),-yy,xx,-5,-yy,x,-5,-y];
       const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();add(g,'#bb9f7d',x,y);
-    }
-  }
-  for(const s of data.surfaces){
-    const pavedPark=s.paved;
-    const planted=s.kind==='park' && !pavedPark;
-    const paving=s.id==='30801430'?'#96948f':'#c0b9af';
-    add(drape(new T.ShapeGeometry(shape(s.rings)),.55),planted?'#728157':paving,s.rings[0][0][0],s.rings[0][0][1],planted?2:1);
-  }
-  for(const road of data.roads){
-    const walk=['steps','footway','path','pedestrian','cycleway'].includes(road.kind);
-    const width=walk?2.2:['primary','secondary','trunk'].includes(road.kind)?8:4.5;
-    for(let i=1;i<road.line.length;i++){
-      const [x,y]=road.line[i-1],[a,b]=road.line[i],len=Math.hypot(a-x,b-y);
-      if(len<0.1)continue;
-      
-      const g=new T.PlaneGeometry(width,len,1,Math.ceil(len/9));
-      g.rotateZ(Math.atan2(b-y,a-x)-Math.PI/2).translate((x+a)/2,(y+b)/2,0);
-      add(drape(g,walk?0.65:0.32),walk?'#c6bdb6':'#626575',x,y,walk?1:0);
     }
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
@@ -187,16 +170,29 @@ export function makeCity(data, neutral, roofColours, roofAtlas, compact=false) {
     }
   }
 
+  const groundMap=neutral?null:makeGroundMap(data);
   if(!neutral) mat.onBeforeCompile=shader=>{
+    shader.uniforms.groundColours={value:groundMap.texture};
+    shader.uniforms.groundBounds={value:groundMap.bounds};
     shader.uniforms.roofColours={value:roofColours};
     shader.uniforms.atlasBounds={value:new T.Vector4().fromArray(roofAtlas.bounds)};
     shader.vertexShader='attribute float surface; varying float vKind; varying vec3 vMap;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vKind=surface; vMap=position;');
-    shader.fragmentShader='uniform sampler2D roofColours; uniform vec4 atlasBounds; varying float vKind; varying vec3 vMap;\n'+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    shader.fragmentShader='uniform sampler2D groundColours; uniform vec4 groundBounds; uniform sampler2D roofColours; uniform vec4 atlasBounds; varying float vKind; varying vec3 vMap;\n'+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       vec2 p=vMap.xz;
       float speck=fract(sin(dot(floor((p+vMap.y*.41)*5.),vec2(12.9898,78.233)))*4375.5453);
       float fade=1.-smoothstep(.13,.75,length(fwidth(p)));
       float grain=(speck-.5)*.07;
-      if(vKind>4.5){
+      if(vKind>5.5){
+        vec2 uv=(vec2(p.x,-p.y)-groundBounds.xy)/groundBounds.zw;
+        vec3 ground=texture2D(groundColours,uv).rgb;
+        diffuseColor.rgb*=ground;
+        if(ground.g>ground.r && ground.g>ground.b){grain+=.1*sin(p.x*.73)*sin(p.y*.61);}
+        else if(ground.r>=ground.b){
+          vec2 paving=p*vec2(.85,1.65);paving.x+=mod(floor(paving.y),2.)*.5;
+          vec2 edge=min(fract(paving),1.-fract(paving));
+          grain-=.15*(1.-smoothstep(.01,.1,min(edge.x,edge.y)));
+        }
+      }else if(vKind>4.5){
         grain+=(speck-.5)*.36+.07*sin(p.x*2.+p.y*3.);
       }else if(vKind>2.5){
         // Same metric frame as scripts/roof-colours.py. Texture origin is southwest.
@@ -209,11 +205,6 @@ export function makeCity(data, neutral, roofColours, roofAtlas, compact=false) {
         vec2 edge=min(fract(uv),1.-fract(uv));
         float seam=1.-smoothstep(.015,.09,min(edge.x,edge.y));
         grain+=tile?.12*cos(uv.x*6.283)-.17*seam:-.14*seam;
-      }else if(vKind>1.5){grain+=.1*sin(p.x*.73)*sin(p.y*.61);}
-      else if(vKind>.5){
-        vec2 uv=p*vec2(.85,1.65);uv.x+=mod(floor(uv.y),2.)*.5;
-        vec2 edge=min(fract(uv),1.-fract(uv));
-        grain-=.15*(1.-smoothstep(.01,.1,min(edge.x,edge.y)));
       }
       diffuseColor.rgb*=1.+grain*fade;
     `);
