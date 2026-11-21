@@ -39,21 +39,32 @@ def tags(e):
     return {t.get('k'):t.get('v') for t in e.findall('tag')}
 nodes={e.get('id'):project(float(e.get('lon')),float(e.get('lat'))) for e in osm.findall('node')}
 ways={e.get('id'):(tags(e),[nodes[n.get('ref')] for n in e.findall('nd')]) for e in osm.findall('way')}
-ids=['30801430','1451753798','259715457','251657540','251672530','584041194']
-names=['Plaza de Santa Ana','Casa de Colón','Mercado de Vegueta','Teatro Pérez Galdós','Gabinete Literario','Parque de San Telmo']
-poi_shapes=[Polygon(ways[i][1]) for i in ids]
-# Casa de Colón is a multipolygon with three courtyard holes.
-casa=osm.find("relation[@id='19853960']")
-poi_shapes[1]=Polygon(ways[ids[1]][1],[ways[m.get('ref')][1] for m in casa.findall('member') if m.get('role')=='inner'])
-pts=[p.representative_point() for p in poi_shapes]
+catalog=json.loads(Path('content/las-palmas.json').read_text(encoding='utf8'))
+def place_polygon(reference):
+    kind, ref = reference.split('/')
+    if kind == 'way':
+        return Polygon(ways[ref][1])
+    if kind != 'relation':
+        raise ValueError(f'Expected polygon way or relation: {reference}')
+    members=osm.find(f"relation[@id='{ref}']").findall('member')
+    outer, = [ways[m.get('ref')][1] for m in members if m.get('role')=='outer']
+    holes=[ways[m.get('ref')][1] for m in members if m.get('role')=='inner']
+    return Polygon(outer,holes)
+
 def feature(g,p):
     return dict(type='Feature',geometry=mapping(transform(inverse,g)),properties=p)
-def fc(features):
-    return dict(type='FeatureCollection',features=features)
-save('poi.geojson',fc([feature(p,dict(name=n,osm='relation/19853960' if i==ids[1] else 'way/'+i,xy=[p.x,p.y])) for i,n,p in zip(ids,names,pts)]))
-aoi=MultiPoint([v for i in ids for v in ways[i][1]]).convex_hull.buffer(95,quad_segs=2)
+places=catalog['places']
+polygons={p['id']:place_polygon(p['osm']) for p in places}
+assert len(polygons)==len(places), 'Duplicate POI ID'
+features=[]
+for p in places:
+    point=polygons[p['id']].representative_point()
+    features.append(feature(point,dict(p,xy=[point.x,point.y])))
+save('poi.geojson',dict(type='FeatureCollection',features=features))
+aoi=MultiPoint([v for p in places if 'city' in p['areas'] for v in polygons[p['id']].exterior.coords]).convex_hull.buffer(95,quad_segs=2)
 stage=sys.argv[1] if len(sys.argv)>1 else 'city'
-a=pts[0]; pilot=box(a.x-325,a.y-325,a.x+325,a.y+325)
+a=polygons[catalog['pilotFocus']].representative_point()
+pilot=box(a.x-325,a.y-325,a.x+325,a.y+325)
 area=pilot if stage=='pilot' else aoi
 save(stage+'-aoi.geojson',feature(area,{'stage':stage}))
 extent=transform(inverse,area).bounds
@@ -79,21 +90,23 @@ for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))
     h=f['properties']['MAX_BLDGHEIGHT_1']
     clipped=g.intersection(area)
-    cathedral=Polygon(ways['38062745'][1])
-    sections=[(clipped,False)]
-    if f['properties']['OBJECTID']==41119:
-        sections=[(clipped.intersection(cathedral),True),(clipped.difference(cathedral),False)]
-    for section,landmark in sections:
+    style=catalog['buildings'].get(str(f['properties']['OBJECTID']),{}).copy()
+    split=style.pop('split',None)
+    sections=[(clipped,style)]
+    if split:
+        mask=Polygon(ways[split['osmWay']][1])
+        sections=[(clipped.intersection(mask),split['inside']),(clipped.difference(mask),style)]
+    for section,style in sections:
       for p in parts(section,'Polygon'):
         if p.area<2: continue
-        buildings.append(dict(id=f['properties']['OBJECTID'],cathedral=landmark,rings=rings(p),height=round(h,1) if h and 2<h<100 else 9,source='municipal-provisional' if h and 2<h<100 else 'estimate'))
+        buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=rings(p),height=round(h,1) if h and 2<h<100 else 9,source='municipal-provisional' if h and 2<h<100 else 'estimate'))
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')
     green=t.get('leisure') in ('garden','park') or t.get('landuse') in ('grass','village_green')
     if vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road):
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
-            surfaces.append(dict(id=i,kind='park' if green else 'plaza',rings=rings(p)))
+            surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p)))
     elif road and road not in ('construction','proposed','elevator') and not t.get('tunnel'):
         for l in parts(LineString(vs).intersection(area),'LineString'):
             roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords)))
@@ -109,9 +122,8 @@ with rasterio.open(fetch(stage+'-dem.tif',url)) as dem:
     grid=dem.read(1,masked=True)
     assert grid.count()
     elev=dict(origin=[dem.transform.c+dem.transform.a/2-ox,dem.transform.f+dem.transform.e/2-oy],stepY=-dem.transform.e,step=dem.transform.a,w=dem.width,h=dem.height,values=grid.filled(0).round(1).flatten().tolist())
-cat=ways['38062745'][1]
 ground=[coords(p.exterior.coords) for x in range(math.floor(x0),math.ceil(x1),15) for y in range(math.floor(y0),math.ceil(y1),15) for p in parts(area.intersection(box(x,y,x+15,y+15)),'Polygon') if p.area>0.01]
-save(stage+'.json',dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,terrain=elev,cathedral=coords(cat)))
+save(stage+'.json',dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
 print(stage,count,len(buildings),len(roads),len(trees),elev['step'],round(time.perf_counter()-started,2),'s')
 
 

@@ -19,7 +19,9 @@ console.log({openMs:Date.now()-t,sampledHeapPeak:peak});
 console.log(await page.evaluate(async()=>{
  const tick=()=>new Promise(requestAnimationFrame),times=[];let base,atEnd,calls=0,tris=0,frames=0;
  for(let n=0;n<22;n++){
- document.querySelectorAll('#places button')[n%2?5:0].click();await new Promise(r=>setTimeout(r,400));
+ const name=n%2?'Parque de San Telmo':'Plaza de Santa Ana';
+ const button=Array.from(document.querySelectorAll('#places button')).find(item=>item.textContent.trim().endsWith(name));
+ button.click();await new Promise(r=>setTimeout(r,400));
  const start={...window.stats};let last=await tick();
  for(let i=0;i<8;i++){document.querySelector('#scene').dispatchEvent(new KeyboardEvent('keydown',{key:i%2?'ArrowLeft':'ArrowRight'}));const now=await tick();if(n>1){times.push(now-last);frames++;}last=now;}
  if(n>1){calls+=window.stats.draws-start.draws;tris+=window.stats.tris-start.tris;}

@@ -1,3 +1,4 @@
+import { createPlacesUI } from './places-ui.js';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { makeCity } from './scene.js';
@@ -8,7 +9,7 @@ async function start(){
   const pilot=query.get('area')==='pilot';
   const load=async path=>{const r=await fetch('./data/'+path);if(!r.ok)throw Error(path);return r.json();};
   const neutral=query.has('neutral');
-  const [data,poi,roofColours,roofTones]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
+  const [data,poi,roofColours,roofAtlas]=await Promise.all([load((pilot?'pilot':'city')+'.json'),load('poi.geojson'),
     neutral?null:new T.TextureLoader().loadAsync('./data/roof-colours.webp'),neutral?{}:load('roof-tones.json')]);
   if(roofColours)roofColours.colorSpace=T.SRGBColorSpace;
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
@@ -22,7 +23,7 @@ async function start(){
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
-  const {group,altitude}=makeCity(data,neutral,roofColours,roofTones,compact);scene.add(group);
+  const {group,altitude}=makeCity(data,neutral,roofColours,roofAtlas,compact);scene.add(group);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
@@ -31,30 +32,14 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
-  const locations=poi.features.slice(0,pilot?2:6);
-  const card=document.querySelector('article'),nav=document.querySelector('nav');
-  const toggle=el('index-toggle');
-  function menu(open){nav.classList.toggle('open',open);toggle.setAttribute('aria-expanded',String(open));}
-  toggle.onclick=()=>menu(!nav.classList.contains('open'));
-  let selected=-1,returnTo,frame=0,fit=1;
+  let frame=0,fit=1,flight=null,lost=false,lastView=null;
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
-  let flight=null,lost=false,lastView=null;
-  const pins=locations.map((f,i)=>{
-    const p=f.properties, btn=document.createElement('button'), pin=document.createElement('button');
-    const num=String(i+1).padStart(2,'0');
-    btn.innerHTML='<b>'+num+'</b>';btn.append(p.name);pin.textContent=num;pin.className='pin';pin.setAttribute('aria-label',p.name);
-    el('places').append(btn);el('pins').append(pin);
-    const [x,y]=p.xy,point=new T.Vector3(x,altitude(x,y)+(i===0||i===5?2:18),-y);
-    for(const button of [btn,pin])button.onclick=()=>{
-      if(lost)return;
-      returnTo=button;menu(false);selected=i;card.hidden=false;
-      document.querySelector('h3').textContent=p.name;
-      fly(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245),320);el('close').focus({preventScroll:true});
-    };
-    return {btn,pin,point};
+  const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
+  const places=createPlacesUI(locations,altitude,(_id,point)=>{
+    if(lost)return false;
+    fly(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245),320);
+    return true;
   });
-  function close(){selected=-1;card.hidden=true;draw();}
-  el('close').onclick=()=>{close();(returnTo?.classList.contains('pin')?returnTo:toggle)?.focus();};
   function view(target,zoom){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(direction,1500);controls.update();draw();}
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
   const center=new T.Box3().setFromPoints(border).getCenter(new T.Vector3());
@@ -67,10 +52,11 @@ async function start(){
     fit=Math.min(w/(box.max.x-box.min.x+60),h/(box.max.y-box.min.y+65))*.92;
     controls.minZoom=fit*.8;controls.maxZoom=Math.max(fit*12,4);
   }
-  function reset(){if(lost)return;flight=null;close();view(center,fit);}
+  function reset(){if(lost)return;flight=null;places.close();view(center,fit);}
   function fly(target,zoom,duration){
     if(lost)return;
     if(reducedMotion.matches){flight=null;view(target,zoom);return;}
+    host.dataset.moving='true';
     flight={start:performance.now(),duration,from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom};
     draw();
   }
@@ -94,7 +80,7 @@ async function start(){
   }
   function remember(){
     if(!lastView)return;
-    try{sessionStorage.setItem(sessionKey,JSON.stringify({...lastView,losses}));}catch{}
+    try{sessionStorage.setItem(sessionKey,JSON.stringify({...lastView,selected:places.selected,losses}));}catch{}
   }
   const status=el('status');
   renderer.domElement.addEventListener('webglcontextlost',event=>{
@@ -138,12 +124,9 @@ async function start(){
       renderer.render(scene,camera);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;
-      lastView={target:controls.target.toArray(),zoom:camera.zoom,selected};
+      lastView={target:controls.target.toArray(),zoom:camera.zoom,selected:places.selected};
       host.dataset.moving=String(!!flight);
-      pins.forEach(({pin,btn,point},i)=>{
-        const v=point.clone().project(camera);pin.style.left=(v.x+1)*50+'%';pin.style.top=(1-v.y)*50+'%';
-        pin.hidden=Math.abs(v.x)>1||Math.abs(v.y)>1;pin.setAttribute('aria-pressed',String(i===selected));btn.setAttribute('aria-pressed',String(i===selected));
-      });
+      places.project(camera);
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     });
   }
@@ -166,14 +149,11 @@ async function start(){
     if(lost || !host.clientWidth || !host.clientHeight)return;
     if(firstView){
       firstView=false;
-      const start=pilot?pins[0].point:new T.Vector3(-95,11,218);
+      const start=places.point(data.focus) ?? new T.Vector3(-95,11,218);
       view(start,Math.max(host.clientWidth/340,host.clientHeight/225));
       if(Array.isArray(resume?.target) && resume.target.length===3 && resume.target.every(Number.isFinite) && Number.isFinite(resume.zoom) && resume.zoom>0){
         view(new T.Vector3().fromArray(resume.target),resume.zoom);
-        if(pins[resume.selected]){
-          selected=resume.selected;returnTo=toggle;card.hidden=false;
-          document.querySelector('h3').textContent=locations[selected].properties.name;
-        }
+        places.restore(resume.selected);
       }
     }
     syncSize();

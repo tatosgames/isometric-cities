@@ -25,18 +25,19 @@ try{
   if(process.argv.includes('pilot')){
     if(mobile)break;
     for(const mode of ['styled','neutral']){
-      await visit('/?area=pilot'+(mode==='neutral'?'&neutral':''));await page.locator('#index-toggle').click();await page.locator('#places button').first().click();await page.locator('#close').click();await snap('santa-ana-'+mode);
+      await visit('/?area=pilot'+(mode==='neutral'?'&neutral':''));await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="santa-ana"]').click();await page.locator('#close').click();await snap('santa-ana-'+mode);
     }
   }else{
     const start=Date.now();await visit('/');console.log(mobile?'mobile':'desktop','load ms',Date.now()-start);
     if(!mobile)await snap('opening');await page.locator('#reset').click();await page.waitForTimeout(200);const initial=await host.getAttribute('data-view');if(!mobile)await snap('overview');
-    for(let i=0;i<6;i++){
+    for(let i=0;i<await page.locator('#places button').count();i++){
       await page.locator('#index-toggle').click();
       const b=page.locator('#places button').nth(i);
       await (mobile?b.tap():b.click());assert.equal(await page.locator('article').isVisible(),true);await page.waitForFunction(i=>document.querySelectorAll('#places button')[i].getAttribute('aria-pressed')==='true',i);
-      if(!mobile&&i===5)await snap('san-telmo');
-      if(!mobile&&i===2)await snap('mercado-teatro');
-      if(mobile&&i===4)await snap('triana-mobile');
+      const placeId=await b.getAttribute('data-place-id');
+      if(!mobile&&placeId==='san-telmo')await snap('san-telmo');
+      if(!mobile&&placeId==='mercado-de-vegueta')await snap('mercado-teatro');
+      if(mobile&&placeId==='gabinete-literario')await snap('triana-mobile');
       await page.locator('#close').click();
     }
     await page.locator('#reset').click();await page.waitForTimeout(150);
@@ -68,8 +69,8 @@ try{
       await page.waitForTimeout(180);assert.ok(Number((await host.getAttribute('data-view')).split(',')[2])>Number(initial.split(',')[2]));
       await page.locator('#reset').click();
     }
-    await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);await page.locator('.pin').last().waitFor({state:'visible'});await page.locator('.pin').last().focus();await page.keyboard.press('Enter');assert.match(await page.locator('h3').textContent(),/San Telmo/);
-    await page.waitForFunction(()=>document.querySelector('.pin:last-child').getAttribute('aria-pressed')==='true');
+    await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);await page.locator('.pin[data-place-id="san-telmo"]').waitFor({state:'visible'});await page.locator('.pin[data-place-id="san-telmo"]').focus();await page.keyboard.press('Enter');assert.match(await page.locator('h3').textContent(),/San Telmo/);
+    await page.waitForFunction(()=>document.querySelector('.pin[data-place-id="san-telmo"]').getAttribute('aria-pressed')==='true');
     await settled();
     const beforeRotation=await host.getAttribute('data-view');
     const originalSize=page.viewportSize();const fullWidth=await page.locator('canvas').evaluate(c=>c.width);
@@ -117,8 +118,8 @@ try{
       await page.waitForFunction(v=>document.querySelector('#scene').dataset.view!==v,prior);
     }
     await page.emulateMedia({reducedMotion:'reduce'});
-    await page.locator('#index-toggle').click();await page.locator('#places button').first().click();
-    await page.waitForFunction(()=>document.querySelector('.pin').getAttribute('aria-pressed')==='true');
+    await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="santa-ana"]').click();
+    await page.waitForFunction(()=>document.querySelector('.pin[data-place-id="santa-ana"]').getAttribute('aria-pressed')==='true');
     assert.equal(await host.getAttribute('data-moving'),'false');
     const retryView=await host.getAttribute('data-view');
     await page.evaluate(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
@@ -127,6 +128,29 @@ try{
     assert.equal(await host.getAttribute('data-view'),retryView);
     assert.match(await page.locator('article:visible h3').textContent(),/Santa Ana/);
 
+  }
+  if(!mobile && !process.argv.includes('pilot')){
+    let reorder=false;
+    await page.route('**/data/poi.geojson',async route=>{
+      const response=await route.fetch();
+      const data=await response.json();
+      const sample=structuredClone(data.features[0]);
+      Object.assign(sample.properties,{id:'test-seventh',name:'Test place',areas:['city'],markerHeight:7});
+      data.features.push(sample);
+      if(reorder)data.features.reverse();
+      await route.fulfill({response,json:data});
+    });
+    await visit('/');
+    await page.locator('#index-toggle').click();
+    await page.locator('#places [data-place-id="test-seventh"]').click();
+    await settled();
+    reorder=true;
+    await page.reload();await page.waitForSelector('#scene[data-view]');
+    assert.equal(await page.locator('article:visible h3').textContent(),'Test place');
+    assert.equal(await page.locator('.pin[data-place-id="test-seventh"]').getAttribute('aria-pressed'),'true');
+    await visit('/?area=pilot');
+    assert.equal(await page.locator('#places [data-place-id="test-seventh"]').count(),0);
+    assert.ok(await page.locator('#places [data-place-id="casa-de-colon"]').count());
   }
   assert.deepEqual(faults,[]);await page.close();
  }

@@ -1,0 +1,95 @@
+{
+  "pilotFocus": "santa-ana",
+  "places": [
+    {
+      "id": "santa-ana",
+      "name": "Plaza de Santa Ana",
+      "osm": "way/30801430",
+      "areas": [
+        "city",
+        "pilot"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "casa-de-colon",
+      "name": "Casa de Colón",
+      "osm": "relation/19853960",
+      "areas": [
+        "city",
+        "pilot"
+      ],
+      "markerHeight": 18
+    },
+    {
+      "id": "mercado-de-vegueta",
+      "name": "Mercado de Vegueta",
+      "osm": "way/259715457",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 18
+    },
+    {
+      "id": "teatro-perez-galdos",
+      "name": "Teatro Pérez Galdós",
+      "osm": "way/251657540",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 18
+    },
+    {
+      "id": "gabinete-literario",
+      "name": "Gabinete Literario",
+      "osm": "way/251672530",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 18
+    },
+    {
+      "id": "san-telmo",
+      "name": "Parque de San Telmo",
+      "osm": "way/584041194",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    }
+  ],
+  "buildings": {
+    "41119": {
+      "heightOverride": 12,
+      "split": {
+        "osmWay": "38062745",
+        "inside": {
+          "landmark": "santa-ana",
+          "heightOverride": 19,
+          "wallColor": "#827e80",
+          "windows": false,
+          "roofFurniture": false,
+          "toneSuffix": "-nave"
+        }
+      }
+    },
+    "40277": {
+      "landmark": "gabinete-literario",
+      "heightOverride": 15.5,
+      "wallColor": "#e8decb",
+      "roofFurniture": false
+    },
+    "41434": {
+      "roofFurniture": false,
+      "roofSurface": 3
+    },
+    "41435": {
+      "roofFurniture": false
+    }
+  },
+  "pavedParks": [
+    "584041194",
+    "168978301",
+    "251673532"
+  ]
+}

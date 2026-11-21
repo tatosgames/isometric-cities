@@ -39,7 +39,7 @@ for stage in ['pilot','city']:
         for i,ring in enumerate(rings):
             draw.polygon([(x-x0,y-y0) for x,y in ring],fill=0 if i else 255)
         pixels=rgb[y0:y1,x0:x1][np.asarray(mask)>0]
-        key=str(b['id'])+('-nave' if b['cathedral'] else '')
+        key=str(b['id'])+b.get('toneSuffix','')
         if len(pixels)<4: continue
         brightness=pixels.mean(axis=1)
         lo,hi=np.percentile(brightness,[35,85])
@@ -47,6 +47,6 @@ for stage in ['pilot','city']:
         if np.isfinite(sample).all(): colours[key]='#'+''.join(f'{int(c):02x}' for c in sample)
     points=scene['boundary']
     assert all(west<=x<=west+width and south<=y<=south+height for x,y in points)
-Path('public/data/roof-tones.json').write_text(json.dumps(colours,separators=(',',':')))
+Path('public/data/roof-tones.json').write_text(json.dumps(dict(tones=colours,bounds=[west,south,width,height]),separators=(',',':')))
 print('Roof colour extent (west, south, width, height)', west,south,width,height)
 
