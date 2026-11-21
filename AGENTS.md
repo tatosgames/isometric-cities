@@ -20,6 +20,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |
 | `scripts/roof-colours.py` | Palette tetti |
 | `scripts/qa.mjs`, `scripts/benchmark.mjs` | QA Playwright e benchmark |
+| `docs/UI_ANTI_SLOP.md`, `docs/CAMERA_FRAMING.md` | Regole UI (niente testi nel gioco, un fatto un indicatore) e contratto di inquadratura: da leggere prima di toccare HUD o camera |
 | `docs/DATA_SOURCES.md`, `docs/QA.md` | Fonti dati/attribuzioni, rapporto QA e screenshot |
 | `PLAN.md` | Brief originale per l'agente (perimetro, stile, checkpoint) |
 | `PROGRESS.md` | Checkpoint corrente (A Santa Ana, B Vegueta–Triana, C studio futuro) |
@@ -48,6 +49,8 @@ npm.cmd test            # scripts/qa.mjs, richiede Chrome
 ## Skill Codex
 
 **Di progetto** (`.agents/skills/`, copia per Claude in `.claude/skills/`): `threejs-performance` (misura e ottimizza draw call, memoria, istanziamento, LOD); `expand-city` (guida per aggiungere aree, POI o città: fonti, CRS, pipeline, QA, limiti mobile).
+
+Sempre di progetto, copiate da altri repo di Rising Pixel: `threejs-fundamentals`, `threejs-geometry`, `threejs-materials`, `threejs-lighting`, `threejs-textures`, `threejs-shaders`, `threejs-postprocessing`, `threejs-animation`, `threejs-interaction`, `threejs-loaders`, `threejs-asset-pipeline` (licenza MIT in `THREEJS-SKILLS-LICENSE`), `game-design`, `web-games`. Sono consigli generici: non autorizzano nuove dipendenze e non prevalgono su questo file.
 
 **Globali** (`~/.codex/skills/`), rilevanti qui:
 - Three.js: `threejs-choose-skills`, `threejs-visual-validation`, `threejs-particles-trails-and-effects`, `diorama`, `shader-art-coding`

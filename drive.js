@@ -48,7 +48,7 @@ function carGeometry(body,top,police){
   return mergeGeometries(parts);
 }
 
-export function makeDrive({scene,camera,host,data,locations,altitude,view,compact,onExit}){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,compact,onExit}){
   // ---- static world: collision grid, road graph ----
   let world=null;
   function build(){
@@ -291,7 +291,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   }
 
   // ---- game state ----
-  let state='off',score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,field=null,brakeHint=0,learned=false,overAt=0;
+  let state='off',score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,field=null,brakeHint=0,learned=false,overAt=0,held=false,warmed=false;
   let coins=[],target=null,chasers=[],shake=0,zoomNow=1,paceEase=0,threat=0;
   const lead=new T.Vector3(),screen=new T.Vector3();
   const focus=new T.Vector3();
@@ -358,7 +358,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   }
   function restart(){
     for(const c of chasers)group.remove(c.mesh,c.blob);
-    chasers=[];score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;target=null;
+    chasers=[];held=false;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;target=null;
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
     const poi=pois[round++%pois.length],n=world.nodes[nearestNode(poi.x,poi.y)];
@@ -389,7 +389,13 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     for(const p of pointers.values()){if(p.side<0)left=true;else right=true;}
     return {steer:(left?1:0)-(right?1:0),brake:(left&&right)||keys.has(' ')||keys.has('ArrowDown')};
   }
-  function go(){if(state==='ready'){state='playing';guide.className='play';}}
+  function go(){
+    if(state==='ready'){state='playing';guide.className='play';}
+    // A run held after an interruption continues on the next input, never by itself.
+    if(held){held=false;guide.className='play';}
+  }
+  function release(){pointers.clear();keys.clear();}
+  const hidden=()=>{if(document.hidden)release();};
   function down(e){
     if(state==='off')return;
     const box=host.getBoundingClientRect();
@@ -507,7 +513,7 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
   function frame(now){
     raf=requestAnimationFrame(frame);
     const dt=Math.min(.05,(now-last)/1000||0);last=now;
-    if(state==='playing'){
+    if(state==='playing' && !held){
       acc+=dt;
       for(;acc>=1/120 && state==='playing';acc-=1/120)step(1/120);
     }
@@ -516,13 +522,13 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
     place(player);
     halo.position.copy(player.blob.position);
     halo.rotation.y=player.mesh.rotation.y;
+    heading.visible=cabinIsHidden();
     chasers.forEach((c,i)=>{place(c);c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;});
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!target;
     coinMesh.count=coins.length;
     coins.forEach((c,i)=>{
       dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);dummy.rotation.set(0,spin+i*.7,0);dummy.scale.setScalar(1);
       dummy.updateMatrix();coinMesh.setMatrixAt(i,dummy.matrix);
-    heading.visible=cabinIsHidden();
     });
     coinMesh.instanceMatrix.needsUpdate=true;
     dust.forEach((p,i)=>{
@@ -564,9 +570,20 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
       goal.style.setProperty('--turn',(Math.atan2(gy-py,gx-px)+Math.PI/2).toFixed(2)+'rad');
     }
     if(state==='caught' && overAt && now>=overAt){overAt=0;el('over').hidden=false;el('again').focus({preventScroll:true});}
-    host.dataset.drive=[state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3)].join(',');
+    host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0].join(',');
   }
 
+  // Compile every material the mode can show before the first frame, so the first skid,
+  // wreck or siren does not stall on a shader build. Materials that only appear later
+  // (wreck paint, siren lamps) get stand-in meshes for the duration of the compile.
+  function warm(){
+    if(warmed)return;
+    warmed=true;
+    const stand=[wreckPaint,lightRed,lightBlue,paint].map(material=>new T.Mesh(material===paint?policeGeometry:lightGeometry,material));
+    group.add(...stand);
+    try{renderer.compile(scene,camera);}catch{}
+    group.remove(...stand);
+  }
   el('again').onclick=()=>restart();
   el('leave').onclick=()=>onExit();
   return {
@@ -578,8 +595,10 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
       host.addEventListener('pointerdown',down);host.addEventListener('pointermove',move);
       for(const type of ['pointerup','pointercancel','pointerleave'])host.addEventListener(type,up);
       window.addEventListener('keydown',key);window.addEventListener('keyup',key);
+      window.addEventListener('blur',release);document.addEventListener('visibilitychange',hidden);
       el('hud').hidden=false;
       restart();
+      warm();
       // Glide in from the map zoom instead of cutting to the play zoom.
       zoomNow=T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
       focus.copy(camera.position).addScaledVector(camera.getWorldDirection(new T.Vector3()),1500);
@@ -591,8 +610,21 @@ export function makeDrive({scene,camera,host,data,locations,altitude,view,compac
       host.removeEventListener('pointerdown',down);host.removeEventListener('pointermove',move);
       for(const type of ['pointerup','pointercancel','pointerleave'])host.removeEventListener(type,up);
       window.removeEventListener('keydown',key);window.removeEventListener('keyup',key);
+      window.removeEventListener('blur',release);document.removeEventListener('visibilitychange',hidden);
+      held=false;
       el('hud').hidden=el('over').hidden=true;guide.className='';el('pops').replaceChildren();
       delete host.dataset.drive;
+    },
+    // Graphics interruption: stop drawing and stepping, drop any touch in progress, keep the run.
+    suspend(){
+      if(state==='off')return;
+      cancelAnimationFrame(raf);raf=0;release();
+      if(state==='playing'){held=true;guide.className='ready';}
+    },
+    resume(){
+      if(state==='off' || raf)return;
+      warmed=false;warm();
+      last=0;acc=0;raf=requestAnimationFrame(frame);
     }
   };
 }

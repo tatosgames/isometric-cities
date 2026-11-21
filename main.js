@@ -4,6 +4,7 @@ import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { makeCity } from './scene.js';
 import { makeDrive } from './drive.js';
+import { makeAdaptiveResolution } from './adaptive-resolution.js';
 
 const el=id=>document.getElementById(id);
 async function start(){
@@ -62,23 +63,22 @@ async function start(){
     flight={start:performance.now(),duration,from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom};
     draw();
   }
-  let gesture=false,previousTime=0,slowWindows=0,dynamic=false;
-  const samples=[];
-  function stopGesture(){
-    gesture=false;previousTime=0;slowWindows=0;samples.length=0;
-    if(dynamic){dynamic=false;renderer.setPixelRatio(baseRatio());draw();}
+  // Resolution follows the frame cadence whenever the view moves continuously (drag, flight, driving)
+  // and returns to full as soon as it rests, where a single sharp frame costs nothing.
+  const adaptive=makeAdaptiveResolution();
+  let gesture=false;
+  const moving=()=>gesture || !!flight || !!drive?.active;
+  function settle(){
+    if(moving())return;
+    if(adaptive.reset()){renderer.setPixelRatio(baseRatio());draw();}
   }
+  function stopGesture(){gesture=false;settle();}
   controls.addEventListener('start',()=>{flight=null;gesture=true;});
   controls.addEventListener('end',stopGesture);
-  function sampleGesture(time){
-    if(!(gesture || drive?.active) || !compact || dynamic)return;
-    if(previousTime)samples.push(time-previousTime);
-    previousTime=time;
-    if(samples.length<30)return;
-    samples.sort((a,b)=>a-b);
-    slowWindows=(samples[14]+samples[15])/2>33?slowWindows+1:0;
-    samples.length=0;
-    if(slowWindows>=2){dynamic=true;renderer.setPixelRatio(baseRatio()*.85);}
+  function sampleCadence(time){
+    if(!moving()){adaptive.suspend();return;}
+    const scale=adaptive.sample(time);
+    if(scale!==null){renderer.setPixelRatio(baseRatio()*scale);host.dataset.scale=String(scale);}
   }
   function remember(){
     if(!lastView)return;
@@ -86,8 +86,9 @@ async function start(){
   }
   const status=el('status');
   renderer.domElement.addEventListener('webglcontextlost',event=>{
-    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;leaveDrive();
-    cancelAnimationFrame(frame);frame=0;gesture=false;dynamic=false;previousTime=slowWindows=0;samples.length=0;
+    // A run in progress is held, not ended: score, patrols and position survive the loss.
+    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();
+    cancelAnimationFrame(frame);frame=0;gesture=false;adaptive.reset();delete host.dataset.scale;
     controls.enabled=false;controls.disconnect();
     remember();
     status.textContent='Restableciendo el mapa... ';
@@ -100,9 +101,10 @@ async function start(){
     sizeCamera();draw();
   }
   renderer.domElement.addEventListener('webglcontextrestored',()=>{
-    lost=false;controls.connect(renderer.domElement);controls.enabled=true;
+    lost=false;controls.connect(renderer.domElement);controls.enabled=!drive?.active;
     renderer.setPixelRatio(baseRatio());renderer.shadowMap.enabled=!compact && losses<2;
     renderer.shadowMap.needsUpdate=true;
+    if(drive?.active){syncSize();drive.resume();return;}
     if(lastView)view(new T.Vector3().fromArray(lastView.target),lastView.zoom);
     syncSize();
   });
@@ -114,11 +116,11 @@ async function start(){
   function draw(){
     if(frame || lost)return;
     frame=requestAnimationFrame(time=>{
-      frame=0;sampleGesture(time);
+      frame=0;sampleCadence(time);
       if(flight){
         const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
         view(flight.from.clone().lerp(flight.to,ease),Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease)));
-        if(t>=1)flight=null;
+        if(t>=1){flight=null;settle();}
       }
       const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
       camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
@@ -160,7 +162,7 @@ async function start(){
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,host,data,locations,altitude,view,compact,onExit:leaveDrive});
+  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,compact,onExit:leaveDrive});
   el('drive').onclick=()=>{
     if(lost || drive.active)return;
     flight=null;places.close();document.querySelector('nav').classList.remove('open');

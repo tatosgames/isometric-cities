@@ -13,7 +13,7 @@ try{
   page.on('pageerror',e=>faults.push(e.message));
   page.on('requestfailed',r=>{
     if(r.url().includes('/city-sectors/') && r.failure()?.errorText.includes('ERR_ABORTED'))return;
-    faults.push(r.url());
+    faults.push(r.url()+' '+r.failure()?.errorText);
   });
   page.on('response',r=>{if(r.status()>=400||!r.url().startsWith(origin))faults.push(r.url());});
   const host=page.locator('#scene');
@@ -190,6 +190,28 @@ try{
     // A straight start runs along the first metres of the coin trail.
     await page.keyboard.press('ArrowDown');
     await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive?.split(',')[1])>0,null,{timeout:20000});
+    // Graphics loss while driving holds the run: same score, no restart, and it continues on the next input.
+    {
+      const before=await drive();
+      const ext=await page.evaluateHandle(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context'));
+      await ext.evaluate(e=>e.loseContext());
+      await page.locator('#status').waitFor({state:'visible'});
+      const frozen=await host.getAttribute('data-drive');
+      await page.waitForTimeout(400);
+      assert.equal(await host.getAttribute('data-drive'),frozen,'The run must not advance without graphics');
+      await ext.evaluate(e=>e.restoreContext());
+      await page.locator('#status').waitFor({state:'hidden'});
+      await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('held'));
+      const held=await drive();
+      assert.ok(Number(held[1])>=Number(before[1]),'Score survives the loss');
+      assert.equal(await page.locator('#hud').isVisible(),true);
+      assert.equal(await page.locator('#pins').isVisible(),false);
+      await page.waitForTimeout(300);
+      assert.equal((await drive())[2],held[2],'A held run waits for input');
+      await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('playing'));
+      await ext.dispose();
+    }
     await page.locator('#drive-exit').click();
     assert.equal(await host.getAttribute('data-drive'),null);
     assert.equal(await page.locator('#plus').isVisible(),true);
