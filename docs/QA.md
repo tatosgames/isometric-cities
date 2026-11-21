@@ -127,3 +127,11 @@ Limiti: sul desktop resta un programma compilato a partita in corso, non identif
 Verificate le tinte PNOA per tutte le 4.698 parti di edificio della città e le 1.108 del pilota. A Parque Doramas, con Chrome mobile emulato e la stessa camera, la cattura della build coincide con la variante piatta del confronto visivo. La build carica zero WebP nel pilota e nei settori, sia con il worker sia con costruzione sincrona. Typecheck e build superati.
 
 Superate le suite Playwright della città su desktop e mobile emulato, del pilota neutro e stilizzato e dei settori. Nel circuito mobile i byte stimati del dettaglio sono rimasti entro 48 MiB, con contatori WebGL identici negli ultimi due giri a ogni arresto. Verificati il recupero dopo perdita del contesto e l’attraversamento in guida nei due sensi.
+
+## Tre viste di guida
+
+Verificati typecheck, build, suite browser della città e circuito dei settori. Il controllo ripetibile `node scripts/qa-drive-camera.mjs` prova il limite di rotazione, un’inversione, la stabilità da fermi e il rientro dopo un ostacolo, con passi a 30 e 120 Hz. Chrome ha verificato il cambio durante lo sterzo da tastiera e con due dita, il recupero WebGL, il ritorno alla vista precedente e il recupero della preferenza dopo ricaricamento.
+
+Nel benchmark di pan in Chrome mobile emulato, un’esecuzione per build, il p95 è passato da 18,3 a 18,4 ms e i triangoli medi da 198.485 a 223.617. A Parque Doramas il dettaglio residente è passato da 14 settori e 50.037.827 byte a 13 settori e 48.340.157 byte entro il budget di 48 MiB. Il benchmark misura la mappa in pan. La fluidità su telefono fisico resta da misurare.
+
+Registrate sei clip dello stesso avvio e sequenza di sterzo su Chrome a 390×844 e 1440×900, una per vista: partenza, svolta di circa 90° e inversione. I video locali sono in `.cache/camera-clips/`, con nomi come `390-high.webm` e `1440-chase.webm`.

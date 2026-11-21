@@ -2,12 +2,12 @@
 
 Cosa deve garantire la camera in ogni stato del viewer. È solo presentazione: l'inquadratura non cambia mai geometria, collisioni, percorsi o esiti di gioco. Sul modello di `CAMERA_FRAMING.md` di Smash Royale, adattato a una camera ortografica isometrica.
 
-I valori citati sono quelli del codice al 21 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato.
+I valori citati sono quelli del codice al 22 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato.
 
 ## Regole comuni
 
-1. **Una sola camera, un solo proprietario.** La camera ortografica e la funzione `view(target, zoom)` vivono in `main.js`. Nessun altro modulo sposta la camera: la guida chiede un'inquadratura chiamando `view`.
-2. **Direzione fissa.** La camera guarda sempre lungo la stessa direzione isometrica (`direction` in `main.js`). Non ruota, né sulla mappa né in guida: è ciò che rende leggibile il plastico e riconoscibili i luoghi.
+1. **Una sola camera, un solo proprietario.** La camera ortografica e la funzione `view(target, zoom, offset)` vivono in `main.js`. Nessun altro modulo sposta la camera: la guida chiede un'inquadratura chiamando `view`.
+2. **Orientamento.** La mappa e la prima vista di guida usano la direzione isometrica. Le altre viste di guida orientano la stessa camera ortografica lungo la traiettoria.
 3. **Lo zoom è in pixel per metro.** I bordi della camera sono in pixel CSS, quindi `camera.zoom` dice quanti pixel occupa un metro. Tutte le soglie si ragionano così.
 4. **Il bersaglio resta dentro il perimetro.** `draw()` riporta il bersaglio nel riquadro del confine a ogni frame.
 5. **Niente salti.** Ogni cambio di inquadratura è un volo o una rincorsa smorzata. I pulsanti `+`, `−` e panoramica animano per 300 ms. Un taglio netto è ammesso solo al ripristino dopo la perdita del contesto, dove si torna all'ultima vista salvata.
@@ -32,6 +32,8 @@ I valori citati sono quelli del codice al 21 novembre 2026. Se cambiano nel codi
 6. **Spinta direzionale, mai tremolio.** Per urti oltre 6 m/s, spinte di pattuglie, rottami entro 40 m e cattura, il bersaglio scatta verso ciò che ha colpito e torna con una molla smorzata (`kick` 36, `kickStiff` 220, `kickDamp` 22). Un colpo pieno sposta la vista di circa 1 m e rientra in 0,28 s; il limite è `kickMax` 1,2 m. Non c'è alcuno spostamento casuale. Mai mentre si è fermi in attesa del primo tocco. Dettagli in [JUICE.md](JUICE.md).
 7. **Nessun limite di zoom della mappa.** In guida `controls.maxZoom` è infinito; all'uscita tornano i limiti della mappa e l'inquadratura di prima.
 
+Il pulsante camera e il tasto C alternano Isométrica, Aérea (65°) e Seguimiento (48°, scala 1,22×). Il gioco ricorda la scelta sul dispositivo. La transizione dura mezzo secondo. Le viste mobili ruotano lungo il percorso angolare più breve, fino a 100°/s. Nei vicoli verificano la visuale verso la cabina, salgono fino a 85° e attendono mezzo secondo di visuale libera prima di tornare alla quota normale.
+
 ## Cosa deve restare visibile in guida
 
 - La parte nascosta dell’auto si legge come sagoma sulla facciata o sul tetto. La freccia segue il muso quando il centro della cabina è coperto.
@@ -44,7 +46,7 @@ L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita i
 
 ## Da non fare
 
-- Ruotare la camera con l'auto. La direzione fissa è una scelta di prodotto.
+- In derapata, usare la direzione di marcia smorzata per orientare le viste mobili. Sotto 2 m/s conservare la direzione.
 - Rimettere uno spostamento casuale della camera.
 - Legare lo zoom a eventi istantanei (urto, moneta, comparsa di una pattuglia). Passa sempre dai due ingressi filtrati.
 - Risolvere un problema di leggibilità di una singola zona cambiando i valori globali di campo visivo. Si interviene sulla scena o sulla sagoma dell’auto.

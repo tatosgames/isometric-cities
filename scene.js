@@ -97,7 +97,7 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
       const ux=(e-a)/len,uy=(f-c)/len;
       const nx=uy*winding,ny=-ux*winding;
       const count=Math.floor(len/4.2);
-      if(b.windows!==false && nx*-.82-ny*.68>0 && len<95){
+      if(b.windows!==false && len<95){
         for(let bay=0;bay<count;bay++){
           const cx=a+(bay+.5)*(e-a)/count+nx*.07;
           const cy=c+(bay+.5)*(f-c)/count+ny*.07;
@@ -117,7 +117,7 @@ export function makeCity(data, neutral, tones, compact=false, sharedGround=null)
           }
         }
       }
-      if(!compact && b.windows!==false && count>=2 && len<65 && nx*-.82-ny*.68>0){
+      if(!compact && b.windows!==false && count>=2 && len<65){
         const rot=Math.atan2(f-c,e-a);
         for(let level=3;level<h-2;level+=3.6){
           addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);

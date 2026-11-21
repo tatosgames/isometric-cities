@@ -25,3 +25,5 @@ Durante la guida il contatore mostra monete e tempo. La coppa compare a fine par
 **G · Game feel della guida.** Hit-stop (urto forte, arrivo, cattura) e colpo di camera direzionale con molla al posto del tremolio casuale; catalogo e regole in `docs/JUICE.md`. Senza audio per scelta. Da fare: prova in mano su telefono fisico.
 
 Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell’ortofoto PNOA. La panoramica, i settori dettagliati e il pilota condividono le tinte di `roof-tones.json`. Il viewer carica il JSON delle tinte e usa l’illuminazione della scena.
+
+**Camere di guida.** Il pulsante camera e C alternano la vista isometrica iniziale, una vista aerea che segue la traiettoria e un inseguimento rialzato. La scelta è salvata sul dispositivo. Le viste mobili si alzano quando un edificio copre la cabina. Le facciate dettagliate hanno finestre anche sui lati visibili ruotando.

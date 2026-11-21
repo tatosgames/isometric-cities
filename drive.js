@@ -1,6 +1,7 @@
 import {BUILDING_BIT,surfaceStencil} from './building-stencil.js';
 import {buildDriveWorld} from './drive-world.js';
 import {makeDrivePhysics} from './drive-physics.js';
+import {makeDriveCamera} from './drive-camera.js';
 import {makeDriveInput} from './drive-input.js';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -46,10 +47,31 @@ function carGeometry(body,top,police){
   return mergeGeometries(parts);
 }
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,compact,onExit}){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit}){
   let world=null;
   const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
-  const controls=makeDriveInput(host,go,onExit);
+  const rig=makeDriveCamera(mapDirection);
+  const button=el('drive-camera');
+  function showMode(){
+    button.title='Cambiar cámara (C) · '+rig.label;
+    button.setAttribute('aria-label',button.title);
+    button.dataset.mode=rig.mode;
+  }
+  function cycleCamera(){
+    if(state==='off' || state==='caught' || !raf)return;
+    rig.cycle();showMode();
+  }
+  // A second finger can tap while the primary pointer keeps steering.
+  button.onpointerup=e=>{
+    if(e.pointerType==='touch' && document.elementFromPoint(e.clientX,e.clientY)?.closest('button')===button){
+      cycleCamera();host.focus({preventScroll:true});
+    }
+  };
+  button.onclick=e=>{
+    if(e.pointerType==='touch')return;
+    cycleCamera();host.focus({preventScroll:true});
+  };
+  const controls=makeDriveInput(host,go,onExit,cycleCamera);
   function routes(source){
     if(field?.source!==source)field=world.routesFrom(source);
     return field;
@@ -100,10 +122,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   const heading=new T.Mesh(mergeGeometries([tint(arrow,'#263831'),tint(inset,'#fff7d6')]).rotateX(-Math.PI/2),markerMaterial);
   heading.renderOrder=11;heading.visible=false;
   group.add(heading);
-  function cabinIsHidden(){
+  function cabinIsHidden(dx,dy){
     const height=player.mesh.position.y+1.2*TUNE.visualScale;
-    const m=camera.matrixWorld.elements;
-    return world.occluded(player.x,player.y,height,m[8]/m[9],-m[10]/m[9]);
+    return world.occluded(player.x,player.y,height,dx,dy);
   }
   const dummy=new T.Object3D();
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({...surfaceStencil(),color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
@@ -240,6 +261,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     const path=trail();
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
+    rig.startHeading(player.h);
     focus.set(player.x,altitude(player.x,player.y),-player.y);
     el('over').hidden=true;guide.className='ready';
     state='ready';
@@ -357,7 +379,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     place(player);
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
-    heading.visible=cabinIsHidden();
+
     chasers.forEach((c,i)=>{place(c);c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;});
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!target;
     coinMesh.count=coins.length;
@@ -391,7 +413,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const wantZoom=state==='caught'?(freeze?zoomNow:1+TUNE.zoomCaught):1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
     zoomNow+=(wantZoom-zoomNow)*Math.min(1,dt*TUNE.zoomRate);
     const base=Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide);
-    view(focus.clone().add(new T.Vector3(kickX,0,-kickY)),base*zoomNow);
+    const pose=rig.update(dt,player,cabinIsHidden);
+    const zoom=base*zoomNow*pose.zoom;
+    const targetPoint=focus.clone().add(new T.Vector3(kickX,0,-kickY));
+    // Shift in the camera's vertical screen axis, expressed as horizontal ground metres.
+    const advance=host.clientHeight*pose.framing/(zoom*pose.direction.y);
+    targetPoint.x-=Math.cos(pose.yaw)*advance;
+    targetPoint.z-=Math.sin(pose.yaw)*advance;
+    view(targetPoint,zoom,pose.direction);
+    heading.visible=cabinIsHidden(pose.direction.x/pose.direction.y,-pose.direction.z/pose.direction.y);
     // HUD
     el('hud-coins').textContent=String(score);
     el('hud-time').textContent=clock(time);
@@ -431,6 +461,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       if(state!=='off')return;
       world??=buildDriveWorld(data,altitude,TUNE);
       scene.add(group);
+      rig.enter();showMode();
       controls.activate();
       el('hud').hidden=false;
       restart();

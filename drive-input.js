@@ -1,4 +1,4 @@
-export function makeDriveInput(host,onDrive,onExit){
+export function makeDriveInput(host,onDrive,onExit,onCamera){
   const pointers=new Map(),keys=new Set();
   function read(){
     let left=keys.has('ArrowLeft')||keys.has('a'),right=keys.has('ArrowRight')||keys.has('d');
@@ -22,6 +22,7 @@ export function makeDriveInput(host,onDrive,onExit){
   function key(e){
     const k=e.key.length===1?e.key.toLowerCase():e.key;
     if(e.type==='keyup'){keys.delete(k);return;}
+    if(k==='c' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onCamera();e.preventDefault();return;}
     if(k==='Escape'){onExit();return;}
     if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement)return;
     keys.add(k);onDrive();e.preventDefault();

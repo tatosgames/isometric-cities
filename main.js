@@ -43,7 +43,7 @@ async function start(){
     fly(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245),320);
     return true;
   });
-  function view(target,zoom){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(direction,1500);controls.update();draw();}
+  function view(target,zoom,offset=direction){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(offset,1500);controls.update();draw();}
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
   const center=new T.Box3().setFromPoints(border).getCenter(new T.Vector3());
   const bounds=new T.Box3().setFromPoints(border);
@@ -161,7 +161,7 @@ async function start(){
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,compact,onExit:leaveDrive});
+  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection:direction,compact,onExit:leaveDrive});
   el('drive').onclick=()=>{
     if(lost || drive.active)return;
     flight=null;places.close();document.querySelector('nav').classList.remove('open');
