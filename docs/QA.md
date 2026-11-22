@@ -257,3 +257,11 @@ Tile PNOA-LiDAR 459-3109 (2023, 6,7 punti/m²): 577 edifici, 554 misurati, 8 sen
 ## Tinte dei tetti: ortofoto 20 cm 2024 contro PNOA (22 novembre 2026)
 
 Finestra di `roof-tones.json` letta da remoto dall'ortofoto SITCAN (CC BY 3.0), ridotta a 1 m e trattata con lo stesso algoritmo di `roof-colours.py`. Su 4.820 edifici: ΔE mediano 2,9, 75° percentile 4,3, 95° percentile 7,0; 82,7 % sotto 5 e 99,5 % sotto 10; luminosità mediana −0,4. Navata 41119: `#e5e3e0` contro `#e6e4e1`. I casi peggiori (ΔE 12-14, ad esempio 38573 e 40126) non sono stati ispezionati. Il confronto è a 1 m: il vantaggio dei 20 cm non è misurato. Nessun dato pubblicato è stato modificato. Riproduzione: `python -I scripts/roof-compare-20cm.py`.
+
+## Base di misura prima dell'espansione costiera (22 novembre 2026)
+
+Branch `espansione-costa`, perimetro invariato (3,04 km², 80 settori, 4.698 parti di edificio). `data.py city`, `roof-colours.py` e `sectors.py` rigenerati: rispetto ai dati precedenti cambia un solo edificio (41667, da 9 m di stima a 16,2 m dal LiDAR) e un solo file di settore (`0_-2`). Strade, superfici, alberi, terreno e confine sono identici.
+
+- `typecheck` e `build`: verdi. `npm.cmd test`: verde in 3 min 2 s (apertura 2.617 ms desktop, 2.076 ms mobile emulato).
+- `node scripts/benchmark.mjs`: apertura 3.162 ms, picco heap campionato 80,9 MB, p95 18,4 ms, 115 draw call e 263.657 triangoli per frame, 701 buffer e 18 texture alla base, 736 e 18 alla fine, 17.290 draw a riposo.
+- `node scripts/qa-sectors.mjs`: 4 esecuzioni verdi su 5. Una è fallita con «WebGL resources grew on the repeated circuit» (buffer 1004 → 1052, texture 24 → 25 a Santa Ana, byte stimati invariati). Sui dati committati in `main` un'esecuzione è passata. Il fallimento è intermittente e non è stato diagnosticato: va chiarito prima di allargare l'area, perché la soglia serve a rilevare perdite di risorse.
