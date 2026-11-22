@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/editor/editor.css">
+  <title>Editor del piloto · Las Palmas</title>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Editor del piloto</h1>
+      <div class="tools">
+        <button id="open" disabled>Abrir correcciones</button>
+        <input id="file" type="file" accept=".json,application/json" hidden>
+        <button id="save" disabled>Descargar JSON</button>
+        <a href="./?area=pilot&amp;editorPreview" target="_blank" rel="noopener">Probar en Conducir</a>
+      </div>
+    </header>
+    <div id="viewport" aria-label="Vista del mapa piloto"></div>
+    <aside aria-label="Herramientas de edición">
+      <div class="tools" role="group" aria-label="Historial">
+        <button id="undo" disabled>Deshacer</button>
+        <button id="redo" disabled>Rehacer</button>
+      </div>
+      <label for="catalog">Mobiliario</label>
+      <div class="tools">
+        <select id="catalog" disabled></select>
+        <button id="place" disabled aria-pressed="false">Colocar en el mapa</button>
+      </div>
+      <section id="selection" hidden aria-label="Selección">
+        <h2 id="object-name"></h2>
+        <div class="tools">
+          <button id="move" aria-pressed="true">Mover</button>
+          <button id="vertices" aria-pressed="false">Vértices</button>
+          <button id="rotate" aria-pressed="false">Girar</button>
+          <button id="remove">Eliminar</button>
+        </div>
+        <label id="vertex-field" hidden>Vértice <select id="vertex"></select></label>
+        <form id="coordinates">
+          <label id="east-field">Este (m) <input id="east" type="number" step="any" required></label>
+          <label id="north-field">Norte (m) <input id="north" type="number" step="any" required></label>
+          <label id="yaw-field" hidden>Ángulo (°) <input id="yaw" type="number" step="any" required disabled></label>
+          <button>Aplicar</button>
+        </form>
+      </section>
+      <p id="message" role="status">Cargando…</p>
+    </aside>
+    <footer>© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · Ayuntamiento de Las Palmas de G.C. · <a href="https://pnoa.ign.es/">PNOA / IGN</a></footer>
+  </main>
+  <script type="module" src="/src/editor/main.ts"></script>
+</body>
+</html>

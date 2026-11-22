@@ -29,12 +29,14 @@ async function start(){
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
   const neutral=query.has('neutral');
+  const pilotPreview=import.meta.env.DEV && pilot && query.has('editorPreview')
+    ? import('./editor/pilot-preview.ts').then(({loadEditedPilot})=>loadEditedPilot(el('status'))) : null;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
   const stage=query.get('area')==='stress'?'stress':'city';
-  const [core,single,poi,{tones},index,sea]=await Promise.all([pilot?null:loadCore(stage),pilot?loadData('pilot.json',isCity):null,loadData('poi.geojson',isPlaces),
+  const [core,single,poi,{tones},index,sea,edited]=await Promise.all([pilot?null:loadCore(stage),pilot&&!pilotPreview?loadData('pilot.json',isCity):null,loadData('poi.geojson',isPlaces),
     neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData(stage+'-index.json',isSectorIndex),
-    pilot||neutral||stage!=='city'?null:loadData('sea.json',isSea)]);
-  const data=required(core??single,'map data');
+    pilot||neutral||stage!=='city'?null:loadData('sea.json',isSea),pilotPreview]);
+  const data=required(core??single??edited?.data,'map data');
   if(index)validateSectorIndex(index);
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
@@ -56,6 +58,7 @@ async function start(){
     lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
   const {group,altitude,groundAt}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
+  if(edited)for(const prop of edited.props(groundAt))group.add(prop);
   if(sea)scene.add(makeSea(sea));
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);

@@ -344,6 +344,16 @@ Sette zone nuove dai confini dei barrios in OpenStreetMap: Triana (16904602), Ca
 
 Limiti: il tile 457-3113 (112 parti, nessuna senza altezza) non è uscito dal filtro del Centro de Descargas e non è stato scaricato. Le correzioni non sono state confrontate una a una con l'ortofoto. Nessuna prova su telefono fisico; la guida nei quartieri nuovi non è stata provata a mano.
 
+## Editor locale del pilota
+
+Avviare `npm.cmd run dev -- --host 127.0.0.1 --port 5197` e aprire `http://127.0.0.1:5197/editor.html`. Selezionare un edificio nella scena per muoverlo o correggere un vertice del contorno o di un cortile. Il catalogo include banco, bolardo e macetero. `Descargar JSON` esporta le correzioni. `Abrir correcciones` le riapre nell’editor e `Probar en Conducir` apre il selettore di file del pilota.
+
+`node scripts/qa-editor.mjs` avvia Vite e Chrome. La prova copre selezione, trascinamento sul gizmo, modifica di un vertice del cortile, posa e rotazione di props, rimozione, annulla/ripristina e download con riapertura in una sessione nuova. Controlla il rifiuto atomico di JSON non valido, versione della mappa diversa e impronta invalida. Verifica l’avvio di Conducir con il file ricaricato e interroga la stessa griglia di collisione della guida per confrontare la posizione vecchia e quella nuova del muro.
+
+Passati `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd test` e `node scripts/qa-editor.mjs`. In Chrome mobile emulato a 390 × 844, verificati posa di una panchina con tap e download del JSON.
+
+L’editor e il caricamento delle correzioni sono disponibili sul server di sviluppo per il solo pilota. Il file è legato ai byte di `pilot.json` dalla sua impronta SHA-256. Santa Ana e Gabinete Literario sono in sola lettura. Il catalogo contiene arredo decorativo senza collisioni.
+
 ## Appoggio dei veicoli sul terreno
 
 Auto, pattuglie e rottami seguono la quota del triangolo sotto il loro centro. Ombre, sgommate e polvere usano la stessa superficie. L'indice in celle da 15 m viene costruito al primo uso del terreno di ciascun settore e viene rilasciato quando esce la zona. Usa i buffer esistenti e non aggiunge draw call.
