@@ -343,3 +343,15 @@ Sette zone nuove dai confini dei barrios in OpenStreetMap: Triana (16904602), Ca
 - LiDAR: tredici tile (aggiunti 457-3110, 457-3111, 457-3112, 458-3109, 458-3110, 458-3111, 458-3112, 459-3110). Su 6.194 parti misurate lo scarto mediano LiDAR meno comunale è +0,55 m, l'errore medio assoluto 1,98 m, 72 % entro 2 m e 91 % entro 5 m. Esportate 16 altezze per edifici senza dato comunale e 114 corpi bassi di complessi: in tutto 137 parti con `source: lidar-pnoa`. Restano 31 parti a 9 m di stima: 29 senza punti sufficienti e alcune dove il LiDAR non trova un tetto (ad esempio 30904, misurato a 0 m). `lidar-check.py` scarta ora le altezze sotto 2,5 m per gli edifici senza dato e sotto 2 m per i corpi bassi, ed è passato da 12 minuti a circa un minuto con tredici tile (punti ordinati per fascia, indice spaziale dei vicini) con risultati identici sui cinque tile precedenti.
 
 Limiti: il tile 457-3113 (112 parti, nessuna senza altezza) non è uscito dal filtro del Centro de Descargas e non è stato scaricato. Le correzioni non sono state confrontate una a una con l'ortofoto. Nessuna prova su telefono fisico; la guida nei quartieri nuovi non è stata provata a mano.
+
+## Appoggio dei veicoli sul terreno
+
+Auto, pattuglie e rottami seguono la quota del triangolo sotto il loro centro. Ombre, sgommate e polvere usano la stessa superficie. L'indice in celle da 15 m viene costruito al primo uso del terreno di ciascun settore e viene rilasciato quando esce la zona. Usa i buffer esistenti e non aggiunge draw call.
+
+`ShapeGeometry` e la funzione condivisa producono le stesse facce nello stesso ordine per tutte le 23.378 celle del suolo di dettaglio. Le zone e i 142 settori contengono gli stessi anelli. La triangolazione resta compatibile con le carreggiate già generate.
+
+`scripts/qa-ground.mjs`, incluso in `npm.cmd test`, confronta la quota con un raycast verticale sulla mesh effettiva. A `(-1270, 1055)` il terreno visibile è 6,89 m sopra la quota della griglia nei geodati attuali. La misura resta entro 1 cm dal raycast prima e dopo l'arrivo ritardato del dettaglio. La prova copre anche panoramica, bordo di settore, diagonale di una cella del pilota e fallback fuori dal terreno.
+
+In Chrome desktop e mobile emulato (390 × 844), percorsi entrambi i sensi di un tratto con 3,06 m di dislivello su 35,27 m. L'auto era visibile durante il rettilineo e la sterzata, con una pattuglia attiva.
+
+Sui dossi più netti può ancora compenetrare una singola ruota, perché l'appoggio si calcola al centro. Resta da riprodurre il punto preciso degli screenshot originali.

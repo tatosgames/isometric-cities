@@ -3,6 +3,7 @@ import style from '../data/road-style.json';
 import type { GroundMap } from './ground-map.ts';
 import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
+import { GROUND_SURFACE, groundPatch, groundSampler } from './ground-surface.ts';
 import { addLandmarks } from './landmarks.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -75,13 +76,14 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const paths=rings.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
     const s=new T.Shape(paths[0]); s.holes=paths.slice(1).map(p=>new T.Path(p)); return s;
   }
-  function drape(g: T.BufferGeometry,lift: number) {
-    const p=g.attributes.position;
-    for(let i=0;i<p.count;i++) p.setZ(i,altitude(p.getX(i),p.getY(i))+lift);
-    g.computeVertexNormals(); return g.rotateX(-Math.PI/2);
-  }
   // Subdivide the ground before clipping so local relief survives triangulation.
-  for(const ring of data.ground) add(drape(new T.ShapeGeometry(shape([ring])),0),'#ffffff',ring[0][0],ring[0][1],6);
+  for(const ring of data.ground){
+    const {faces,positions}=groundPatch(ring,altitude),geometry=new T.BufferGeometry();
+    geometry.setIndex(faces.flat());
+    geometry.setAttribute('position',new T.Float32BufferAttribute(positions.flat(),3));
+    geometry.computeVertexNormals();
+    add(geometry,'#ffffff',ring[0][0],ring[0][1],GROUND_SURFACE);
+  }
   const boundary=data.boundary;
   for(let k=1;k<boundary.length;k++){
     const [a,b]=boundary[k-1],[c,d]=boundary[k];
@@ -236,7 +238,10 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     });
     mesh.castShadow=!shadow;mesh.receiveShadow=!shadow;mesh.computeBoundingSphere();group.add(mesh);
   }
-  return {group,altitude,groundMap,materials:{mat,road,buildingMat,wood,leaf,shadeMat}};
+  const sampleGround=groundSampler(()=>group.children.flatMap(mesh=>
+    mesh instanceof T.Mesh && mesh.material===mat ? [mesh.geometry as T.BufferGeometry] : []),GROUND_SURFACE);
+  const groundAt: typeof altitude=(x,y)=>sampleGround(x,y)??altitude(x,y);
+  return {group,altitude,groundAt,groundMap,materials:{mat,road,buildingMat,wood,leaf,shadeMat}};
 }
 
 // Find the largest inscribed circle among the triangulated roof faces.

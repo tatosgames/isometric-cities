@@ -9,6 +9,7 @@ import * as T from 'three';
 import { makeCity } from '../scene.ts';
 import { breezy } from '../wind.ts';
 import { makeGroundMap } from '../ground-map.ts';
+import { groundSampler } from '../ground-surface.ts';
 
 export interface SectorLod {
   stable:boolean;
@@ -37,6 +38,7 @@ interface ResidentZone {
   id: string;
   file: string;
   far: T.Group;
+  farGroundAt: ReturnType<typeof groundSampler>;
   bounds: T.Box3;
   prefetch: T.Box3;
   sectors: ResidentSector[];
@@ -53,6 +55,7 @@ interface ResidentSector {
   file: string;
   zone: ResidentZone;
   low: T.Group | null;
+  groundAt: ReturnType<typeof groundSampler> | null;
   bounds: T.Box3;
   prefetch: T.Box3;
   detail: T.Group | null;
@@ -112,22 +115,37 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     new T.Vector3(bounds[0],vertical[0],-bounds[3]),new T.Vector3(bounds[2],vertical[1],-bounds[1]));
   const zones: ResidentZone[]=data.zones.map(z=>{
     const far=new T.Group(),level=required(data.far[z.id],'far level of zone '+z.id);
-    far.add(overviewBlocks(level.blocks,base.altitude,neutral,overviewMaterials),
-      overviewGround(level.ground,base.altitude,base.groundMap,farGround));
+    const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround);
+    far.add(overviewBlocks(level.blocks,base.altitude,neutral,overviewMaterials),surface);
     base.group.add(far);
     const bounds=box(z.bounds,z.vertical);
-    return {id:z.id,file:z.file,far,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
+    return {id:z.id,file:z.file,far,farGroundAt:groundSampler(()=>[surface.geometry]),bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
       sectors:[],assets:null,group:null,map:null,wanted:-Infinity,used:0,failed:0,retry:0};
   });
   const zoneById=new Map(zones.map(z=>[z.id,z]));
   const sectors: ResidentSector[]=data.sectors.map(s=>{
     const zone=required(zoneById.get(zoneOfSector(s.id,data)),'zone of sector '+s.id);
     const bounds=box(s.bounds,s.vertical);
-    const sector={id:s.id,file:s.file,zone,low:null,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.55),
+    const sector={id:s.id,file:s.file,zone,low:null,groundAt:null,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.55),
       detail:null,assets:null,used:0,failed:0,retry:0,estimate:0,wanted:-Infinity,inView:false,seen:-Infinity};
     zone.sectors.push(sector);
     return sector;
   });
+  const sectorById=new Map(sectors.map(s=>[s.id,s]));
+  function sampleGround(x: number,y: number,east=x,north=y){
+    const zone=zoneAt(east,north);
+    if(!zone)return undefined;
+    if(zone.far.visible)return zone.farGroundAt(x,y);
+    // Zone and detail use the same ground triangles throughout the fade.
+    return sectorById.get(owner(east,north))?.groundAt?.(x,y);
+  }
+  function groundAt(x: number,y: number): number {
+    const height=sampleGround(x,y);
+    if(height!==undefined)return height;
+    const west=x%data.sectorSize===0,south=y%data.sectorSize===0;
+    return (west?sampleGround(x,y,x-1,y):undefined)??(south?sampleGround(x,y,x,y-1):undefined)??
+      (west&&south?sampleGround(x,y,x-1,y-1):undefined)??base.altitude(x,y);
+  }
   const budget=(compact?58:115)*1024*1024;
   // What leaves the view stays requested this long, in milliseconds. A camera hovering on a boundary would
   // otherwise start and cancel the same download at every step.
@@ -157,7 +175,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   }
   function releaseZone(z: ResidentZone){
     if(!z.assets)return;
-    for(const s of z.sectors){release(s);s.low=null;}
+    for(const s of z.sectors){release(s);s.low=null;s.groundAt=null;}
     z.assets.dispose();zoneBytes-=z.assets.bytes;z.assets=null;z.group=null;z.map=null;z.far.visible=true;
     onZone?.(z.id,null);
   }
@@ -180,9 +198,10 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       for(const ring of content.ground)batch(owner(...ringCenter(ring))).ground.push(ring);
       for(const s of z.sectors){
         const b=batch(s.id);
+        const surface=overviewGround(b.ground,base.altitude,map,material);
         s.low=new T.Group();
-        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials),
-          overviewGround(b.ground,base.altitude,map,material));
+        s.groundAt=groundSampler(()=>[surface.geometry]);
+        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials),surface);
         group.add(s.low);
       }
       // The building materials belong to every zone and to the far level: release only what the zone owns.
@@ -251,7 +270,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   function suspend(){
     requested=[];requestedZones=[];demanded.clear();for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
   }
-  const zoneAt=(x: number,y: number)=>zoneById.get(Math.floor(x/data.zoneSize)+'_'+Math.floor(y/data.zoneSize));
+  function zoneAt(x: number,y: number){return zoneById.get(sectorOwner(x,y,data.zoneSize));}
   /** Ask for the zone under a point whatever the camera shows. True once its footprints are resident. */
   function demand(x: number,y: number){
     const z=zoneAt(x,y);
@@ -332,5 +351,5 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       zoneBytes,bytes,budget,evictions,
       pending:pending?.s.id??pendingZone?.z.id??null});
   }
-  return {...base,update,suspend,demand,undemand(){demanded.clear();}};
+  return {...base,groundAt,update,suspend,demand,undemand(){demanded.clear();}};
 }

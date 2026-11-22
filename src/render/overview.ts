@@ -1,5 +1,6 @@
 import type { Altitude, Building, FarBlock, Point, Ring, RoofTones } from '../data/types.ts';
 import type { GroundMap } from './ground-map.ts';
+import { groundPatch } from './ground-surface.ts';
 import * as T from 'three';
 
 // Build only the silhouette and roof of each footprint. Keep buildings and trees in separate draw groups.
@@ -40,11 +41,11 @@ export function overviewBuildings(buildings: Building[],trees: Point[],altitude:
 export function overviewGround(rings: Ring[],altitude: Altitude,map: GroundMap | null,material: T.Material){
   const xyz=[],uv=[];
   for(const ring of rings){
-    const points=ring.slice(0,-1).map(([x,y])=>new T.Vector2(x,y));
-    const triangles=T.ShapeUtils.triangulateShape(points,[]);
-    for(const t of triangles)for(const i of t){
-      const {x,y}=points[i];xyz.push(x,altitude(x,y),-y);
-      if(map)uv.push((x-map.bounds.x)/map.bounds.z,(y-map.bounds.y)/map.bounds.w);
+    const {faces,positions}=groundPatch(ring,altitude);
+    for(const face of faces)for(const i of face){
+      const [x,y,z]=positions[i];
+      xyz.push(x,y,z);
+      if(map)uv.push((x-map.bounds.x)/map.bounds.z,(-z-map.bounds.y)/map.bounds.w);
     }
   }
   const g=new T.BufferGeometry();

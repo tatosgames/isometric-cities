@@ -28,6 +28,7 @@ interface DriveOptions {
   data: CityData;
   locations: Place[];
   altitude: Altitude;
+  groundAt: Altitude;
   view: (target: T.Vector3, zoom: number, offset: T.Vector3) => void;
   mapDirection: T.Vector3;
   compact: boolean;
@@ -79,7 +80,7 @@ export const TUNE={
 const SKIDS=600, DUST=48, COINS=220;
 const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit,zoning}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   const activeWorld=()=>required(world,"drive world");
   const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
@@ -190,7 +191,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   let skidAt=0,dustAt=0;
   function puff(x: number,y: number,dark: boolean){
     const p=dust[dustAt];
-    Object.assign(p,{x,y,z:altitude(x,y)+1,life:1});
+    Object.assign(p,{x,y,z:groundAt(x,y)+1,life:1});
     dustMesh.setColorAt(dustAt,dark?smokeColour:dustColour);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
     dustAt=(dustAt+1)%DUST;
   }
@@ -198,7 +199,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const now: NonNullable<Vehicle["trail"]>=[];
     for(const side of [-.7,.7]){
       const x=b.x-(fx*1.1+fy*side)*scale,y=b.y+(-fy*1.1+fx*side)*scale;
-      now.push([x,altitude(x,y)+.78,-y]);
+      now.push([x,groundAt(x,y)+.78,-y]);
     }
     if(b.trail){
       for(let k=0;k<2;k++){
@@ -211,10 +212,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     b.trail=now;
   }
   function place(b: Vehicle,yaw: number,roll: number){
-    const z=altitude(b.x,b.y);
+    const z=groundAt(b.x,b.y);
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
     b.mesh.rotation.set(roll,yaw,-b.dive*TUNE.dive);
     b.blob.position.set(b.x,z+.76,-b.y);
+    return z;
   }
 
   // ---- game state ----
@@ -321,7 +323,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     const path=trail();
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
     rig.startHeading(player.h);
-    focus.set(player.x,altitude(player.x,player.y),-player.y);
+    focus.set(player.x,groundAt(player.x,player.y),-player.y);
     el('over').hidden=true;guide.className='ready';
     state='ready';
   }
@@ -438,7 +440,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     }
     spin+=dt*4;
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
-    place(player,player.h+playerPose.yaw,playerPose.roll);
+    const playerGround=place(player,player.h+playerPose.yaw,playerPose.roll);
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
@@ -482,7 +484,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     // the follow itself is tight, which keeps the car steady on screen.
     lead.lerp(new T.Vector3(player.vx,0,-player.vy).multiplyScalar(TUNE.lookAhead),Math.min(1,dt*TUNE.leadRate));
     const cx=player.x+lead.x,cy=player.y-lead.z;
-    focus.lerp(new T.Vector3(cx,altitude(player.x,player.y),-cy),Math.min(1,dt*TUNE.followRate));
+    focus.lerp(new T.Vector3(cx,playerGround,-cy),Math.min(1,dt*TUNE.followRate));
     // Kick: a damped spring back to rest, in small steps so a long frame cannot blow it up.
     for(let n=Math.max(1,Math.ceil(dt*240)),h=dt/n;n>0;n--){
       kickVX-=(TUNE.kickStiff*kickX+TUNE.kickDamp*kickVX)*h;kickVY-=(TUNE.kickStiff*kickY+TUNE.kickDamp*kickVY)*h;

@@ -55,7 +55,7 @@ async function start(){
     },
     lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
-  const {group,altitude}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
+  const {group,altitude,groundAt}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
   if(sea)scene.add(makeSea(sea));
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
@@ -248,7 +248,7 @@ async function start(){
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection:direction,compact,onExit:leaveDrive,
+  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   play.onclick=()=>{
