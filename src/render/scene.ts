@@ -68,7 +68,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const row=T.MathUtils.clamp((terrain.origin[1]-y)/(terrain.stepY || terrain.step),0,terrain.h-1.001);
     const i=Math.floor(row)*terrain.w+Math.floor(col);
     const v=terrain.values, u=col%1, t=row%1;
-    return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t);
+    return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t)*(terrain.scale??1);
   }
   function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material=mat) {
     const geom=g.index?g.toNonIndexed():g;
@@ -137,15 +137,15 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     g.dispose();
     return out;
   }
-  // A parapet is seen from above and from the sides. On small screens it is three faces instead of a closed box.
-  function parapet(length: number,height: number,depth: number): T.BufferGeometry{
+  // A parapet is seen from above and from the sides. On small screens, where it is one or two pixels tall, it is
+  // its top and the face on `outer` (+1 or -1 along z): the face over the building's own roof is left out.
+  function parapet(length: number,height: number,depth: number,outer: number): T.BufferGeometry{
     if(!compact)return new T.BoxGeometry(length,height,depth);
-    const x=length/2,y=height/2,d=depth/2,g=new T.BufferGeometry();
+    const x=length/2,y=height/2,d=depth/2,z=d*outer,g=new T.BufferGeometry();
     g.setAttribute('position',new T.Float32BufferAttribute([
-      -x,-y,d, x,-y,d, x,y,d, x,y,d, -x,y,d, -x,-y,d,
-      x,-y,-d, -x,-y,-d, -x,y,-d, -x,y,-d, x,y,-d, x,-y,-d,
+      ...(outer>0?[-x,-y,z, x,-y,z, x,y,z, x,y,z, -x,y,z, -x,-y,z]:[x,-y,z, -x,-y,z, -x,y,z, -x,y,z, x,y,z, x,-y,z]),
       -x,y,d, x,y,d, x,y,-d, x,y,-d, -x,y,-d, -x,y,d],3));
-    g.setAttribute('normal',new T.Float32BufferAttribute([...Array(6).fill([0,0,1]),...Array(6).fill([0,0,-1]),...Array(6).fill([0,1,0])].flat(),3));
+    g.setAttribute('normal',new T.Float32BufferAttribute([...Array(6).fill([0,0,outer]),...Array(6).fill([0,1,0])].flat(),3));
     return g;
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
@@ -188,8 +188,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       if(radius>2.1){
         const size=Math.min(5,radius),angle=Math.atan2(b.rings[0][1][1]-y,b.rings[0][1][0]-x);
         addBuilding(new T.BoxGeometry(size,1.8,size*.72).rotateY(angle).translate(rx,top+.9,-ry),'#dcd7c9',x,y);
-        addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
-        if(radius>3.5 && b.id%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
+        // The thin lid and the tank beside the rooftop cabin are smaller than a pixel on a phone.
+        if(!compact)addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
+        if(!compact && radius>3.5 && b.id%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
       }
     }
     // Low parapets trace the actual perimeter and distinguish adjoining roofs.
@@ -218,7 +219,8 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
             const projection=(b.id%4===0 && bay%2===0)?.65:.22;
             const lipLeft=[left[0]+nx*projection,left[1],left[2]-ny*projection];
             const lipRight=[right[0]+nx*projection,right[1],right[2]-ny*projection];
-            sills.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
+            // A plain sill is a 22 cm lip: on a phone only the balconies are worth their triangles.
+            if(!compact || projection>.4)sills.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
             if(projection>.4){
               const railLeft=[lipLeft[0],lipLeft[1]+.62,lipLeft[2]],railRight=[lipRight[0],lipRight[1]+.62,lipRight[2]];
               sills.push(...lipLeft,...lipRight,...railLeft,...railLeft,...lipRight,...railRight);
@@ -233,10 +235,12 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
         }
       }
-      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
+      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28,winding>0?1:-1).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
     }
     if(windows.length){
       const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);
+    }
+    if(sills.length){
       const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(sills,3));trim.computeVertexNormals();addBuilding(trim,'#ede8dc',x,y);
     }
   }

@@ -13,6 +13,7 @@ import { makeDrive } from './drive/drive.ts';
 import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
 import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
+import { propObstacles } from './render/port-props.ts';
 
 interface Flight {
   start: number; duration: number;
@@ -91,8 +92,10 @@ async function start(){
   const residentZones=new Map<string,ZoneData>();
   const streamed=index&&core?streamCity({data:{...core,...index},stage,neutral,tones,compact,host,
     onZone(id,content){
-      if(content)residentZones.set(id,content);else residentZones.delete(id);
-      drive?.zone(id,content);
+      // The driving world knows trees as point obstacles: crane legs and chimneys join them.
+      const solid=content?.props?.length?{...content,trees:[...content.trees,...propObstacles(content.props)]}:content;
+      if(solid)residentZones.set(id,solid);else residentZones.delete(id);
+      drive?.zone(id,solid);
     },
     lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;

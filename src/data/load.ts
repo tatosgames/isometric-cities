@@ -79,7 +79,8 @@ const farZone = (v: unknown): v is FarZone => record(v) && list(v.blocks, farBlo
 
 export function isZone(v: unknown): v is ZoneData {
   return record(v) && list(v.buildings, building) && list(v.owners, string)
-    && list(v.trees, point) && list(v.ground, ring) && props(v.props);
+    && list(v.trees, point) && list(v.ground, ring) && props(v.props)
+    && (v.coverage === undefined || list(v.coverage, rings));
 }
 
 type CoreFile = Omit<CityCore, 'terrain' | 'buildings' | 'trees' | 'ground'> & {terrain: Omit<Terrain, 'values'> & {file: string}};
@@ -93,9 +94,13 @@ export function isCoreFile(v: unknown): v is CoreFile {
 export function coreWithTerrain(core: CoreFile, heights: ArrayBuffer): CityCore {
   const {w, h} = core.terrain;
   if (heights.byteLength !== w * h * 2) throw new Error('Terrain size does not match its grid');
-  const view = new DataView(heights), values = new Float32Array(w * h);
-  for (let i = 0; i < values.length; i++) values[i] = view.getInt16(i * 2, true) / 10;
-  return {...core, terrain: {...core.terrain, values}, buildings: [], trees: [], ground: []};
+  // Kept as stored: a quarter of the memory of floats, on the main thread and again in the worker.
+  let values = new Int16Array(heights);
+  if (new Uint8Array(new Uint16Array([1]).buffer)[0] !== 1) {
+    const view = new DataView(heights);
+    values = Int16Array.from({length: w * h}, (_, i) => view.getInt16(i * 2, true));
+  }
+  return {...core, terrain: {...core.terrain, values, scale: .1}, buildings: [], trees: [], ground: []};
 }
 
 export async function loadCore(stage: string, signal?: AbortSignal): Promise<CityCore> {

@@ -1,4 +1,4 @@
-import type { Prop } from '../data/types.ts';
+import type { Point, Prop } from '../data/types.ts';
 import * as T from 'three';
 
 type Part = [geometry: T.BufferGeometry, color: string];
@@ -34,6 +34,15 @@ function crane(detail: boolean): Part[]{
 
 function chimney(height: number): Part[]{
   return [[new T.CylinderGeometry(1.2,1.7,height,8).translate(0,height/2,0),'#b9b2a6']];
+}
+
+// Where a car cannot pass: the four legs of a crane and the shaft of a chimney, as points like tree trunks.
+export function propObstacles(props: Prop[]): Point[]{
+  return props.flatMap(([kind,x,y,angle,size]): Point[]=>{
+    if(kind!=='crane')return [[x,y]];
+    const cs=Math.cos(angle),sn=Math.sin(angle);
+    return [[-11,-13.5],[-11,13.5],[11,-13.5],[11,13.5]].map(([a,b])=>[x+(a*cs-b*sn)*size,y+(a*sn+b*cs)*size]);
+  });
 }
 
 // Port objects mapped in OpenStreetMap. `size` scales a crane and is the height of a chimney, in metres.

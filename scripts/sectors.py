@@ -233,9 +233,11 @@ def partition(stage, road_cells=None):
     zone_entries, far, zone_files = [], {}, set()
     for (zx, zy), zone in sorted(zones.items()):
         name = f"{zx}_{zy}"
+        square = [zx * ZONE, zy * ZONE, (zx + 1) * ZONE, (zy + 1) * ZONE]
+        # The zone paints its ground from its own streets: the whole city's coverage would be traced for each one.
+        zone["coverage"] = polygon_rings(carriageways.coverage.intersection(box(square[0] - 8, square[1] - 8, square[2] + 8, square[3] + 8)))
         file = write_versioned(zone_directory, name, zone)
         zone_files.add(file)
-        square = [zx * ZONE, zy * ZONE, (zx + 1) * ZONE, (zy + 1) * ZONE]
         members = [e for e in entries if zone_of(*map(int, e["id"].split("_"))) == (zx, zy)]
         zone_entries.append(dict(id=name, bounds=square, file=file,
                                  vertical=[min(e["vertical"][0] for e in members), max(e["vertical"][1] for e in members)]))
@@ -256,7 +258,7 @@ def partition(stage, road_cells=None):
     # The same footprint index serves collision, the low LOD and the route graph.
     # Detail files remain independently cacheable on static hosting.
     index = dict(sectors=entries, sectorSize=SIZE, zones=zone_entries, zoneSize=ZONE, buildingCount=len(owners), carriageways=True,
-                 roadCoverage=polygon_rings(carriageways.coverage), roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
+                 roadCoverage=polygon_rings(carriageways.coverage.simplify(1.5)), roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
     (ROOT / f"{stage}-index.json").write_bytes(encode(index))
     for path in directory.iterdir():
         if re.fullmatch(r"-?\d+_-?\d+-[0-9a-f]{12}\.(json|webp)",path.name) and path.name not in generated:

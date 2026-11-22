@@ -18,7 +18,7 @@ export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean
   if(typeof OffscreenCanvas!=='undefined'){
     try {
       worker=new Worker(new URL('./sector-worker.ts',import.meta.url),{type:'module'});
-      const values=Float32Array.from(terrain.values);
+      const values=Array.isArray(terrain.values)?Float32Array.from(terrain.values):terrain.values.slice();
       worker.postMessage({config:{terrain:{...terrain,values},compact,neutral,tones}} satisfies WorkerRequest,[values.buffer]);
     } catch (error) {
       worker?.terminate();

@@ -44,7 +44,9 @@ export interface Terrain {
   stepY?: number;
   w: number;
   h: number;
-  values: number[] | Float32Array<ArrayBuffer>;
+  values: number[] | Float32Array<ArrayBuffer> | Int16Array<ArrayBuffer>;
+  // Metres per stored unit: the city grid keeps its decimetres as 16-bit integers.
+  scale?: number;
 }
 
 export interface Carriageway {
@@ -116,6 +118,8 @@ export interface ZoneData {
   owners: string[];
   trees: Point[];
   props?: Prop[];
+  // Street coverage clipped to the zone, for its ground texture.
+  coverage?: Ring[][];
   ground: Ring[];
 }
 

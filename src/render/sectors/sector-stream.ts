@@ -190,7 +190,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const [west,south,east,north]=source.bounds;
       // The zone paints its own ground, so its sharpness does not depend on the size of the city.
       const map=neutral?null:makeGroundMap({...data,buildings:content.buildings,textureBounds:[west-5,south-5,east+5,north+5]},
-        .6,streetPriority,data.roadFallback,coverage);
+        .6,streetPriority,data.roadFallback,coverage&&(content.coverage??coverage));
       const material=ground(map?.texture??null),group=new T.Group();
       const batches=new Map(z.sectors.map(s=>[s.id,{buildings:[] as Building[],trees:[] as Point[],props:[] as Prop[],ground:[] as Ring[]}]));
       const batch=(id: string)=>required(batches.get(id),'sector '+id+' of zone '+z.id);
