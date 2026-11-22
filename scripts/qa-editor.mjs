@@ -2,11 +2,25 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { OrthographicCamera, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Mesh, OrthographicCamera, Vector3 } from 'three';
+import { previewBuilding } from '../src/editor/building-drag.ts';
 import { createServer } from 'vite';
 import { applyPilotEdits, isFixedBuilding, readPilotEdits } from '../src/data/pilot-edits.ts';
 import { ringCenter } from '../src/data/sector-index.ts';
 import { buildDriveWorld } from '../src/drive/drive-world.ts';
+
+const geometry = new BufferGeometry();
+const positions = new Float32BufferAttribute([1,2,3, 4,5,6, 7,8,9],3);
+geometry.setAttribute('position',positions);
+const mesh = new Mesh(geometry);
+const preview = previewBuilding([{mesh,start:1,count:1}]);
+preview.move(8,2,-3);
+assert.deepEqual([...positions.array],[1,2,3, 12,7,3, 7,8,9]);
+preview.hide();
+assert.deepEqual([...positions.array],[1,2,3, 0,0,0, 7,8,9]);
+preview.restore();
+assert.deepEqual([...positions.array],[1,2,3, 4,5,6, 7,8,9]);
+assert.equal(mesh.frustumCulled,true);
 
 const bytes = await readFile(new URL('../public/data/pilot.json',import.meta.url));
 const data = JSON.parse(bytes), hash = createHash('sha256').update(bytes).digest('hex');
@@ -89,7 +103,7 @@ try {
       const point = [hole[0]+(second[0]-hole[0])*.1,hole[1]+(second[1]-hole[1])*.1];
       const rings = proposed.footprints[0].rings.map((r,i) => i === 1 ? [point,...r.slice(1,-1),point] : r);
       try { readPilotEdits(base,{...proposed,footprints:[{part,id:building.id,rings}]}); } catch { continue; }
-      chosen = {part,building,center:[center[0]+dx,center[1]+dy],point,p,q};
+      chosen = {part,building,center:[center[0]+dx,center[1]+dy],point,p,q,grab:[clickX,clickY],grabPoint:building.rings[0][1],roof};
       break;
     }
     if (chosen) break;
@@ -109,6 +123,33 @@ try {
   assert.equal(dragged?.part,chosen.part);
   assert.ok(Math.abs(ringCenter(dragged.rings[0])[0]-start[0]-10) < .1,'The X-axis gizmo moves the footprint');
   await button('Undo').click();
+
+  const directMove = async () => {
+    await page.keyboard.press('Escape');
+    const [x,y] = chosen.grabPoint;
+    const end = screen([x+8,y],chosen.roof-.4);
+    await page.mouse.move(...chosen.grab);
+    await page.mouse.down();
+    await page.mouse.move(...end,{steps:6});
+    await page.locator('#viewport[data-dragging="true"]').waitFor();
+    assert.ok(Math.abs(Number(await page.locator('#east').inputValue())-start[0]-8) < .15);
+  };
+  await directMove();
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  assert.equal((await save(page)).footprints.length,0);
+
+  await directMove();
+  await page.mouse.up();
+  const directlyMoved = (await save(page)).footprints[0];
+  assert.ok(Math.abs(ringCenter(directlyMoved.rings[0])[0]-start[0]-8) < .15);
+  await button('Undo').click();
+  const canvas = page.locator('canvas');
+  const overview = await canvas.screenshot();
+  await button('Frame').click();
+  const framed = await canvas.screenshot();
+  assert.ok(!overview.equals(framed),'Frame changes the view');
+  await button('Overview').click();
 
   await page.locator('#east').fill(String(chosen.center[0]));
   await page.locator('#north').fill(String(chosen.center[1]));

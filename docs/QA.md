@@ -352,6 +352,8 @@ Aprire `editor.html` su GitHub Pages. In locale, avviare `npm.cmd run dev -- --h
 
 Passati `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd test` e `node scripts/qa-editor.mjs`. In Chrome mobile emulato a 390 × 844, verificati posa di una panchina con tap e download del JSON.
 
+In **Move**, trascinare direttamente un edificio o un prop oppure usare le frecce. Durante il gesto si vede muovere il modello 3D. **Vertices** consente di trascinare i punti delle impronte e dei cortili. **Frame** inquadra la selezione e **Overview** ripristina la vista iniziale. Il test controlla anche il trascinamento senza gizmo, l’annullamento con Esc e la variazione di inquadratura.
+
 Il test dell’editor è passato anche sulla build di produzione servita sotto `/isometric-cities/`, il percorso usato da GitHub Pages. Apre **Test Drive** dal link dell’editor e verifica il caricamento del JSON nella pagina aperta.
 
 L’editor e il caricamento delle correzioni sono disponibili per il solo pilota. La lettura del JSON avviene nel browser. Il file è legato ai byte di `pilot.json` dalla sua impronta SHA-256. Santa Ana e Gabinete Literario sono in sola lettura. Il catalogo contiene arredo decorativo senza collisioni.
