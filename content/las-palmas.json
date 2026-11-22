@@ -204,8 +204,36 @@
       {
         "id": "san-cristobal",
         "osm": "relation/16905754"
+      },
+      {
+        "id": "triana",
+        "osm": "relation/16904602"
+      },
+      {
+        "id": "canalejas",
+        "osm": "relation/16904534"
+      },
+      {
+        "id": "fincas-unidas",
+        "osm": "relation/16904535"
+      },
+      {
+        "id": "lugo",
+        "osm": "relation/16904536"
+      },
+      {
+        "id": "ciudad-del-mar",
+        "osm": "relation/16904537"
+      },
+      {
+        "id": "ciudad-jardin",
+        "osm": "relation/16904538"
+      },
+      {
+        "id": "alcaravaneras",
+        "osm": "relation/16904432"
       }
     ],
-    "minimumLandM2": 4400000
+    "minimumLandM2": 5000000
   }
 }

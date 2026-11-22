@@ -17,6 +17,7 @@ import laspy
 import shapely
 from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
+from shapely.strtree import STRtree
 from pyproj import Transformer
 
 OUT = Path('.cache/lidar-control')
@@ -51,6 +52,10 @@ def main():
     flags = [a for a in sys.argv[1:] if a.startswith('--')]
     x, y, z, c, meta = load_points([a for a in sys.argv[1:] if not a.startswith('--')])
     bx0, by0, bx1, by1 = x.min(), y.min(), x.max(), y.max()
+    # Sorted by easting, a footprint only reads the strip of points it spans.
+    order = np.argsort(x, kind='stable')
+    x, y, z, c = x[order], y[order], z[order], c[order]
+    del order
     city = json.loads(Path('public/data/city.json').read_text(encoding='utf8'))
     poi = json.loads(Path('public/data/poi.geojson').read_text(encoding='utf8'))['features']
     poi_xy = {f['properties']['id']: Point(f['properties']['xy'][0]+ORIGIN[0], f['properties']['xy'][1]+ORIGIN[1]) for f in poi}
@@ -61,14 +66,19 @@ def main():
         if g.is_empty or not (bx0 < g.centroid.x < bx1 and by0 < g.centroid.y < by1):
             continue
         polys.append((b, g))
-    allb = unary_union([g for _, g in polys]) if polys else None
+    # Ground is sampled around a footprint but outside every building: only the neighbours matter.
+    padded = [g.buffer(1.0) for _, g in polys]
+    tree = STRtree(padded)
     rows = []
     for b, g in polys:
         x0, y0, x1, y1 = g.buffer(8).bounds
-        m = (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1)
-        px, py, pz, pc = x[m], y[m], z[m], c[m]
+        i0, i1 = np.searchsorted(x, [x0, x1])
+        strip = slice(i0, i1)
+        m = (y[strip] >= y0) & (y[strip] <= y1)
+        px, py, pz, pc = x[strip][m], y[strip][m], z[strip][m], c[strip][m]
         roof = pz[(pc == BUILDING) & shapely.contains_xy(g, px, py)]
-        ring = g.buffer(8).difference(allb.buffer(1.0))
+        halo = g.buffer(8)
+        ring = halo.difference(unary_union([padded[i] for i in tree.query(halo)]))
         gr = pz[(pc == GROUND) & shapely.contains_xy(ring, px, py)]
         if len(roof) < 5 or len(gr) < 5:
             rows.append(dict(id=b['id'], key=part_key(b), area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr), status='insufficient'))
@@ -98,7 +108,8 @@ def main():
         heights = old.get('heights', {})
         best = {}
         for r in rows:
-            if r['status'] == 'ok' and r['source'] == 'estimate' and r['area_m2'] >= 30 and r['roof_pts'] >= 50:
+            # Under 2.5 m the points called building are not a roof: keep the estimate instead.
+            if r['status'] == 'ok' and r['source'] == 'estimate' and r['area_m2'] >= 30 and r['roof_pts'] >= 50 and r['lidar_p95'] >= 2.5:
                 if r['id'] not in best or r['area_m2'] > best[r['id']]['area_m2']:
                     best[r['id']] = r
         heights.update({str(i): round(r['lidar_p95'], 1) for i, r in best.items()})
@@ -106,7 +117,7 @@ def main():
         # measured roof of one part by more than 10 m, that part takes the measured height.
         count = Counter(b['id'] for b in city['buildings'])
         low = {r['key']: round(r['lidar_p95'], 1) for r in rows if r['status'] == 'ok' and r['source'] == 'municipal-provisional'
-               and count[r['id']] > 1 and r['area_m2'] >= 30 and r['roof_pts'] >= 50 and r['delta_p95'] < -10}
+               and count[r['id']] > 1 and r['area_m2'] >= 30 and r['roof_pts'] >= 50 and r['delta_p95'] < -10 and r['lidar_p95'] >= 2}
         part_heights = {**old.get('parts', {}), **low}
         tiles = sorted(set(old.get('tiles', [])) | {m['file'] for m in meta})
         target.write_text(json.dumps(dict(
