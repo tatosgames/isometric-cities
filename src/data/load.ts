@@ -1,4 +1,4 @@
-import type { Barrio, Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, Point, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
+import type { Barrio, Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, Point, Prop, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -42,8 +42,11 @@ function validCarriageway(v:unknown, b:unknown){
   }
   return v.indices.every(i=>Number.isInteger(i)&&i>=0&&i<p.length/3)&&list(v.fallback,rings);
 }
+const prop = (v: unknown): v is Prop => Array.isArray(v) && v.length === 5 && string(v[0]) && v.slice(1).every(number);
+const props = (v: unknown): boolean => v === undefined || list(v, prop);
+
 export function isLayers(v: unknown): v is Layers {
-  return record(v) && list(v.buildings, building) && list(v.trees, point)
+  return record(v) && list(v.buildings, building) && list(v.trees, point) && props(v.props)
     && list(v.ground, ring) && list(v.roads, road) && list(v.surfaces, surface)
     && (v.carriageway===undefined||validCarriageway(v.carriageway,v.textureBounds))
     && (v.textureBounds === undefined || bounds(v.textureBounds));
@@ -76,7 +79,7 @@ const farZone = (v: unknown): v is FarZone => record(v) && list(v.blocks, farBlo
 
 export function isZone(v: unknown): v is ZoneData {
   return record(v) && list(v.buildings, building) && list(v.owners, string)
-    && list(v.trees, point) && list(v.ground, ring);
+    && list(v.trees, point) && list(v.ground, ring) && props(v.props);
 }
 
 type CoreFile = Omit<CityCore, 'terrain' | 'buildings' | 'trees' | 'ground'> & {terrain: Omit<Terrain, 'values'> & {file: string}};

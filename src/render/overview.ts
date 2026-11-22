@@ -1,10 +1,11 @@
-import type { Altitude, Building, FarBlock, Point, Ring, RoofTones } from '../data/types.ts';
+import type { Altitude, Building, FarBlock, Point, Prop, Ring, RoofTones } from '../data/types.ts';
+import { propParts } from './port-props.ts';
 import type { GroundMap } from './ground-map.ts';
 import { groundPatch } from './ground-surface.ts';
 import * as T from 'three';
 
 // Build only the silhouette and roof of each footprint. Keep buildings and trees in separate draw groups.
-export function overviewBuildings(buildings: Building[],trees: Point[],altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[]){
+export function overviewBuildings(buildings: Building[],trees: Point[],altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[],props: Prop[]=[]){
   const positions: number[]=[],colours: number[]=[],color=new T.Color();
   const point=(p: Point,h: number)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
   function tint(value: string){color.set(neutral?'#e4dfd3':value);}
@@ -21,6 +22,12 @@ export function overviewBuildings(buildings: Building[],trees: Point[],altitude:
     const vectors=outline.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
     const triangles=T.ShapeUtils.triangulateShape(vectors[0],vectors.slice(1)),all=outline.flat();
     for(const t of triangles)for(const i of t)point(all[i],top);
+  }
+  // Port objects keep their silhouette from afar: a crane is a landmark of the skyline.
+  for(const prop of props)for(const [geometry,value] of propParts(prop,altitude(prop[1],prop[2]),false)){
+    tint(value);
+    const flat=geometry.toNonIndexed().attributes.position;
+    for(let i=0;i<flat.count;i++){positions.push(flat.getX(i),flat.getY(i),flat.getZ(i));colours.push(color.r*255,color.g*255,color.b*255);}
   }
   const buildingVertices=positions.length/3;
   tint('#637b50');

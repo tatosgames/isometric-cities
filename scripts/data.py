@@ -5,8 +5,9 @@ from pathlib import Path
 from urllib.parse import urlencode
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 from shapely.geometry import Polygon, LineString, Point, shape, mapping, box, MultiPoint
-from shapely.ops import transform, unary_union, polygonize
+from shapely.ops import transform, unary_union, polygonize, nearest_points
 from shapely import make_valid
+from shapely.strtree import STRtree
 from pyproj import Transformer
 import numpy as np
 import rasterio
@@ -148,6 +149,11 @@ buildings=[]; roads=[]; surfaces=[]; trees=[]
 lidar_file=Path('content/lidar-heights.json')
 lidar=json.loads(lidar_file.read_text(encoding='utf8')) if lidar_file.exists() else {}
 lidar_heights,lidar_parts=lidar.get('heights',{}),lidar.get('parts',{})
+# Storage tanks and silos mapped in OpenStreetMap are municipal footprints too: plain pale shells, no windows.
+tanks=[Point(nodes[e.get('id')]) for e in osm.findall('node') if tags(e).get('man_made') in ('storage_tank','silo')]
+tanks+=[LineString(v).centroid for t,v in ways.values() if t.get('man_made') in ('storage_tank','silo') and len(v)>1]
+tank_index=STRtree(tanks) if tanks else None
+tank_style=dict(windows=False,roofFurniture=False,wallColor='#e3e3dc')
 for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))
     h=f['properties']['MAX_BLDGHEIGHT_1']
@@ -168,6 +174,7 @@ for f in features:
         # Low bodies of a complex and roofs measured far above the municipal value: see scripts/lidar-check.py --export.
         part=lidar_parts.get(f"{f['properties']['OBJECTID']}:{math.floor(min(v[0] for v in outline[0]))}:{math.floor(min(v[1] for v in outline[0]))}")
         if part and valid: height,origin=part,'lidar-pnoa'
+        if tank_index is not None and 'wallColor' not in style and any(p.contains(tanks[i]) for i in tank_index.query(p)): style={**tank_style,**style}
         buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=outline,height=height,source=origin))
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
@@ -183,6 +190,23 @@ for i,(t,vs) in ways.items():
 for e in osm.findall('node'):
     if tags(e).get('natural')=='tree' and area.contains(Point(nodes[e.get('id')])):
         trees+=coords([nodes[e.get('id')]])
+# Port objects exactly where OpenStreetMap maps them: quay cranes and chimneys. A crane heads for the nearest
+# quay edge; its mapped place is approximate. Tanks and silos are municipal buildings already.
+props=[]
+if stage=='city':
+    quays=unary_union(coast)
+    for kind,e in [(e.tag,e) for e in osm.findall('node')]+[(e.tag,e) for e in osm.findall('way')]:
+        t=tags(e)
+        if t.get('man_made') not in ('crane','chimney'): continue
+        p=Point(nodes[e.get('id')]) if kind=='node' else LineString(ways[e.get('id')][1]).centroid
+        if not area.contains(p): continue
+        if t['man_made']=='chimney':
+            props.append(['chimney',round(p.x,1),round(p.y,1),0,float(t.get('height',25))])
+            continue
+        edge=nearest_points(quays,p)[0]
+        heading=math.atan2(edge.y-p.y,edge.x-p.x) if edge.distance(p)>.5 else 0
+        props.append(['crane',round(p.x,1),round(p.y,1),round(heading,3),{'gantry_crane':1,'travel_lift':.3}.get(t.get('crane:type'),.6)])
+    print('Port objects',len(props),flush=True)
 x0,y0,x1,y1=area.bounds
 # Sample a bounded REGCAN95 / UTM 28N bare-earth coverage.
 west,south,east,north=math.floor(x0+ox-30),math.floor(y0+oy-30),math.ceil(x1+ox+30),math.ceil(y1+oy+30)
@@ -195,7 +219,7 @@ with rasterio.open(fetch(stage+'-dem.tif',url)) as dem:
     assert grid.count()
     elev=dict(origin=[dem.transform.c+dem.transform.a/2-ox,dem.transform.f+dem.transform.e/2-oy],stepY=-dem.transform.e,step=dem.transform.a,w=dem.width,h=dem.height,values=grid.filled(0).round(1).flatten().tolist())
 ground=[coords(p.exterior.coords) for x in range(15*math.floor(x0/15),math.ceil(x1),15) for y in range(15*math.floor(y0/15),math.ceil(y1),15) for p in parts(area.intersection(box(x,y,x+15,y+15)),'Polygon') if p.area>0.01]
-save(stage+'.json',dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
+save(stage+'.json',dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,props=props,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
 print(stage,count,len(buildings),len(roads),len(trees),elev['step'],round(time.perf_counter()-started,2),'s')
 
 

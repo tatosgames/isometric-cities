@@ -5,6 +5,7 @@ import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
 import { GROUND_SURFACE, groundPatch, groundSampler } from './ground-surface.ts';
 import { addLandmarks } from './landmarks.ts';
+import { propParts } from './port-props.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -241,6 +242,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   }
   editableBuilding=undefined;
   addLandmarks(data.buildings,addBuilding,altitude);
+  for(const prop of data.props??[]){
+    for(const [geometry,color] of propParts(prop,altitude(prop[1],prop[2]),true))addBuilding(geometry,color,prop[1],prop[2]);
+  }
   const templates={
     crown:new T.IcosahedronGeometry(1,compact?0:1),
     trunk:new T.CylinderGeometry(.28,.35,1,6),

@@ -1,4 +1,4 @@
-import type { Building, CityCore, Layers, Point, Ring, RoofTones, SectorIndex, Zone, ZoneData } from '../../data/types.ts';
+import type { Building, CityCore, Layers, Point, Prop, Ring, RoofTones, SectorIndex, Zone, ZoneData } from '../../data/types.ts';
 import { ringCenter, sectorOwner, zoneOfSector } from '../../data/sector-index.ts';
 import { isLayers, isZone, loadData } from '../../data/load.ts';
 import { required } from '../../required.ts';
@@ -192,17 +192,18 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const map=neutral?null:makeGroundMap({...data,buildings:content.buildings,textureBounds:[west-5,south-5,east+5,north+5]},
         .6,streetPriority,data.roadFallback,coverage);
       const material=ground(map?.texture??null),group=new T.Group();
-      const batches=new Map(z.sectors.map(s=>[s.id,{buildings:[] as Building[],trees:[] as Point[],ground:[] as Ring[]}]));
+      const batches=new Map(z.sectors.map(s=>[s.id,{buildings:[] as Building[],trees:[] as Point[],props:[] as Prop[],ground:[] as Ring[]}]));
       const batch=(id: string)=>required(batches.get(id),'sector '+id+' of zone '+z.id);
       content.buildings.forEach((b,i)=>batch(content.owners[i]).buildings.push(b));
       for(const tree of content.trees)batch(owner(...tree)).trees.push(tree);
+      for(const prop of content.props??[])batch(owner(prop[1],prop[2])).props.push(prop);
       for(const ring of content.ground)batch(owner(...ringCenter(ring))).ground.push(ring);
       for(const s of z.sectors){
         const b=batch(s.id);
         const surface=overviewGround(b.ground,base.altitude,map,material);
         s.low=new T.Group();
         s.groundAt=groundSampler(()=>[surface.geometry]);
-        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials),surface);
+        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials,b.props),surface);
         group.add(s.low);
       }
       // The building materials belong to every zone and to the far level: release only what the zone owns.

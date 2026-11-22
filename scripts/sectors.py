@@ -129,7 +129,7 @@ def partition(stage, road_cells=None):
     data = json.loads((ROOT / f"{stage}.json").read_bytes())
     directory = ROOT / f"{stage}-sectors"
     directory.mkdir(exist_ok=True)
-    tiles = defaultdict(lambda: {"buildings": [], "trees": [], "ground": [], "roads": [], "surfaces": []})
+    tiles = defaultdict(lambda: {"buildings": [], "trees": [], "props": [], "ground": [], "roads": [], "surfaces": []})
 
     def cell(x, y):
         return floor(x / SIZE), floor(y / SIZE)
@@ -145,6 +145,9 @@ def partition(stage, road_cells=None):
         tiles[key]["buildings"].append(lighter(building))
     for point in data["trees"]:
         tiles[cell(*point)]["trees"].append(point)
+    # Port objects mapped in OpenStreetMap: kind, easting, northing, heading and size.
+    for prop in data.get("props", []):
+        tiles[cell(prop[1], prop[2])]["props"].append(prop)
 
     for ring in data["ground"]:
         xs, ys = zip(*ring)
@@ -178,6 +181,8 @@ def partition(stage, road_cells=None):
         name = f"{cx}_{cy}"
         points = [p for b in detail["buildings"] for p in b["rings"][0]]
         points.extend(detail["trees"])
+        # A quay crane reaches about 60 m from its place.
+        points.extend([p[1] + dx, p[2] + dy] for p in detail["props"] for dx in (-60, 60) for dy in (-60, 60))
         points.extend(p for ring in detail["ground"] for p in ring)
         xs, ys = zip(*points)
         bounds = [min(xs) - 7, min(ys) - 7, max(xs) + 7, max(ys) + 7]
@@ -207,18 +212,20 @@ def partition(stage, road_cells=None):
         iy1=min(d["h"],ceil((d["origin"][1]-bounds[1])/d["stepY"])+2)
         samples=[v for iy in range(iy0,iy1) for v in d["values"][iy*d["w"]+ix0:iy*d["w"]+ix1]]
         tallest=max((b.get("heightOverride",b["height"]) for b in detail["buildings"]),default=0)
+        tallest=max([tallest]+[90*p[4] if p[0]=="crane" else p[4] for p in detail["props"]])
         vertical=[min(samples)-5,max(samples)+max(50,tallest+6)]
         entries.append(dict(id=name, bounds=bounds, vertical=vertical, file=file))
         generated.update(f for f in (file, roof_file) if f)
     # Zones hold the per-building overview and the collision footprints, fetched on demand.
     def zone_of(cx, cy):
         return cx // 4, cy // 4
-    zones = defaultdict(lambda: {"buildings": [], "owners": [], "trees": [], "ground": []})
+    zones = defaultdict(lambda: {"buildings": [], "owners": [], "trees": [], "props": [], "ground": []})
     for (cx, cy), detail in sorted(tiles.items()):
         zone = zones[zone_of(cx, cy)]
         zone["buildings"] += detail["buildings"]
         zone["owners"] += [f"{cx}_{cy}"] * len(detail["buildings"])
         zone["trees"] += detail["trees"]
+        zone["props"] += detail["props"]
         zone["ground"] += detail["ground"]
     zone_directory = ROOT / f"{stage}-zones"
     zone_directory.mkdir(exist_ok=True)

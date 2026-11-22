@@ -52,10 +52,14 @@ export interface Carriageway {
   indices:number[];
   fallback:Ring[][];
 }
+// A port object mapped in OpenStreetMap: kind, easting, northing, heading in radians and size.
+export type Prop = [kind: string, x: number, y: number, angle: number, size: number];
+
 export interface Layers {
   carriageway?:Carriageway;
   buildings: Building[];
   trees: Point[];
+  props?: Prop[];
   ground: Ring[];
   roads: Road[];
   surfaces: Surface[];
@@ -111,6 +115,7 @@ export interface ZoneData {
   buildings: Building[];
   owners: string[];
   trees: Point[];
+  props?: Prop[];
   ground: Ring[];
 }
 
