@@ -1,6 +1,6 @@
 # Storico delle prove visive di Las Palmas
 
-Il 22 novembre 2026 il laboratorio A/B è stato ritirato dopo la valutazione visiva. Il gioco usa la sua resa ordinaria. La scelta per le strade resta aperta.
+Il 22 novembre 2026 i cinque preset elencati sotto sono stati ritirati dopo la valutazione visiva. Il laboratorio resta disponibile per prove indipendenti. Il gioco usa la sua resa ordinaria. La scelta per le strade resta aperta.
 
 | Esperimento archiviato | Cosa si confrontava |
 |---|---|

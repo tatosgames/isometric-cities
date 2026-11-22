@@ -40,4 +40,4 @@ Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell�
 
 **L · Pedoni.** In guida le strade hanno pedoni che camminano ai bordi, sulle vie pedonali e nelle piazze, e scattano di lato all'arrivo dell'auto o di una pattuglia. Non possono essere investiti e non cambiano il punteggio. Logica in `src/drive/pedestrians.ts`, regole in [JUICE](docs/JUICE.md#pedoni). Da fare: giudizio su dimensione e densità giocando a mano e su telefono fisico.
 
-Laboratorio visivo ritirato. La scelta per le strade resta aperta. [Storico delle prove](docs/STORICO_PROVE_VISIVE.md).
+Laboratorio visivo disponibile su GitHub Pages in `lab.html`. La prova strade rimane sperimentale; i cinque preset precedenti sono archiviati. La scelta per le strade resta aperta. [Storico delle prove](docs/STORICO_PROVE_VISIVE.md).

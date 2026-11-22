@@ -8,14 +8,14 @@ export interface GroundMap {
 
 
 // Ground features share the terrain triangles. Paint their plan-view coverage once.
-export function makeGroundMap(data: CityData): GroundMap {
+export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBounds ? 2 : 3): GroundMap {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
   if(data.textureBounds){
     extent.min.fromArray(data.textureBounds);extent.max.fromArray(data.textureBounds,2);
   }
   const size = extent.getSize(new T.Vector2());
-  const scale = Math.min(data.textureBounds ? 2 : 3, 2048 / Math.max(size.x, size.y));
+  const scale = Math.min(pixelsPerMetre, 2048 / Math.max(size.x, size.y));
   const canvas = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
   canvas.width = Math.max(1, Math.ceil(size.x * scale));
   canvas.height = Math.max(1, Math.ceil(size.y * scale));

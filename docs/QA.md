@@ -189,4 +189,4 @@ Tre aperture in Chrome mobile emulato con un nuovo processo per prova, eseguite 
 - Costo: due draw call (corpo colorato e testa) e nessun nuovo dato.
 - Non verificato: prova a mano in vie strette, leggibilità su telefono fisico (le figure sono alte circa 3 m in scala, come le auto maggiorate), comportamento con molte pattuglie insieme.
 
-Per i risultati delle prove visive ritirate, vedi lo [storico](STORICO_PROVE_VISIVE.md).
+Il catalogo `lab.html` carica ogni prova tramite un ingresso dedicato in `src/lab/main.ts`. Per aggiungere un test, registrare ID, titolo, descrizione e import dinamico del modulo. La suite `node scripts/qa-road-lab.mjs` verifica il collegamento alla prova strade, i tre materiali, la tendina A/B sullo stesso fotogramma e il replay in Chrome desktop e mobile emulato. Per i risultati delle prove visive ritirate, vedi lo [storico](STORICO_PROVE_VISIVE.md).
