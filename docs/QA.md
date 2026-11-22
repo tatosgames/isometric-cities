@@ -369,3 +369,19 @@ In Chrome desktop e mobile emulato (390 × 844), percorsi entrambi i sensi di un
 `npm.cmd run typecheck`, `npm.cmd run build` e `npm.cmd test` completati. `node scripts/qa-sectors.mjs` è passato in esecuzione isolata, con attraversamento nei due sensi e una pattuglia attiva. Il tentativo precedente aveva superato di un buffer la tolleranza del circuito.
 
 Sui dossi più netti può ancora compenetrare una singola ruota, perché l'appoggio si calcola al centro. Resta da riprodurre il punto preciso degli screenshot originali.
+
+## Santa Catalina-Canteras e Guanarteme (22 novembre 2026)
+
+Terzo quartiere dell'espansione. Due zone nuove dai confini dei barrios in OpenStreetMap (relazioni 16904433 e 16904431). Terraferma da 5,05 a 8,06 km²; parti di edificio da 6.878 a 10.137; tratti stradali da 2.576 a 3.574; alberi da 16.506 a 18.983; zone da 19 a 27; settori da 142 a 218. Gli edifici precedenti sono invariati, salvo uno sul vecchio bordo. Luoghi nuovi: Parque Santa Catalina (way 265760472) e Auditorio Alfredo Kraus (way 585709389), 14 in tutto. Dati pubblicati: nucleo 1,6 MB, zone 8,3 MB, settori 16,5 MB.
+
+La finestra OSM passa a [-15.47, 28.07, -15.40, 28.16] (63 celle, 35 nuove). Il record comunale 16913 non ha geometria: `data.py` lo segnala e lo salta. Il confine di Santa Catalina-Canteras include i moli mappati in OSM; quello di Guanarteme include il versante spoglio verso El Rincón.
+
+Il pulsante di ripristino ora torna alla Plaza de Santa Ana alla distanza massima, perché la città non entra più nella vista più ampia e il suo centro geometrico cade lontano da ogni luogo.
+
+- `typecheck`, `build`, `npm.cmd test`: verdi (apertura 3.289 ms desktop, 3.107 ms mobile emulato). `qa-sectors.mjs`: 2 esecuzioni verdi su 2.
+- Benchmark, Chrome con emulazione mobile su GPU integrata Intel UHD: apertura 2.304 ms, picco heap 60,5 MB. Vista ravvicinata: p95 18,3 ms, 85 draw call e 176.654 triangoli per fotogramma. Vista più ampia sopra Vegueta: p95 35,9 ms, 219 draw call e 383.282 triangoli. Prima il ripristino inquadrava in parte terreno vuoto; ora inquadra il centro storico, che è il punto più denso.
+- Profilo dei fotogrammi (`frame-profile.mjs`): Parque Santa Catalina mediana 17,8 e p95 18,5 ms; Auditorio Alfredo Kraus 17,8 e 18,4 ms; Santa Ana 17,5 e 35,8 ms, come prima.
+- LiDAR: venti tile (aggiunti 455-3112, 456-3111, 456-3112, 456-3113, 457-3113, 457-3114, 458-3113). Su 9.471 parti misurate lo scarto mediano LiDAR meno comunale è +0,6 m, errore medio assoluto 2,02 m, 72 % entro 2 m, 90 % entro 5 m. Nell'area nuova: 3.108 parti, mediana +0,75 m, errore medio assoluto 2,23 m, 70 % entro 2 m, 89 % entro 5 m. Altezze misurate esportate: da 16 a 43 edifici senza dato comunale e da 114 a 131 corpi bassi. 189 parti usano ora `lidar-pnoa`; 40 restano a 9 m di stima.
+- Schermate di controllo a occhio dei due luoghi nuovi, da vicino e alla distanza massima: edifici, moli, spiaggia e versante coerenti; nessun errore in console.
+
+Limiti. Nell'area nuova 97 edifici hanno un tetto misurato oltre 10 m più alto del dato comunale (ad esempio 25810: 41,7 m comunali, 78,2 m misurati; 22817: 3,6 contro 29,1 m) e 16 lo hanno più basso. Non corretti: decisione di Luca. Elenco in `.cache/lidar-control/scarti-santa-catalina-guanarteme.csv`. Mancano i tile 454-3112, 455-3111, 458-3106 e 458-3107 (61 parti in tutto). La vista più ampia sul centro storico supera il fotogramma a 60 Hz sulla GPU integrata. Nessuna prova su telefono fisico; la guida nei quartieri nuovi non è stata provata a mano. I due luoghi nuovi non hanno un modello dedicato. La Isleta e il porto non sono ancora inclusi.

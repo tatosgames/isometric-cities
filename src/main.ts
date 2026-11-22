@@ -120,7 +120,13 @@ async function start(){
     controls.maxZoom=drive?.active?Infinity:Math.max(Math.max(...fits)*12,4,openingZoom());
   }
   function openingZoom(){return Math.max(host.clientWidth/340,host.clientHeight/225);}
-  function reset(){if(lost)return;places.close();fly(center,fitAt(flight?.turn1??mapTurn),300);}
+  // A city wider than the widest view has no centre worth showing: the reset goes home to the focus place.
+  function home(){return places.point(data.focus) ?? new T.Vector3(-95,11,218);}
+  function reset(){
+    if(lost)return;places.close();
+    const zoom=fitAt(flight?.turn1??mapTurn);
+    fly(zoom===farthest()?home():center,zoom,300);
+  }
   function fly(target: T.Vector3,zoom: number,duration: number,turn1=flight?.turn1??mapTurn){
     if(lost)return;
     host.dataset.moving='true';
@@ -276,7 +282,7 @@ async function start(){
     if(lost || !host.clientWidth || !host.clientHeight)return;
     if(firstView){
       firstView=false;
-      const start=places.point(data.focus) ?? new T.Vector3(-95,11,218);
+      const start=home();
       view(start,openingZoom());
       if(resume){
         mapTurn=resume.turn;

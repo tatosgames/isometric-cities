@@ -110,6 +110,24 @@
         "city"
       ],
       "markerHeight": 2
+    },
+    {
+      "id": "parque-santa-catalina",
+      "name": "Parque Santa Catalina",
+      "osm": "way/265760472",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "auditorio-alfredo-kraus",
+      "name": "Auditorio Alfredo Kraus",
+      "osm": "way/585709389",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
     }
   ],
   "buildings": {
@@ -148,10 +166,10 @@
   ],
   "coverage": {
     "bounds": [
-      -15.44,
+      -15.47,
       28.07,
       -15.4,
-      28.14
+      28.16
     ],
     "lattice": 0.01,
     "zones": [
@@ -232,6 +250,14 @@
       {
         "id": "alcaravaneras",
         "osm": "relation/16904432"
+      },
+      {
+        "id": "santa-catalina-canteras",
+        "osm": "relation/16904433"
+      },
+      {
+        "id": "guanarteme",
+        "osm": "relation/16904431"
       }
     ],
     "minimumLandM2": 5000000

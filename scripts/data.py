@@ -97,6 +97,10 @@ features=[]
 for offset in range(0,count,1000):
     features+=arc(f'-{offset}.json',outFields='OBJECTID,MAX_BLDGHEIGHT_1',orderByFields='OBJECTID',resultOffset=offset,resultRecordCount=1000,f='geojson')['features']
 assert len({f['properties']['OBJECTID'] for f in features})==len(features)==count
+# Some municipal records carry no geometry: nothing to draw.
+empty=[f['properties']['OBJECTID'] for f in features if not f['geometry']]
+if empty: print('Municipal records without geometry:',empty,flush=True)
+features=[f for f in features if f['geometry']]
 def parts(g,kind):
     if g.is_empty: return []
     if g.geom_type==kind: return [g]
