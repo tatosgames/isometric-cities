@@ -7,6 +7,8 @@ import { sectorBuilder } from './sector-builder.ts';
 import { overviewBuildings, overviewGround } from '../overview.ts';
 import * as T from 'three';
 import { makeCity } from '../scene.ts';
+import { breezy } from '../wind.ts';
+import { makeGroundMap } from '../ground-map.ts';
 
 interface StreamOptions {
   data: CityData & SectorIndex;
@@ -57,7 +59,8 @@ function resources(group: T.Group) {
 
 export function streamCity({data,neutral,tones,compact,refresh,host}: StreamOptions){
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
-  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact);
+  // The overview ground is painted from the whole city, so it keeps the contact shadows of every footprint.
+  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact,neutral?null:makeGroundMap(data));
   const byId=new Map<string,{buildings: Building[];trees: Point[];ground: Ring[]}>(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
   const owner=(x: number,y: number)=>sectorOwner(x,y,data.sectorSize);
   const batchFor=(id: string)=>required(byId.get(id),"sector "+id);
@@ -65,9 +68,9 @@ export function streamCity({data,neutral,tones,compact,refresh,host}: StreamOpti
   for(const tree of data.trees)batchFor(owner(...tree)).trees.push(tree);
   for(const ring of data.ground)batchFor(owner(...ringCenter(ring))).ground.push(ring);
   const solid=new T.MeshStandardMaterial({...surfaceStencil(true),vertexColors:true,flatShading:true,side:T.DoubleSide});
-  const overviewMaterials=[solid,Object.assign(solid.clone(),surfaceStencil())];
-  const groundMaterial=new T.MeshStandardMaterial({...surfaceStencil(),map:base.groundMap?.texture??null,
-    color:neutral?'#e4dfd3':'white',flatShading:true,side:T.DoubleSide});
+  const overviewMaterials=[solid,Object.assign(solid.clone(),surfaceStencil())].map(m=>breezy(m));
+  const groundMaterial=breezy(new T.MeshStandardMaterial({...surfaceStencil(),map:base.groundMap?.texture??null,
+    color:neutral?'#e4dfd3':'white',flatShading:true,side:T.DoubleSide}));
   const sectors: ResidentSector[]=data.sectors.map(s=>{
     const batch=batchFor(s.id),low=new T.Group();
     low.add(overviewBuildings(batch.buildings,batch.trees,base.altitude,tones,neutral,overviewMaterials),

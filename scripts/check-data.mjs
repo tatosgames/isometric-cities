@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {isCity, isLayers, isPlaces, isRoofPalette, isSectorIndex} from '../src/data/load.ts';
+import {isCity, isLayers, isPlaces, isRoofPalette, isSea, isSectorIndex} from '../src/data/load.ts';
 import {validateSectorIndex} from '../src/data/sector-index.ts';
 
 async function load(file, valid) {
@@ -13,8 +13,9 @@ const [city, index] = await Promise.all([
   load('city-index.json', isSectorIndex),
   load('pilot.json', isCity),
   load('poi.geojson', isPlaces),
-  load('roof-tones.json', isRoofPalette)
+  load('roof-tones.json', isRoofPalette),
+  load('sea.json', isSea)
 ]);
 validateSectorIndex(city, index);
 for (const {file} of index.sectors) await load('city-sectors/' + file, isLayers);
-console.log('Map data validated: city, pilot, places, roof palette and ' + index.sectors.length + ' sectors');
+console.log('Map data validated: city, pilot, places, roof palette, sea and ' + index.sectors.length + ' sectors');

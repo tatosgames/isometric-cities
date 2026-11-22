@@ -161,3 +161,22 @@ Tre aperture in Chrome mobile emulato con un nuovo processo per prova, eseguite 
 - `node scripts/qa-recovery.mjs` verifica che la mappa resti navigabile senza strade o senza luoghi. Verifica anche il passaggio alla costruzione locale quando il worker non risponde per 10 s, sia con il settore ancora richiesto sia dopo l’annullamento.
 - `node scripts/qa-drive-route.mjs` verifica la scelta del percorso, la spaziatura delle monete, la calamita, gli eventi di punteggio, il bonus assegnato una volta sola e il cambio di destinazione. `node scripts/qa-drive-camera.mjs` passa anche dopo il refactoring.
 - Superati anche la suite browser desktop e mobile emulato, il pilota e il circuito dei settori. Nel circuito il picco osservato del dettaglio residente è stato di 49.868.015 byte su un budget compatto di 48 MiB. La guida ha attraversato il confine di settore in entrambi i sensi con una pattuglia attiva.
+
+## Vento e ombre di nuvole · 22 novembre 2026
+
+- `npm.cmd run typecheck`, `npm.cmd run build` e `npm.cmd test` passano su desktop e mobile emulato. La suite ora controlla che, a mappa ferma e settori caricati, due immagini del canvas a 800 ms di distanza siano diverse e che `data-view` resti identico.
+- Cadenza a riposo misurata contando le chiamate `clear` di WebGL in Chrome con rendering software: 28,3 disegni al secondo su desktop e 27,5 su mobile emulato, con `requestAnimationFrame` a 55–57 al secondo. Sostituisce il dato «zero disegni a riposo» della sezione sulla migrazione TypeScript.
+- I disegni a riposo aggiornano solo l'orologio del vento e ridisegnano la scena: camera, settori, marker e risoluzione adattiva restano quelli dell'ultimo fotogramma completo.
+- Controllo a vista sugli screenshot rigenerati: chiome e palme restano attaccate ai tronchi, l'ombra di nuvola si legge come fascia più scura nella panoramica e a zoom medio.
+- Non verificato: consumo e temperatura su telefono fisico, e la leggibilità dell'oscillazione alla scala di guida su schermo reale. Le ombre degli alberi nella shadow map restano ferme mentre le chiome si muovono di circa mezzo metro.
+- Gli screenshot in `docs/screenshots` non sono più identici tra due esecuzioni, perché le ombre di nuvola dipendono dall'istante dello scatto.
+
+## Mare e ombra di contatto · 22 novembre 2026
+
+- `python scripts/data.py city` rigenera dalla cache locale: `city.json`, `poi.geojson` e `city-aoi.geojson` restano identici byte per byte e si aggiunge `sea.json` (8 KB). 5.309 m dei 10.679 m del perimetro coincidono con la costa cartografata.
+- `npm.cmd run typecheck`, `npm.cmd run build` (che ora valida anche `sea.json`), `npm.cmd test` e `node scripts/qa-sectors.mjs` passano. Il picco del dettaglio residente nel circuito resta 49.868.015 byte.
+- Il mare è una sola mesh con una texture di distanza dalla costa dipinta una volta su canvas. La vista panoramica inquadra terra e mare; lo spostamento resta limitato alla terra. Il mare non compare nel pilota né nella modalità neutra.
+- Ombra di contatto: le impronte degli edifici sono riempite su una maschera a circa 4 m per pixel e moltiplicate sulla texture del suolo. La prima versione, con contorni larghi tracciati su canvas, portava l'apertura da circa 2,1 a 6,4 s in Chrome con rendering software ed è stata scartata. Con la maschera la costruzione della texture dell'intera città passa da 72 a 390 ms nella stessa prova.
+- Apertura misurata dalla suite dopo le modifiche: 2.828 ms su desktop e 1.781 ms su mobile emulato (prima del mare e dell'ombra: 2.091 e 1.451 ms nella stessa sessione). È una sola esecuzione per configurazione.
+- Limiti noti: nei settori dettagliati l'ombra considera solo gli edifici del settore stesso, quindi può mancare lungo i bordi; i moli del porto esterni al perimetro appaiono come vuoti contornati di schiuma; il livello del mare è fissato a −0,9 m perché il modello del terreno arriva a 0 m sulle banchine.
+- Non verificato: aspetto e costo su telefono fisico; il movimento delle onde è stato controllato solo su immagini fisse e con il test che confronta due fotogrammi.

@@ -57,6 +57,36 @@ export function makeGroundMap(data: CityData): GroundMap {
     }
   }
 
+  // Contact shadow: the footprints are filled on a coarse mask (about 4 m per pixel) and multiplied back
+  // with bilinear scaling, which spreads a soft dark rim a few metres out from every wall. Stroking wide
+  // outlines instead costs seconds for the whole city.
+  if (data.buildings.length) {
+    const coarse = Math.min(1, .25 / Math.max(sx, sy));
+    const mask = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
+    mask.width = Math.max(1, Math.ceil(canvas.width * coarse));
+    mask.height = Math.max(1, Math.ceil(canvas.height * coarse));
+    const shade = mask.getContext('2d', { alpha: false });
+    if (!shade || !('fillRect' in shade)) throw new Error('Ground canvas requires a 2D context');
+    shade.fillStyle = '#fff';
+    shade.fillRect(0, 0, mask.width, mask.height);
+    const mx = mask.width / size.x, my = mask.height / size.y;
+    shade.setTransform(mx, 0, 0, -my, -extent.min.x * mx, extent.max.y * my);
+    shade.fillStyle = '#8f8a9c';
+    for (const b of data.buildings) {
+      const outline = b.rings[0];
+      shade.beginPath();
+      shade.moveTo(outline[0][0], outline[0][1]);
+      for (let i = 1; i < outline.length; i++) shade.lineTo(outline[i][0], outline[i][1]);
+      shade.fill();
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   const texture = new T.CanvasTexture(canvas);
   texture.colorSpace = T.SRGBColorSpace;
   return { texture, bounds: new T.Vector4(extent.min.x, extent.min.y, size.x, size.y) };

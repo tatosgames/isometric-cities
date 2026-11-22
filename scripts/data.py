@@ -90,6 +90,17 @@ def coords(seq):
     return [[round(x,1),round(y,1)] for x,y in seq]
 def rings(p):
     return [coords(r.coords) for r in [p.exterior,*p.interiors]]
+if stage=='city':
+    # The sea beside the model is the coast partition that is not land, kept within 260 m of the area.
+    # `shore` is the mapped coastline (foam follows it); `edge` is the cut side, where the slab of water ends.
+    near=area.buffer(260,quad_segs=4)
+    shoreline=unary_union(coast)
+    water=[p for part in partitions if part is not land for p in parts(part.intersection(near),'Polygon') if p.area>400]
+    assert water, 'No sea next to the area'
+    edge=[l for p in water for l in parts(p.exterior.difference(shoreline.buffer(.6)),'LineString')]
+    shore=parts(shoreline.intersection(near.buffer(100)),'LineString')
+    save('sea.json',dict(water=[rings(p) for p in water],shore=[coords(l.coords) for l in shore],edge=[coords(l.coords) for l in edge]))
+    print('Sea',round(sum(p.area for p in water)),'m2, shore',round(sum(l.length for l in shore)),'m',flush=True)
 buildings=[]; roads=[]; surfaces=[]; trees=[]
 for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))

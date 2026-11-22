@@ -1,4 +1,4 @@
-import { isCity, isPlaces, isRoofPalette, isSectorIndex, loadData, parseViewState } from './data/load.ts';
+import { isCity, isPlaces, isRoofPalette, isSea, isSectorIndex, loadData, parseViewState } from './data/load.ts';
 import { validateSectorIndex } from './data/sector-index.ts';
 import type { ViewState } from './data/types.ts';
 import { element as el } from './map/dom.ts';
@@ -10,6 +10,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { makeCity } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
 import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
+import { wind } from './render/wind.ts';
+import { makeSea } from './render/sea.ts';
 
 interface Flight {
   start: number; duration: number;
@@ -22,8 +24,9 @@ async function start(){
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
   const neutral=query.has('neutral');
-  const [data,poi,{tones},index]=await Promise.all([loadData((pilot?'pilot':'city')+'.json',isCity),loadData('poi.geojson',isPlaces),
-    neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData('city-index.json',isSectorIndex)]);
+  const [data,poi,{tones},index,sea]=await Promise.all([loadData((pilot?'pilot':'city')+'.json',isCity),loadData('poi.geojson',isPlaces),
+    neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData('city-index.json',isSectorIndex),
+    pilot||neutral?null:loadData('sea.json',isSea)]);
   if(index)validateSectorIndex(data,index);
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
@@ -39,6 +42,7 @@ async function start(){
   const streamed=index?streamCity({data:{...data,...index},neutral,tones,compact,host,
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
   const {group,altitude}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
+  if(sea)scene.add(makeSea(sea));
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
@@ -47,7 +51,7 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
-  let frame=0,fit=1,lost=false;
+  let frame=0,fit=1,lost=false,painted=0;
   let flight: Flight | null=null;
   let lastView: ViewState | null=null;
   let drive: ReturnType<typeof makeDrive> | null=null;
@@ -60,13 +64,15 @@ async function start(){
   });
   function view(target: T.Vector3,zoom: number,offset=direction){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(offset,1500);controls.update();draw();}
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
-  const center=new T.Box3().setFromPoints(border).getCenter(new T.Vector3());
+  // The opening view frames land and sea together; panning stays limited to the land.
+  const framed=sea?[...border,...sea.water.flatMap(p=>p[0].map(([x,y])=>new T.Vector3(x,0,-y)))]:border;
+  const center=new T.Box3().setFromPoints(framed).getCenter(new T.Vector3());
   const bounds=new T.Box3().setFromPoints(border);
   function sizeCamera(){
     const w=host.clientWidth,h=host.clientHeight;
     camera.left=-w/2;camera.right=w/2;camera.top=h/2;camera.bottom=-h/2;
     camera.updateProjectionMatrix();camera.updateMatrixWorld();
-    const box=new T.Box3().setFromPoints(border.map(p=>p.clone().applyMatrix4(camera.matrixWorldInverse)));
+    const box=new T.Box3().setFromPoints(framed.map(p=>p.clone().applyMatrix4(camera.matrixWorldInverse)));
     fit=Math.min(w/(box.max.x-box.min.x+60),h/(box.max.y-box.min.y+65))*.92;
     controls.minZoom=fit*.8;controls.maxZoom=drive?.active?Infinity:Math.max(fit*12,4);
   }
@@ -131,6 +137,7 @@ async function start(){
     if(frame || lost)return;
     frame=requestAnimationFrame(time=>{
       frame=0;sampleCadence(time);
+      painted=time;wind.time.value=time/1000;
       if(flight){
         const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
         view(flight.from.clone().lerp(flight.to,ease),Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease)));
@@ -156,6 +163,16 @@ async function start(){
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     });
   }
+  // Wind and cloud shadows keep moving while the view rests. A resting map repaints at 30 frames a second
+  // at most, with the camera, sectors and pins left as the last full frame set them; a hidden tab stops
+  // because the browser stops calling back.
+  function ambient(time: number){
+    requestAnimationFrame(ambient);
+    if(lost || frame || !painted || time-painted<31)return;
+    painted=time;wind.time.value=time/1000;
+    renderer.render(scene,camera);
+  }
+  requestAnimationFrame(ambient);
   function zoom(k: number){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
   host.onkeydown=e=>{

@@ -37,6 +37,12 @@ try{
     }
   }else{
     const start=Date.now();await visit('/');console.log(mobile?'mobile':'desktop','load ms',Date.now()-start);
+    // A resting map still moves: wind in the trees and cloud shadows, with the camera untouched.
+    await settled();await page.waitForFunction(()=>!JSON.parse(document.querySelector('#scene').dataset.sectors).pending);
+    const restingView=await host.getAttribute('data-view'),restingFrame=await page.locator('canvas').screenshot();
+    await page.waitForTimeout(800);
+    assert.ok(!restingFrame.equals(await page.locator('canvas').screenshot()),'Wind and cloud shadows should keep moving on a resting map');
+    assert.equal(await host.getAttribute('data-view'),restingView);
     if(!mobile)await snap('opening');await page.locator('#reset').click();await page.waitForFunction(()=>{const s=JSON.parse(document.querySelector('#scene').dataset.sectors);return !s.pending && s.visible===0 && document.querySelector('#scene').dataset.moving==='false';});const initial=await host.getAttribute('data-view');if(!mobile)await snap('overview');
     const credits=page.locator('footer');
     assert.equal(await credits.isVisible(),false);

@@ -12,6 +12,8 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/drive/drive-camera.ts` | Calcolo delle pose e transizioni della camera in guida |
 | `tsconfig.json` | Controllo rigoroso del runtime browser e del worker |
 | `src/render/adaptive-resolution.ts` | Politica di risoluzione in base alla cadenza dei frame (mappa in movimento e guida) |
+| `src/render/wind.ts` | Vento unico: ombre di nuvole in movimento, oscillazione di chiome e palme, ciclo a 30 fps a mappa ferma |
+| `src/render/sea.ts` | Mare dalla costa OSM: fondali, onde con il vento e schiuma a riva da una texture di distanza |
 | `src/drive/drive.ts` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
 | `src/drive/drive-world.ts` | Griglia degli ostacoli, visibilità e rete stradale della guida |
 | `src/drive/drive-physics.ts` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli |
@@ -23,7 +25,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `content/las-palmas.json` | Catalogo dei luoghi, centro del pilota e stili per edificio |
 | `src/map/places-ui.ts`, `src/render/landmarks.ts` | Menu e marker con ID persistenti, modelli procedurali dedicati |
 | [Guida per ampliare la mappa](docs/EXPAND_CITY.md) | POI, quartieri, nuove città, cache e verifiche |
-| `public/data/` | `city.json`, `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp` |
+| `public/data/` | `city.json`, `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp`, `sea.json` (mare e costa, da `data.py city`) |
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |
 | `scripts/roof-colours.py` | Palette tetti |
 | `scripts/qa.mjs`, `scripts/benchmark.mjs` | QA Playwright e benchmark |

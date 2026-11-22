@@ -1,4 +1,4 @@
-import type { Bounds, Building, CityData, Layers, Place, Point, Ring, Road, RoofTones, Sector, SectorIndex, Surface, Terrain, ViewState } from './types.ts';
+import type { Bounds, Building, CityData, Layers, Place, Point, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState } from './types.ts';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -47,6 +47,10 @@ export function isCity(v: unknown): v is CityData {
   return record(v) && ring(v.boundary) && terrain(v.terrain)
     && (v.focus == null || string(v.focus)) && isLayers(v);
 }
+
+const line = (v: unknown): v is Point[] => list(v, point) && v.length >= 2;
+export const isSea = (v: unknown): v is Sea =>
+  record(v) && list(v.water, rings) && list(v.shore, line) && list(v.edge, line);
 
 const sector = (v: unknown): v is Sector =>
   record(v) && string(v.id) && bounds(v.bounds) && point(v.vertical) && string(v.file);

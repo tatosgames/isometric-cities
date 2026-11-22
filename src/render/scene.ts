@@ -16,7 +16,7 @@ interface Bucket {
 export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null) {
   const group = new T.Group();
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
-  const {mat,buildingMat,wood,shadeMat}=cityMaterials(neutral,groundMap);
+  const {mat,buildingMat,wood,leaf,shadeMat}=cityMaterials(neutral,groundMap);
   const buckets = new Map<string, Bucket>();
   function flush(bucket: Bucket){
     if(!bucket.parts.length)return;
@@ -34,14 +34,14 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const v=terrain.values, u=col%1, t=row%1;
     return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t);
   }
-  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface=0,wallBase: number | null=null,material=mat) {
+  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material=mat) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
     const normals=geom.attributes.normal;
     const packed=new Int8Array(normals.count*3);
     for(let i=0;i<packed.length;i++)packed[i]=Math.round(normals.array[i]*127);
     geom.setAttribute('normal',new T.BufferAttribute(packed,3,true));
-    geom.setAttribute('surface',new T.BufferAttribute(new Uint8Array(geom.attributes.position.count).fill(surface),1));
+    geom.setAttribute('surface',new T.BufferAttribute(typeof surface==='number'?new Uint8Array(geom.attributes.position.count).fill(surface):surface,1));
     const shade=new T.Color(neutral ? '#e4dfd3' : color);
     const rgb=new Uint8Array(geom.attributes.position.count*3);
     shade.multiplyScalar(255);
@@ -164,16 +164,20 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     if(seed%5===0){
       const height=7+seed%4;
       instance('trunk',x,y,z+height/2,1.2,height,1.2,0,'#8b7756');
-      const leaves=[];
+      // Each frond vertex records how far it sits from the trunk (128 = root, 228 = tip) so the wind can bend it.
+      const leaves=[],bend: number[]=[],reachOf=(t: number)=>128+Math.round(100*Math.min(1,t));
       for(let k=0;k<(compact?8:13);k++){
         const angle=k*2.4+seed,reach=3.7+(k%3)*.7;
-        const leaf=(t: number,side: number)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
+        const frond=(t: number,side: number)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
         for(let j=0;j<9;j++){
           const t=j/10,tip=(j+1.7)/11,width=.55*Math.sin((j+1)*Math.PI/11);
-          for(const sign of [-1,1])leaves.push(...leaf(t,0),...leaf(tip,width*sign),...leaf(t+.11,0));
+          for(const sign of [-1,1]){
+            leaves.push(...frond(t,0),...frond(tip,width*sign),...frond(t+.11,0));
+            bend.push(reachOf(t),reachOf(tip),reachOf(t+.11));
+          }
         }
       }
-      const fronds=new T.BufferGeometry();fronds.setAttribute('position',new T.Float32BufferAttribute(leaves,3));fronds.computeVertexNormals();add(fronds,'#628536',x,y,5);
+      const fronds=new T.BufferGeometry();fronds.setAttribute('position',new T.Float32BufferAttribute(leaves,3));fronds.computeVertexNormals();add(fronds,'#628536',x,y,Uint8Array.from(bend));
       continue;
     }
     instance('trunk',x,y,z+2,1,4,1,0,'#887451');
@@ -187,14 +191,14 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   for(const bucket of buckets.values())flush(bucket);
   for(const {kind,items} of treeCells.values()){
     const shadow=kind==='shade';
-    const mesh=new T.InstancedMesh(templates[kind],shadow?shadeMat:wood,items.length);
+    const mesh=new T.InstancedMesh(templates[kind],shadow?shadeMat:kind==='crown'?leaf:wood,items.length);
     items.forEach(([matrix,color],i)=>{
       mesh.setMatrixAt(i,matrix);
       if(!shadow)mesh.setColorAt(i,new T.Color(color));
     });
     mesh.castShadow=!shadow;mesh.receiveShadow=!shadow;mesh.computeBoundingSphere();group.add(mesh);
   }
-  return {group,altitude,groundMap,materials:{mat,buildingMat,wood,shadeMat}};
+  return {group,altitude,groundMap,materials:{mat,buildingMat,wood,leaf,shadeMat}};
 }
 
 // Find the largest inscribed circle among the triangulated roof faces.

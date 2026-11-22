@@ -53,6 +53,13 @@ export interface CityData extends Layers {
   focus?: string | null;
 }
 
+// Real sea beside the model, from the OSM coastline. `shore` is the mapped coast, `edge` the cut side of the water.
+export interface Sea {
+  water: Ring[][];
+  shore: Point[][];
+  edge: Point[][];
+}
+
 export interface Sector {
   id: string;
   bounds: Bounds;

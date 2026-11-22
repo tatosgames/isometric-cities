@@ -1,5 +1,6 @@
 import type { GroundMap } from './ground-map.ts';
 import {surfaceStencil} from './building-stencil.ts';
+import {breezy} from './wind.ts';
 import * as T from 'three';
 
 export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
@@ -13,7 +14,9 @@ export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
       float speck=fract(sin(dot(floor((p+vMap.y*.41)*5.),vec2(12.9898,78.233)))*4375.5453);
       float fade=1.-smoothstep(.13,.75,length(fwidth(p)));
       float grain=(speck-.5)*.07;
-      if(vKind>5.5){
+      if(vKind>100.){
+        grain+=(speck-.5)*.36+.07*sin(p.x*2.+p.y*3.);
+      }else if(vKind>5.5){
         vec2 uv=(vec2(p.x,-p.y)-groundBounds.xy)/groundBounds.zw;
         vec3 ground=texture2D(groundColours,uv).rgb;
         diffuseColor.rgb*=ground;
@@ -23,8 +26,6 @@ export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
           vec2 edge=min(fract(paving),1.-fract(paving));
           grain-=.15*(1.-smoothstep(.01,.1,min(edge.x,edge.y)));
         }
-      }else if(vKind>4.5){
-        grain+=(speck-.5)*.36+.07*sin(p.x*2.+p.y*3.);
       }else if(vKind>2.5){
         grain=0.;
       }
@@ -34,10 +35,12 @@ export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
   const buildingMat=mat.clone();
   buildingMat.onBeforeCompile=mat.onBeforeCompile;
   Object.assign(buildingMat,surfaceStencil(true));
+  breezy(mat,'frond');breezy(buildingMat);
+  const timber=()=>new T.MeshStandardMaterial({...surfaceStencil(),flatShading:true,roughness:1});
   const shadeMat=new T.ShaderMaterial({
     transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,
     vertexShader:'varying vec2 v; void main(){v=uv-.5;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}',
     fragmentShader:'varying vec2 v;void main(){gl_FragColor=vec4(.13,.14,.10,.22*(1.-smoothstep(.08,.50,length(v))));}'
   });
-  return {mat,buildingMat,shadeMat,wood:new T.MeshStandardMaterial({...surfaceStencil(),flatShading:true,roughness:1})};
+  return {mat,buildingMat,shadeMat,wood:breezy(timber()),leaf:breezy(timber(),'crown')};
 }
