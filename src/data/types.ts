@@ -79,6 +79,7 @@ export interface Sector {
 export interface SectorIndex {
   carriageways?: boolean;
   roadExceptions?:string[];
+  roadCoverage?:Ring[][];
   roadFallback?:Ring[][];
   sectors: Sector[];
   sectorSize: number;

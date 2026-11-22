@@ -215,3 +215,31 @@ Ripetizione con l'indice completo e cinque passaggi per configurazione. La memor
 | Desktop, 1024 × 720 | 18,2 ms | 18,3 ms | 59,81 MiB | 59,98 MiB |
 
 Entrambi i profili rispettano la soglia di +10% sul p95 a caldo. Durante il singolo avvio a freddo, il massimo intervallo osservato con una richiesta pendente è stato 1.614 ms / 960 ms su mobile e 1.516 ms / 1.295 ms su desktop (texture / geometria). Questi valori includono il caricamento iniziale e dipendono dalla macchina di test. Verificati anche costruzione sul thread principale con OffscreenCanvas disabilitato, recupero del contesto WebGL e tre giri del circuito cittadino con espulsione dei settori dal budget mobile di 48 MiB.
+
+## Carreggiate da 5 e 9 metri
+
+La verifica sui file distribuiti conta 45.088 triangoli in 80 settori, 124 confini stradali coerenti entro 1 cm e 10 eccezioni per ponti e livelli. Il controllo della fascia aggiunta usa 1 mm di tolleranza per gli arrotondamenti. Le tre sezioni centrali del laboratorio misurano 5 m in Calle Rafael Mesa y López, 9 m in Avenida Marítima e 4,75 m in Calle Párroco Villar Reina. In quest'ultima i bordi distano rispettivamente 2,50 e 2,25 m dall'asse. [Confronto alla stessa posizione](screenshots/larghezza-carreggiata.png)
+
+| Profilo | p95 precedente | p95 nuovo | Dettaglio residente precedente / nuovo |
+|---|---:|---:|---:|
+| Mobile emulato | 18,3 ms | 18,2 ms | 46,97 / 46,99 MiB |
+| Desktop | 18,2 ms | 18,3 ms | 59,98 / 60,01 MiB |
+
+Mediane di cinque passaggi a caldo sul percorso di Calle San Nicolás, confronto con la geometria di `85b05aa`. Il budget del dettaglio mobile è 48 MiB. Il contorno usato per la panoramica aggiunge 469 kB all'indice JSON (circa 173 kB con gzip locale). L'emulazione Chrome verifica i due profili sulla stessa macchina.
+
+Il test di Conducir attraversa il confine in entrambi i sensi con pattuglia attiva. Il primo giro di QA sui settori ha segnalato una crescita dei contatori WebGL a Santa Ana. La ripetizione dell'intero circuito ha superato la stessa soglia, con 48.584.527 byte residenti a Santa Ana in entrambi gli ultimi due giri. Il test del laboratorio copre il selettore delle tre sezioni, il cambio di larghezza e la posizione dell'auto conservata.
+
+## Transizioni LOD nel laboratorio
+
+Aprire `lab.html?test=lod`. Le tre varianti confrontano il comportamento attuale, l'isteresi (ingresso a 520 m e uscita oltre 580 m) con una preferenza temporanea in guida per i settori visibili recenti, e la stessa politica con transizione visiva. La durata iniziale è 250 ms. La carreggiata campiona la texture panoramica nelle coordinate del mondo durante il passaggio al materiale locale. Le sagome di edifici e alberi usano maschere complementari su una matrice di 4 × 4 pixel. Le espulsioni necessarie a rispettare il budget avvengono subito.
+
+`node scripts/qa-lod-lab.mjs` dopo la build ripete tre scenari su due settori di Calle San Nicolás. Il primo ritarda artificialmente di 1,8 s il settore est con la camera ferma. Il secondo oscilla attorno a 550 m dopo essere entrato in dettaglio. Il terzo percorre la curva nei due sensi con la camera di prova. Il browser controlla errori, budget e variazioni dell'immagine abilitando separatamente i due effetti con la transizione ferma al 50%. [Retino a metà transizione e dettaglio completo](screenshots/lod-laboratorio.png)
+
+| Profilo Chrome | Cambi durante lo zoom, attuale / stabile / visivo | p95 durante il percorso, attuale / stabile / visivo |
+|---|---|---|
+| Mobile emulato (390 × 844) | 14 / 0 / 0 | 18,2 / 18,2 / 18,3 ms |
+| Desktop (1024 × 720) | 14 / 0 / 0 | 18,2 / 18,3 / 18,3 ms |
+
+Un cambio conta la richiesta di mostrare o nascondere il dettaglio di un singolo settore. I tempi misurano gli intervalli di requestAnimationFrame sul computer di prova. Sul profilo mobile le catture finali della variante attuale e della transizione completata coincidono. Il retino è distinguibile sulle finestre e lungo i bordi delle chiome nella cattura al 50%. Il telefono fisico serve per giudicarne la visibilità in movimento.
+
+Con `node scripts/qa-lod-lab.mjs --citta` lo stesso percorso usa l'indice completo sul profilo mobile emulato. Il p95 è stato 18,3 ms per la variante attuale, 18,2 ms con le soglie stabili e 18,2 ms con gli effetti visivi. Tutte e tre hanno registrato 11 cambi durante il percorso e 2 espulsioni cumulative. La priorità sperimentale non ha ridotto i cambi in questa prova. La memoria del dettaglio al termine è stata 49.412.515 byte su 48 MiB disponibili (47,12 MiB residenti). La posa finale ha richiesto 28 draw call, salite a 34 forzando la transizione al 50% dei dettagli presenti. Questa sovrapposizione simultanea è una prova di carico. I primi intervalli di caricamento sono sensibili al riscaldamento del browser e non dimostrano un vantaggio tra le varianti.

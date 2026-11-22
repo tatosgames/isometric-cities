@@ -10,7 +10,13 @@ import { makeCity } from '../scene.ts';
 import { breezy } from '../wind.ts';
 import { makeGroundMap } from '../ground-map.ts';
 
+export interface SectorTrial {
+  stable:boolean;
+  attach?:(low:T.Group, detail:Pick<ReturnType<typeof makeCity>,'group'|'materials'>, overview:ReturnType<typeof makeGroundMap>)=>{step:(show:boolean,now:number)=>boolean;dispose:()=>void};
+  observe?:(id:string,show:boolean)=>void;
+}
 interface StreamOptions {
+  trial?:SectorTrial;
   data: CityData & SectorIndex;
   neutral: boolean;
   tones: RoofTones | null;
@@ -59,10 +65,10 @@ function resources(group: T.Group) {
   };
 }
 
-export function streamCity({data,neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers}: StreamOptions){
+export function streamCity({data,neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,trial}: StreamOptions){
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
   // The overview ground is painted from the whole city, so it keeps the contact shadows of every footprint.
-  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact,neutral?null:makeGroundMap(data,undefined,!!data.carriageways&&!legacyRoads,data.roadFallback));
+  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact,neutral?null:makeGroundMap(data,undefined,!!data.carriageways&&!legacyRoads,data.roadFallback,legacyRoads?undefined:data.roadCoverage));
   const byId=new Map<string,{buildings: Building[];trees: Point[];ground: Ring[]}>(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
   const owner=(x: number,y: number)=>sectorOwner(x,y,data.sectorSize);
   const batchFor=(id: string)=>required(byId.get(id),"sector "+id);
@@ -87,11 +93,16 @@ export function streamCity({data,neutral,tones,compact,refresh,host,legacyRoads=
   const frustum=new T.Frustum(),matrix=new T.Matrix4(),projected=new T.Vector3();
   const lastTarget=new T.Vector3(),ahead=new T.Vector3(),aheadPoint=new T.Vector3();
   let requested: ResidentSector[]=[];
+  let near=false;
+  const transitions=new Map<string,ReturnType<NonNullable<SectorTrial['attach']>>>();
+  const displayed=new Set<string>(), lastVisible=new Map<string,number>();
   let pending: {s: ResidentSector;controller: AbortController} | null=null;
   let bytes=0,tick=0,evictions=0;
 
   function release(s: ResidentSector){
     if(!s.assets)return;
+    transitions.get(s.id)?.dispose();transitions.delete(s.id);
+    if(displayed.delete(s.id))trial?.observe?.(s.id,false);
     evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;s.low.visible=true;
   }
 
@@ -123,6 +134,7 @@ export function streamCity({data,neutral,tones,compact,refresh,host,legacyRoads=
       }
       if(bytes+assets.bytes>budget){assets.dispose();return;}
       s.detail=detail;s.assets=assets;bytes+=assets.bytes;base.group.add(detail);
+      if(trial?.attach && base.groundMap)transitions.set(s.id,trial.attach(s.low,local,base.groundMap));
       s.low.visible=false;s.failed=0;
     }catch(error){
       if(!controller.signal.aborted){
@@ -143,16 +155,28 @@ export function streamCity({data,neutral,tones,compact,refresh,host,legacyRoads=
     frustum.setFromProjectionMatrix(matrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
     if(driving && target.distanceToSquared(lastTarget)>.0025)ahead.subVectors(target,lastTarget).setY(0).normalize();
     lastTarget.copy(target);aheadPoint.copy(target).addScaledVector(ahead,driving?data.sectorSize*.5:0);
-    requested=span>550&&!driving?[]:sectors.filter(s=>frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize));
+    const now=performance.now();
+    near=driving || (trial?.stable?(near?span<=580:span<=520):span<=550);
+    requested=!near?[]:sectors.filter(s=>frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize));
     function rank(s: ResidentSector){
       s.bounds.getCenter(projected);
-      return (frustum.intersectsBox(s.bounds)?0:1e10)+projected.distanceToSquared(aheadPoint);
+      const visible=frustum.intersectsBox(s.bounds);
+      const retained=trial?.stable && driving && now-(lastVisible.get(s.id)??-Infinity)<350;
+      return (visible?0:1e10)+projected.distanceToSquared(aheadPoint)-(retained?3600:0);
     }
     requested.sort((a,b)=>rank(a)-rank(b));
     for(const s of sectors){
       const show=requested.includes(s)&&!!s.detail;
+      if(trial){
+        if(show!==displayed.has(s.id)){
+          if(show)displayed.add(s.id);else displayed.delete(s.id);
+          trial.observe?.(s.id,show);
+        }
+        if(show && frustum.intersectsBox(s.bounds))lastVisible.set(s.id,now);
+      }
       s.low.visible=!show;
       if(s.detail){s.detail.visible=show;if(show)s.used=tick;}
+      if(transitions.get(s.id)?.step(show,now))refresh();
     }
     if(pending && !requested.includes(pending.s))pending.controller.abort();
     if(!pending){

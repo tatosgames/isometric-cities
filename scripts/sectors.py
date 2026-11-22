@@ -10,7 +10,8 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(".cache/pylib").resolve()))
 from PIL import Image
-from carriageways import Carriageways, grade_separated
+from road_sections import select_sections
+from carriageways import Carriageways, grade_separated, polygon_rings
 
 SIZE = 240
 ROOT = Path("public/data")
@@ -66,6 +67,11 @@ def partition(stage, road_cells=None):
     roof=Image.open(".cache/roof-atlas.png")
     west,south,width,height=json.loads((ROOT/"roof-tones.json").read_bytes())["bounds"]
     carriageways = Carriageways(data)
+    samples=select_sections(data,carriageways,SIZE)
+    lab=ROOT/"road-width-lab"
+    lab.mkdir(exist_ok=True)
+    (lab/"sections.json").write_bytes(encode(samples))
+    sample_cells={s["cell"] for s in samples.values()}
     entries = []
     generated = set()
     for (cx, cy), detail in sorted(tiles.items()):
@@ -78,6 +84,9 @@ def partition(stage, road_cells=None):
         detail["textureBounds"]=[cx*SIZE-5,cy*SIZE-5,(cx+1)*SIZE+5,(cy+1)*SIZE+5]
         if road_cells is None or name in road_cells:
             detail["carriageway"]=carriageways.tile(detail,[cx*SIZE,cy*SIZE,(cx+1)*SIZE,(cy+1)*SIZE])
+        if name in sample_cells:
+            baseline=carriageways.tile(detail,[cx*SIZE,cy*SIZE,(cx+1)*SIZE,(cy+1)*SIZE],original=True)
+            (lab/(name+".json")).write_bytes(encode(baseline))
         left,bottom,right,top=floor(min(xs))-2,floor(min(ys))-2,ceil(max(xs))+2,ceil(max(ys))+2
         tile=roof.crop((left-west,south+height-top,right-west,south+height-bottom))
         image=BytesIO()
@@ -102,7 +111,7 @@ def partition(stage, road_cells=None):
     # The same footprint index serves collision, the low LOD and the route graph.
     # Detail files remain independently cacheable on static hosting.
     index = dict(sectors=entries, sectorSize=SIZE, buildingOwners=owners, carriageways=True,
-                 roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
+                 roadCoverage=polygon_rings(carriageways.coverage), roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
     (ROOT / f"{stage}-index.json").write_bytes(encode(index))
     for path in directory.iterdir():
         if re.fullmatch(r"-?\d+_-?\d+-[0-9a-f]{12}\.(json|webp)",path.name) and path.name not in generated:

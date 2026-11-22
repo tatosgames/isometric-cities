@@ -1,4 +1,4 @@
-import type { CityData, Point } from '../data/types.ts';
+import type { CityData, Point, Ring } from '../data/types.ts';
 import style from '../data/road-style.json';
 import * as T from 'three';
 
@@ -10,7 +10,7 @@ export interface GroundMap {
 
 
 // Ground features share the terrain triangles. Paint their plan-view coverage once.
-export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBounds ? 2 : 3, streetPriority=!!data.carriageway, fallback=data.carriageway?.fallback): GroundMap {
+export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBounds ? 2 : 3, streetPriority=!!data.carriageway, fallback=data.carriageway?.fallback, coverage?:Ring[][]): GroundMap {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
   if(data.textureBounds){
@@ -51,7 +51,13 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
   const passes = streetPriority ? [true,false,...(fallback?.length ? [true] : [])] : [false,true];
   for (const [pass,pedestrian] of passes.entries()) {
     ctx.save();
-    if((!pedestrian && data.carriageway) || pass===2){
+    if(!pedestrian && coverage){
+      ctx.beginPath();
+      for(const polygon of coverage)for(const ring of polygon){trace(ring);ctx.closePath();}
+      ctx.fillStyle=style.color.street;
+      ctx.fill('evenodd');
+    }
+    if((!pedestrian && (data.carriageway || coverage)) || pass===2){
       ctx.beginPath();
       for(const polygon of fallback ?? [])for(const ring of polygon){trace(ring);ctx.closePath();}
       ctx.clip('evenodd');

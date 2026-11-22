@@ -77,6 +77,6 @@ export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean
       }else mesh=new T.Mesh(geometry,material);
       mesh.castShadow=m.cast;mesh.receiveShadow=m.receive;group.add(mesh);
     }
-    return {group,groundMap};
+    return {group,groundMap,materials};
   };
 }

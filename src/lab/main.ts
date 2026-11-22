@@ -1,5 +1,11 @@
 // Each entry owns its assets and UI. A full-page navigation releases the previous WebGL context.
 const tests = [
+  {id:'lod',title:'Transizioni di dettaglio',
+    description:'Confronta soglie di zoom, asfalto e retino per edifici e alberi su Calle San Nicolás.',
+    start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},
+  {id:'larghezze',title:'Larghezza delle carreggiate',
+    description:'Confronta tre sezioni misurate con la stessa auto e la stessa camera.',
+    start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},
   {id:'settori',title:'Calle San Nicolás · attraversamento settori',
     description:'Confronta il passaggio tra panoramica e carreggiata sulla curva in pendenza.',
     start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},

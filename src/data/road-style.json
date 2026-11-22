@@ -2,5 +2,6 @@
   "pedestrian": ["steps", "footway", "path", "pedestrian", "cycleway"],
   "main": ["primary", "secondary", "trunk"],
   "width": {"pedestrian": 2.2, "main": 8, "street": 4.5},
+  "targetWidth": {"main": 9, "street": 5},
   "color": {"pedestrian": "#c6bdb6", "street": "#626575"}
 }

@@ -4,12 +4,13 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 import {preview} from 'vite';
 
-const full=process.argv.includes('--full'), out='.cache/qa-carriageways/'+(full?'city':'pilot');
+const widths=process.argv.includes('--larghezze'),ref=widths?'85b05aa':'6bdb2da';
+const full=process.argv.includes('--full'), out='.cache/qa-carriageways/'+(widths?'larghezze':full?'city':'pilot');
 await mkdir(out,{recursive:true});
 const server=await preview({preview:{host:'127.0.0.1',port:0}});
 const origin=server.resolvedUrls.local[0],browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
 const summary=[];
-const oldIndex=JSON.parse(execFileSync('git',['show','6bdb2da:public/data/city-index.json']));
+const oldIndex=JSON.parse(execFileSync('git',['show',ref+':public/data/city-index.json']));
 const oldFiles=new Map();
 const median=a=>a.slice().sort((x,y)=>x-y)[Math.floor(a.length/2)];
 try{
@@ -24,7 +25,7 @@ try{
     await page.route('**/data/city-index.json',r=>r.fulfill({json:oldIndex}));
     await page.route('**/city-sectors/*.json',r=>{
      const file=new URL(r.request().url()).pathname.split('/').pop();
-     if(!oldFiles.has(file))oldFiles.set(file,execFileSync('git',['show','6bdb2da:public/data/city-sectors/'+file],{maxBuffer:8e6}));
+     if(!oldFiles.has(file))oldFiles.set(file,execFileSync('git',['show',ref+':public/data/city-sectors/'+file],{maxBuffer:8e6}));
      return r.fulfill({contentType:'application/json',body:oldFiles.get(file)});
     });
    }
@@ -37,7 +38,7 @@ try{
     }
     requestAnimationFrame(sample);
    });
-   const url=origin+'lab.html?test=settori'+(legacy?'&raster=1':'')+(full?'&intera=1':'');
+   const url=origin+'lab.html?test=settori'+(legacy&&!widths?'&raster=1':'')+(full?'&intera=1':'');
    const settled=()=>page.waitForFunction(()=>{
     const s=JSON.parse(document.querySelector('#view').dataset.sectors||'{}');return s.visible>0&&!s.pending;
    },null,{timeout:90000});

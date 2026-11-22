@@ -47,3 +47,7 @@ Laboratorio visivo disponibile su GitHub Pages in `lab.html`. La prova strade ri
 ## Carreggiate cittadine
 
 La mappa e Conducir mostrano l'asfalto geometrico quando il settore dettagliato è pronto. La panoramica e gli incroci con dislivello segnalato da OSM usano la texture. Il laboratorio conserva il confronto del Mercado e aggiunge il percorso di Calle San Nicolás, con camera di guida o mappa, senso inverso e caricamento ritardato del settore est. Per provare il percorso con i settori circostanti apri `lab.html?test=settori&intera=1`. [Procedura di espansione](docs/EXPAND_CITY.md#carreggiate-nei-nuovi-quartieri)
+
+Le carreggiate raggiungono 5 e 9 m nei tratti liberi. Un bordo può crescere anche quando quello opposto incontra un ostacolo mappato. Il laboratorio `lab.html?test=larghezze` confronta tre sezioni reali con la versione precedente alla stessa posizione. [Risultati e misure](docs/QA.md#carreggiate-da-5-e-9-metri)
+
+Il laboratorio comprende la prova `lab.html?test=lod` per l'isteresi di zoom e priorità, la sfumatura suolo/strade e il retino per edifici/alberi. I controlli includono arrivo in ritardo a camera ferma, zoom oscillante, curva con inversione e ispezione della transizione. [Prove LOD](docs/QA.md#transizioni-lod-nel-laboratorio)

@@ -3,8 +3,8 @@ import json
 import subprocess
 from pathlib import Path
 
-from shapely import STRtree, constrained_delaunay_triangles, union_all
-from shapely.geometry import LineString, Polygon, box
+from shapely import make_valid, constrained_delaunay_triangles, union_all
+from shapely.geometry import LineString, Point, Polygon, box
 
 STYLE = json.loads(Path("src/data/road-style.json").read_bytes())
 TRIANGULATE = """
@@ -21,28 +21,41 @@ console.log(JSON.stringify(rings.map(r=>{
 def grade_separated(road):
     return road.get("bridge","no") not in ("no","0","false") or road.get("layer","0") not in ("0","","+0")
 
+def polygon_rings(mask):
+    polygons=[p for p in getattr(mask,"geoms",[mask]) if p.geom_type=="Polygon" and not p.is_empty]
+    return [[[[round(x,4),round(y,4)] for x,y in ring.coords] for ring in [p.exterior,*p.interiors]] for p in polygons]
+
 class Carriageways:
     def __init__(self, data):
         self.dem=data["terrain"]
-        self.shapes=[]
+        shapes=[]
+        old=[]
+        obstacles=[make_valid(Polygon(f["rings"][0],f["rings"][1:])) for f in [*data["buildings"],*data["surfaces"]]]
+        obstacles.extend(Point(x,y).buffer(.3) for x,y in data["trees"])
         protected=[]
         for road in data["roads"]:
             line=LineString(road["line"])
             if grade_separated(road):
-                protected.append(line.buffer(8))  # Full deck, underlying corridor and approach ends.
-            if road["kind"] not in STYLE["pedestrian"]:
+                protected.append(line.buffer(8))
+            if road["kind"] in STYLE["pedestrian"]:
+                obstacles.append(line.buffer(STYLE["width"]["pedestrian"]/2))
+            else:
                 key="main" if road["kind"] in STYLE["main"] else "street"
-                self.shapes.append(line.buffer(STYLE["width"][key]/2,quad_segs=8))
-        self.index=STRtree(self.shapes)
+                old.append(line.buffer(STYLE["width"][key]/2,quad_segs=8))
+                shapes.append(line.buffer(STYLE["targetWidth"][key]/2,quad_segs=8))
         self.protected=union_all(protected)
+        self.obstacles=union_all([*obstacles,self.protected])
+        self.land=make_valid(Polygon(data["boundary"]))
+        self.original=union_all(old).difference(self.protected)
+        allowed=union_all(shapes).intersection(self.land).difference(self.obstacles)
+        self.coverage=union_all([self.original,allowed])
         rings=data["ground"]
         faces=json.loads(subprocess.check_output(["node","--input-type=module","-e",TRIANGULATE],input=json.dumps(rings).encode()))
         self.faces={id(r):f for r,f in zip(rings,faces)}
 
     def fallback(self, bounds=None):
         mask=self.protected if bounds is None else self.protected.intersection(box(*bounds))
-        polygons=[p for p in getattr(mask,"geoms",[mask]) if p.geom_type=="Polygon" and not p.is_empty]
-        return [[[[round(x,4),round(y,4)] for x,y in ring.coords] for ring in [p.exterior,*p.interiors]] for p in polygons]
+        return polygon_rings(mask)
 
     def elevation(self,x,y):
         d=self.dem
@@ -51,10 +64,9 @@ class Carriageways:
         i=int(v)*d["w"]+int(u);z=d["values"];w=d["w"];a=u%1;b=v%1
         return (1-b)*((1-a)*z[i]+a*z[i+1])+b*((1-a)*z[i+w]+a*z[i+w+1])
 
-    def tile(self,detail,bounds):
+    def tile(self,detail,bounds,original=False):
         tile=box(*bounds)
-        nearby=self.index.query(tile,predicate="intersects")
-        coverage=union_all([self.shapes[i] for i in nearby]).difference(self.protected).intersection(tile)
+        coverage=(self.original if original else self.coverage).intersection(tile)
         fallback=self.fallback(detail["textureBounds"])
         ids={};positions=[];indices=[];seen=set()
         for ring in detail["ground"]:

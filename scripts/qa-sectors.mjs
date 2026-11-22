@@ -53,7 +53,7 @@ try{
   for(const last of stops.slice(-4)){
     const previous=stops.slice(4,8).find(s=>s.id===last.id);
     assert.ok(last.buffers<=previous.buffers+24 && last.textures<=previous.textures+2,
-      'WebGL resources grew on the repeated circuit at '+last.id);
+      'WebGL resources grew on the repeated circuit: '+JSON.stringify({previous,last}));
     assert.ok(Math.abs(last.bytes-previous.bytes)<last.bytes*.15,'Circuit memory did not stabilize at '+last.id);
   }
   await p.locator('#reset').click();await p.waitForFunction(()=>JSON.parse(document.querySelector('#scene').dataset.sectors).visible===0);

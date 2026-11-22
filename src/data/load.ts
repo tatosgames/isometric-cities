@@ -69,7 +69,7 @@ const sector = (v: unknown): v is Sector =>
 export function isSectorIndex(v: unknown): v is SectorIndex {
   return record(v) && list(v.sectors, sector) && number(v.sectorSize)
     && v.sectorSize > 0 && list(v.buildingOwners, string)
-    && (v.carriageways===undefined||boolean(v.carriageways)) && (v.roadFallback===undefined||list(v.roadFallback,rings)) && (v.roadExceptions===undefined||list(v.roadExceptions,string));
+    && (v.carriageways===undefined||boolean(v.carriageways)) && (v.roadCoverage===undefined||list(v.roadCoverage,rings)) && (v.roadFallback===undefined||list(v.roadFallback,rings)) && (v.roadExceptions===undefined||list(v.roadExceptions,string));
 }
 
 const place = (v: unknown): v is Place => record(v) && record(v.properties)
