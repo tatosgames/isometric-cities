@@ -12,7 +12,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 4. **Mai due volte di fila.** Gli effetti che interrompono (hit-stop) hanno un intervallo minimo. Quelli continui (polvere, segni) non ne hanno.
 5. **Niente caso nella camera.** La camera si sposta solo in una direzione che ha un significato. Il tremolio casuale è stato tolto.
 6. **Stesso comportamento su ogni dispositivo.** Gli effetti non si spengono né si attenuano in base alle preferenze di movimento del sistema (regola di `AGENTS.md`). Per questo devono restare piccoli e brevi per tutti.
-7. **Si spegne da solo.** Ogni effetto torna a riposo in meno di mezzo secondo senza che nessuno lo fermi, tranne il pannello di cattura.
+7. **Si spegne da solo.** Gli effetti di gioco tornano a riposo in meno di mezzo secondo. La sequenza finale mantiene la scena in bianco e nero fino al retry o al ritorno alla mappa.
 
 ## Catalogo
 
@@ -46,7 +46,8 @@ Per alcuni fotogrammi la simulazione non avanza: auto, pattuglie, monete e crono
 - **Soglia dell'urto:** `stopImpact` 9 m/s di velocità contro l'ostacolo, cioè un urto quasi frontale oltre il 60% della velocità massima. Le strisciate nelle vie strette restano sotto.
 - **Intervallo minimo:** `stopGap` 0,6 s tra due fermi da urto. Arrivo e cattura non hanno intervallo perché non possono ripetersi.
 - **Fermi sovrapposti:** vale il più lungo, non si sommano.
-- **Alla cattura** il fermo viene prima di tutto il resto: contatto, 110 ms di attesa, poi polvere e avvicinamento della camera, poi il pannello.
+- **Alla cattura** il contatto blocca punteggio e cronometro. Dopo 110 ms, camera, polvere, pedoni e vento rallentano al 30%. Auto e pattuglia si assestano per un secondo con l'inerzia residua, limitata da ostacoli e superficie disponibile.
+- La saturazione scende a zero in 850 ms con un passaggio WebGL. «ATRAPADO» e i tre valori compaiono dopo 300 ms di rallentatore. I pulsanti a icona compaiono dopo 600 ms.
 - Il tempo fermo non conta nel cronometro. Dopo il fermo la simulazione riparte da dove era, senza recuperare i passi saltati.
 
 ## Colpo di camera
@@ -67,7 +68,7 @@ Figure semplici senza gambe, un corpo colorato e una testa, che si muovono a sal
 - **Dove:** ai bordi delle strade carrabili, sulle vie pedonali di OSM e lungo corde interne a piazze e parchi. Non attraversano. Sono 40 su desktop e 26 su telefono, riciclati tra 42 e 82 m dall'auto, di preferenza davanti alla direzione di marcia.
 - **Fuga:** un veicolo in avvicinamento li allarma entro 6 m più 0,6 m per ogni m/s di velocità (circa 16 m a velocità massima). Scappano di lato rispetto alla traiettoria, dal giocatore come dalle pattuglie.
 - **Mai investiti:** a ogni fotogramma un pedone a meno di 2,3 m dal centro di un veicolo viene spostato fuori; se un muro lo impedisce resta in aria finché il veicolo è passato. Lo verifica `node scripts/qa-pedestrians.mjs`.
-- Durante un hit-stop restano fermi come il resto della simulazione. Prima della partenza e dopo la cattura continuano a camminare.
+- Durante un hit-stop restano fermi come il resto della simulazione. Camminano prima della partenza e continuano al rallentatore dopo la cattura.
 - I valori sono in `PEDESTRIANS` in `src/drive/pedestrians.ts`.
 
 ## Da non fare

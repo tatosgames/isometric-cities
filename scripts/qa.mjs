@@ -235,19 +235,78 @@ try{
     assert.ok(Math.hypot(turned[2]-ready[2],turned[3]-ready[3])>.3,'Car should move by itself');
     assert.notEqual(await host.getAttribute('data-view'),before);
     // Left alone the car stops against a wall and a patrol reaches it.
-    await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
-    await page.locator('#over').waitFor({state:'visible'});
+    const waitForCapture=()=>page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
+    await waitForCapture();
+    const caughtScore=(await drive())[1];
+    const caughtTime=await page.locator('#over-time').textContent();
+    const caughtRecord=await page.locator('#over-record').textContent();
+    if(!mobile){
+      const ext=await page.evaluateHandle(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context'));
+      await ext.evaluate(e=>e.loseContext());
+      await page.locator('#status').waitFor({state:'visible'});
+      assert.equal(await page.locator('#over').isVisible(),false);
+      const frozen=await host.getAttribute('data-drive');
+      await page.waitForTimeout(400);
+      assert.equal(await host.getAttribute('data-drive'),frozen,'The capture sequence must pause with graphics lost');
+      await ext.evaluate(e=>e.restoreContext());
+      await page.locator('#status').waitFor({state:'hidden'});
+      await ext.dispose();
+    }
+    await page.locator('#again').waitFor({state:'visible'});
+    assert.equal(await page.locator('#over-title').innerText(),'ATRAPADO');
     assert.equal(await page.locator('#over-record').isVisible(),true);
+    for(const id of ['hud-stats','drive-camera']){
+      assert.equal(await page.locator('#'+id).isVisible(),false);
+    }
     assert.equal(await page.locator('footer').isVisible(),true);
     // The capture held the simulation at least once, and the camera kick has sprung back to rest.
     assert.ok(Number((await drive())[10])>=1,'Capture should hit-stop');
-    await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[11])<.02,null,{timeout:3000});
-    if(mobile)await page.screenshot({path:dir+'/conducir-fin.png'});
+    await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[11])<.02,null,{timeout:6000});
+    assert.equal(await page.locator('#over-coins').textContent(),caughtScore);
+    assert.equal(await page.locator('#hud-time').textContent(),caughtTime);
+    assert.equal(await page.locator('#over-record').textContent(),caughtRecord);
+    assert.equal(await page.locator('#again').evaluate(node=>document.activeElement===node),true);
+    const colorSpread=async()=>{
+      const pixels=await page.screenshot({
+        clip:{x:0,y:0,width:box.width,height:Math.floor(box.height*.12)},
+        style:'#hud{visibility:hidden}',
+      });
+      return page.evaluate(async png=>{
+        const image=await createImageBitmap(await (await fetch('data:image/png;base64,'+png)).blob());
+        const canvas=new OffscreenCanvas(image.width,image.height),ctx=canvas.getContext('2d');
+        ctx.drawImage(image,0,0);
+        const {data}=ctx.getImageData(0,0,image.width,image.height);
+        image.close();
+        let max=0;
+        for(let i=0;i<data.length;i+=4){
+          max=Math.max(max,Math.max(data[i],data[i+1],data[i+2])-Math.min(data[i],data[i+1],data[i+2]));
+        }
+        return max;
+      },pixels.toString('base64'));
+    };
+    let spread=await colorSpread();
+    for(let attempt=0;spread>1 && attempt<3;attempt++){
+      await page.waitForTimeout(250);spread=await colorSpread();
+    }
+    assert.ok(spread<=1,'The captured city and backdrop should be grayscale');
+    await page.screenshot({path:dir+(mobile?'/conducir-fin.png':'/conducir-fin-desktop.png')});
+    if(mobile){
+      await page.setViewportSize({width:844,height:390});
+      await page.waitForFunction(()=>document.querySelector('#scene canvas').clientWidth===844);
+      const summary=await page.locator('.over-summary').boundingBox();
+      const actions=await page.locator('#over-actions').boundingBox();
+      const credits=await page.locator('footer').boundingBox();
+      assert.ok(summary.y+summary.height<actions.y && actions.y+actions.height<credits.y,'Results fit above the credits in landscape');
+      await page.screenshot({path:dir+'/conducir-fin-landscape.png'});
+      await page.setViewportSize({width:390,height:844});
+      await page.waitForFunction(()=>document.querySelector('#scene canvas').clientWidth===390);
+    }
     await page.locator('#again').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     const retry=await drive();
     assert.equal(retry[1],'0');
     assert.notDeepEqual([retry[2],retry[3]],initialSpawn,'Retry should use a different random start node');
+    assert.ok(await colorSpread()>1,'Retry should restore the scene colors');
     // A straight start runs along the first metres of the coin trail.
     await page.keyboard.press('ArrowDown');
     await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive?.split(',')[1])>0,null,{timeout:20000});
@@ -273,7 +332,10 @@ try{
       await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('playing'));
       await ext.dispose();
     }
-    await page.locator('#drive-exit').click();
+    if(mobile){
+      await waitForCapture();
+      await page.locator('#leave').tap();
+    }else await page.locator('#drive-exit').click();
     assert.equal(await host.getAttribute('data-drive'),null);
     assert.equal(await page.locator('#plus').isVisible(),true);
     await page.waitForFunction(v=>document.querySelector('#scene').dataset.view===v,before);

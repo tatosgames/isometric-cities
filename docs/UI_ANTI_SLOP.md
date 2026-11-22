@@ -24,7 +24,11 @@ La causa comune dei pattern scartati è sempre la stessa: abitudini da dashboard
 
 La prima versione mostrava «12 monedas · 23.4 s · Récord 30», «→ Teatro Pérez Galdós», un suggerimento di una riga («Toca izquierda o derecha…») e un pannello «¡Atrapado!» con due pulsanti di testo. Scartato: troppo da leggere mentre si guida.
 
-Al loro posto: pillole con icona e numero; due zone tattili che pulsano e si accendono al tocco; il numero del luogo su una ficha che punta al traguardo; i punti che saltano fuori dove si guadagnano; pulsanti con sola icona nel pannello finale. I nomi vanno alla regione per i lettori di schermo.
+Al loro posto: pillole con icona e numero; due zone tattili che pulsano e si accendono al tocco; il numero del luogo su una ficha che punta al traguardo; i punti che saltano fuori dove si guadagnano. I nomi vanno alla regione per i lettori di schermo.
+
+### Guida: schermata di cattura
+
+«ATRAPADO» è l'unica scritta dell'esito. Le tre icone con i valori di monete, tempo e record stanno in una riga sotto il titolo, mentre l'HUD di guida sparisce. I pulsanti a icona per riprovare e tornare alla mappa stanno sotto l'auto. Titolo e comandi sono appoggiati direttamente sulla scena, che resta visibile al rallentatore e in bianco e nero.
 
 ### Guida: indicatore tattile del freno (Luca, 22 novembre 2026)
 
@@ -57,5 +61,4 @@ La parte dell’auto coperta da un edificio appare in giallo sulla sua superfici
 
 ## Non deciso
 
-- **Pannello di cattura.** È ancora una scheda al centro dello schermo. Il principio 4 suggerirebbe di portare esito e pulsanti nella scena o lungo il bordo. Da decidere con Luca.
 - **Schede dei luoghi sulla mappa.** Oggi mostrano il solo nome. Un pannello ancorato al marker con icone e messa a fuoco di elementi reali, sul modello del Context Panel di Soso Mart, è una proposta, non una decisione.

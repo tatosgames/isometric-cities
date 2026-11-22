@@ -13,6 +13,7 @@ import { makeDrive } from './drive/drive.ts';
 import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
 import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
+import { makeCaptureGrade } from './render/capture-grade.ts';
 
 interface Flight {
   start: number; duration: number;
@@ -46,6 +47,7 @@ async function start(){
   let losses=Number(resume?.losses)||0;
   const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
   const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true,stencil:true});
+  const captureGrade=makeCaptureGrade(renderer,compact);
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
@@ -164,7 +166,7 @@ async function start(){
   const status=el('status');
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
-    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();
+    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();captureGrade.release();
     cancelAnimationFrame(frame);frame=0;gesture=false;adaptive.reset();delete host.dataset.scale;
     controls.enabled=false;controls.disconnect();
     remember();
@@ -190,11 +192,17 @@ async function start(){
     if(document.hidden){flight=null;stopGesture();remember();}
     else if(!lost)syncSize();
   });
+  function paint(time: number){
+    const speed=drive?.visualTimeScale??1;
+    const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
+    wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
+    painted=time;
+    captureGrade.render(scene,camera,drive?.desaturation??0);
+  }
   function draw(){
     if(frame || lost)return;
     frame=requestAnimationFrame(time=>{
       frame=0;sampleCadence(time);
-      painted=time;wind.time.value=time/1000;
       if(flight){
         const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
         mapTurn=t>=1?normalizeTurn(flight.turn1):T.MathUtils.lerp(flight.turn0,flight.turn1,ease);
@@ -214,7 +222,7 @@ async function start(){
       }
       streamed?.update(camera,controls.target,drive?.active);
       if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(()=>el('drive').click());
-      renderer.render(scene,camera);
+      paint(time);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;
       if(!drive?.active){
@@ -232,8 +240,7 @@ async function start(){
   function ambient(time: number){
     requestAnimationFrame(ambient);
     if(lost || frame || !painted || time-painted<31)return;
-    painted=time;wind.time.value=time/1000;
-    renderer.render(scene,camera);
+    paint(time);
   }
   requestAnimationFrame(ambient);
   function zoom(k: number){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}
@@ -253,7 +260,7 @@ async function start(){
   const map=el('map');
   function leaveDrive(){
     if(!drive?.active)return;
-    drive.exit();map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
+    drive.exit();captureGrade.release();map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }

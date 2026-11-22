@@ -385,3 +385,9 @@ Il pulsante di ripristino ora torna alla Plaza de Santa Ana alla distanza massim
 - Schermate di controllo a occhio dei due luoghi nuovi, da vicino e alla distanza massima: edifici, moli, spiaggia e versante coerenti; nessun errore in console.
 
 Limiti. Nell'area nuova 97 edifici hanno un tetto misurato oltre 10 m più alto del dato comunale (ad esempio 25810: 41,7 m comunali, 78,2 m misurati; 22817: 3,6 contro 29,1 m) e 16 lo hanno più basso. Non corretti: decisione di Luca. Elenco in `.cache/lidar-control/scarti-santa-catalina-guanarteme.csv`. Mancano i tile 454-3112, 455-3111, 458-3106 e 458-3107 (61 parti in tutto). La vista più ampia sul centro storico supera il fotogramma a 60 Hz sulla GPU integrata. Nessuna prova su telefono fisico; la guida nei quartieri nuovi non è stata provata a mano. I due luoghi nuovi non hanno un modello dedicato. La Isleta e il porto non sono ancora inclusi.
+
+## Cattura in Conducir
+
+`npm.cmd test` copre la cattura durante una partita reale, il blocco di monete, tempo e record, il focus sul pulsante di riprova e il recupero WebGL a sequenza iniziata. Un campione della scena a fine cattura verifica che i canali RGB coincidano e che il colore torni al riavvio. La prova mobile ruota lo schermo con l'esito aperto, controlla lo spazio sopra le attribuzioni e usa il pulsante della mappa dopo una seconda cattura. Impostare `QA_SCREENSHOT_DIR` per salvare fuori dal checkout le schermate desktop, mobile verticale e orizzontale.
+
+`typecheck`, `build` e `npm.cmd test` passati. Schermate controllate in Chrome a 1440×900, 390×844 e 844×390. Titolo, statistiche e pulsanti lasciano libera l'area centrale attorno all'auto. In una cattura campionata sul lungomare, l'auto si è assestata di circa 45 cm dopo il contatto e il punteggio è rimasto fisso per tutti i 117 fotogrammi osservati. La verifica mobile è in emulazione.

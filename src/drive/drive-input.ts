@@ -1,4 +1,4 @@
-export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () => void,onCamera: () => void){
+export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () => void,onCamera: () => void,canDrive: () => boolean){
   const pointers=new Map<number,{side: number;anchor: number}>(),keys=new Set<string>();
   function read(){
     let left=keys.has('ArrowLeft')||keys.has('a'),right=keys.has('ArrowRight')||keys.has('d');
@@ -8,6 +8,7 @@ export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () 
   function release(){pointers.clear();keys.clear();}
   const hidden=()=>{if(document.hidden)release();};
   function down(e: PointerEvent){
+    if(!canDrive())return;
     const box=host.getBoundingClientRect();
     pointers.set(e.pointerId,{side:e.clientX<box.left+box.width/2?-1:1,anchor:e.clientX});
     onDrive();e.preventDefault();
@@ -22,8 +23,9 @@ export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () 
   function key(e: KeyboardEvent){
     const k=e.key.length===1?e.key.toLowerCase():e.key;
     if(e.type==='keyup'){keys.delete(k);return;}
-    if(k==='c' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onCamera();e.preventDefault();return;}
     if(k==='Escape'){onExit();return;}
+    if(!canDrive())return;
+    if(k==='c' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onCamera();e.preventDefault();return;}
     if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement)return;
     keys.add(k);onDrive();e.preventDefault();
   }

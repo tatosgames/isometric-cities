@@ -78,6 +78,7 @@ export const TUNE={
   viewSpanCompact:62, viewSpanWide:95, lookAhead:.42
 };
 const SKIDS=600, DUST=48, COINS=220;
+const CAPTURE={speed:.3,coast:1,maxSpeed:6,grade:.85,summary:.3,actions:.6};
 const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 
 export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning}: DriveOptions){
@@ -106,7 +107,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(e instanceof PointerEvent && e.pointerType==='touch')return;
     cycleCamera();host.focus({preventScroll:true});
   };
-  const controls=makeDriveInput(host,go,onExit,cycleCamera);
+  const controls=makeDriveInput(host,go,onExit,cycleCamera,()=>state!=='caught');
   function routes(source: number){
     if(field?.source===source)return field;
     field=activeWorld().routesFrom(source);
@@ -221,7 +222,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
 
   // ---- game state ----
   let state: DriveState='off';
-  let score=0,time=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,overAt=0,held=false,warmed=false,lastStart: number | undefined;
+  let score=0,time=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,held=false,warmed=false,lastStart: number | undefined;
+  let capture: {patrol: Patrol;elapsed: number;started: number} | null=null;
   let steerTime=0,steerDirection=0;
   let chasers: Patrol[]=[];
   let field: RouteField | null=null;
@@ -236,6 +238,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   try{record=Number(localStorage.getItem('drive-record'))||0;}catch{}
   const clock=(s: number)=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
   const guide=el('guide'),zones={left:required(guide.querySelector('.left'),'left guide'),right:required(guide.querySelector('.right'),'right guide')};
+  const over=el('over'),actions=el('over-actions'),again=el('again');
+  function clearCapture(){
+    capture=null;
+    over.hidden=actions.hidden=true;
+    over.inert=false;
+    delete over.dataset.caught;
+  }
   // Screen position of a map point, in CSS pixels of the host.
   function project(x: number,y: number,lift: number): Point{
     screen.set(x,altitude(x,y)+lift,-y).project(camera);
@@ -324,21 +333,46 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
     rig.startHeading(player.h);
     focus.set(player.x,groundAt(player.x,player.y),-player.y);
-    el('over').hidden=true;guide.className='ready';
+    clearCapture();guide.className='ready';
     state='ready';
   }
-  function caught(by: Vehicle){
+  function caught(by: Patrol){
     state='caught';buzz(140);guide.className='';
+    controls.release();
+    over.dataset.caught='';
+    capture={patrol:by,elapsed:0,started:last};
+    for(const car of [player,by]){
+      const speed=Math.hypot(car.vx,car.vy);
+      if(speed>CAPTURE.maxSpeed){
+        car.vx*=CAPTURE.maxSpeed/speed;
+        car.vy*=CAPTURE.maxSpeed/speed;
+      }
+    }
     kick(by.x-player.x,by.y-player.y,1);
     // The contact holds for a beat; dust and the push-in start when it lets go.
     stop(TUNE.stopCaught,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5,false);});
     const best=score>record;
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
     el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
-    required(el('over-record').parentElement,'record stat').classList.toggle('new',best);
+    el('over-record').classList.toggle('new',best);
     el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo rÃ©cord.':'');
-    // A beat on the frozen scene before the result slides in.
-    overAt=performance.now()+420+TUNE.stopCaught*1000;
+  }
+
+  // The result is already fixed. Move only the two cars involved, using their remaining momentum.
+  function coast(patrol: Patrol,elapsed: number,dt: number){
+    const damping=1-Math.min(1,elapsed/CAPTURE.coast);
+    const world=activeWorld();
+    const cars=[player,...chasers];
+    for(const car of [player,patrol]){
+      if(!car.vx && !car.vy)continue;
+      const x=car.x+car.vx*dt*damping,y=car.y+car.vy*dt*damping;
+      const occupied=cars.some(other=>other!==car && Math.hypot(x-other.x,y-other.y)<TUNE.radius*2);
+      if(!damping || occupied || !world.free(x,y,TUNE.radius)){
+        car.vx=car.vy=0;
+        continue;
+      }
+      car.x=x;car.y=y;
+    }
   }
 
   function go(){
@@ -427,7 +461,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
 
   function frame(now: number){
     raf=requestAnimationFrame(frame);
-    const dt=Math.min(.05,(now-last)/1000||0);last=now;
+    const wallDt=Math.min(.05,(now-(last||now))/1000);last=now;
+    let dt=wallDt;
     if(freeze){
       freeze=Math.max(0,freeze-dt);
       if(!freeze){release?.();release=null;}
@@ -435,7 +470,20 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       acc+=dt;
       for(;acc>=1/120 && state==='playing' && !freeze;acc-=1/120)step(1/120);
       if(freeze)acc=0;
-    }else if(state==='caught'){
+    }
+    if(capture){
+      // Preserve the hit-stop, then advance the result and the slowed scene on separate clocks.
+      dt=0;
+      if(!freeze){
+        capture.elapsed+=wallDt;
+        dt=wallDt*CAPTURE.speed;
+        if(player.vx || player.vy || capture.patrol.vx || capture.patrol.vy)coast(capture.patrol,capture.elapsed,dt);
+        if(capture.elapsed>=CAPTURE.summary)over.hidden=false;
+        if(capture.elapsed>=CAPTURE.actions && actions.hidden){
+          actions.hidden=false;
+          again.focus({preventScroll:true});
+        }
+      }
       playerPose.release(dt);
     }
     spin+=dt*4;
@@ -444,11 +492,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
+    const lightTime=capture?capture.started+capture.elapsed*CAPTURE.speed*1000:now;
     chasers.forEach((c,i)=>{
       place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32));
-      c.light.visible=!c.wreck;c.light.material=(Math.floor(now/140)+i)%2?lightRed:lightBlue;
+      c.light.visible=!c.wreck;c.light.material=(Math.floor(lightTime/140)+i)%2?lightRed:lightBlue;
     });
-    beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target;
+    beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target && !capture;
     coinMesh.count=coins.length;
     coins.forEach((c,i)=>{
       dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);dummy.rotation.set(0,spin+i*.7,0);dummy.scale.setScalar(1);
@@ -464,7 +513,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     // Pedestrians hold with the simulation during a hit-stop, and keep strolling before the start and after a capture.
     let walking=0,clearance=99;
     if(people){
-      if(!freeze && !held)people.update(dt,player,[player,...chasers.filter(c=>!c.wreck)]);
+      if(dt && !freeze && !held)people.update(dt,player,[player,...chasers.filter(c=>!c.wreck)]);
       people.walkers.forEach((w,i)=>{
         if(w.alive && !wasAlive[i])shown[i]=0;
         wasAlive[i]=w.alive?1:0;
@@ -524,7 +573,6 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       goal.classList.toggle('near',!off);
       goal.style.setProperty('--turn',(Math.atan2(gy-py,gx-px)+Math.PI/2).toFixed(2)+'rad');
     }
-    if(state==='caught' && overAt && now>=overAt){overAt=0;el('over').hidden=false;el('again').focus({preventScroll:true});}
     host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0,stops,Math.hypot(kickX,kickY).toFixed(2),walking,clearance.toFixed(1)].join(',');
   }
 
@@ -539,14 +587,16 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     try{renderer.compile(scene,camera);}catch{}
     group.remove(...stand);
   }
-  el('again').onclick=()=>{
-    if(state!=='caught')return;
+  again.onclick=()=>{
+    if(state!=='caught' || actions.hidden)return;
     const start=nextStart();
-    if(start)restart(start);
+    if(start){restart(start);host.focus({preventScroll:true});}
   };
   el('leave').onclick=()=>onExit();
   return {
     get active(){return state!=='off';},
+    get desaturation(){return capture?T.MathUtils.smoothstep(capture.elapsed,0,CAPTURE.grade):0;},
+    get visualTimeScale(){return capture?(freeze?0:CAPTURE.speed):1;},
     enter(): 'started' | 'unavailable'{
       if(state!=='off')return 'started';
       if(!pois.length)return 'unavailable';
@@ -575,7 +625,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       state='off';cancelAnimationFrame(raf);scene.remove(group);
       controls.deactivate();
       held=false;
-      el('hud').hidden=el('over').hidden=true;guide.className='';el('pops').replaceChildren();
+      el('hud').hidden=true;clearCapture();guide.className='';el('pops').replaceChildren();
       delete host.dataset.drive;
     },
     /** A zone arrived with its footprints, or left with `null`. */
@@ -587,12 +637,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       if(state==='off')return;
       cancelAnimationFrame(raf);raf=0;controls.release();
       steerTime=steerDirection=0;
-      playerPose.reset();
+      if(capture)over.inert=true;else playerPose.reset();
       if(state==='playing'){held=true;guide.className='ready';}
     },
     resume(){
       if(state==='off' || raf)return;
       warmed=false;warm();
+      over.inert=false;
       last=0;acc=0;raf=requestAnimationFrame(frame);
     }
   };
