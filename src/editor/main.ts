@@ -217,7 +217,7 @@ async function start() {
         poseProp(anchor,prop,city.groundAt);
         anchor.position.y += .45;
       }
-      if (!fixed && !placing && mode !== 'select') {
+      if (!fixed && !placing && (mode === 'move' || mode === 'rotate')) {
         gizmo.setMode(mode === 'rotate' ? 'rotate' : 'translate');
         gizmo.showX = gizmo.showZ = mode !== 'rotate';
         gizmo.showY = mode === 'rotate';
