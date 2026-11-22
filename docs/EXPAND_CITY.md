@@ -35,6 +35,11 @@ python scripts/sectors.py
 
 Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson` condiviso e i due file dei tetti. Entrambi gli stage riscrivono i POI condivisi. L’atlante usa entrambe le scene già generate. Confronta i confini prima/dopo e le coordinate dei luoghi preesistenti. Per un’estensione verifica su ogni nuovo bordo la continuità di strade, suolo, edifici e colori.
 
+## Oggetti e modelli dedicati
+
+- **Oggetti puntuali** (gru, ciminiere): `data.py` li legge da OpenStreetMap e li scrive in `city.json` come `props`, cioè `[tipo, x, y, orientamento, dimensione]`. `sectors.py` li distribuisce in settori e zone. Un tipo nuovo richiede una voce in `data.py` e un disegno in `src/render/port-props.ts`, con la versione semplificata per la vista intermedia. Non disegnare oggetti che OSM non mappa e non dare una dimensione a quelli mappati come solo punto.
+- **Modello dedicato di un edificio:** una voce in `catalog.buildings` con `landmark`, colori e `windows: false`, e una funzione in `src/render/landmarks.ts` registrata in `models`. `frame()` dà centro, direzione e mezze misure dell'impronta; `facade()` posiziona le parti lungo un lato. Prendi le altezze dal LiDAR (tabella per celle di 5 m), la pianta dall'ortofoto a 20 cm e le facciate da fotografie usate solo come riferimento. Se il record comunale ha più corpi, usa la chiave del singolo corpo `OBJECTID:floor(x minimo):floor(y minimo)`. Resta entro circa 1.500 triangoli e controlla il modello da almeno due orientamenti.
+
 ## Settori, guida e memoria
 
 Dopo ogni quartiere nuovo ripeti il passaggio di ottimizzazione descritto in [PERFORMANCE.md](PERFORMANCE.md): misura i settori più pesanti con `node scripts/frame-profile.mjs <x,y,zoom>` e controlla che i trucchi già applicati reggano. `sectors.py` semplifica le impronte di settori e zone entro 0,1 m; `city.json` conserva i vertici originali.

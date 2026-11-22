@@ -60,6 +60,11 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 
 ## Idee non ancora provate
 
+- Il nucleo di La Isleta (settore -5_22, 385 edifici) resta a 325.000 triangoli da vicino e a metà cadenza sul telefono emulato: è il primo caso da affrontare. I parapetti sono ancora la voce maggiore.
+- Parapetti a due facce (sopra e fuori) nel profilo compatto: −33 % dei loro triangoli, ma da dentro l'isolato il bordo lontano si assottiglia.
+- Budget di dettaglio espresso anche in triangoli, non solo in byte: i settori densi pesano sulla GPU più di quanto dica la loro dimensione.
+- Livello sempre residente più leggero: il picco heap è salito a 111 MB con La Isleta (terreno di 3 milioni di celle in Float32, strade e isolati di tutta la città).
+
 - Muri interamente sepolti tra due edifici adiacenti (2 triangoli per lato).
 - Un solo parapetto dove due tetti alla stessa quota condividono il lato.
 - Dettaglio ridotto (senza finestre) per i settori precaricati fuori dallo schermo.

@@ -80,6 +80,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **S · Quartiere 4: La Isleta e Puerto de la Luz.** La mappa passa da 8,06 a 19,30 km² e da 10.137 a 14.973 parti di edificio, con 16 luoghi (nuovi: Castillo de la Luz e Mercado del Puerto). Trenta tile LiDAR controllano 14.160 parti. [Verifiche e limiti](docs/QA.md#la-isleta-e-puerto-de-la-luz-23-novembre-2026). Aperto: picco heap a 112,6 MB; `qa.mjs` fermo alla riga 75 già sul commit precedente. Prossimo: oggetti del porto e modelli dedicati di Castillo de la Luz, Auditorio Alfredo Kraus e Mercado del Puerto.
 
+**T · Porto e modelli dedicati.** 21 gru e 2 ciminiere da OpenStreetMap come oggetti (`props`), serbatoi e silos con guscio dedicato, e tre modelli: Castillo de la Luz, Mercado del Puerto e Auditorio Alfredo Kraus. [Dettagli, misure e limiti](docs/QA.md#oggetti-del-porto-e-tre-modelli-dedicati-23-novembre-2026). Aperto: il nucleo di La Isleta va a metà cadenza sul telefono emulato (325.000 triangoli da vicino); picco heap 110,7 MB; gru senza collisione nella guida.
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).

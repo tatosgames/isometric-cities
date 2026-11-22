@@ -455,6 +455,26 @@ Verifiche su una copia pulita del commit:
 
 Limiti. Il picco heap cresce con la superficie (112,6 MB): il livello sempre residente va alleggerito prima di aggiungere Ciudad Alta. Subito dopo il ripristino della vista `benchmark.mjs` misura uno o due fotogrammi da circa 170 ms (p95 su 40 fotogrammi; 35 ms sul commit precedente), mentre a vista ferma la cadenza è regolare: causa non diagnosticata. Nella vista più ampia su Santa Catalina le zone residenti stimano 93 MB. Mancano ancora i tile 454-3112, 455-3111, 458-3106 e 458-3107. La penisola a nord non ha edifici comunali: è terreno con sentieri. Nessuna prova su telefono fisico; guida non provata a mano nell'area nuova. Gru, silos e modelli dedicati non sono in questo passo.
 
+## Oggetti del porto e tre modelli dedicati (23 novembre 2026)
+
+**Oggetti del porto.** Inventario di OpenStreetMap dentro l'area: 21 gru (`man_made=crane`: 18 a portale, 1 travel lift, 2 senza tipo), 2 ciminiere, 97 serbatoi (68 mappati come punto, 29 con impronta) e 22 silos. Gru e ciminiere viaggiano in una lista nuova, `props` (tipo, posizione, orientamento, dimensione), scritta da `data.py` e distribuita da `sectors.py` in settori e zone. `src/render/port-props.ts` le disegna: la gru è un portale procedurale con il braccio alzato, in dettaglio da vicino (13 parallelepipedi) e come sagoma nella vista intermedia (6). Colori dall'ortofoto SITCAN del 2024: struttura azzurra, sala macchine bianca. Serbatoi e silos sono già edifici comunali: i 34 che contengono un serbatoio o un silo mappato perdono finestre e volumi tecnici e prendono un guscio chiaro. Nessun container e nessuna nave: OSM non li mappa.
+
+**Modelli dedicati** in `src/render/landmarks.ts`, con volumi dalle impronte comunali, altezze dal LiDAR, pianta dall'ortofoto a 20 cm e facciate da fotografie di riferimento (Wikimedia Commons e due foto del Mercado fornite da Luca, usate solo come riferimento visivo):
+
+- **Castillo de la Luz** (OBJECTID 32072): mura in pietra a 10 m, merli lungo il cammino di ronda, torretta con copertura conica a 13 m. I bastioni tondi e il cortile sono già nell'impronta.
+- **Mercado del Puerto** (26966): pareti avorio a 7,4 m con aperture scure, fascia di lamelle, tetto a padiglione fino a 9,2 m, pensilina su colonne in ferro verde, portali a timpano e lucernario ottagonale fino a 14 m.
+- **Auditorio Alfredo Kraus** (14627, solo il corpo della sala): pietra ocra a 29 m, lanterna vetrata con cuspide chiara fino a 48 m, torre ottagonale e vetrata sul lato dell'impronta rivolto all'oceano.
+
+Il record comunale dell'Auditorio ha sei corpi separati: il catalogo può ora dare uno stile a un solo corpo con la chiave `OBJECTID:floor(x minimo):floor(y minimo)`, la stessa delle correzioni LiDAR.
+
+Verifiche su una copia pulita del commit: `typecheck` e `build` verdi; `qa-sectors.mjs` 2 verdi su 2; prove di posa, pedoni e appoggio al terreno verdi. `qa.mjs` resta fermo alla riga 75 come sul commit `1a37dba`. Schermate dei tre modelli da due orientamenti e delle gru da vicino e da lontano, viste a occhio.
+
+`frame-profile.mjs`, telefono emulato su GPU Intel UHD (mediana / p95, triangoli): Castillo de la Luz 18,0 / 18,3 ms, 172.065; Mercado del Puerto 17,9 / 36,0 ms, 212.236; Auditorio Alfredo Kraus 17,9 / 18,1 ms, 49.842; gru del terminal da vicino 17,4 ms, 5.876; vista più ampia su La Isleta 17,9 / 18,2 ms, 330.338. `benchmark.mjs`: apertura 5,7 s, vista ravvicinata p95 18,2 ms, picco heap 110,7 MB.
+
+**Passaggio di ottimizzazione, esito.** Il nucleo abitato di La Isleta è il punto più pesante della città: a (-1200, 5000) da vicino 325.393 triangoli con mediana 35,9 ms e p95 53,8 ms, cioè metà cadenza costante sul telefono emulato. Il settore -5_22 ha 385 edifici; dopo le ottimizzazioni già attive i parapetti restano la voce maggiore (27.768 triangoli prima dello scarto di quelli sepolti), poi muri 12.712, finestre e davanzali 12.120, volumi tecnici 7.752, tetti 5.512. Non corretto in questo passo.
+
+Limiti. Le posizioni delle gru in OSM sono approssimate (nota `FIXME`): nell'ortofoto una gru reale sta a circa 50 m dal punto mappato. L'orientamento è verso il bordo di banchina più vicino. Le gru non sono ostacoli nella guida. I 68 serbatoi mappati solo come punto e senza edificio comunale non sono disegnati: OSM non ne dà la dimensione. I modelli sono interpretazioni semplificate nello stile del plastico; la posizione della torretta del Castillo e della lanterna dell'Auditorio è misurata sull'ortofoto. Il tetto dell'Auditorio ha la tinta scura del PNOA, più scura del vero. Dall'alto il Mercado mostra soprattutto il tetto. Nessuna prova su telefono fisico; guida non provata a mano.
+
 ## Toponimi in Conducir
 
 L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.
