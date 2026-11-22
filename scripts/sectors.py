@@ -105,6 +105,26 @@ def write_versioned(directory, name, value):
     return path.name
 
 
+def lighter(building):
+    """Drop the vertices that sit within the 0.1 m precision of the data from a straight wall.
+
+    Municipal footprints carry a vertex wherever a neighbour meets the wall. Each one costs a wall face,
+    a parapet and a roof triangle in the viewer without changing the outline."""
+    rings = building["rings"]
+    polygon = Polygon(rings[0], rings[1:])
+    slim = polygon.simplify(0.1) if polygon.is_valid else polygon
+    if slim.geom_type != "Polygon" or not slim.is_valid or len(slim.interiors) != len(rings) - 1:
+        return building
+    out = [[[round(x, 1), round(y, 1)] for x, y in ring.coords] for ring in (slim.exterior, *slim.interiors)]
+    # The first vertex anchors the building to the terrain: keep it first.
+    if out[0][0] != rings[0][0]:
+        if rings[0][0] not in out[0]:
+            return building
+        at = out[0].index(rings[0][0])
+        out[0] = out[0][at:-1] + out[0][:at] + [out[0][at]]
+    return {**building, "rings": out}
+
+
 def partition(stage, road_cells=None):
     data = json.loads((ROOT / f"{stage}.json").read_bytes())
     directory = ROOT / f"{stage}-sectors"
@@ -122,7 +142,7 @@ def partition(stage, road_cells=None):
         center = ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
         key = cell(*center)
         owners.append(f"{key[0]}_{key[1]}")
-        tiles[key]["buildings"].append(building)
+        tiles[key]["buildings"].append(lighter(building))
     for point in data["trees"]:
         tiles[cell(*point)]["trees"].append(point)
 

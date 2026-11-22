@@ -149,6 +149,31 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
   const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
+  // A window or ledge on a party wall is buried in the neighbour. Index the footprints to ask what stands just
+  // outside a wall, and up to which height. The editor moves buildings apart, so there every wall keeps its detail.
+  const LOT=32,lots=new Map<string,{rings: Ring[];top: number}[]>();
+  if(!buildingRanges)for(const b of data.buildings){
+    const outer=b.rings[0],xs=outer.map(p=>p[0]),ys=outer.map(p=>p[1]);
+    const lot={rings:b.rings,top:altitude(outer[0][0],outer[0][1])+(b.heightOverride??b.height)};
+    for(let i=Math.floor(Math.min(...xs)/LOT);i<=Math.floor(Math.max(...xs)/LOT);i++)
+      for(let j=Math.floor(Math.min(...ys)/LOT);j<=Math.floor(Math.max(...ys)/LOT);j++){
+        const key=i+','+j,list=lots.get(key);
+        if(list)list.push(lot);else lots.set(key,[lot]);
+      }
+  }
+  function buriedTo(px: number,py: number,own: Ring[]){
+    let top=-Infinity;
+    for(const lot of lots.get(Math.floor(px/LOT)+','+Math.floor(py/LOT))??[]){
+      if(lot.rings===own || lot.top<=top)continue;
+      let inside=false;
+      for(const ring of lot.rings)for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+        const [ax,ay]=ring[i],[bx,by]=ring[j];
+        if((ay>py)!==(by>py) && px<(bx-ax)*(py-ay)/(by-ay)+ax)inside=!inside;
+      }
+      if(inside)top=lot.top;
+    }
+    return top;
+  }
   for(const b of data.buildings){
     editableBuilding=b;
     const [x,y]=b.rings[0][0], s=shape(b.rings);
@@ -176,11 +201,15 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       const ux=(e-a)/len,uy=(f-c)/len;
       const nx=uy*winding,ny=-ux*winding;
       const count=Math.floor(len/4.2);
+      // What stands along the whole edge: a taller neighbour swallows the ledges below its roof and the parapet.
+      const shared=Math.min(...[.2,.5,.8].map(t=>buriedTo(a+(e-a)*t+nx*.5,c+(f-c)*t+ny*.5,b.rings)));
       if(b.windows!==false && len<95){
         for(let bay=0;bay<count;bay++){
           const cx=a+(bay+.5)*(e-a)/count+nx*.07;
           const cy=c+(bay+.5)*(f-c)/count+ny*.07;
+          const buried=buriedTo(cx+nx*.5,cy+ny*.5,b.rings);
           for(let floor=3;floor<h-1.5;floor+=3.6){
+            if(z+floor+1.95<=buried)continue;
             const left=[cx-ux*.74,z+floor,-cy+uy*.74];
             const right=[cx+ux*.74,z+floor,-cy-uy*.74];
             const tl=[left[0],left[1]+1.95,left[2]],tr=[right[0],right[1]+1.95,right[2]];
@@ -199,10 +228,11 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       if(!compact && b.windows!==false && count>=2 && len<65){
         const rot=Math.atan2(f-c,e-a);
         for(let level=3;level<h-2;level+=3.6){
+          if(z+level<=shared)continue;
           addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
         }
       }
-      addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
+      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
     }
     if(windows.length){
       const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);

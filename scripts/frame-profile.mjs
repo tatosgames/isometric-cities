@@ -1,4 +1,5 @@
-// Frame pacing at one place: node scripts/frame-profile.mjs [place-id] [dist] [query]
+// Frame pacing at one place: node scripts/frame-profile.mjs [place-id | x,y,zoom] [dist] [query]
+// x and y are local metres; zoom 1.59 is the place view and 0.352 the widest view of the 390 px phone.
 import {chromium} from 'playwright';
 import {preview} from 'vite';
 const [place='santa-ana',dir='dist',query='']=process.argv.slice(2);
@@ -12,8 +13,11 @@ try{
     for(const name of ['drawArrays','drawElements','drawArraysInstanced','drawElementsInstanced']){
       const fn=p[name];p[name]=function(...args){window.stats.draws++;if(args[0]===4)window.stats.tris+=(name.includes('Arrays')?args[2]:args[1])*(name.endsWith('Instanced')?args[3]:1)/3;return fn.apply(this,args);};}
   });
+  const spot=/^-?\d/.test(place)?place.split(',').map(Number):null;
+  // A view by coordinates opens as a resumed session, the same path as a reload.
+  if(spot)await page.addInitScript(([x,y,zoom])=>sessionStorage.setItem('map-view:'+location.pathname+location.search,JSON.stringify({target:[x,0,-y],zoom,turn:0})),spot);
   await page.goto(server.resolvedUrls.local[0]+query);await page.waitForSelector('#scene[data-view]');
-  await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="'+place+'"]').click();
+  if(!spot){await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="'+place+'"]').click();}
   await page.waitForFunction(()=>{const e=document.querySelector('#scene');if(e.dataset.moving!=='false')return false;const s=JSON.parse(e.dataset.sectors);return !s.pending&&!s.fading;},null,{timeout:60000});
   await page.waitForTimeout(1500);
   const cdp=await page.context().newCDPSession(page);await cdp.send('Performance.enable');
