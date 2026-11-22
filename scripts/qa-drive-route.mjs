@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import {makeDriveRoute} from '../src/drive/drive-route.ts';
-import {routesFrom} from '../src/drive/road-routing.ts';
+import {chooseStartNode,routesFrom} from '../src/drive/road-routing.ts';
+
+const spawnNodes=[0,1,2].map(x=>({x,y:0,links:[],part:0,ok:true}));
+const clearAt=(x,y,radius)=>radius<=10&&x!==0;
+assert.equal(chooseStartNode(spawnNodes,[0,1,2],clearAt,10,()=>0),1,'Skip nodes without the full spawn clearance');
+assert.equal(chooseStartNode(spawnNodes,[0,1,2],clearAt,10,()=>.99),2,'Choose randomly among clear nodes');
+assert.equal(chooseStartNode(spawnNodes,[0,1,2],()=>false,10,()=>0,1),0,'Fall back to a valid node and avoid the previous spawn');
+assert.equal(chooseStartNode(spawnNodes,[],()=>true,10),undefined,'Return no spawn when there are no valid nodes');
 
 const nodes = [0, 10, 40, 80].map(x => ({x,y:0,links:[],part:0,ok:true}));
 nodes[0].links.push([1,10]);

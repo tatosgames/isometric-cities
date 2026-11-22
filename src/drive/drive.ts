@@ -1,3 +1,4 @@
+import { carGeometry, carVisualScale, tint } from './car-model.ts';
 import type { Altitude, CityData, Place, Point } from '../data/types.ts';
 import { element as el } from '../map/dom.ts';
 import { required } from '../required.ts';
@@ -10,8 +11,10 @@ import {makeDrivePose} from './drive-pose.ts';
 import {makeDriveCamera} from './drive-camera.ts';
 import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
-import type { RoadNode } from './road-routing.ts';
+import { chooseStartNode, type RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
+import {makePedestrians} from './pedestrians.ts';
+import {breezy} from '../render/wind.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -63,7 +66,7 @@ export const TUNE={
   kick:36, kickStiff:220, kickDamp:22, kickMax:1.2,
   // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.
   zoomSpeed:.1, zoomThreat:.08, zoomCaught:.14, zoomRate:1.1, paceRate:.7, leadRate:2.4, followRate:9,
-  radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:1.3,
+  radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:carVisualScale,
   catchSpeed:4.5, catchReach:4, grace:2.5,
   chaserEvery:18, chaserSpeed:1.04, chaserSpeedStep:.02, chaserSpeedMax:1.16, chaserTurn:.8, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
   coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
@@ -71,25 +74,6 @@ export const TUNE={
 };
 const SKIDS=600, DUST=48, COINS=220;
 const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
-
-function tint(geometry: T.BufferGeometry,color: T.ColorRepresentation){
-  const c=new T.Color(color),n=geometry.attributes.position.count,a=new Float32Array(n*3);
-  for(let i=0;i<n;i++)a.set([c.r,c.g,c.b],i*3);
-  geometry.setAttribute('color',new T.BufferAttribute(a,3));
-  return geometry;
-}
-function carGeometry(body: string,top: string,police: boolean){
-  const parts=[
-    tint(new T.BoxGeometry(3,.7,1.5).translate(0,.6,0),body),
-    tint(new T.BoxGeometry(1.5,.55,1.3).translate(-.2,1.2,0),top)
-  ];
-  for(const x of [-.95,.95])for(const z of [-.72,.72])parts.push(tint(new T.BoxGeometry(.62,.5,.26).translate(x,.25,z),'#22252b'));
-  if(police){
-    parts.push(tint(new T.BoxGeometry(.9,.72,1.52).translate(1.06,.6,0),'#1f4a8f'));
-    parts.push(tint(new T.BoxGeometry(.25,.2,.95).translate(-.2,1.57,0),'#3d7bff'));
-  }
-  return required(mergeGeometries(parts),"car geometry");
-}
 
 export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
@@ -187,6 +171,18 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
   dustMesh.frustumCulled=false;group.add(dustMesh);
   const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,life:0}));
   const dustColour=new T.Color('#d8cdbb'),smokeColour=new T.Color('#3b3836');
+  // Pedestrians: legless toy figures that get about by hopping, larger than life like the cars.
+  // A tinted body and a fixed head share one matrix per walker, so the body colour does not tint the skin.
+  const WALKERS=compact?26:40;
+  const figure=()=>breezy(new T.MeshStandardMaterial({...surfaceStencil(),flatShading:true,roughness:1}));
+  const torsoMesh=new T.InstancedMesh(new T.CylinderGeometry(.34,.52,1.45,8).translate(0,.725,0),figure(),WALKERS);
+  const limbs=figure();limbs.vertexColors=true;
+  const restMesh=new T.InstancedMesh(tint(new T.IcosahedronGeometry(.4,1).translate(0,1.78,0),'#e0b48e'),limbs,WALKERS);
+  const shirts=['#d9614c','#e8c25a','#5b8fb9','#6aa27a','#f1ebe0','#8d6bb0','#e58f4f'].map(c=>new T.Color(c));
+  for(let i=0;i<WALKERS;i++)torsoMesh.setColorAt(i,shirts[i%shirts.length]);
+  torsoMesh.frustumCulled=restMesh.frustumCulled=false;group.add(torsoMesh,restMesh);
+  let people: ReturnType<typeof makePedestrians> | null=null;
+  const shown=new Float32Array(WALKERS),lifted=new Float32Array(WALKERS),wasAlive=new Uint8Array(WALKERS);
   let skidAt=0,dustAt=0;
   function puff(x: number,y: number,dark: boolean){
     const p=dust[dustAt];
@@ -219,7 +215,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
 
   // ---- game state ----
   let state: DriveState='off';
-  let score=0,time=0,round=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,overAt=0,held=false,warmed=false;
+  let score=0,time=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,overAt=0,held=false,warmed=false,lastStart: number | undefined;
   let steerTime=0,steerDirection=0;
   let chasers: Patrol[]=[];
   let field: RouteField | null=null;
@@ -302,12 +298,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function nextStart(){
-    if(!pois.length)return undefined;
     const world=activeWorld();
-    const poi=pois[round%pois.length];
-    const node=world.nodes[world.nearestNode(poi.x,poi.y)];
-    if(node)round++;
-    return node;
+    const index=chooseStartNode(world.nodes,world.validNodes,world.free,10,Math.random,lastStart);
+    if(index===undefined)return undefined;
+    lastStart=index;
+    return world.nodes[index];
   }
   function restart(n: RoadNode){
     for(const c of chasers)group.remove(c.mesh,c.blob);
@@ -318,6 +313,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     for(const p of dust)p.life=0;
     Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
+    people?.reset(player);shown.fill(0);
     const path=trail();
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
     rig.startHeading(player.h);
@@ -459,6 +455,25 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       dummy.updateMatrix();dustMesh.setMatrixAt(i,dummy.matrix);
     });
     dustMesh.instanceMatrix.needsUpdate=true;
+    // Pedestrians hold with the simulation during a hit-stop, and keep strolling before the start and after a capture.
+    let walking=0,clearance=99;
+    if(people){
+      if(!freeze && !held)people.update(dt,player,[player,...chasers.filter(c=>!c.wreck)]);
+      people.walkers.forEach((w,i)=>{
+        if(w.alive && !wasAlive[i])shown[i]=0;
+        wasAlive[i]=w.alive?1:0;
+        shown[i]+=((w.alive?1:0)-shown[i])*Math.min(1,dt*7);
+        lifted[i]+=((w.air>0?2.7:0)-lifted[i])*Math.min(1,dt*16);
+        const fleeing=w.alarm>0;
+        if(w.alive){walking++;if(!w.air)clearance=Math.min(clearance,Math.hypot(w.x-player.x,w.y-player.y));}
+        // Every step is a hop: stretched on the way up, squashed on landing.
+        const hop=Math.abs(Math.sin(w.phase)),size=shown[i]<.02?0:shown[i]*1.3,tall=.82+.36*hop,wide=1/Math.sqrt(tall);
+        dummy.position.set(w.x,altitude(w.x,w.y)+.75+lifted[i]+hop*(fleeing?.9:.42),-w.y);
+        dummy.rotation.set(0,w.h,fleeing?-.3:-.08);dummy.scale.set(size*wide,size*tall,size*wide);
+        dummy.updateMatrix();torsoMesh.setMatrixAt(i,dummy.matrix);restMesh.setMatrixAt(i,dummy.matrix);
+      });
+      torsoMesh.instanceMatrix.needsUpdate=restMesh.instanceMatrix.needsUpdate=true;
+    }
     // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
     // the follow itself is tight, which keeps the car steady on screen.
     lead.lerp(new T.Vector3(player.vx,0,-player.vy).multiplyScalar(TUNE.lookAhead),Math.min(1,dt*TUNE.leadRate));
@@ -504,7 +519,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       goal.style.setProperty('--turn',(Math.atan2(gy-py,gx-px)+Math.PI/2).toFixed(2)+'rad');
     }
     if(state==='caught' && overAt && now>=overAt){overAt=0;el('over').hidden=false;el('again').focus({preventScroll:true});}
-    host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0,stops,Math.hypot(kickX,kickY).toFixed(2)].join(',');
+    host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0,stops,Math.hypot(kickX,kickY).toFixed(2),walking,clearance.toFixed(1)].join(',');
   }
 
   // Compile every material the mode can show before the first frame, so the first skid,
@@ -530,6 +545,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       if(state!=='off')return 'started';
       if(!pois.length)return 'unavailable';
       world??=buildDriveWorld(data,altitude,TUNE);
+      people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
       const start=nextStart();
       if(!start)return 'unavailable';
       scene.add(group);

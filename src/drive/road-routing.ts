@@ -6,6 +6,23 @@ export interface RoadNode {
   part: number;
 }
 
+/** Select a road node with the requested clearance, falling back to any valid candidate. */
+export function chooseStartNode(nodes: RoadNode[],candidates: number[],free: (x: number,y: number,radius: number)=>boolean,
+  clearance: number,random: ()=>number=Math.random,previous?: number){
+  if(!candidates.length)return undefined;
+  let pool=candidates.filter(index=>{
+    const node=nodes[index];
+    return node && free(node.x,node.y,clearance);
+  });
+  if(!pool.length)pool=candidates.filter(index=>nodes[index]);
+  if(previous!==undefined && pool.length>1){
+    const fresh=pool.filter(index=>index!==previous);
+    if(fresh.length)pool=fresh;
+  }
+  const sample=Math.max(0,Math.min(1-Number.EPSILON,random()));
+  return pool[Math.floor(sample*pool.length)];
+}
+
 /** Weighted shortest paths. Each predecessor points one hop back to source. */
 export function routesFrom(nodes: RoadNode[],source: number){
   const dist=new Float64Array(nodes.length).fill(Infinity);

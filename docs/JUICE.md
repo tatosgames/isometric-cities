@@ -26,6 +26,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 | Urto forte (oltre 9 m/s) | Fermo di 55 ms | Spinta verso il muro | Saltello | – | 18 ms |
 | Spinta di una pattuglia (oltre 6 m/s) | – | Spinta verso la pattuglia, al 70% | – | – | – |
 | Schianto di una pattuglia | – | Spinta verso il rottame entro 40 m, più debole da lontano | Rottame scuro che gira, fumo per 3 s | «+2» con icona dell'urto | – |
+| Pedone vicino a un veicolo in arrivo | – | – | Il pedone scatta di lato a 6,2 m/s per 0,9 s, saltellando; se un muro non lascia spazio salta sopra l'auto | – | – |
 | Arrivo a destinazione | Fermo di 50 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande, nuova ficha | 40 ms |
 | Cattura | Fermo di 110 ms, poi fine partita | Spinta piena verso la pattuglia; dopo il fermo, avvicinamento lento del 14% | Polvere al rilascio | Pannello dopo altri 420 ms, record che pulsa se battuto | 140 ms |
 
@@ -59,6 +60,16 @@ La camera scatta **verso ciò che ha colpito** e torna a riposo con una molla sm
 - La direzione dell'urto contro i muri viene dalla fisica (`hitX`, `hitY` in `src/drive/drive-physics.ts`), non dalla velocità dell'auto.
 - La molla sposta solo il bersaglio della camera. Non tocca lo zoom né l'anticipo lungo la marcia.
 
+## Pedoni
+
+Figure semplici senza gambe, un corpo colorato e una testa, che si muovono a saltelli: si allungano salendo e si schiacciano atterrando. Sono atmosfera: nessun punto, nessuna penalità, nessun segnale nell'interfaccia (scelta di Luca, 22 novembre 2026). Compaiono solo in guida.
+
+- **Dove:** ai bordi delle strade carrabili, sulle vie pedonali di OSM e lungo corde interne a piazze e parchi. Non attraversano. Sono 40 su desktop e 26 su telefono, riciclati tra 42 e 82 m dall'auto, di preferenza davanti alla direzione di marcia.
+- **Fuga:** un veicolo in avvicinamento li allarma entro 6 m più 0,6 m per ogni m/s di velocità (circa 16 m a velocità massima). Scappano di lato rispetto alla traiettoria, dal giocatore come dalle pattuglie.
+- **Mai investiti:** a ogni fotogramma un pedone a meno di 2,3 m dal centro di un veicolo viene spostato fuori; se un muro lo impedisce resta in aria finché il veicolo è passato. Lo verifica `node scripts/qa-pedestrians.mjs`.
+- Durante un hit-stop restano fermi come il resto della simulazione. Prima della partenza e dopo la cattura continuano a camminare.
+- I valori sono in `PEDESTRIANS` in `src/drive/pedestrians.ts`.
+
 ## Da non fare
 
 - Rimettere il tremolio casuale, anche piccolo, o sommarlo alla spinta.
@@ -76,6 +87,6 @@ La camera scatta **verso ciò che ha colpito** e torna a riposo con una molla sm
 
 ## Verifica
 
-- `npm.cmd test` controlla che la cattura produca almeno un fermo e che la spinta della camera torni a zero. I due valori sono il penultimo e l'ultimo campo di `data-drive` su `#scene`: numero di fermi dall'ingresso in guida e spostamento attuale della camera in metri.
+- `npm.cmd test` controlla che la cattura produca almeno un fermo e che la spinta della camera torni a zero. I due valori sono l'undicesimo e il dodicesimo campo di `data-drive` su `#scene`: numero di fermi dall'ingresso in guida e spostamento attuale della camera in metri.
 - Dopo aver cambiato la molla, ricalcolare picco e tempo di rientro e aggiornare le misure di questo file.
 - Provare a mano una via stretta: strisciando lungo i muri non deve mai scattare un fermo.

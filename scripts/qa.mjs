@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import './qa-drive-pose.mjs';
+import './qa-pedestrians.mjs';
 const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
 const server=process.env.MAP_URL?null:await (await import('vite')).preview({preview:{host:'127.0.0.1',port:0,open:false}});
 const origin=process.env.MAP_URL||server.resolvedUrls.local[0].replace(/\/$/,'');
@@ -158,6 +159,9 @@ try{
     const drive=async()=>(await host.getAttribute('data-drive')).split(',');
     await page.locator('#drive').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
+    // Pedestrians populate the streets around the car before the run starts, none of them on top of it.
+    await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[12])>0);
+    assert.ok(Number((await host.getAttribute('data-drive')).split(',')[13])>=2.2,'A pedestrian stands on the car');
     assert.equal(await page.locator('#pins').isVisible(),false);
     assert.equal(await page.locator('footer').isVisible(),false);
     assert.equal(await page.locator('#hud-stats .stat').count(),2);
@@ -167,6 +171,7 @@ try{
       await page.screenshot({path:dir+'/conducir-mobile.png'});
     }
     const ready=await drive();assert.ok(Number(ready[6])>0,'Expected a coin trail');
+    const initialSpawn=[ready[2],ready[3]];
     const box=await host.boundingBox();
     const waitForTurn=()=>page.waitForFunction(start=>{
       const current=document.querySelector('#scene').dataset.drive.split(',');
@@ -196,7 +201,9 @@ try{
     if(mobile)await page.screenshot({path:dir+'/conducir-fin.png'});
     await page.locator('#again').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
-    assert.equal((await drive())[1],'0');
+    const retry=await drive();
+    assert.equal(retry[1],'0');
+    assert.notDeepEqual([retry[2],retry[3]],initialSpawn,'Retry should use a different random start node');
     // A straight start runs along the first metres of the coin trail.
     await page.keyboard.press('ArrowDown');
     await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive?.split(',')[1])>0,null,{timeout:20000});

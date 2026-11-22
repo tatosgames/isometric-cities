@@ -181,6 +181,14 @@ Tre aperture in Chrome mobile emulato con un nuovo processo per prova, eseguite 
 - Limiti noti: nei settori dettagliati l'ombra considera solo gli edifici del settore stesso, quindi può mancare lungo i bordi; i moli del porto esterni al perimetro appaiono come vuoti contornati di schiuma; il livello del mare è fissato a −0,9 m perché il modello del terreno arriva a 0 m sulle banchine.
 - Non verificato: aspetto e costo su telefono fisico; il movimento delle onde è stato controllato solo su immagini fisse e con il test che confronta due fotogrammi.
 
+## Pedoni · 22 novembre 2026
+
+- `node scripts/qa-pedestrians.mjs` (incluso in `npm.cmd test`) guida un'auto a 16,5 m/s lungo una via pedonale per 600 fotogrammi: su terreno aperto i pedoni scappano e nessuno a terra arriva a meno di 2,3 m dal centro dell'auto (minimo osservato 5,14 m); in un corridoio largo 2 m saltano sopra l'auto; nessuno finisce dentro un ostacolo; un'auto ferma muove solo chi la tocca.
+- La suite browser controlla che all'ingresso in guida ci siano pedoni e che nessuno sia a meno di 2,2 m dall'auto. I due valori sono il tredicesimo e il quattordicesimo campo di `data-drive`: pedoni presenti e distanza minima dal giocatore.
+- In una corsa di 4 s su desktop emulato: 40 pedoni presenti, distanza minima campionata 7,5 m.
+- Costo: due draw call (corpo colorato e testa) e nessun nuovo dato.
+- Non verificato: prova a mano in vie strette, leggibilità su telefono fisico (le figure sono alte circa 3 m in scala, come le auto maggiorate), comportamento con molte pattuglie insieme.
+
 ## Laboratorio visivo A/B · 22 novembre 2026
 
 Aprire `/lab.html` sul server locale Vite. Il pannello lil.gui applica le modifiche a B. Il divisore si trascina direttamente oppure si sposta con lo slider. A e B a schermo intero facilitano il confronto su touch. Durante l’orbita viene mostrata B, poi la cattura di A si riallinea. «Usa B come riferimento» permette di isolare una modifica successiva. Le ricette JSON includono i parametri di entrambe le varianti, la zona, la posa e l’ampiezza della vista in metri. «Importa ricetta» ripristina il confronto anche su uno schermo di dimensioni diverse.
