@@ -417,6 +417,16 @@ Da vicino il calo a schermo è minore di quello per settore, perché il budget d
 
 Limiti. Le viste più ampie sono stabili a 18 ms in `frame-profile.mjs`, ma `benchmark.mjs` misura ancora 35,4 ms di p95 nella vista lontana: la sua misura parte con le richieste precedenti ancora valide. Da vicino, in tre dei cinque isolati densi misurati un fotogramma su dieci dura ancora 35 ms, come a Santa Ana prima: il costo è lato GPU e non dipende dal solo numero di triangoli. Le misure dei tempi sono state prese con un altro processo attivo sulla macchina e vanno ripetute a macchina libera. Nessuna prova su telefono fisico. Il catalogo dei trucchi applicati è in [PERFORMANCE.md](PERFORMANCE.md).
 
+## Edifici più alti del dato comunale corretti con il LiDAR (22 novembre 2026)
+
+In 157 parti di edificio il tetto misurato (p95) supera di oltre 10 m l'altezza comunale. `scripts/lidar-check.py --export` ne corregge 54: solo quelle in cui anche la mediana dei punti del tetto sale (oltre 5 m sopra il comunale e almeno il 75 % del p95). Nelle altre 103 la mediana resta vicina al dato comunale: il p95 legge un albero, una sporgenza del vicino o un corpo alto su una piccola parte dell'impronta, e l'altezza non cambia. Delle 54 corrette, 34 stanno tra Santa Catalina e Guanarteme e 20 nei quartieri precedenti.
+
+Esempi: 25810 (torre accanto al Parque Santa Catalina) da 41,7 a 78,2 m; 22817 da 3,6 a 29,1 m; 16466 da 7,8 a 32,6 m. Le impronte non cambiano. In città 243 parti usano ora `lidar-pnoa`, 9.854 il dato comunale e 40 la stima di 9 m.
+
+`typecheck`, `build`, `npm.cmd test` e `qa-sectors.mjs`: verdi su una copia pulita del commit. Controllo a occhio della torre 25810 nella mappa.
+
+Limiti. Le 54 correzioni non sono state confrontate una a una con l'ortofoto; solo la torre 25810 è stata guardata nella mappa. Un corpo alto che copre meno di metà dell'impronta resta al dato comunale. Il valore applicato è il p95, che su tetti con volumi tecnici può superare di qualche metro la gronda.
+
 ## Toponimi in Conducir
 
 L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.

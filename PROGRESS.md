@@ -76,6 +76,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Q · Isolati densi più leggeri.** Impronte senza vertici superflui e niente dettaglio sepolto nei vicini più alti: da −8 a −21 % di triangoli negli isolati densi, picco heap da 60,5 a 51,6 MB. I trucchi che non toccano la resa sono raccolti in [docs/PERFORMANCE.md](docs/PERFORMANCE.md), con il passaggio da ripetere dopo ogni quartiere. [Misure e limiti](docs/QA.md#isolati-densi-più-leggeri-22-novembre-2026).
 
+**R · Edifici più alti del dato comunale.** 54 parti prendono l'altezza misurata dal LiDAR dove anche la mediana del tetto la conferma; altre 103 con scarto oltre 10 m restano al dato comunale. [Regola e limiti](docs/QA.md#edifici-più-alti-del-dato-comunale-corretti-con-il-lidar-22-novembre-2026).
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
