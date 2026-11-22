@@ -8,6 +8,8 @@ confronta con l'altezza comunale. Scrive solo in .cache/lidar-control/.
 Dipendenza solo locale: laspy[lazrs] in .cache/pylib (non in requirements.txt).
 """
 import csv, json, sys
+from collections import Counter
+from math import floor
 from pathlib import Path
 sys.path.insert(0, '.cache/pylib')
 import numpy as np
@@ -39,6 +41,12 @@ def load_points(paths):
                          bbox=[round(float(v), 1) for v in (b.mins[0], b.mins[1], b.maxs[0], b.maxs[1])]))
     return np.concatenate(xs), np.concatenate(ys), np.concatenate(zs), np.concatenate(cs), meta
 
+def part_key(building):
+    """Names one part of a municipal footprint: the same OBJECTID can be cut into several polygons."""
+    ring = building['rings'][0]
+    return f"{building['id']}:{floor(min(p[0] for p in ring))}:{floor(min(p[1] for p in ring))}"
+
+
 def main():
     flags = [a for a in sys.argv[1:] if a.startswith('--')]
     x, y, z, c, meta = load_points([a for a in sys.argv[1:] if not a.startswith('--')])
@@ -63,11 +71,11 @@ def main():
         ring = g.buffer(8).difference(allb.buffer(1.0))
         gr = pz[(pc == GROUND) & shapely.contains_xy(ring, px, py)]
         if len(roof) < 5 or len(gr) < 5:
-            rows.append(dict(id=b['id'], area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr), status='insufficient'))
+            rows.append(dict(id=b['id'], key=part_key(b), area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr), status='insufficient'))
             continue
         ground = float(np.median(gr))
         h50, h95, h99 = (float(np.percentile(roof, q))-ground for q in (50, 95, 99))
-        rows.append(dict(id=b['id'], area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr),
+        rows.append(dict(id=b['id'], key=part_key(b), area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr),
                          ground_z=round(ground, 2), lidar_p50=round(h50, 2), lidar_p95=round(h95, 2), lidar_p99=round(h99, 2),
                          delta_p95=round(h95-b['height'], 2), status='ok'))
     ok = [r for r in rows if r['status'] == 'ok' and r['area_m2'] >= 30]
@@ -94,12 +102,19 @@ def main():
                 if r['id'] not in best or r['area_m2'] > best[r['id']]['area_m2']:
                     best[r['id']] = r
         heights.update({str(i): round(r['lidar_p95'], 1) for i, r in best.items()})
+        # A complex carries its tallest height on every part. Where the municipal value towers over the
+        # measured roof of one part by more than 10 m, that part takes the measured height.
+        count = Counter(b['id'] for b in city['buildings'])
+        low = {r['key']: round(r['lidar_p95'], 1) for r in rows if r['status'] == 'ok' and r['source'] == 'municipal-provisional'
+               and count[r['id']] > 1 and r['area_m2'] >= 30 and r['roof_pts'] >= 50 and r['delta_p95'] < -10}
+        part_heights = {**old.get('parts', {}), **low}
         tiles = sorted(set(old.get('tiles', [])) | {m['file'] for m in meta})
         target.write_text(json.dumps(dict(
             source='PNOA-LiDAR 3a cobertura, NPC02 (Canarias 2023-2024), (c) Instituto Geografico Nacional, licencia compatible con CC BY 4.0',
             method='p95 della quota dei punti classe 6 nell\'impronta meno la mediana dei punti classe 2 in un anello di 8 m; solo OBJECTID senza altezza comunale valida',
-            tiles=tiles, heights=dict(sorted(heights.items(), key=lambda kv: int(kv[0])))), indent=1, ensure_ascii=False), encoding='utf8')
-        print('Esportate', len(best), 'altezze in', target)
+            parts_method="parti di un OBJECTID con piu poligoni dove l'altezza comunale supera di oltre 10 m il p95 misurato; chiave OBJECTID:floor(x minimo):floor(y minimo) in metri locali",
+            tiles=tiles, heights=dict(sorted(heights.items(), key=lambda kv: int(kv[0]))), parts=dict(sorted(part_heights.items()))), indent=1, ensure_ascii=False), encoding='utf8')
+        print('Esportate', len(best), 'altezze e', len(low), 'parti in', target)
     print(json.dumps({k: v for k, v in report.items() if k != 'poi'}, indent=1))
     print('POI:', json.dumps(report['poi'], ensure_ascii=False))
 

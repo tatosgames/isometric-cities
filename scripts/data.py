@@ -119,7 +119,8 @@ if stage=='city':
 buildings=[]; roads=[]; surfaces=[]; trees=[]
 # Altezze misurate dal LiDAR PNOA solo per gli edifici senza altezza comunale valida (vedi scripts/lidar-check.py --export).
 lidar_file=Path('content/lidar-heights.json')
-lidar_heights=json.loads(lidar_file.read_text(encoding='utf8'))['heights'] if lidar_file.exists() else {}
+lidar=json.loads(lidar_file.read_text(encoding='utf8')) if lidar_file.exists() else {}
+lidar_heights,lidar_parts=lidar.get('heights',{}),lidar.get('parts',{})
 for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))
     h=f['properties']['MAX_BLDGHEIGHT_1']
@@ -136,7 +137,11 @@ for f in features:
         valid=bool(h and 2<h<100)
         measured=lidar_heights.get(str(f['properties']['OBJECTID']))
         height,origin=(round(h,1),'municipal-provisional') if valid else (measured,'lidar-pnoa') if measured else (9,'estimate')
-        buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=rings(p),height=height,source=origin))
+        outline=rings(p)
+        # Low bodies of a complex: see scripts/lidar-check.py --export.
+        part=lidar_parts.get(f"{f['properties']['OBJECTID']}:{math.floor(min(v[0] for v in outline[0]))}:{math.floor(min(v[1] for v in outline[0]))}")
+        if part and valid: height,origin=part,'lidar-pnoa'
+        buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=outline,height=height,source=origin))
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')
