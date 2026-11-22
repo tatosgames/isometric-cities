@@ -6,6 +6,8 @@ import type { Body } from './drive-physics.ts';
 import type { routesFrom } from './road-routing.ts';
 import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
 import {buildDriveWorld} from './drive-world.ts';
+import type {Zoning} from './drive-world.ts';
+import type {ZoneData} from '../data/types.ts';
 import {makeDrivePhysics} from './drive-physics.ts';
 import {makeDrivePose} from './drive-pose.ts';
 import {makeDriveCamera} from './drive-camera.ts';
@@ -30,6 +32,8 @@ interface DriveOptions {
   mapDirection: T.Vector3;
   compact: boolean;
   onExit: () => void;
+  /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
+  zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};
 }
 
 interface Vehicle extends Body {
@@ -75,7 +79,7 @@ export const TUNE={
 const SKIDS=600, DUST=48, COINS=220;
 const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection,compact,onExit,zoning}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   const activeWorld=()=>required(world,"drive world");
   const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
@@ -544,7 +548,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
     enter(): 'started' | 'unavailable'{
       if(state!=='off')return 'started';
       if(!pois.length)return 'unavailable';
-      world??=buildDriveWorld(data,altitude,TUNE);
+      if(!world){
+        world=buildDriveWorld(data,altitude,TUNE,zoning);
+        for(const [id,zone] of zoning?.resident??[])world.addZone(id,zone.buildings,zone.trees);
+      }
       people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
       const start=nextStart();
       if(!start)return 'unavailable';
@@ -568,6 +575,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       held=false;
       el('hud').hidden=el('over').hidden=true;guide.className='';el('pops').replaceChildren();
       delete host.dataset.drive;
+    },
+    /** A zone arrived with its footprints, or left with `null`. */
+    zone(id: string,content: ZoneData | null){
+      if(content)world?.addZone(id,content.buildings,content.trees);else world?.removeZone(id);
     },
     // Graphics interruption: stop drawing and stepping, drop any touch in progress, keep the run.
     suspend(){

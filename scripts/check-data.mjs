@@ -1,6 +1,6 @@
 import {readFile} from 'node:fs/promises';
-import {isCity, isLayers, isPlaces, isRoofPalette, isSea, isSectorIndex} from '../src/data/load.ts';
-import {validateSectorIndex} from '../src/data/sector-index.ts';
+import {coreWithTerrain, isCity, isCoreFile, isLayers, isPlaces, isRoofPalette, isSea, isSectorIndex, isZone} from '../src/data/load.ts';
+import {validateSectorIndex, validateZone} from '../src/data/sector-index.ts';
 
 async function load(file, valid) {
   const data = JSON.parse(await readFile(new URL('../public/data/' + file, import.meta.url), 'utf8'));
@@ -8,14 +8,22 @@ async function load(file, valid) {
   return data;
 }
 
-const [city, index] = await Promise.all([
-  load('city.json', isCity),
+const [core, index] = await Promise.all([
+  load('city-core.json', isCoreFile),
   load('city-index.json', isSectorIndex),
   load('pilot.json', isCity),
   load('poi.geojson', isPlaces),
   load('roof-tones.json', isRoofPalette),
   load('sea.json', isSea)
 ]);
-validateSectorIndex(city, index);
+validateSectorIndex(index);
+const heights = await readFile(new URL('../public/data/' + core.terrain.file, import.meta.url));
+coreWithTerrain(core, heights.buffer.slice(heights.byteOffset, heights.byteOffset + heights.byteLength));
+let buildings = 0;
+for (const {id, file} of index.zones) {
+  if (!core.far[id]) throw new Error('Zone ' + id + ' has no far level');
+  buildings += validateZone(await load('city-zones/' + file, isZone), id, index);
+}
+if (buildings !== index.buildingCount) throw new Error('Zones hold ' + buildings + ' buildings, the index expects ' + index.buildingCount);
 for (const {file} of index.sectors) await load('city-sectors/' + file, isLayers);
-console.log('Map data validated: city, pilot, places, roof palette, sea and ' + index.sectors.length + ' sectors');
+console.log('Map data validated: core, pilot, places, roof palette, sea, ' + index.zones.length + ' zones and ' + index.sectors.length + ' sectors');

@@ -4,3 +4,4 @@ dist/
 .env
 .env.*
 __pycache__/
+public/data/stress*

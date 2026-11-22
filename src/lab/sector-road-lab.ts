@@ -1,7 +1,7 @@
 import * as T from 'three';
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {loadData,isCity,isSectorIndex,isRoofPalette,isLayers} from '../data/load.ts';
-import {ringCenter,sectorOwner} from '../data/sector-index.ts';
+import {zonesFromCity} from '../data/sector-index.ts';
 import {streamCity} from '../render/sectors/sector-stream.ts';
 import {carGeometry,carVisualScale} from '../drive/car-model.ts';
 import {lodTransition} from '../render/sectors/lod-transition.ts';
@@ -21,10 +21,9 @@ export async function sectorRoadLab(){
   if(!way)throw Error('Tratto Calle San Nicolás assente');
   const path=way.line.map(p=>new T.Vector2(...p)),lengths=[0];
   for(let i=1;i<path.length;i++)lengths.push(lengths[i-1]+path[i-1].distanceTo(path[i]));
-  const pair=new Set(section?[section.cell]:['-2_-2','-1_-2']),inPair=(p:Point)=>pair.has(sectorOwner(...p,index.sectorSize));
-  const layers=!widths&&query.has('intera')?{...city,...index}:{...city,...index,
-    buildings:city.buildings.filter((_,i)=>pair.has(index.buildingOwners[i])),buildingOwners:index.buildingOwners.filter(id=>pair.has(id)),
-    trees:city.trees.filter(inPair),ground:city.ground.filter(r=>inPair(ringCenter(r))),sectors:index.sectors.filter(s=>pair.has(s.id))};
+  const pair=new Set(section?[section.cell]:['-2_-2','-1_-2']);
+  const split=zonesFromCity(city,index,!widths&&query.has('intera')?undefined:id=>pair.has(id));
+  const layers={...split.core,...split.index};
   if(previous)delete layers.roadCoverage;
   const compact=matchMedia('(pointer:coarse)').matches||screen.width<700;
   const renderer=new T.WebGLRenderer({antialias:!compact,stencil:true});
@@ -48,6 +47,11 @@ export async function sectorRoadLab(){
   const stream=streamCity({data:layers,compact,neutral:false,tones:palette.tones,host,legacyRoads:ui.legacy,
     ...(lod?{lod:{stable:options.mode!=='attuale',...(options.mode==='visivo'?{attach:lodTransition(options)}:{}),
       observe(){changes++;}}}:{}),
+    async loadZone(z){
+      const zone=split.zones.get(z.id);
+      if(!zone)throw Error('Zona assente '+z.id);
+      return zone;
+    },
     async loadLayers(s,signal){
       if(ui.delay&&s.id==='-1_-2')await new Promise<void>(r=>setTimeout(r,1800));
       const result=await loadData('city-sectors/'+s.file,isLayers,signal);

@@ -1,6 +1,6 @@
-import { isCity, isPlaces, isRoofPalette, isSea, isSectorIndex, loadData, parseViewState } from './data/load.ts';
+import { isCity, isPlaces, isRoofPalette, isSea, isSectorIndex, loadCore, loadData, parseViewState } from './data/load.ts';
 import { validateSectorIndex } from './data/sector-index.ts';
-import type { ViewState } from './data/types.ts';
+import type { ViewState, ZoneData } from './data/types.ts';
 import { element as el } from './map/dom.ts';
 import { required } from './required.ts';
 import { lodTransition } from './render/sectors/lod-transition.ts';
@@ -29,10 +29,13 @@ async function start(){
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
   const neutral=query.has('neutral');
-  const [data,poi,{tones},index,sea]=await Promise.all([loadData((pilot?'pilot':'city')+'.json',isCity),loadData('poi.geojson',isPlaces),
-    neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData('city-index.json',isSectorIndex),
-    pilot||neutral?null:loadData('sea.json',isSea)]);
-  if(index)validateSectorIndex(data,index);
+  // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
+  const stage=query.get('area')==='stress'?'stress':'city';
+  const [core,single,poi,{tones},index,sea]=await Promise.all([pilot?null:loadCore(stage),pilot?loadData('pilot.json',isCity):null,loadData('poi.geojson',isPlaces),
+    neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData(stage+'-index.json',isSectorIndex),
+    pilot||neutral||stage!=='city'?null:loadData('sea.json',isSea)]);
+  const data=required(core??single,'map data');
+  if(index)validateSectorIndex(index);
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
   const sessionKey='map-view:'+location.pathname+location.search;
@@ -44,7 +47,12 @@ async function start(){
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
-  const streamed=index?streamCity({data:{...data,...index},neutral,tones,compact,host,
+  const residentZones=new Map<string,ZoneData>();
+  const streamed=index&&core?streamCity({data:{...core,...index},stage,neutral,tones,compact,host,
+    onZone(id,content){
+      if(content)residentZones.set(id,content);else residentZones.delete(id);
+      drive?.zone(id,content);
+    },
     lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
   const {group,altitude}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
@@ -61,7 +69,7 @@ async function start(){
   let frame=0,lost=false,painted=0,mapTurn=0;
   let flight: Flight | null=null;
   let lastView: ViewState | null=null;
-  let drive: ReturnType<typeof makeDrive> | null=null;
+  let drive: ReturnType<typeof makeDrive> | null=null,awaitingZone=false;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
@@ -193,6 +201,7 @@ async function start(){
         }
       }
       streamed?.update(camera,controls.target,drive?.active);
+      if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(()=>el('drive').click());
       renderer.render(scene,camera);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;
@@ -236,10 +245,14 @@ async function start(){
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection:direction,compact,onExit:leaveDrive});
+  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,view,mapDirection:direction,compact,onExit:leaveDrive,
+    ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   play.onclick=()=>{
     if(lost || !drive || drive.active || play.getAttribute('aria-disabled')==='true')return;
+    // The run starts on streets whose walls are loaded: wait for the zone under the view.
+    if(streamed && !streamed.demand(controls.target.x,-controls.target.z)){awaitingZone=true;draw();return;}
+    awaitingZone=false;streamed?.undemand();
     if(drive.enter()==='unavailable'){
       play.setAttribute('aria-disabled','true');
       play.setAttribute('aria-label','Play · Modo de conducción no disponible');

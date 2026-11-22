@@ -7,7 +7,7 @@ const browser = await chromium.launch({channel:'chrome',args:['--enable-unsafe-s
 try {
   const origin = process.env.MAP_URL ?? server.resolvedUrls.local[0];
   const viewport = {width:390,height:844};
-  for (const [file, field] of [['city.json','roads'],['poi.geojson','features']]) {
+  for (const [file, field] of [['city-core.json','roads'],['poi.geojson','features']]) {
     const page = await browser.newPage({viewport,hasTouch:true,isMobile:true});
     const errors = [];
     page.on('pageerror', error=>errors.push(error.message));
@@ -34,11 +34,11 @@ try {
   await indexPage.route('**/data/city-index.json', async route=>{
     const response=await route.fetch();
     const payload=await response.json();
-    payload.buildingOwners.pop();
+    payload.zones.pop();
     await route.fulfill({response,json:payload});
   });
   const validation = indexPage.waitForEvent('console', {
-    predicate: message=>message.type()==='error' && message.text().includes('assign one sector to each building')
+    predicate: message=>message.type()==='error' && message.text().includes('has no zone')
   });
   await indexPage.goto(origin);
   await validation;

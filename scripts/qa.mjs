@@ -14,7 +14,7 @@ try{
   const faults=[];
   page.on('pageerror',e=>faults.push(e.message));
   page.on('requestfailed',r=>{
-    if(r.url().includes('/city-sectors/') && r.failure()?.errorText.includes('ERR_ABORTED'))return;
+    if(/\/city-(sectors|zones)\//.test(r.url()) && r.failure()?.errorText.includes('ERR_ABORTED'))return;
     faults.push(r.url()+' '+(r.failure()?.errorText??''));
   });
   page.on('response',r=>{if(r.status()>=400||!r.url().startsWith(origin))faults.push(r.url());});

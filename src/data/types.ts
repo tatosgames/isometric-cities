@@ -76,6 +76,38 @@ export interface Sector {
   file: string;
 }
 
+// One prism per city block, shown while the zone that holds its buildings is not loaded.
+export interface FarBlock {
+  ring: Ring;
+  height: number;
+  tone: string;
+}
+
+export interface FarZone {
+  blocks: FarBlock[];
+  ground: Ring[];
+}
+
+// Everything the city viewer needs before any zone arrives. Buildings, trees and ground stay empty.
+export interface CityCore extends CityData {
+  far: Record<string, FarZone>;
+}
+
+export interface Zone {
+  id: string;
+  bounds: Bounds;
+  vertical: [min: number, max: number];
+  file: string;
+}
+
+// Per-building overview and collision footprints of one zone. `owners` names the sector of each building.
+export interface ZoneData {
+  buildings: Building[];
+  owners: string[];
+  trees: Point[];
+  ground: Ring[];
+}
+
 export interface SectorIndex {
   carriageways?: boolean;
   roadExceptions?:string[];
@@ -83,7 +115,9 @@ export interface SectorIndex {
   roadFallback?:Ring[][];
   sectors: Sector[];
   sectorSize: number;
-  buildingOwners: string[];
+  zones: Zone[];
+  zoneSize: number;
+  buildingCount: number;
 }
 
 export interface Place {

@@ -1,4 +1,4 @@
-import type { Altitude, CityData, Point, Ring } from '../data/types.ts';
+import type { Altitude, Building, Point, Ring, Road } from '../data/types.ts';
 import type { BuildingBlock } from './building-occlusion.ts';
 import type { RoadNode } from './road-routing.ts';
 import {blocksCamera} from './building-occlusion.ts';
@@ -19,34 +19,57 @@ function inRing(ring: Ring,x: number,y: number){
   return inside;
 }
 
-export function buildDriveWorld(data: CityData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number}){
-  const grid=new Map<string,Cell>();
+type Grid=Map<string,Cell>;
+interface WorldData {boundary: Ring;roads: Road[];buildings: Building[];trees: Point[]}
+/** Zones whose footprints arrive later. Without it every obstacle comes with `data`. */
+export interface Zoning {size: number;ids: ReadonlySet<string>}
+
+// The road graph covers the whole city. Walls, roofs and trees live in one layer per zone, so they can
+// come and go with the zones the map has loaded; the boundary and anything in `data` form the base layer.
+export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number},zoning?: Zoning){
+  const layers=new Map<string,Grid>();
+  let stack: Grid[]=[];
   let highestRoof=-Infinity;
-  const cell=(cx: number,cy: number)=>{
-    const k=cx+','+cy;
-    let entry=grid.get(k);
-    if(!entry){entry={segs:[],trees:[],blocks:[]};grid.set(k,entry);}
-    return entry;
-  };
   const span=(a: number,b: number)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
-  function wall(ring: Ring){
-    for(let i=1;i<ring.length;i++){
-      const [ax,ay]=ring[i-1],[bx,by]=ring[i];
-      if(ax===bx && ay===by)continue;
-      const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by];
-      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).segs.push(seg);
+  function addLayer(id: string,buildings: Building[],trees: Point[],boundary?: Ring){
+    const grid: Grid=new Map();
+    const cell=(cx: number,cy: number)=>{
+      const k=cx+','+cy;
+      let entry=grid.get(k);
+      if(!entry){entry={segs:[],trees:[],blocks:[]};grid.set(k,entry);}
+      return entry;
+    };
+    function wall(ring: Ring){
+      for(let i=1;i<ring.length;i++){
+        const [ax,ay]=ring[i-1],[bx,by]=ring[i];
+        if(ax===bx && ay===by)continue;
+        const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by];
+        for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).segs.push(seg);
+      }
     }
+    for(const b of buildings){
+      for(const ring of b.rings)wall(ring);
+      const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
+      const [x0,x1]=span(Math.min(...xs),Math.max(...xs)),[y0,y1]=span(Math.min(...ys),Math.max(...ys));
+      const base=altitude(...b.rings[0][0]);
+      const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height)};
+      highestRoof=Math.max(highestRoof,block.top);
+      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
+    }
+    if(boundary)wall(boundary);
+    // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
+    // Judged against the walls of the same layer, so the result does not depend on arrival order.
+    stack=[grid];
+    const solid=trees.filter(([x,y])=>!near(x,y,tune.treeClearance));
+    for(const [x,y] of solid)cell(Math.floor(x/CELL),Math.floor(y/CELL)).trees.push([x,y]);
+    layers.set(id,grid);stack=[...layers.values()];
   }
-  for(const b of data.buildings){
-    for(const ring of b.rings)wall(ring);
-    const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
-    const [x0,x1]=span(Math.min(...xs),Math.max(...xs)),[y0,y1]=span(Math.min(...ys),Math.max(...ys));
-    const base=altitude(...b.rings[0][0]);
-    const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height)};
-    highestRoof=Math.max(highestRoof,block.top);
-    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
-  }
-  wall(data.boundary);
+  const zoneKey=(x: number,y: number)=>zoning?Math.floor(x/zoning.size)+'_'+Math.floor(y/zoning.size):'';
+  const unloaded=(x: number,y: number)=>{
+    if(!zoning)return false;
+    const key=zoneKey(x,y);
+    return zoning.ids.has(key) && !layers.has(key);
+  };
   // Road graph: OSM vertices are already rounded to 0.1 m, so shared nodes share a key.
   const index=new Map<string,number>(),nodes: RoadNode[]=[];
   const node=(x: number,y: number)=>{
@@ -66,8 +89,7 @@ export function buildDriveWorld(data: CityData,altitude: Altitude,tune: {treeCle
       nodes[a].links.push([b,d]);nodes[b].links.push([a,d]);
     }
   }
-  // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
-  for(const [x,y] of data.trees.filter(([x,y])=>!near(x,y,tune.treeClearance)))cell(Math.floor(x/CELL),Math.floor(y/CELL)).trees.push([x,y]);
+  addLayer('',data.buildings,data.trees,data.boundary);
   const sizes=[];
   for(const start of nodes){
     if(start.part>=0)continue;
@@ -81,25 +103,49 @@ export function buildDriveWorld(data: CityData,altitude: Altitude,tune: {treeCle
     sizes.push(count);
   }
   const main=sizes.indexOf(Math.max(...sizes));
-  for(const n of nodes)n.ok=n.part===main && free(n.x,n.y,1.7);
+  // A node is usable while nothing loaded stands on it; a zone revises its own nodes when it arrives.
+  const usable=(n: RoadNode)=>n.part===main && clear(n.x,n.y,1.7);
+  for(const n of nodes)n.ok=usable(n);
   const roadIndex=indexRoadNodes(nodes);
+  const zoneNodes=new Map<string,RoadNode[]>();
+  if(zoning)for(const n of nodes){
+    const key=zoneKey(n.x,n.y),list=zoneNodes.get(key);
+    if(list)list.push(n);else zoneNodes.set(key,[n]);
+  }
+  function addZone(id: string,buildings: Building[],trees: Point[]){
+    if(layers.has(id))return;
+    addLayer(id,buildings,trees);
+    for(const n of zoneNodes.get(id)??[])n.ok=usable(n);
+  }
+  function removeZone(id: string){
+    if(!id || !layers.delete(id))return;
+    stack=[...layers.values()];
+    for(const n of zoneNodes.get(id)??[])n.ok=usable(n);
+  }
   function near(x: number,y: number,r: number){
     for(let cx=Math.floor((x-r)/CELL);cx<=Math.floor((x+r)/CELL);cx++)for(let cy=Math.floor((y-r)/CELL);cy<=Math.floor((y+r)/CELL);cy++){
-      const c=grid.get(cx+','+cy);
-      if(!c)continue;
-      for(const s of c.segs){
-        const dx=s[2]-s[0],dy=s[3]-s[1];
-        const t=T.MathUtils.clamp(((x-s[0])*dx+(y-s[1])*dy)/(dx*dx+dy*dy),0,1);
-        if(Math.hypot(x-s[0]-dx*t,y-s[1]-dy*t)<r)return true;
+      const key=cx+','+cy;
+      for(const grid of stack){
+        const c=grid.get(key);
+        if(!c)continue;
+        for(const s of c.segs){
+          const dx=s[2]-s[0],dy=s[3]-s[1];
+          const t=T.MathUtils.clamp(((x-s[0])*dx+(y-s[1])*dy)/(dx*dx+dy*dy),0,1);
+          if(Math.hypot(x-s[0]-dx*t,y-s[1]-dy*t)<r)return true;
+        }
+        for(const t of c.trees)if(Math.hypot(x-t[0],y-t[1])<r+tune.treeRadius)return true;
       }
-      for(const t of c.trees)if(Math.hypot(x-t[0],y-t[1])<r+tune.treeRadius)return true;
     }
     return false;
   }
-  function free(x: number,y: number,r: number){
+  function clear(x: number,y: number,r: number){
     if(!inRing(data.boundary,x,y) || near(x,y,r))return false;
-    const c=grid.get(Math.floor(x/CELL)+','+Math.floor(y/CELL));
-    return !c || !c.blocks.some(b=>inRing(b.rings[0],x,y));
+    const key=Math.floor(x/CELL)+','+Math.floor(y/CELL);
+    return !stack.some(grid=>grid.get(key)?.blocks.some(b=>inRing(b.rings[0],x,y)));
+  }
+  // Ground whose footprints have not arrived counts as occupied: nothing starts or steps there.
+  function free(x: number,y: number,r: number){
+    return !unloaded(x,y) && clear(x,y,r);
   }
   function sight(ax: number,ay: number,bx: number,by: number){
     const d=Math.hypot(bx-ax,by-ay),steps=Math.ceil(d/1.8);
@@ -115,12 +161,15 @@ export function buildDriveWorld(data: CityData,altitude: Altitude,tune: {treeCle
     checked.clear();
     for(let cx=Math.floor(Math.min(x,ex)/CELL);cx<=Math.floor(Math.max(x,ex)/CELL);cx++){
       for(let cy=Math.floor(Math.min(y,ey)/CELL);cy<=Math.floor(Math.max(y,ey)/CELL);cy++){
-        const cell=grid.get(cx+','+cy);
-        if(!cell)continue;
-        for(const block of cell.blocks){
-          if(checked.has(block))continue;
-          checked.add(block);
-          if(blocksCamera(block,x,y,height,dx,dy))return true;
+        const key=cx+','+cy;
+        for(const grid of stack){
+          const cell=grid.get(key);
+          if(!cell)continue;
+          for(const block of cell.blocks){
+            if(checked.has(block))continue;
+            checked.add(block);
+            if(blocksCamera(block,x,y,height,dx,dy))return true;
+          }
         }
       }
     }
@@ -133,16 +182,19 @@ export function buildDriveWorld(data: CityData,altitude: Altitude,tune: {treeCle
     let hit=0;
     for(let cx=Math.floor((body.x-radius)/CELL);cx<=Math.floor((body.x+radius)/CELL);cx++){
       for(let cy=Math.floor((body.y-radius)/CELL);cy<=Math.floor((body.y+radius)/CELL);cy++){
-        const cell=grid.get(cx+','+cy);
-        if(!cell)continue;
-        for(const segment of cell.segs)hit=Math.max(hit,wallContact(body,segment,radius));
-        for(const tree of cell.trees)hit=Math.max(hit,treeContact(body,tree,radius));
+        const key=cx+','+cy;
+        for(const grid of stack){
+          const cell=grid.get(key);
+          if(!cell)continue;
+          for(const segment of cell.segs)hit=Math.max(hit,wallContact(body,segment,radius));
+          for(const tree of cell.trees)hit=Math.max(hit,treeContact(body,tree,radius));
+        }
       }
     }
     return hit;
   }
   return {
-    nodes,validNodes:roadIndex.valid,nearestNode,near,free,sight,occluded,visitObstacles,
+    nodes,validNodes:roadIndex.valid,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
     routesFrom:(source: number)=>routesFrom(nodes,source)
   };
 }

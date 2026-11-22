@@ -82,6 +82,8 @@ export function indexRoadNodes(nodes: RoadNode[]){
     function scan(i: number,j: number){
       for(const id of cells.get(i+','+j)??[]){
         const n=nodes[id],d=(n.x-x)**2+(n.y-y)**2;
+        // A zone that arrived later may have put a wall on this node.
+        if(!n.ok)continue;
         if(d<dist||(d===dist&&id<best)){dist=d;best=id;}
       }
     }

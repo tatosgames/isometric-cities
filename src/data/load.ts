@@ -1,4 +1,4 @@
-import type { Bounds, Building, CityData, Layers, Place, Point, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState } from './types.ts';
+import type { Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, Point, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -46,12 +46,14 @@ export function isLayers(v: unknown): v is Layers {
     && (v.textureBounds === undefined || bounds(v.textureBounds));
 }
 
-function terrain(v: unknown): v is Terrain {
-  return record(v) && point(v.origin) && number(v.step) && v.step > 0
+function terrainGrid(v: Record<string, unknown>): v is Record<string, unknown> & Omit<Terrain, 'values'> {
+  return point(v.origin) && number(v.step) && v.step > 0
     && (v.stepY === undefined || (number(v.stepY) && v.stepY > 0))
     && number(v.w) && Number.isInteger(v.w) && v.w >= 2
-    && number(v.h) && Number.isInteger(v.h) && v.h >= 2
-    && list(v.values, number) && v.values.length === v.w * v.h;
+    && number(v.h) && Number.isInteger(v.h) && v.h >= 2;
+}
+function terrain(v: unknown): v is Terrain {
+  return record(v) && terrainGrid(v) && list(v.values, number) && v.values.length === v.w * v.h;
 }
 
 export function isCity(v: unknown): v is CityData {
@@ -66,9 +68,43 @@ export const isSea = (v: unknown): v is Sea =>
 const sector = (v: unknown): v is Sector =>
   record(v) && string(v.id) && bounds(v.bounds) && point(v.vertical) && string(v.file);
 
+const farBlock = (v: unknown): v is FarBlock => record(v) && ring(v.ring) && number(v.height) && string(v.tone);
+const farZone = (v: unknown): v is FarZone => record(v) && list(v.blocks, farBlock) && list(v.ground, ring);
+
+export function isZone(v: unknown): v is ZoneData {
+  return record(v) && list(v.buildings, building) && list(v.owners, string)
+    && list(v.trees, point) && list(v.ground, ring);
+}
+
+type CoreFile = Omit<CityCore, 'terrain' | 'buildings' | 'trees' | 'ground'> & {terrain: Omit<Terrain, 'values'> & {file: string}};
+export function isCoreFile(v: unknown): v is CoreFile {
+  return record(v) && ring(v.boundary) && list(v.roads, road) && list(v.surfaces, surface)
+    && (v.focus == null || string(v.focus)) && record(v.terrain) && terrainGrid(v.terrain) && string(v.terrain.file)
+    && record(v.far) && Object.values(v.far).every(farZone);
+}
+
+/** Terrain heights are little-endian Int16 decimetres on the grid named by the core. */
+export function coreWithTerrain(core: CoreFile, heights: ArrayBuffer): CityCore {
+  const {w, h} = core.terrain;
+  if (heights.byteLength !== w * h * 2) throw new Error('Terrain size does not match its grid');
+  const view = new DataView(heights), values = new Float32Array(w * h);
+  for (let i = 0; i < values.length; i++) values[i] = view.getInt16(i * 2, true) / 10;
+  return {...core, terrain: {...core.terrain, values}, buildings: [], trees: [], ground: []};
+}
+
+export async function loadCore(stage: string): Promise<CityCore> {
+  const core = await loadData(stage + '-core.json', isCoreFile);
+  const response = await fetch('./data/' + core.terrain.file);
+  if (!response.ok) throw new Error(core.terrain.file + ' HTTP ' + response.status);
+  return coreWithTerrain(core, await response.arrayBuffer());
+}
+
+const zone = (v: unknown): v is Zone =>
+  record(v) && string(v.id) && bounds(v.bounds) && point(v.vertical) && string(v.file);
+
 export function isSectorIndex(v: unknown): v is SectorIndex {
   return record(v) && list(v.sectors, sector) && number(v.sectorSize)
-    && v.sectorSize > 0 && list(v.buildingOwners, string)
+    && v.sectorSize > 0 && list(v.zones, zone) && number(v.zoneSize) && v.zoneSize > 0 && number(v.buildingCount)
     && (v.carriageways===undefined||boolean(v.carriageways)) && (v.roadCoverage===undefined||list(v.roadCoverage,rings)) && (v.roadFallback===undefined||list(v.roadFallback,rings)) && (v.roadExceptions===undefined||list(v.roadExceptions,string));
 }
 
