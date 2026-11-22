@@ -201,4 +201,6 @@ async function start(){
   let saved:Recipe|null=null;try{const raw=localStorage.getItem(key);if(raw)saved=parseRecipe(raw);}catch{/* stale recipe */}
   if(saved)await applyRecipe(saved);else await loadZone();
 }
-start().catch(e=>{status.textContent=String(e);console.error(e);});
+const run=new URLSearchParams(location.search).get('test')==='strade'
+  ? import('./road-lab.ts').then(m=>m.roadLab()) : start();
+run.catch(e=>{status.textContent=String(e);console.error(e);});
