@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "zone": "mercado",
+  "view": "Isometrica",
+  "camera": {
+    "position": [
+      -630.0262565272253,
+      1104.4238869845883,
+      919.2268184898392
+    ],
+    "target": [
+      154.62381940961194,
+      4,
+      268.5413896641694
+    ],
+    "span": 165
+  },
+  "a": {
+    "osm": false,
+    "grain": 0.65,
+    "steps": false,
+    "frontage": false,
+    "bay": 3.3,
+    "shared": false,
+    "roof": 0,
+    "area": 240,
+    "furniture": true,
+    "slope": false,
+    "contact": false,
+    "canopy": false,
+    "radius": 0.22,
+    "height": 0.18
+  },
+  "b": {
+    "osm": true,
+    "grain": 0.65,
+    "steps": true,
+    "frontage": true,
+    "bay": 3.3,
+    "shared": true,
+    "roof": 0,
+    "area": 240,
+    "furniture": true,
+    "slope": false,
+    "contact": false,
+    "canopy": false,
+    "radius": 0.22,
+    "height": 0.18
+  }
+}

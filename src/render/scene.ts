@@ -1,4 +1,5 @@
 import type { CityData, Ring, RoofTones } from '../data/types.ts';
+import type { SceneStudy } from './scene-study.ts';
 import type { GroundMap } from './ground-map.ts';
 import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
@@ -13,9 +14,9 @@ interface Bucket {
 }
 
 
-export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null) {
+export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null, study?: SceneStudy) {
   const group = new T.Group();
-  const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
+  const groundMap=neutral?null:(sharedGround??makeGroundMap(data,study?.road));
   const {mat,buildingMat,wood,leaf,shadeMat}=cityMaterials(neutral,groundMap);
   const buckets = new Map<string, Bucket>();
   function flush(bucket: Bucket){
@@ -34,7 +35,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const v=terrain.values, u=col%1, t=row%1;
     return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t);
   }
-  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material=mat) {
+  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material: T.Material=mat) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
     const normals=geom.attributes.normal;
@@ -85,12 +86,13 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
   for(const b of data.buildings){
     const [x,y]=b.rings[0][0], s=shape(b.rings);
-    const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
-    const g=new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false}).translate(0,0,z-2).rotateX(-Math.PI/2);
+    const foundation=study?.foundation?.(b,altitude);
+    const z=foundation?.base??altitude(x,y), h=b.heightOverride??b.height, top=z+h;
+    const g=foundation?.walls??new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false}).translate(0,0,z-2).rotateX(-Math.PI/2);
     addBuilding(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
-    addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
-    if(b.roofFurniture!==false && b.id%6!==1){
+    add(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4,null,study?.roof?.(b)??buildingMat);
+    if(study?.furniture!==false && b.roofFurniture!==false && b.id%6!==1){
       const {radius,rx,ry}=roofClearance(roof);
       if(radius>2.1){
         const size=Math.min(5,radius),angle=Math.atan2(b.rings[0][1][1]-y,b.rings[0][1][0]-x);
@@ -108,12 +110,13 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       if(len<1)continue;
       const ux=(e-a)/len,uy=(f-c)/len;
       const nx=uy*winding,ny=-ux*winding;
-      const count=Math.floor(len/4.2);
+      const count=Math.floor(len/(study?.frontage?.(b,j-1)??4.2));
       if(b.windows!==false && len<95){
         for(let bay=0;bay<count;bay++){
           const cx=a+(bay+.5)*(e-a)/count+nx*.07;
           const cy=c+(bay+.5)*(f-c)/count+ny*.07;
           for(let floor=3;floor<h-1.5;floor+=3.6){
+            if(study?.covered?.(b,j-1,(bay+.5)/count-.74/len,(bay+.5)/count+.74/len,z+floor+1.95))continue;
             const left=[cx-ux*.74,z+floor,-cy+uy*.74];
             const right=[cx+ux*.74,z+floor,-cy-uy*.74];
             const tl=[left[0],left[1]+1.95,left[2]],tr=[right[0],right[1]+1.95,right[2]];
@@ -161,13 +164,15 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   for(const [x,y] of data.trees){
     const z=altitude(x,y),seed=Math.abs(Math.round(x*3+y));
     if(compact)instance('shade',x,y,z+.76,7,1,6.4,seed,0);
-    if(seed%5===0){
-      const height=7+seed%4;
+    const tree=study?.tree?.(x,y);
+    const widthScale=tree?.width??1,heightScale=tree?.height??1;
+    if(tree?.palm??(seed%5===0)){
+      const height=(7+seed%4)*heightScale;
       instance('trunk',x,y,z+height/2,1.2,height,1.2,0,'#8b7756');
       // Each frond vertex records how far it sits from the trunk (128 = root, 228 = tip) so the wind can bend it.
       const leaves=[],bend: number[]=[],reachOf=(t: number)=>128+Math.round(100*Math.min(1,t));
       for(let k=0;k<(compact?8:13);k++){
-        const angle=k*2.4+seed,reach=3.7+(k%3)*.7;
+        const angle=k*2.4+seed,reach=(3.7+(k%3)*.7)*widthScale;
         const frond=(t: number,side: number)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
         for(let j=0;j<9;j++){
           const t=j/10,tip=(j+1.7)/11,width=.55*Math.sin((j+1)*Math.PI/11);
@@ -180,11 +185,11 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       const fronds=new T.BufferGeometry();fronds.setAttribute('position',new T.Float32BufferAttribute(leaves,3));fronds.computeVertexNormals();add(fronds,'#628536',x,y,Uint8Array.from(bend));
       continue;
     }
-    instance('trunk',x,y,z+2,1,4,1,0,'#887451');
+    instance('trunk',x,y,z+2*heightScale,1,4*heightScale,1,0,'#887451');
     const palette=[['#3d533e','#59714c','#778352'],['#324d43','#4a6a53','#68805d'],['#4f6040','#687b50','#85935d']][seed%3];
     for(let k=0;k<(compact?4:7);k++){
-      const angle=k*2.4+seed,rad=k===0?0:2.05,sz=2.3+(seed%7)*.14;
-      instance('crown',x+Math.cos(angle)*rad,y-Math.sin(angle)*rad,z+5.3+(k===0?1.6:Math.sin(k+seed)*.65),sz,sz*1.08,sz*.86,angle,palette[k%3]);
+      const angle=k*2.4+seed,rad=k===0?0:2.05*widthScale,sz=2.3+(seed%7)*.14;
+      instance('crown',x+Math.cos(angle)*rad,y-Math.sin(angle)*rad,z+(5.3+(k===0?1.6:Math.sin(k+seed)*.65))*heightScale,sz*widthScale,sz*1.08*heightScale,sz*.86*widthScale,angle,palette[k%3]);
     }
   }
 

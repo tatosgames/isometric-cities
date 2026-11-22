@@ -180,3 +180,22 @@ Tre aperture in Chrome mobile emulato con un nuovo processo per prova, eseguite 
 - Apertura misurata dalla suite dopo le modifiche: 2.828 ms su desktop e 1.781 ms su mobile emulato (prima del mare e dell'ombra: 2.091 e 1.451 ms nella stessa sessione). È una sola esecuzione per configurazione.
 - Limiti noti: nei settori dettagliati l'ombra considera solo gli edifici del settore stesso, quindi può mancare lungo i bordi; i moli del porto esterni al perimetro appaiono come vuoti contornati di schiuma; il livello del mare è fissato a −0,9 m perché il modello del terreno arriva a 0 m sulle banchine.
 - Non verificato: aspetto e costo su telefono fisico; il movimento delle onde è stato controllato solo su immagini fisse e con il test che confronta due fotogrammi.
+
+## Laboratorio visivo A/B · 22 novembre 2026
+
+Aprire `/lab.html` sul server locale Vite. Il pannello lil.gui applica le modifiche a B. Il divisore si trascina direttamente oppure si sposta con lo slider. A e B a schermo intero facilitano il confronto su touch. Durante l’orbita viene mostrata B, poi la cattura di A si riallinea. «Usa B come riferimento» permette di isolare una modifica successiva. Le ricette JSON includono i parametri di entrambe le varianti, la zona, la posa e l’ampiezza della vista in metri. «Importa ricetta» ripristina il confronto anche su uno schermo di dimensioni diverse.
+
+| Confronto riproducibile | Cosa osservare |
+|---|---|
+| [Mercado de Vegueta](lab/mercado.json) · [immagine](lab/mercado.png) | Materiali OSM e campate sul fronte strada. A mantiene i parametri originali. |
+| [Isolato in pendenza](lab/pendio.json) · [immagine](lab/pendio.png) | Vista ravvicinata del fabbricato comunale 30879. Il tratto arancione evidenzia il bordo inferiore delle pareti del fabbricato campione. |
+
+I cinque campioni inclusi sono utilizzabili con i dati del checkout. Dopo una rigenerazione della città, eseguire `python scripts/lab-samples.py` dalla radice per riallineare i supplementi usando gli XML OSM, il mosaico PNOA e le librerie GIS della pipeline locale. I tag mancanti mantengono lo stile di base. Le adiacenze sono calcolate anche con edifici esterni al campione. Le variazioni delle chiome sono illustrative. La visualizzazione della pendenza esclude i monumenti con geometria dedicata.
+
+«Misura A/B» muove la camera sullo stesso percorso per ciascun modello, con 24 frame di riscaldamento e 24 frame campionati. Le colonne riportano p95 degli intervalli tra frame, draw call e triangoli medi, tempo CPU dell’ultima costruzione del modello. Il costo CPU include la preparazione delle geometrie e delle texture sul lato JavaScript. Compilazione shader, upload e caricamento dati sono operazioni distinte.
+
+`node scripts/qa-visual-lab.mjs` prova il tool con Chrome desktop e mobile emulato. Confronta i pixel di A e B a impostazioni identiche anche dopo orbita e ridimensionamento, e confronta gli attributi geometrici con il generatore di produzione sullo stesso campione. Verifica cinque preset visibili, ripristino di A, esportazioni, importazione della camera, gradini e materiali mancanti, un’apertura parzialmente coperta in altezza, un tetto con cortile e l’invarianza della quota alla rotazione dell’anello. La prova produce i confronti in `.cache/qa-visual-lab/`.
+
+Verificati anche typecheck, build, suite del gioco e circuito dei settori con attraversamento in guida. La build Vite pubblica il laboratorio su GitHub Pages tramite la pagina dedicata `lab.html`. Il laboratorio usa un unico renderer e tiene residenti i due modelli del campione selezionato. Il benchmark riguarda quei modelli; la verifica su telefono fisico e durante una partita completa resta da eseguire per le varianti scelte.
+
+Sul campione Mercado con la ricetta registrata, una prova desktop Chrome con SwiftShader ha dato p95 di 18,2 ms per entrambe le varianti e 15 draw call medie. I triangoli sono passati da 59.354 a 58.062; la preparazione CPU del campione da 109,9 a 140,9 ms. I tempi dipendono da macchina, carico e riscaldamento.

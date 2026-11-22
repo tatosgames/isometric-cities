@@ -8,7 +8,7 @@ export interface GroundMap {
 
 
 // Ground features share the terrain triangles. Paint their plan-view coverage once.
-export function makeGroundMap(data: CityData): GroundMap {
+export function makeGroundMap(data: CityData, decorate?: import('./scene-study.ts').SceneStudy['road']): GroundMap {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
   if(data.textureBounds){
@@ -54,6 +54,7 @@ export function makeGroundMap(data: CityData): GroundMap {
       ctx.beginPath();
       trace(road.line);
       ctx.stroke();
+      decorate?.(ctx,road);
     }
   }
 
