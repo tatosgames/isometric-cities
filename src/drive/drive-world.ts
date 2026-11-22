@@ -10,6 +10,27 @@ interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[]}
 
 
 const CELL=20;
+// The city boundary has thousands of edges and is asked about every road node: index its edges by bands of
+// northing so a point only meets the few edges that cross its own band.
+function ringIndex(ring: Ring,band=25){
+  const rows=new Map<number,number[]>();
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const ay=ring[i][1],by=ring[j][1];
+    for(let k=Math.floor(Math.min(ay,by)/band);k<=Math.floor(Math.max(ay,by)/band);k++){
+      const row=rows.get(k);
+      if(row)row.push(i,j);else rows.set(k,[i,j]);
+    }
+  }
+  return (x: number,y: number)=>{
+    const row=rows.get(Math.floor(y/band));
+    let inside=false;
+    if(row)for(let k=0;k<row.length;k+=2){
+      const [ax,ay]=ring[row[k]],[bx,by]=ring[row[k+1]];
+      if((ay>y)!==(by>y) && x<(bx-ax)*(y-ay)/(by-ay)+ax)inside=!inside;
+    }
+    return inside;
+  };
+}
 export function inRing(ring: Ring,x: number,y: number){
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
@@ -28,6 +49,7 @@ export interface Zoning {size: number;ids: ReadonlySet<string>}
 // come and go with the zones the map has loaded; the boundary and anything in `data` form the base layer.
 export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number},zoning?: Zoning){
   const layers=new Map<string,Grid>();
+  const inCity=ringIndex(data.boundary);
   let stack: Grid[]=[];
   let highestRoof=-Infinity;
   const span=(a: number,b: number)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
@@ -139,7 +161,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     return false;
   }
   function clear(x: number,y: number,r: number){
-    if(!inRing(data.boundary,x,y) || near(x,y,r))return false;
+    if(!inCity(x,y) || near(x,y,r))return false;
     const key=Math.floor(x/CELL)+','+Math.floor(y/CELL);
     return !stack.some(grid=>grid.get(key)?.blocks.some(b=>inRing(b.rings[0],x,y)));
   }

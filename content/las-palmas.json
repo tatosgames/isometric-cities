@@ -128,6 +128,24 @@
         "city"
       ],
       "markerHeight": 2
+    },
+    {
+      "id": "castillo-de-la-luz",
+      "name": "Castillo de la Luz",
+      "osm": "way/126808548",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "mercado-del-puerto",
+      "name": "Mercado del Puerto",
+      "osm": "way/119110526",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
     }
   ],
   "buildings": {
@@ -168,8 +186,8 @@
     "bounds": [
       -15.47,
       28.07,
-      -15.4,
-      28.16
+      -15.39,
+      28.19
     ],
     "lattice": 0.01,
     "zones": [
@@ -258,6 +276,10 @@
       {
         "id": "guanarteme",
         "osm": "relation/16904431"
+      },
+      {
+        "id": "la-isleta",
+        "osm": "relation/16904434"
       }
     ],
     "minimumLandM2": 5000000

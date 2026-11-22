@@ -8,6 +8,7 @@ from shapely.geometry import Polygon, LineString, Point, shape, mapping, box, Mu
 from shapely.ops import transform, unary_union, polygonize
 from shapely import make_valid
 from pyproj import Transformer
+import numpy as np
 import rasterio
 from source_cache import fetch
 from osm_extract import acquire
@@ -133,6 +134,8 @@ if stage=='city':
     # The sea beside the model is the coast partition that is not land, kept within 260 m of the area.
     # `shore` is the mapped coastline (foam follows it); `edge` is the cut side, where the slab of water ends.
     near=area.buffer(260,quad_segs=4)
+    # A harbour basin wider than that is still enclosed by land and piers: no hole in its water.
+    near=unary_union([Polygon(p.exterior) for p in parts(near,'Polygon')])
     shoreline=unary_union(coast)
     water=[p for part in partitions if part is not land for p in parts(part.intersection(near),'Polygon') if p.area>400]
     assert water, 'No sea next to the area'
@@ -187,6 +190,8 @@ url='https://servicios.idee.es/wcs-inspire/mdt?'+urlencode([('service','WCS'),('
 with rasterio.open(fetch(stage+'-dem.tif',url)) as dem:
     assert dem.crs.to_epsg()==4083
     grid=dem.read(1,masked=True)
+    # Beyond its coverage the service answers -32768 without declaring it as missing: read it as sea level.
+    grid=np.ma.masked_less(grid,-1000)
     assert grid.count()
     elev=dict(origin=[dem.transform.c+dem.transform.a/2-ox,dem.transform.f+dem.transform.e/2-oy],stepY=-dem.transform.e,step=dem.transform.a,w=dem.width,h=dem.height,values=grid.filled(0).round(1).flatten().tolist())
 ground=[coords(p.exterior.coords) for x in range(15*math.floor(x0/15),math.ceil(x1),15) for y in range(15*math.floor(y0/15),math.ceil(y1),15) for p in parts(area.intersection(box(x,y,x+15,y+15)),'Polygon') if p.area>0.01]
