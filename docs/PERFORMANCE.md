@@ -18,6 +18,8 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Impronte senza i vertici entro 0,1 m da un muro dritto (la precisione dei dati). Il primo vertice resta primo, perché ancora l'edificio al terreno. | `lighter()` in `scripts/sectors.py`; `city.json` resta intatto | −22 % di vertici d'impronta in città; settori −5 % e zone −10 % in byte; meno muri, parapetti e triangoli di tetto |
 | Livello lontano a isolati fusi: unione delle impronte, contorno semplificato a 3 m, altezza e tinta medie pesate sull'area | `far_blocks()` in `sectors.py` | La città intera resta residente in 1,6 MB |
 | Terreno in binario Int16 a decimetri invece che in JSON | `city-terrain.bin` | Niente analisi di una lista di numeri all'apertura |
+| Terreno tenuto in Int16 anche in memoria (`Terrain.scale`), sul thread principale e nel worker | `coreWithTerrain()` in `load.ts` | 6 MB invece di 12 per copia |
+| Copertura stradale ritagliata per zona; nell'indice solo una copia semplificata a 1,5 m per la mappa lontana | `sectors.py`, `sector-stream.ts` | Scatto dopo il ripristino da 176 a 36 ms; indice da 1,74 a 0,48 MB; heap a vista ferma da 98 a 86 MB |
 | Tre livelli: nucleo, zone da 960 m, settori da 240 m, con nomi derivati dal contenuto | `sectors.py` | Il viewer non scarica più la città intera; la cache del browser resta valida tra una versione e l'altra |
 
 ## Geometria (viewer)
@@ -25,7 +27,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Trucco | Dove | Effetto misurato |
 |---|---|---|
 | Estrusione senza fondo e coperchio: uno è interrato, l'altro sta sotto il tetto | `wallsOnly()` in `src/render/scene.ts` | Con i parapetti a tre facce: Santa Ana da 359.000 a 264.000 triangoli |
-| Parapetti a tre facce invece di una scatola chiusa, nel profilo compatto | `parapet()` | Vedi sopra |
+| Parapetti a due facce (sopra e fuori) invece di una scatola chiusa, nel profilo compatto; niente coperchio delle cabine sul tetto e niente davanzali semplici | `parapet()` e `scene.ts` | Nucleo di La Isleta da 325.000 a 258.000 triangoli e da 36 a 18 ms di mediana; Santa Ana stabile a 18 ms. Costo: bordo dei tetti più sottile sul lato lontano |
 | Niente finestre, cornici e parapetti sepolti in un edificio adiacente più alto. Si chiede cosa c'è 0,5 m fuori dal muro e fino a che quota. Disattivato nell'editor, dove gli edifici si spostano. | `buriedTo()` in `scene.ts` | Insieme alle impronte semplificate: da −8 a −21 % di triangoli negli isolati densi |
 | Finestre e davanzali come rettangoli piatti; cornici di piano solo su desktop | `scene.ts` | — |
 | Chiome a icosaedro senza suddivisione e 4 per albero invece di 7; palme a 8 fronde invece di 13, nel profilo compatto | `scene.ts` | — |
@@ -60,10 +62,9 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 
 ## Idee non ancora provate
 
-- Il nucleo di La Isleta (settore -5_22, 385 edifici) resta a 325.000 triangoli da vicino e a metà cadenza sul telefono emulato: è il primo caso da affrontare. I parapetti sono ancora la voce maggiore.
-- Parapetti a due facce (sopra e fuori) nel profilo compatto: −33 % dei loro triangoli, ma da dentro l'isolato il bordo lontano si assottiglia.
 - Budget di dettaglio espresso anche in triangoli, non solo in byte: i settori densi pesano sulla GPU più di quanto dica la loro dimensione.
-- Livello sempre residente più leggero: il picco heap è salito a 111 MB con La Isleta (terreno di 3 milioni di celle in Float32, strade e isolati di tutta la città).
+- Livello sempre residente ancora più leggero: il picco heap è a 101 MB. Restano 13 MB di JSON residenti (strade, superfici e isolati di tutta la città) e 7 MB dell'indice dei muri della guida.
+- Un oggetto dato a ogni zona non deve contenere la città intera: controlla cosa viene ridisegnato o ricopiato a ogni caricamento prima di cercare altrove uno scatto.
 
 - Muri interamente sepolti tra due edifici adiacenti (2 triangoli per lato).
 - Un solo parapetto dove due tetti alla stessa quota condividono il lato.

@@ -475,6 +475,30 @@ Verifiche su una copia pulita del commit: `typecheck` e `build` verdi; `qa-secto
 
 Limiti. Le posizioni delle gru in OSM sono approssimate (nota `FIXME`): nell'ortofoto una gru reale sta a circa 50 m dal punto mappato. L'orientamento è verso il bordo di banchina più vicino. Le gru non sono ostacoli nella guida. I 68 serbatoi mappati solo come punto e senza edificio comunale non sono disegnati: OSM non ne dà la dimensione. I modelli sono interpretazioni semplificate nello stile del plastico; la posizione della torretta del Castillo e della lanterna dell'Auditorio è misurata sull'ortofoto. Il tetto dell'Auditorio ha la tinta scura del PNOA, più scura del vero. Dall'alto il Mercado mostra soprattutto il tetto. Nessuna prova su telefono fisico; guida non provata a mano.
 
+## Quartieri densi, memoria residente e scatto dopo il ripristino (23 novembre 2026)
+
+Correzioni dei problemi lasciati aperti dopo La Isleta.
+
+- **Geometria nel profilo compatto** (`scene.ts`): il parapetto è la faccia superiore più quella esterna (4 triangoli invece di 6); le cabine sul tetto perdono il coperchio e il serbatoio accanto; dei davanzali restano solo i balconi. Su desktop non cambia nulla.
+- **Copertura stradale per zona**: ogni zona porta la propria (`coverage` nel file di zona). Prima ogni texture di suolo ridisegnava la copertura di tutta la città, tenuta nell'indice: era l'origine dello scatto dopo il ripristino. L'indice ne conserva una copia semplificata a 1,5 m per la mappa lontana e scende da 1,74 a 0,48 MB; le zone salgono da 13 a 15 MB.
+- **Terreno in Int16**: la griglia resta in decimetri a 16 bit sul thread principale e nel worker (`Terrain.scale`), 6 MB invece di 12 per copia.
+- **Gru e ciminiere nella guida**: le quattro gambe di ogni gru e il fusto delle ciminiere entrano tra gli ostacoli puntuali della zona, come i tronchi (`propObstacles()`).
+
+Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (mediana / p90, triangoli):
+
+| Vista da vicino | Prima | Dopo |
+|---|---|---|
+| Nucleo di La Isleta (-1200, 5000) | 35,9 / 52,6 ms, 325.393 | 18,2 / 36,3 ms, 257.828 |
+| Santa Catalina (-2040, 3480) | 17,5 / 18,8 ms, 297.209 | 18,1 / 18,3 ms, 232.517 |
+| Santa Ana | 17,5 / 35,6 ms, 220.331 | 17,3 / 18,3 ms, 178.001 |
+| Mercado del Puerto | 17,9 / 18,9 ms, 212.236 | 18,1 / 18,2 ms, 171.914 |
+
+`benchmark.mjs`: fotogramma peggiore dopo il ripristino da 175,7 a 36,2 ms (p95 su 40 fotogrammi); picco heap da 110,7 a 101,5 MB; a vista ferma heap più buffer da 98,4 a 86,3 MB. Vista ravvicinata p95 18,2 ms.
+
+`typecheck`, `build`, `npm.cmd test` per intero e due esecuzioni di `qa-sectors.mjs`: verdi su una copia pulita del commit. Confronto a camera identica sul nucleo di La Isleta nel profilo telefono a zoom 4 e 1,59: sagome e colori invariati; il bordo chiaro dei tetti sul lato lontano è più sottile e le cabine sul tetto non hanno più il coperchio chiaro.
+
+Limiti. Nel nucleo di La Isleta un fotogramma su dieci dura ancora 36 ms. La collisione con le gru è verificata solo nel calcolo delle posizioni delle gambe, non guidandoci contro. Il picco heap resta sopra 100 MB: 13 MB vengono dai JSON residenti e 7 MB dall'indice dei muri della guida. Tempi misurati con un altro processo attivo sulla macchina. Nessuna prova su telefono fisico.
+
 ## Toponimi in Conducir
 
 L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.

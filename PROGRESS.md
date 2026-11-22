@@ -82,6 +82,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **T · Porto e modelli dedicati.** 21 gru e 2 ciminiere da OpenStreetMap come oggetti (`props`), serbatoi e silos con guscio dedicato, e tre modelli: Castillo de la Luz, Mercado del Puerto e Auditorio Alfredo Kraus. [Dettagli, misure e limiti](docs/QA.md#oggetti-del-porto-e-tre-modelli-dedicati-23-novembre-2026). Aperto: il nucleo di La Isleta va a metà cadenza sul telefono emulato (325.000 triangoli da vicino); picco heap 110,7 MB; gru senza collisione nella guida.
 
+**U · Quartieri densi, memoria e scatto dopo il ripristino.** Sul telefono il nucleo di La Isleta scende da 325.000 a 258.000 triangoli e torna a 18 ms di mediana; Santa Ana diventa stabile. La copertura stradale è per zona: lo scatto dopo il ripristino passa da 176 a 36 ms. Terreno in Int16, gru come ostacoli. [Misure e limiti](docs/QA.md#quartieri-densi-memoria-residente-e-scatto-dopo-il-ripristino-23-novembre-2026).
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
