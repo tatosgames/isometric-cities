@@ -10,21 +10,38 @@ export interface Body {
 }
 
 
-export function makeDrivePhysics(tune: Pick<typeof TUNE, "turn" | "brake" | "accel" | "brakeGrip" | "grip" | "driftGrip" | "driftDrag" | "deflect" | "bounce" | "treeRadius" | "radius" | "wallLoss">){
-  function steerBody(b: Body,steer: number,brake: boolean,max: number,dt: number,agility=1){
+type Handling = Pick<typeof TUNE, 'accel' | 'brake' | 'gripReleaseRate'> & {releaseGrip?: number};
+type PhysicsTuning = Handling & Pick<typeof TUNE, 'player' | 'maxSpeed' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'driftDrag' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss'>;
+
+export function makeDrivePhysics(tune: PhysicsTuning){
+  let steerTime=0,steerDirection=0;
+
+  function steerBody(b: Body,steer: number,brake: boolean,max: number,dt: number,agility: number,handling: Handling=tune){
     const speed=Math.hypot(b.vx,b.vy);
     b.h+=steer*tune.turn*agility*Math.min(1,.35+speed/8)*dt;
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
     let forward=b.vx*fx+b.vy*fy,side=-b.vx*fy+b.vy*fx;
-    forward=brake?Math.max(0,forward-tune.brake*dt):forward>max?Math.max(max,forward-tune.brake*dt):Math.min(max,forward+tune.accel*dt);
+    forward=brake?Math.max(0,forward-handling.brake*dt):forward>max?Math.max(max,forward-handling.brake*dt):Math.min(max,forward+handling.accel*dt);
     b.wayHold-=dt;b.dive+=((brake?1:0)-b.dive)*Math.min(1,dt*8);
-    b.hold=steer?Math.min(1,b.hold+dt*2.2):Math.max(0,b.hold-dt*6);
+    b.hold=steer?Math.min(1,b.hold+dt*2.2):Math.max(0,b.hold-dt*handling.gripReleaseRate);
     b.steer+=(steer-b.steer)*Math.min(1,dt*9);
-    side*=Math.exp(-(brake?tune.brakeGrip:T.MathUtils.lerp(tune.grip,tune.driftGrip,b.hold))*dt);
+    const baseGrip=steer?tune.grip:handling.releaseGrip??tune.grip;
+    const grip=brake?tune.brakeGrip:T.MathUtils.lerp(baseGrip,tune.driftGrip,b.hold);
+    side*=Math.exp(-grip*dt);
     forward*=1-tune.driftDrag*Math.abs(side)*dt;
     b.slip=Math.abs(side);b.side=side;
     b.vx=fx*forward-fy*side;b.vy=fy*forward+fx*side;
     b.x+=b.vx*dt;b.y+=b.vy*dt;
+    return speed;
+  }
+  function steerPlayer(b: Body,steer: number,brake: boolean,dt: number){
+    if(steer!==steerDirection){steerTime=0;steerDirection=steer;}
+    const handling=tune.player;
+    if(steer)steerTime=Math.min(handling.turnRamp,steerTime+dt);
+    const agility=T.MathUtils.lerp(handling.turnStart,1,steerTime/handling.turnRamp);
+    const before=steerBody(b,steer,brake,tune.maxSpeed,dt,agility,handling);
+    const change=Math.hypot(b.vx,b.vy)-before;
+    return T.MathUtils.clamp(change/((change>=0?handling.accel:handling.brake)*dt),-1,1);
   }
   function push(b: Body,px: number,py: number,r: number){
     let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);
@@ -71,5 +88,5 @@ export function makeDrivePhysics(tune: Pick<typeof TUNE, "turn" | "brake" | "acc
     a.vx-=closing*nx*.6;a.vy-=closing*ny*.6;b.vx+=closing*nx*.6;b.vy+=closing*ny*.6;
     return closing;
   }
-  return {steerBody,collide,bump};
+  return {steerBody,steerPlayer,collide,bump,resetPlayerSteering(){steerTime=steerDirection=0;}};
 }

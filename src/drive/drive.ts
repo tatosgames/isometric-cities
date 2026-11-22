@@ -1,4 +1,4 @@
-import { carGeometry, carVisualScale, tint } from './car-model.ts';
+import { carGeometry, carShellHeight, carShellParts, carShellPivot, carVisualScale, carWheelParts, tint } from './car-model.ts';
 import type { Altitude, CityData, Place, Point } from '../data/types.ts';
 import { element as el } from '../map/dom.ts';
 import { required } from '../required.ts';
@@ -60,12 +60,15 @@ type RouteField = ReturnType<typeof routesFrom>;
 
 // Every gameplay number lives here. Metres, seconds, radians.
 export const TUNE={
-  maxSpeed:16.5, accel:9, turn:2.6, turnRamp:.2, grip:7.5, driftGrip:3.2, driftDrag:.035, brake:16, brakeGrip:2.2,
+  maxSpeed:16.5, accel:9, turn:2.6, grip:7.5, driftGrip:3.2, gripReleaseRate:6, driftDrag:.035, brake:16, brakeGrip:2.2,
+  player:{accel:11.5,brake:20,turnStart:.35,turnRamp:.14,releaseGrip:9.5,gripReleaseRate:10},
   deflect:4.5,
   // Juice: visual only, no effect on collisions.
   roll:.035, tailSwing:.3, hop:.5, dive:.09, skidSpeed:4,
-  poseYaw:T.MathUtils.degToRad(21), poseRoll:T.MathUtils.degToRad(10), poseYawLimit:T.MathUtils.degToRad(45),
+  poseYaw:T.MathUtils.degToRad(21), poseRoll:T.MathUtils.degToRad(17), poseYawLimit:T.MathUtils.degToRad(45),
+  poseLift:T.MathUtils.degToRad(6), poseDive:T.MathUtils.degToRad(8),
   poseMinSpeed:2, poseFullSpeed:10, poseAttack:.085, poseRelease:.17, poseReverse:.04,
+  puffSlip:2.5,puffRearm:1.5,puffLife:.22,
   // Hit-stop: seconds of held simulation per event, the wall impact that earns one and the least gap between two.
   stopImpact:9, stopWall:.055, stopArrive:.05, stopCaught:.11, stopGap:.6,
   // Camera kick: launch speed of a full hit (m/s), spring back to rest, hard limit in metres.
@@ -87,7 +90,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
-  const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
+  const {steerBody,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE);
   const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -120,10 +123,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   // ---- scene objects ----
   const group=new T.Group();
   const paint=new T.MeshStandardMaterial({...surfaceStencil(),vertexColors:true,flatShading:true,roughness:.8});
-  const playerGeometry=carGeometry('#d8452f','#f4ead7',false),policeGeometry=carGeometry('#f3f3ee','#2b3440',true);
+  const policeGeometry=carGeometry('#f3f3ee','#2b3440',true);
   const wreckPaint=new T.MeshStandardMaterial({...surfaceStencil(),color:'#3a3a3a',flatShading:true,roughness:1});
-  const blobGeometry=new T.CircleGeometry(2.3,16).rotateX(-Math.PI/2);
-  const blobMaterial=new T.MeshBasicMaterial({color:'#15170f',transparent:true,opacity:.26,depthWrite:false});
+  const blobGeometry=new T.PlaneGeometry(4.15,2.5).rotateX(-Math.PI/2);
+  const blobMaterial=new T.MeshBasicMaterial({color:'#15170f',transparent:true,opacity:.38,depthWrite:false});
   function vehicle(geometry: T.BufferGeometry): Vehicle{
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
@@ -138,16 +141,22 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     c.mesh.add(light);
     return Object.assign(c,{light});
   }
-  const player=vehicle(playerGeometry);
-  const silhouette=new T.Mesh(playerGeometry,new T.MeshBasicMaterial({
+  const player=vehicle(required(mergeGeometries(carWheelParts()),'player wheels'));
+  const shellGeometry=required(mergeGeometries(carShellParts('#d8452f','#f4ead7')),'player shell').translate(0,-carShellPivot,0);
+  const shell=new T.Mesh(shellGeometry,paint);
+  player.mesh.add(shell);
+  const silhouetteMaterial=new T.MeshBasicMaterial({
     color:'#ffd84a',toneMapped:false,transparent:true,blending:T.NoBlending,
     depthFunc:T.GreaterDepth,depthWrite:false,
     stencilWrite:true,stencilWriteMask:0,stencilFuncMask:BUILDING_BIT,
     stencilFunc:T.EqualStencilFunc,stencilRef:BUILDING_BIT
-  }));
+  });
   // Read the completed opaque depth and building mask before transparent effects.
-  silhouette.renderOrder=-1;
-  player.mesh.add(silhouette);
+  for(const mesh of [player.mesh,shell]){
+    const silhouette=new T.Mesh(mesh.geometry,silhouetteMaterial);
+    silhouette.renderOrder=-1;
+    mesh.add(silhouette);
+  }
   const beacon=new T.Mesh(new T.CylinderGeometry(3.2,3.2,26,20,1,true).translate(0,13,0),new T.MeshBasicMaterial({color:'#ffd84a',transparent:true,opacity:.22,depthWrite:false,side:T.DoubleSide}));
   group.add(beacon);
   // Drawn through buildings so the car stays readable in narrow streets.
@@ -164,7 +173,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   heading.renderOrder=11;heading.visible=false;
   group.add(heading);
   function cabinIsHidden(dx: number,dy: number){
-    const height=player.mesh.position.y+1.2*TUNE.visualScale;
+    const height=player.mesh.position.y+(shell.position.y+1.2-carShellPivot)*TUNE.visualScale;
     return activeWorld().occluded(player.x,player.y,height,dx,dy);
   }
   const dummy=new T.Object3D();
@@ -175,11 +184,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   const skidMesh=new T.Mesh(skidGeometry,new T.MeshBasicMaterial({color:'#1d1c1f',transparent:true,opacity:.34,depthWrite:false,side:T.DoubleSide}));
   skidMesh.frustumCulled=false;group.add(skidMesh);
   const dustMesh=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),new T.MeshBasicMaterial({transparent:true,opacity:.5,depthWrite:false}),DUST);
+  const dustColours={dust:new T.Color('#d8cdbb'),smoke:new T.Color('#3b3836'),drift:new T.Color('#fff6de')};
   // Colours exist from the start: adding them at the first puff would build a second shader mid-run.
-  for(let i=0;i<DUST;i++)dustMesh.setColorAt(i,new T.Color('#d8cdbb'));
+  for(let i=0;i<DUST;i++)dustMesh.setColorAt(i,dustColours.dust);
   dustMesh.frustumCulled=false;group.add(dustMesh);
-  const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,life:0}));
-  const dustColour=new T.Color('#d8cdbb'),smokeColour=new T.Color('#3b3836');
+  const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,life:0,drift:false}));
   // Pedestrians: legless toy figures that get about by hopping, larger than life like the cars.
   // A tinted body and a fixed head share one matrix per walker, so the body colour does not tint the skin.
   const WALKERS=compact?26:40;
@@ -193,10 +202,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let people: ReturnType<typeof makePedestrians> | null=null;
   const shown=new Float32Array(WALKERS),lifted=new Float32Array(WALKERS),wasAlive=new Uint8Array(WALKERS);
   let skidAt=0,dustAt=0;
-  function puff(x: number,y: number,dark: boolean){
+  function puff(x: number,y: number,kind: keyof typeof dustColours='dust'){
     const p=dust[dustAt];
-    Object.assign(p,{x,y,z:groundAt(x,y)+1,life:1});
-    dustMesh.setColorAt(dustAt,dark?smokeColour:dustColour);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
+    Object.assign(p,{x,y,z:groundAt(x,y)+1,life:1,drift:kind==='drift'});
+    dustMesh.setColorAt(dustAt,dustColours[kind]);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
     dustAt=(dustAt+1)%DUST;
   }
   function skid(b: Vehicle,fx: number,fy: number,scale: number){
@@ -215,11 +224,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     b.trail=now;
   }
-  function place(b: Vehicle,yaw: number,roll: number){
+  function place(b: Vehicle,yaw: number,roll: number,pitch: number){
     const z=groundAt(b.x,b.y);
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
-    b.mesh.rotation.set(roll,yaw,-b.dive*TUNE.dive);
+    b.mesh.rotation.set(roll,yaw,pitch);
     b.blob.position.set(b.x,z+.76,-b.y);
+    b.blob.rotation.y=yaw;
     return z;
   }
 
@@ -227,7 +237,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let state: DriveState='off';
   let score=0,time=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,held=false,warmed=false,lastStart: number | undefined;
   let capture: {patrol: Patrol;elapsed: number;started: number} | null=null;
-  let steerTime=0,steerDirection=0;
+  let puffArmed=true;
   let chasers: Patrol[]=[];
   let field: RouteField | null=null;
   let zoomNow=1,paceEase=0,threat=0;
@@ -296,7 +306,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     pop(player.x,player.y,event.points,'coin',true);
     gain(event.points);buzz(40);stop(TUNE.stopArrive);
-    for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5,false);
+    for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5);
     trail();
   }
   function spawnChaser(c: Patrol){
@@ -311,7 +321,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const pool=ahead.length && Math.random()<.5?ahead:ring.length?ring:all;
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
     const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
-    Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,side:0});
+    Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,slip:0,side:0,puff:0});
     c.max=TUNE.maxSpeed*Math.min(TUNE.chaserSpeedMax,TUNE.chaserSpeed+TUNE.chaserSpeedStep*Math.floor(time/TUNE.chaserEvery));
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
@@ -326,7 +336,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     location?.reset();
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
-    steerTime=steerDirection=0;
+    resetPlayerSteering();
+    puffArmed=true;
     playerPose.reset();
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
@@ -355,7 +366,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     kick(by.x-player.x,by.y-player.y,1);
     // The contact holds for a beat; dust and the push-in start when it lets go.
-    stop(TUNE.stopCaught,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5,false);});
+    stop(TUNE.stopCaught,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5);});
     const best=score>record;
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
     el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
@@ -390,10 +401,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const world=activeWorld();
     time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);
     const {steer,brake}=controls.read();
-    if(steer!==steerDirection){steerTime=0;steerDirection=steer;}
-    if(steer)steerTime=Math.min(TUNE.turnRamp,steerTime+dt);
-    steerBody(player,steer,brake,TUNE.maxSpeed,dt,steerTime/TUNE.turnRamp);
+    const driveLoad=steerPlayer(player,steer,brake,dt);
+    const beforeContactX=player.x,beforeContactY=player.y;
     const knock=collide(player,world);
+    let playerContact=knock>0 || player.x!==beforeContactX || player.y!==beforeContactY;
     if(knock>3)player.hop=Math.min(TUNE.hop,knock*.05);
     if(knock>6){kick(player.hitX,player.hitY,Math.min(1,knock/14));buzz(18);}
     // Only a hard, nearly head-on hit stops time, and not twice in a row: scraping along a street never does.
@@ -406,7 +417,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     for(const c of chasers){
       if(c.wreck>0){
         c.wreck-=dt;c.puff-=dt;c.h+=dt*14*Math.max(0,c.wreck-TUNE.wreckTime+.45);
-        if(c.puff<=0){c.puff=.12;puff(c.x,c.y,true);}
+        if(c.puff<=0){c.puff=.12;puff(c.x,c.y,'smoke');}
         if(c.wreck<=0)spawnChaser(c);
         continue;
       }
@@ -438,29 +449,43 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
         if(impact>TUNE.wreckImpact && !a.wreck && !chasers[j].wreck){wreck(a);wreck(chasers[j]);}
       }
       const shove=bump(a,player);
+      if(shove>=0)playerContact=true;
       if(shove>6)kick(a.x-player.x,a.y-player.y,Math.min(1,shove/14)*.7);
       // Close enough counts as contact: a tree or a corner must not save a stopped car.
       if(!a.wreck && !grace && speed<TUNE.catchSpeed && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){
-        playerPose.update(player,steer,dt);
+        playerPose.update(player,steer,dt,driveLoad);
         caught(a);return;
       }
     }
-    const playerSlip=playerPose.update(player,steer,dt);
+    const playerSlip=playerPose.update(player,steer,dt,driveLoad);
+    if(playerSlip<TUNE.puffRearm)puffArmed=true;
+    else if(puffArmed && playerSlip>=TUNE.puffSlip){
+      puffArmed=false;
+      if(!playerContact && (steer || brake)){
+        const yaw=player.h+playerPose.yaw,fx=Math.cos(yaw),fy=Math.sin(yaw);
+        for(const side of [-.72,0,.72]){
+          const rear=side===0?1.55:1.3,scale=TUNE.visualScale;
+          puff(player.x-(fx*rear+fy*side)*scale,player.y+(-fy*rear+fx*side)*scale,'drift');
+        }
+      }
+    }
     route.advance(player,world.nodes,dt,handleRouteEvent);
     for(const b of [player,...chasers]){
       const isPlayer=b===player;
       if(b.wreck>0 || (isPlayer?playerSlip:b.slip)<TUNE.skidSpeed){b.trail=null;continue;}
       const yaw=b.h+(isPlayer?playerPose.yaw:0),fx=Math.cos(yaw),fy=Math.sin(yaw);
       const scale=isPlayer?TUNE.visualScale:1;
-      skid(b,fx,fy,scale);b.puff-=dt;
-      if(b.puff<=0){b.puff=.07;puff(b.x-fx*1.3*scale,b.y-fy*1.3*scale,false);}
+      skid(b,fx,fy,scale);
+      if(isPlayer)continue;
+      b.puff-=dt;
+      if(b.puff<=0){b.puff=.07;puff(b.x-fx*1.3*scale,b.y-fy*1.3*scale);}
     }
   }
   function wreck(c: Patrol){
     c.wreck=TUNE.wreckTime;c.vx=c.vy=0;c.trail=null;c.mesh.material=wreckPaint;c.hop=TUNE.hop;
     const far=Math.hypot(c.x-player.x,c.y-player.y);
     if(far<40)kick(c.x-player.x,c.y-player.y,.1+.4*(1-far/40));
-    for(let k=0;k<6;k++)puff(c.x+Math.cos(k)*1.4,c.y+Math.sin(k)*1.4,true);
+    for(let k=0;k<6;k++)puff(c.x+Math.cos(k)*1.4,c.y+Math.sin(k)*1.4,'smoke');
     pop(c.x,c.y,TUNE.wreckBonus,'crash',false);gain(TUNE.wreckBonus);
   }
 
@@ -493,13 +518,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     spin+=dt*4;
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
-    const playerGround=place(player,player.h+playerPose.yaw,playerPose.roll);
+    const playerGround=place(player,player.h+playerPose.yaw,0,0);
+    shell.rotation.set(playerPose.roll,0,playerPose.pitch);
+    shell.position.y=carShellHeight(playerPose.roll,playerPose.pitch);
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
     const lightTime=capture?capture.started+capture.elapsed*CAPTURE.speed*1000:now;
     chasers.forEach((c,i)=>{
-      place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32));
+      place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32),-c.dive*TUNE.dive);
       c.light.visible=!c.wreck;c.light.material=(Math.floor(lightTime/140)+i)%2?lightRed:lightBlue;
     });
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target && !capture;
@@ -510,8 +537,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     });
     coinMesh.instanceMatrix.needsUpdate=true;
     dust.forEach((p,i)=>{
-      p.life=Math.max(0,p.life-dt*1.5);
-      dummy.position.set(p.x,p.z+(1-p.life)*1.6,-p.y);dummy.rotation.set(0,0,0);dummy.scale.setScalar(p.life?.5+(1-p.life)*1.5:0);
+      p.life=Math.max(0,p.life-dt*(p.drift?1/TUNE.puffLife:1.5));
+      const age=1-p.life;
+      const size=p.drift?Math.min(1,.72+age*2,p.life*3):p.life?.5+age*1.5:0;
+      dummy.position.set(p.x,p.z+age*(p.drift?.45:1.6),-p.y);dummy.rotation.set(0,0,0);dummy.scale.setScalar(size);
       dummy.updateMatrix();dustMesh.setMatrixAt(i,dummy.matrix);
     });
     dustMesh.instanceMatrix.needsUpdate=true;
@@ -649,7 +678,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     suspend(){
       if(state==='off')return;
       cancelAnimationFrame(raf);raf=0;controls.release();
-      steerTime=steerDirection=0;
+      resetPlayerSteering();
       if(capture)over.inert=true;else playerPose.reset();
       if(state==='playing'){held=true;guide.className='ready';}
     },

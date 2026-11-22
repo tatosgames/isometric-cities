@@ -235,8 +235,15 @@ try{
     assert.ok(Math.sin(turned[4]-ready[4])>.1,'Left input should turn the car anticlockwise');
     assert.ok(Math.hypot(turned[2]-ready[2],turned[3]-ready[3])>.3,'Car should move by itself');
     assert.notEqual(await host.getAttribute('data-view'),before);
-    // Left alone the car stops against a wall and a patrol reaches it.
-    const waitForCapture=()=>page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
+    // Brake for the capture check. A free-running car can keep glancing off walls.
+    const waitForCapture=async()=>{
+      await page.keyboard.down('ArrowDown');
+      try{
+        await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('caught'),null,{timeout:120000});
+      }finally{
+        await page.keyboard.up('ArrowDown');
+      }
+    };
     await waitForCapture();
     const caughtScore=(await drive())[1];
     const caughtTime=await page.locator('#over-time').textContent();

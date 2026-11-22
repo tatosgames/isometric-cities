@@ -19,8 +19,9 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 | Evento | Simulazione | Camera | Auto e scena | Interfaccia | Vibrazione |
 |---|---|---|---|---|---|
 | Moneta raccolta | – | – | La moneta è attirata entro 6 m | «+1» che sale dal punto, pillola delle monete che pulsa | 8 ms |
-| Sterzata e derapata | Rampa di sterzo da 200 ms | Zoom lento con la velocità | Muso in anticipo sulla traiettoria, rollio verso l'interno, segni a terra e polvere dal retro | Zona tattile accesa | – |
-| Frenata | – | – | Muso che si abbassa, segni, polvere | Entrambe le zone accese | – |
+| Accelerazione | 11,5 m/s² fino a 16,5 m/s | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
+| Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 17° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
+| Frenata | 20 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
 | Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
 | Urto medio (oltre 6 m/s) | – | Spinta verso il muro, in proporzione | Saltello | – | 18 ms |
 | Urto forte (oltre 9 m/s) | Fermo di 55 ms | Spinta verso il muro | Saltello | – | 18 ms |
@@ -33,9 +34,11 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 ## Sterzata e derapata
 
 - L'auto raggiunge 16,5 m/s in rettilineo. La prima pattuglia conserva il vantaggio del 4%. Per la cattura vale la soglia di 4,5 m/s, per il richiamo delle monete il limite di 25 m/s.
-- La posa del giocatore si aggiorna a 120 Hz. Cresce tra 2 e 10 m/s. Con sterzo pieno, la rotazione aggiuntiva va da 10,5° a 21° e il rollio verso l'interno da 5° a 10°, secondo lo slittamento. L'angolo aggiuntivo può portare il muso fino a 45° dalla direzione di marcia quando amplifica lo slittamento.
-- Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms finché il controsterzo deve recuperare l'inclinazione verso il vecchio lato.
-- Sagoma, freccia, scie e polvere seguono la posa visiva. Scie e polvere partono dal retro a partire da 4 m/s di slittamento laterale. Camera e collisioni usano la simulazione.
+- A ogni cambio di lato la rampa ricomincia dal 35%. Al rilascio il peso della derapata cala di 10 al secondo e il coefficiente di aderenza laterale tende a 9,5 s⁻¹. La frenata usa il proprio coefficiente di 2,2 s⁻¹.
+- La posa si aggiorna a 120 Hz. La risposta allo sterzo cresce tra 2 e 10 m/s. A pieno sterzo la rotazione aggiuntiva va da 10,5° a 21° e il rollio da 8,5° a 17°, secondo lo slittamento. Quando amplifica lo slittamento, la rotazione aggiuntiva porta il muso fino a 45° dalla direzione di marcia.
+- Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa.
+- Tre particelle bianco caldo compaiono dietro le ruote per 220 ms quando lo slittamento laterale supera 2,5 m/s durante una manovra senza contatti. Il puff si riarma sotto 1,5 m/s. Le due tracce partono da 4 m/s. Sagoma, freccia, tracce e puff seguono l'orientamento visivo. Camera e collisioni usano la simulazione.
+- L'ombra di contatto delle auto è un rettangolo di 4,15 × 2,5 m con opacità 0,38. Ruota con l'auto e resta a terra durante rollio e saltelli.
 
 ## Hit-stop
 

@@ -2,9 +2,13 @@
 
 ## Sterzo arcade · 22 novembre 2026
 
-La regressione deterministica della posa, eseguita anche da `npm.cmd test`, simula a 120 Hz. In rettilineo l'auto raggiunge 16,5 m/s. Con velocità iniziale di 13 m/s, dopo 100 ms di sterzo il muso è a **14,0°** dalla traiettoria, contro **7,2°** nella taratura precedente. Il test copre rollio verso l'interno, inversione entro 50 ms, rilascio, frenata, bassa velocità e limite di angolo dopo un urto. La posa lascia invariato lo stato fisico a parità di input e limite di velocità.
+La regressione a 120 Hz misura **1,442 s** fino a 16,5 m/s e **0,658 s** per fermarsi da 13 m/s in rettilineo. Un tocco di 100 ms a 13 m/s cambia la direzione della traiettoria di **2,58°**, contro i **0,96°** della taratura precedente. Dopo 400 ms di sterzo, al rilascio lo slittamento scende sotto 1,5 m/s in **175 ms**. La prova controlla anche rollio, controsterzo entro 50 ms, inclinazione longitudinale, ritorno in posizione neutra, altezza della scocca sulle ruote e limite della posa dopo un urto.
 
-Typecheck, build, regressione del percorso e suite browser superati. Su Chrome desktop (1440×900) e mobile emulato (390×844), provate sterzata e inversione vicino a Santa Ana e Casa de Colón, nelle viste isometrica e inseguimento. Una prova strumentata in Chrome con ingresso a 16,5 m/s ha verificato l'allineamento di scie, polvere e freccia con l'orientamento della carrozzeria. Su telefono fisico la sensazione di guida resta da verificare.
+Typecheck, build e regressioni di percorso e camera superati. Una prova strumentata in Chrome desktop (1440×900) e touch emulato (390×844) ha esercitato partenza, curva e controsterzo, frenata e urto frontale. A circa 15 m/s la scocca raggiunge 16,4° di rollio mentre le ruote restano in piano. Il puff bianco compare una volta durante la scivolata e le tracce partono. L'urto produce un saltello lasciando l'ombra a terra e senza emettere un altro puff. Su telefono fisico la sensazione di guida resta da verificare.
+
+`npm.cmd test` superato in Chrome desktop e touch emulato. La suite tiene premuto il freno per verificare la cattura dopo la sterzata e dopo il ripristino WebGL. La corsa libera può proseguire dopo aver sfiorato un muro e aveva fatto scadere l'attesa al secondo tentativo su mobile.
+
+La regressione usa la stessa funzione di sterzo chiamata dal gioco. Un confronto di 2.400 passi per veicolo ha dato lo stesso stato fisico prima e dopo la semplificazione, per il giocatore e per una pattuglia, con frenate, inversioni e reset della rampa. La prova della scocca ruota i vertici del modello per verificare la distanza dal piano delle ruote.
 
 ## Verifica di base
 
