@@ -207,3 +207,11 @@ I cinque campioni inclusi sono utilizzabili con i dati del checkout. Dopo una ri
 Verificati anche typecheck, build, suite del gioco e circuito dei settori con attraversamento in guida. La build Vite pubblica il laboratorio su GitHub Pages tramite la pagina dedicata `lab.html`. Il laboratorio usa un unico renderer e tiene residenti i due modelli del campione selezionato. Il benchmark riguarda quei modelli; la verifica su telefono fisico e durante una partita completa resta da eseguire per le varianti scelte.
 
 Sul campione Mercado con la ricetta registrata, una prova desktop Chrome con SwiftShader ha dato p95 di 18,2 ms per entrambe le varianti e 15 draw call medie. I triangoli sono passati da 59.354 a 58.062; la preparazione CPU del campione da 109,9 a 140,9 ms. I tempi dipendono da macchina, carico e riscaldamento.
+
+## Test strade al Mercado
+
+In `lab.html?test=strade`, «Resa» alterna Attuale, Texture 4 px/m pulita e Carreggiata geometrica senza spostare l’auto. «Percorso» ferma la riproduzione e permette di confrontare lo stesso punto. Il percorso unisce tre tratti OSM contigui su Calle Pelota, Calle de Mendizábal e Lugar Mercadillos Municipales. Si usa la mesh dell’auto del gioco alla scala 1,3. È un replay del percorso, con camera al seguito.
+
+Le due alternative usano la stessa unione delle carreggiate, larghezza illustrativa di 4,5 o 8 m secondo la classe e asfalto uniforme. La versione raster usa una maschera R8 a 4 px/m sopra la texture del suolo alla stessa risoluzione. La mesh ha 1.045 triangoli ritagliati sulle facce del terreno, un materiale e normali verso l’alto. La geometria del campione si rigenera con `python scripts/lab-carriageway.py`.
+
+Verificati typecheck, build, suite del gioco e `node scripts/qa-road-lab.mjs` su Chrome desktop e mobile emulato. Il controllo specifico cambia resa sullo stesso fotogramma, avvia, ferma e riporta l’auto all’inizio. Il benchmark visita per ogni resa le stesse 60 posizioni dopo un giro di riscaldamento. In una prova Chrome mobile emulato con SwiftShader il p95 era 18,1 ms in tutte e tre le rese. Le draw call medie erano rispettivamente 12, 12 e 13. La memoria stimata per texture di suolo, mipmap e buffer stradali attivi era rispettivamente 0,90, 4,49 e 0,97 MiB. Sono esclusi gli altri asset residenti e i costi del driver. La misura su telefono fisico resta aperta.

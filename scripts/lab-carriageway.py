@@ -53,7 +53,10 @@ for corners in triangles:
     za,zb,zc = [altitude(*p) for p in corners]
     det = (bx-ax)*(cy-ay)-(cx-ax)*(by-ay)
     for tri in constrained_delaunay_triangles(patch).geoms:
-        for x,y in list(tri.exterior.coords)[:3]:
+        # North maps to world -Z. CCW in the map plane yields upward normals
+        # for directional-light shadow bias as well as diffuse lighting.
+        coords = list(tri.exterior.coords)[:3]
+        for x,y in (coords if tri.exterior.is_ccw else reversed(coords)):
             b = ((x-ax)*(cy-ay)-(y-ay)*(cx-ax))/det
             c = ((bx-ax)*(y-ay)-(by-ay)*(x-ax))/det
             vertices.extend((round(x,3),round(za+b*(zb-za)+c*(zc-za),4),round(-y,3)))

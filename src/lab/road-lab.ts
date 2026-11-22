@@ -128,6 +128,9 @@ export async function roadLab(){
   // Compare the same set of positions with one active road representation per frame.
   async function measure(){
     if(measuring)return;pause();measuring=true;gui.domElement.inert=true;
+    const panel=$('settings');
+    // A shorter status message must not resize the mobile canvas mid-pass.
+    panel.style.height=panel.getBoundingClientRect().height+'px';
     const savedMode=mode,savedDistance=ui.distance,rows:string[]=[];
     const w=host.clientWidth,h=host.clientHeight;
     const next=()=>new Promise<number>(resolve=>requestAnimationFrame(resolve));
@@ -149,7 +152,7 @@ export async function roadLab(){
       }
       $('metrics').textContent=rows.join('\n\n');$('status').textContent='Memoria stimata dei dati del suolo attivi, inclusi mipmap e mesh stradale.';
     }catch(e){$('status').textContent=String(e);}
-    finally{select(savedMode);ui.distance=savedDistance;measuring=false;gui.domElement.inert=false;draw();}
+    finally{panel.style.height='';select(savedMode);ui.distance=savedDistance;measuring=false;gui.domElement.inert=false;draw();}
   }
   gui.add({measure},'measure').name('Misura le tre rese');
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)pause();});
