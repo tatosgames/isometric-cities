@@ -427,6 +427,26 @@ Esempi: 25810 (torre accanto al Parque Santa Catalina) da 41,7 a 78,2 m; 22817 d
 
 Limiti. Le 54 correzioni non sono state confrontate una a una con l'ortofoto; solo la torre 25810 è stata guardata nella mappa. Un corpo alto che copre meno di metà dell'impronta resta al dato comunale. Il valore applicato è il p95, che su tetti con volumi tecnici può superare di qualche metro la gronda.
 
+## La Isleta e Puerto de la Luz (23 novembre 2026)
+
+Quarto quartiere dell'espansione: tutto il barrio di La Isleta dal confine in OpenStreetMap (relazione 16904434), con abitato, zona industriale, moli del porto, versante vulcanico ed El Confital. Terraferma da 8,06 a 19,30 km²; parti di edificio da 10.137 a 14.973; tratti stradali da 3.574 a 4.703; alberi da 18.983 a 21.981; zone da 27 a 50; settori da 218 a 487. Gli edifici precedenti sono invariati. Luoghi nuovi: Castillo de la Luz (way 126808548) e Mercado del Puerto (way 119110526), 16 in tutto. Dati pubblicati: nucleo 2,3 MB, terreno 5,8 MB, zone 13 MB, settori 28 MB.
+
+La finestra OSM passa a [-15.47, 28.07, -15.39, 28.19] (96 celle). Tre correzioni emerse dalla scala:
+
+- Il servizio delle quote risponde -32768 oltre la propria copertura senza dichiararlo come dato mancante (quattro righe a nord della penisola, in mare): `data.py` lo legge come livello del mare.
+- Il mare era disegnato solo entro 260 m dalla terra e lasciava un buco nel bacino del porto: ora i bacini chiusi da terra e moli sono pieni.
+- Il mondo della guida chiedeva a ogni nodo stradale se sta dentro il confine scorrendo tutti i suoi lati: 2,7 s all'apertura con la costa nuova. Il confine è ora indicizzato per fasce (`ringIndex()` in `drive-world.ts`) e il controllo non compare più nel profilo.
+
+Verifiche su una copia pulita del commit:
+
+- `typecheck` e `build`: verdi. `qa-sectors.mjs`: 2 esecuzioni verdi su 2. In `npm.cmd test` passano le prove di posa, pedoni e appoggio al terreno; `qa.mjs` si ferma alla riga 75 (piè di pagina visibile sulla mappa). Lo stesso arresto avviene sul commit precedente `1a37dba`, senza queste modifiche: non dipende da La Isleta e il resto di `qa.mjs` non è stato eseguito.
+- `benchmark.mjs`, Chrome con emulazione mobile su GPU Intel UHD, confrontato con `1a37dba` nelle stesse condizioni di macchina: apertura 5,3-5,9 s (era 6,3), vista ravvicinata p95 18,2 ms con 156.139 triangoli (era 18,1 ms, 158.928), picco heap 112,6 MB (era 88,7).
+- `frame-profile.mjs`: Santa Ana da vicino 17,4 / 18,4 ms (mediana / p95), vista più ampia su Santa Ana 17,4 / 18,2 ms, vista più ampia su Santa Catalina 17,5 / 18,3 ms.
+- LiDAR: trenta tile (aggiunti 457-3115, 457-3116, 458-3114, 458-3115, 459-3113, 459-3114, 459-3115, 459-3116, 460-3115, 460-3116). Su 14.160 parti misurate lo scarto mediano LiDAR meno comunale è +0,66 m, errore medio assoluto 1,90 m, 72 % entro 2 m, 91 % entro 5 m. Nell'area nuova: 4.647 parti, mediana +0,86 m, errore medio assoluto 1,96 m, 72 % entro 2 m, 92 % entro 5 m. Esportate 40 altezze per edifici senza dato comunale, 40 corpi bassi e 32 tetti più alti del dato comunale. In città 361 parti usano `lidar-pnoa`, 14.563 il dato comunale, 49 la stima di 9 m. Castillo de la Luz 9,0 m comunali contro 12,0 m misurati; Mercado del Puerto 13,0 contro 9,5 m; Auditorio Alfredo Kraus 29,0 contro 29,0 m, con il p99 a 40,9 m per la torre.
+- Schermate viste a occhio: abitato di La Isleta, zona industriale, moli e bacino del porto, penisola con il rilievo vulcanico e i serbatoi del porto, già presenti come edifici comunali.
+
+Limiti. Il picco heap cresce con la superficie (112,6 MB): il livello sempre residente va alleggerito prima di aggiungere Ciudad Alta. Subito dopo il ripristino della vista `benchmark.mjs` misura uno o due fotogrammi da circa 170 ms (p95 su 40 fotogrammi; 35 ms sul commit precedente), mentre a vista ferma la cadenza è regolare: causa non diagnosticata. Nella vista più ampia su Santa Catalina le zone residenti stimano 93 MB. Mancano ancora i tile 454-3112, 455-3111, 458-3106 e 458-3107. La penisola a nord non ha edifici comunali: è terreno con sentieri. Nessuna prova su telefono fisico; guida non provata a mano nell'area nuova. Gru, silos e modelli dedicati non sono in questo passo.
+
 ## Toponimi in Conducir
 
 L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.
