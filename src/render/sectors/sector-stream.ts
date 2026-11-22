@@ -17,6 +17,8 @@ interface StreamOptions {
   compact: boolean;
   refresh: () => void;
   host: HTMLElement;
+  legacyRoads?:boolean;
+  loadLayers?:(s:{id:string;file:string},signal:AbortSignal)=>Promise<import('../../data/types.ts').Layers>;
 }
 
 interface ResidentSector {
@@ -57,10 +59,10 @@ function resources(group: T.Group) {
   };
 }
 
-export function streamCity({data,neutral,tones,compact,refresh,host}: StreamOptions){
+export function streamCity({data,neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers}: StreamOptions){
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
   // The overview ground is painted from the whole city, so it keeps the contact shadows of every footprint.
-  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact,neutral?null:makeGroundMap(data));
+  const base=makeCity({...data,ground:[],buildings:[],trees:[]},neutral,tones,compact,neutral?null:makeGroundMap(data,undefined,!!data.carriageways&&!legacyRoads,data.roadFallback));
   const byId=new Map<string,{buildings: Building[];trees: Point[];ground: Ring[]}>(data.sectors.map(s=>[s.id,{buildings:[],trees:[],ground:[]}]));
   const owner=(x: number,y: number)=>sectorOwner(x,y,data.sectorSize);
   const batchFor=(id: string)=>required(byId.get(id),"sector "+id);
@@ -97,7 +99,8 @@ export function streamCity({data,neutral,tones,compact,refresh,host}: StreamOpti
     const controller=new AbortController();
     pending={s,controller};
     try{
-      const layers=await loadData('city-sectors/'+s.file,isLayers,controller.signal);
+      const layers=await (loadLayers?loadLayers(s,controller.signal):loadData('city-sectors/'+s.file,isLayers,controller.signal));
+      if(legacyRoads||neutral)delete layers.carriageway;
       if(controller.signal.aborted || !requested.includes(s))return;
       const local=await build(layers,controller.signal);
       if(!local)return;

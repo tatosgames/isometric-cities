@@ -549,14 +549,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,vi
       const start=nextStart();
       if(!start)return 'unavailable';
       scene.add(group);
-      rig.enter();showMode();
+      const mapOffset=camera.getWorldDirection(new T.Vector3()).negate();
+      rig.enter(mapOffset);showMode();
       controls.activate();
       el('hud').hidden=false;
       restart(start);
       warm();
       // Glide in from the map zoom instead of cutting to the play zoom.
       zoomNow=T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
-      focus.copy(camera.position).addScaledVector(camera.getWorldDirection(new T.Vector3()),1500);
+      focus.copy(camera.position).addScaledVector(mapOffset,-1500);
       last=0;raf=requestAnimationFrame(frame);
       return 'started';
     },

@@ -1,4 +1,6 @@
 import {chromium} from 'playwright';
+import {readFile} from 'node:fs/promises';
+import {buildDriveWorld} from '../src/drive/drive-world.ts';
 import {preview} from 'vite';
 import assert from 'node:assert/strict';
 
@@ -56,9 +58,11 @@ try{
   }
   await p.locator('#reset').click();await p.waitForFunction(()=>JSON.parse(document.querySelector('#scene').dataset.sectors).visible===0);
   console.log('Sector circuit',JSON.stringify(stops));
-  // Real neighbouring street graph nodes at a 240 m boundary on Calle Luis Doreste Silva.
-  // Only replace the start/destination points. Game geometry, routing and controls stay live.
-  const endpoints=[[-477.2,1060.6],[-485.5,1071.4]];
+  // Pick the same eligible start as production and point its route across the boundary.
+  const city=JSON.parse(await readFile(new URL('../public/data/city.json',import.meta.url)));
+  const world=buildDriveWorld(city,()=>0,{treeClearance:4.5,treeRadius:.3});
+  const pool=world.validNodes.filter(i=>world.free(world.nodes[i].x,world.nodes[i].y,10));
+  const endpoints=[[-1442.4,2575.6],[-1437.4,2576.3]];
   for(const reverse of [false,true]){
     const order=reverse?[...endpoints].reverse():endpoints;
     await p.route('**/data/poi.geojson',async route=>{
@@ -68,6 +72,8 @@ try{
       await route.fulfill({response,json:poi});
     },{times:1});
     await p.goto(origin);await p.waitForSelector('#scene[data-view]');
+    const slot=pool.indexOf(world.nearestNode(...order[0]));assert.ok(slot>=0);
+    await p.evaluate(sample=>{Math.random=()=>sample;},(slot+.5)/pool.length);
     await p.locator('#drive').click();
     await p.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     const drive=async()=>(await host.getAttribute('data-drive')).split(',');

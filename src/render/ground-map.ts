@@ -1,14 +1,16 @@
 import type { CityData, Point } from '../data/types.ts';
+import style from '../data/road-style.json';
 import * as T from 'three';
 
 export interface GroundMap {
   texture: T.Texture<HTMLCanvasElement | OffscreenCanvas | ImageBitmap>;
   bounds: T.Vector4;
+  contactAt?: (x:number,y:number)=>number;
 }
 
 
 // Ground features share the terrain triangles. Paint their plan-view coverage once.
-export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBounds ? 2 : 3): GroundMap {
+export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBounds ? 2 : 3, streetPriority=!!data.carriageway, fallback=data.carriageway?.fallback): GroundMap {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
   if(data.textureBounds){
@@ -42,21 +44,30 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
     ctx.fill('evenodd');
   }
 
-  const footways = new Set(['steps', 'footway', 'path', 'pedestrian', 'cycleway']);
-  const mainRoads = new Set(['primary', 'secondary', 'trunk']);
+  const footways = new Set(style.pedestrian);
+  const mainRoads = new Set(style.main);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  for (const pedestrian of [false, true]) {
+  const passes = streetPriority ? [true,false,...(fallback?.length ? [true] : [])] : [false,true];
+  for (const [pass,pedestrian] of passes.entries()) {
+    ctx.save();
+    if((!pedestrian && data.carriageway) || pass===2){
+      ctx.beginPath();
+      for(const polygon of fallback ?? [])for(const ring of polygon){trace(ring);ctx.closePath();}
+      ctx.clip('evenodd');
+    }
     for (const road of data.roads) {
       if (footways.has(road.kind) !== pedestrian || road.line.length < 2) continue;
-      ctx.lineWidth = pedestrian ? 2.2 : mainRoads.has(road.kind) ? 8 : 4.5;
-      ctx.strokeStyle = pedestrian ? '#c6bdb6' : '#626575';
+      ctx.lineWidth = pedestrian ? style.width.pedestrian : mainRoads.has(road.kind) ? style.width.main : style.width.street;
+      ctx.strokeStyle = pedestrian ? style.color.pedestrian : style.color.street;
       ctx.beginPath();
       trace(road.line);
       ctx.stroke();
     }
+    ctx.restore();
   }
 
+  let contactAt:GroundMap['contactAt'];
   // Contact shadow: the footprints are filled on a coarse mask (about 4 m per pixel) and multiplied back
   // with bilinear scaling, which spreads a soft dark rim a few metres out from every wall. Stroking wide
   // outlines instead costs seconds for the whole city.
@@ -85,9 +96,18 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
     ctx.globalCompositeOperation = 'source-over';
+    if(data.carriageway?.indices.length){
+      const pixels=shade.getImageData(0,0,mask.width,mask.height).data,w=mask.width,h=mask.height;
+      contactAt=(x,y)=>{
+        const u=T.MathUtils.clamp((x-extent.min.x)*mx-.5,0,w-1),v=T.MathUtils.clamp((extent.max.y-y)*my-.5,0,h-1);
+        const read=(i:number,j:number)=>pixels[(Math.min(j,h-1)*w+Math.min(i,w-1))*4]/255;
+        const i=Math.floor(u),j=Math.floor(v);
+        return T.MathUtils.lerp(T.MathUtils.lerp(read(i,j),read(i+1,j),u-i),T.MathUtils.lerp(read(i,j+1),read(i+1,j+1),u-i),v-j);
+      };
+    }
   }
 
   const texture = new T.CanvasTexture(canvas);
   texture.colorSpace = T.SRGBColorSpace;
-  return { texture, bounds: new T.Vector4(extent.min.x, extent.min.y, size.x, size.y) };
+  return { texture,...(contactAt?{contactAt}:{}), bounds: new T.Vector4(extent.min.x, extent.min.y, size.x, size.y) };
 }

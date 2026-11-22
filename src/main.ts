@@ -17,8 +17,12 @@ interface Flight {
   start: number; duration: number;
   from: T.Vector3; to: T.Vector3;
   z0: number; z1: number;
+  turn0: number; turn1: number;
 }
 
+const turnDuration=300;
+const upAxis=new T.Vector3(0,1,0);
+const normalizeTurn=(turn: number)=>T.MathUtils.euclideanModulo(turn,4);
 
 async function start(){
   const query=new URLSearchParams(location.search);
@@ -51,7 +55,8 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
-  let frame=0,fit=1,lost=false,painted=0;
+  const mapOffset=new T.Vector3();
+  let frame=0,lost=false,painted=0,mapTurn=0;
   let flight: Flight | null=null;
   let lastView: ViewState | null=null;
   let drive: ReturnType<typeof makeDrive> | null=null;
@@ -59,29 +64,59 @@ async function start(){
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
     if(lost)return false;
-    fly(point,Math.max(fit,Math.min(host.clientWidth,host.clientHeight)/245),320);
+    fly(point,Math.max(fitAt(flight?.turn1??mapTurn),Math.min(host.clientWidth,host.clientHeight)/245),320);
     return true;
   });
-  function view(target: T.Vector3,zoom: number,offset=direction){camera.zoom=zoom;camera.updateProjectionMatrix();controls.target.copy(target);camera.position.copy(target).addScaledVector(offset,1500);controls.update();draw();}
+  function mapDirection(turn: number){return mapOffset.copy(direction).applyAxisAngle(upAxis,normalizeTurn(turn)*Math.PI/2);}
+  function view(target: T.Vector3,zoom: number,offset=mapDirection(mapTurn)){
+    controls.target.copy(target);
+    camera.position.copy(target).addScaledVector(offset,1500);
+    controls.update();
+    // OrbitControls limits interactive zoom. Programmatic poses also restore views saved at another size.
+    if(camera.zoom!==zoom){camera.zoom=zoom;camera.updateProjectionMatrix();}
+    draw();
+  }
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
   // The opening view frames land and sea together; panning stays limited to the land.
   const framed=sea?[...border,...sea.water.flatMap(p=>p[0].map(([x,y])=>new T.Vector3(x,0,-y)))]:border;
-  const center=new T.Box3().setFromPoints(framed).getCenter(new T.Vector3());
   const bounds=new T.Box3().setFromPoints(border);
+  const center=new T.Box3().setFromPoints(framed).getCenter(new T.Vector3()).clamp(bounds.min,bounds.max);
+  function fitAt(turn: number){
+    const offset=mapDirection(turn);
+    const right=new T.Vector3().crossVectors(upAxis,offset).normalize();
+    const up=new T.Vector3().crossVectors(offset,right);
+    const point=new T.Vector3();
+    let halfWidth=0,halfHeight=0;
+    // Measure from the actual orbit center so an asymmetric coastline still fits.
+    for(const vertex of framed){
+      point.copy(vertex).sub(center);
+      halfWidth=Math.max(halfWidth,Math.abs(point.dot(right)));
+      halfHeight=Math.max(halfHeight,Math.abs(point.dot(up)));
+    }
+    return Math.min(host.clientWidth/(2*halfWidth+60),host.clientHeight/(2*halfHeight+65))*.92;
+  }
   function sizeCamera(){
     const w=host.clientWidth,h=host.clientHeight;
     camera.left=-w/2;camera.right=w/2;camera.top=h/2;camera.bottom=-h/2;
     camera.updateProjectionMatrix();camera.updateMatrixWorld();
-    const box=new T.Box3().setFromPoints(framed.map(p=>p.clone().applyMatrix4(camera.matrixWorldInverse)));
-    fit=Math.min(w/(box.max.x-box.min.x+60),h/(box.max.y-box.min.y+65))*.92;
-    controls.minZoom=fit*.8;controls.maxZoom=drive?.active?Infinity:Math.max(fit*12,4);
+    const fits=[0,1,2,3].map(fitAt);
+    controls.minZoom=Math.min(...fits,fitAt(mapTurn))*.8;
+    controls.maxZoom=drive?.active?Infinity:Math.max(Math.max(...fits)*12,4,openingZoom());
   }
-  function reset(){if(lost)return;places.close();fly(center,fit,300);}
-  function fly(target: T.Vector3,zoom: number,duration: number){
+  function openingZoom(){return Math.max(host.clientWidth/340,host.clientHeight/225);}
+  function reset(){if(lost)return;places.close();fly(center,fitAt(flight?.turn1??mapTurn),300);}
+  function fly(target: T.Vector3,zoom: number,duration: number,turn1=flight?.turn1??mapTurn){
     if(lost)return;
     host.dataset.moving='true';
-    flight={start:performance.now(),duration,from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom};
+    flight={start:performance.now(),duration:Math.max(duration,Math.abs(turn1-mapTurn)*turnDuration),
+      from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom,turn0:mapTurn,turn1};
     draw();
+  }
+  function rotate(step: -1|1){
+    if(lost || drive?.active)return;
+    const turn=flight?.turn1??mapTurn;
+    const next=step<0?Math.ceil(turn)-1:Math.floor(turn)+1;
+    fly(flight?.to??controls.target,flight?.z1??camera.zoom,turnDuration,next);
   }
   // Resolution follows the frame cadence whenever the view moves continuously (drag, flight, driving)
   // and returns to full as soon as it rests, where a single sharp frame costs nothing.
@@ -125,7 +160,7 @@ async function start(){
     renderer.setPixelRatio(baseRatio());renderer.shadowMap.enabled=!compact && losses<2;
     renderer.shadowMap.needsUpdate=true;
     if(drive?.active){syncSize();drive.resume();return;}
-    if(lastView)view(new T.Vector3().fromArray(lastView.target),lastView.zoom);
+    if(lastView){mapTurn=lastView.turn;view(new T.Vector3().fromArray(lastView.target),lastView.zoom);}
     syncSize();
   });
   window.addEventListener('pagehide',remember);
@@ -140,7 +175,9 @@ async function start(){
       painted=time;wind.time.value=time/1000;
       if(flight){
         const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
-        view(flight.from.clone().lerp(flight.to,ease),Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease)));
+        mapTurn=t>=1?normalizeTurn(flight.turn1):T.MathUtils.lerp(flight.turn0,flight.turn1,ease);
+        const zoom=flight.z0===flight.z1?flight.z0:Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease));
+        view(flight.from.clone().lerp(flight.to,ease),zoom);
         if(t>=1){flight=null;settle();}
       }
       const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
@@ -157,7 +194,10 @@ async function start(){
       renderer.render(scene,camera);
       if(renderer.getContext().isContextLost())return;
       status.hidden=true;
-      if(!drive?.active)lastView={target:controls.target.toArray(),zoom:camera.zoom,selected:places.selected};
+      if(!drive?.active){
+        lastView={target:controls.target.toArray(),zoom:camera.zoom,turn:normalizeTurn(mapTurn),selected:places.selected};
+        host.dataset.mapAngle=(lastView.turn*90).toFixed(2);
+      }
       host.dataset.moving=String(!!flight);
       places.project(camera);
       host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
@@ -175,6 +215,7 @@ async function start(){
   requestAnimationFrame(ambient);
   function zoom(k: number){fly(controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
+  el('rotate-left').onclick=()=>rotate(-1);el('rotate-right').onclick=()=>rotate(1);
   host.onkeydown=e=>{
     if(lost || drive?.active)return;
     if(e.key.startsWith('Arrow'))flight=null;
@@ -215,8 +256,9 @@ async function start(){
     if(firstView){
       firstView=false;
       const start=places.point(data.focus) ?? new T.Vector3(-95,11,218);
-      view(start,Math.max(host.clientWidth/340,host.clientHeight/225));
+      view(start,openingZoom());
       if(resume){
+        mapTurn=resume.turn;
         view(new T.Vector3().fromArray(resume.target),resume.zoom);
         places.restore(resume.selected);
       }

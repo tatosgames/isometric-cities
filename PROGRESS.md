@@ -41,3 +41,9 @@ Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell�
 **L · Pedoni.** In guida le strade hanno pedoni che camminano ai bordi, sulle vie pedonali e nelle piazze, e scattano di lato all'arrivo dell'auto o di una pattuglia. Non possono essere investiti e non cambiano il punteggio. Logica in `src/drive/pedestrians.ts`, regole in [JUICE](docs/JUICE.md#pedoni). Da fare: giudizio su dimensione e densità giocando a mano e su telefono fisico.
 
 Laboratorio visivo disponibile su GitHub Pages in `lab.html`. La prova strade rimane sperimentale; i cinque preset precedenti sono archiviati. La scelta per le strade resta aperta. [Storico delle prove](docs/STORICO_PROVE_VISIVE.md).
+
+**M · Rotazione della mappa.** Due pulsanti ruotano il plastico di 90° attorno al bersaglio. La panoramica si adatta all'orientamento scelto. Centro, zoom e angolo tornano all'uscita da Play e dopo il recupero WebGL. [Verifica](docs/QA.md#rotazione-della-mappa).
+
+## Carreggiate cittadine
+
+La mappa e Conducir mostrano l'asfalto geometrico quando il settore dettagliato è pronto. La panoramica e gli incroci con dislivello segnalato da OSM usano la texture. Il laboratorio conserva il confronto del Mercado e aggiunge il percorso di Calle San Nicolás, con camera di guida o mappa, senso inverso e caricamento ritardato del settore est. Per provare il percorso con i settori circostanti apri `lab.html?test=settori&intera=1`. [Procedura di espansione](docs/EXPAND_CITY.md#carreggiate-nei-nuovi-quartieri)

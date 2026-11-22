@@ -24,14 +24,25 @@ function building(v: unknown): v is Building {
     && (v.roofFurniture === undefined || boolean(v.roofFurniture))
     && (v.windows === undefined || boolean(v.windows));
 }
-const road = (v: unknown): v is Road => record(v) && string(v.kind) && list(v.line, point);
+const road = (v: unknown): v is Road => record(v) && (v.id===undefined||string(v.id)) && string(v.kind) && list(v.line, point)
+  && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer));
 const surface = (v: unknown): v is Surface =>
   record(v) && string(v.id) && string(v.kind) && rings(v.rings)
   && (v.paved === undefined || boolean(v.paved));
 
+function validCarriageway(v:unknown, b:unknown){
+  if(!record(v) || !bounds(b) || !list(v.positions,number) || !Array.isArray(v.indices))return false;
+  if(v.positions.length%3!==0 || v.indices.length%3!==0)return false;
+  const p=v.positions;
+  for(let i=0;i<p.length;i+=3){
+    if(p[i]<b[0]||p[i]>b[2]||-p[i+2]<b[1]||-p[i+2]>b[3])return false;
+  }
+  return v.indices.every(i=>Number.isInteger(i)&&i>=0&&i<p.length/3)&&list(v.fallback,rings);
+}
 export function isLayers(v: unknown): v is Layers {
   return record(v) && list(v.buildings, building) && list(v.trees, point)
     && list(v.ground, ring) && list(v.roads, road) && list(v.surfaces, surface)
+    && (v.carriageway===undefined||validCarriageway(v.carriageway,v.textureBounds))
     && (v.textureBounds === undefined || bounds(v.textureBounds));
 }
 
@@ -57,7 +68,8 @@ const sector = (v: unknown): v is Sector =>
 
 export function isSectorIndex(v: unknown): v is SectorIndex {
   return record(v) && list(v.sectors, sector) && number(v.sectorSize)
-    && v.sectorSize > 0 && list(v.buildingOwners, string);
+    && v.sectorSize > 0 && list(v.buildingOwners, string)
+    && (v.carriageways===undefined||boolean(v.carriageways)) && (v.roadFallback===undefined||list(v.roadFallback,rings)) && (v.roadExceptions===undefined||list(v.roadExceptions,string));
 }
 
 const place = (v: unknown): v is Place => record(v) && record(v.properties)
@@ -83,10 +95,10 @@ export function parseViewState(raw: string | null): (ViewState & {losses: number
   if (raw === null) return null;
   const v: unknown = JSON.parse(raw);
   if (!record(v)) return null;
-  const {target, zoom, selected, losses} = v;
+  const {target, zoom, turn, selected, losses} = v;
   if (!list(target, number) || target.length !== 3 || !number(zoom) || zoom <= 0) return null;
   return {
-    target: [target[0], target[1], target[2]], zoom,
+    target: [target[0], target[1], target[2]], zoom, turn: number(turn) && turn >= 0 && turn < 4 ? turn : 0,
     selected: string(selected) || number(selected) ? selected : null,
     losses: number(losses) ? losses : 0
   };

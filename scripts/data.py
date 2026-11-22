@@ -125,7 +125,8 @@ for i,(t,vs) in ways.items():
             surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p)))
     elif road and road not in ('construction','proposed','elevator') and not t.get('tunnel'):
         for l in parts(LineString(vs).intersection(area),'LineString'):
-            roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords)))
+            grade={key:t[key] for key in ('bridge','layer') if key in t}
+            roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords),**grade))
 for e in osm.findall('node'):
     if tags(e).get('natural')=='tree' and area.contains(Point(nodes[e.get('id')])):
         trees+=coords([nodes[e.get('id')]])

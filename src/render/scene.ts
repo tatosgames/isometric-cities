@@ -1,4 +1,5 @@
 import type { CityData, Ring, RoofTones } from '../data/types.ts';
+import style from '../data/road-style.json';
 import type { GroundMap } from './ground-map.ts';
 import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
@@ -16,7 +17,21 @@ interface Bucket {
 export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null) {
   const group = new T.Group();
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
-  const {mat,buildingMat,wood,leaf,shadeMat}=cityMaterials(neutral,groundMap);
+  const {mat,road,buildingMat,wood,leaf,shadeMat}=cityMaterials(neutral,groundMap);
+  if(!neutral && data.carriageway?.indices.length){
+    const {positions,indices}=data.carriageway,geometry=new T.BufferGeometry();
+    geometry.setIndex(indices);
+    geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.computeVertexNormals();
+    const colors=new Uint8Array(positions.length),tint=new T.Color();
+    const asphalt=new T.Color(style.color.street).convertLinearToSRGB();
+    for(let i=0;i<positions.length;i+=3){
+      const shade=groundMap?.contactAt?.(positions[i],-positions[i+2])??1;
+      tint.copy(asphalt).multiplyScalar(shade).convertSRGBToLinear();
+      colors.set([Math.round(tint.r*255),Math.round(tint.g*255),Math.round(tint.b*255)],i);
+    }
+    geometry.setAttribute('color',new T.Uint8BufferAttribute(colors,3,true));
+    const mesh=new T.Mesh(geometry,road);mesh.receiveShadow=true;group.add(mesh);
+  }
   const buckets = new Map<string, Bucket>();
   function flush(bucket: Bucket){
     if(!bucket.parts.length)return;
@@ -198,7 +213,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     });
     mesh.castShadow=!shadow;mesh.receiveShadow=!shadow;mesh.computeBoundingSphere();group.add(mesh);
   }
-  return {group,altitude,groundMap,materials:{mat,buildingMat,wood,leaf,shadeMat}};
+  return {group,altitude,groundMap,materials:{mat,road,buildingMat,wood,leaf,shadeMat}};
 }
 
 // Find the largest inscribed circle among the triangulated roof faces.

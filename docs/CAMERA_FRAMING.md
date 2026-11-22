@@ -7,7 +7,7 @@ I valori citati sono quelli del codice al 22 novembre 2026. Se cambiano nel codi
 ## Regole comuni
 
 1. **Una sola camera, un solo proprietario.** La camera ortografica e la funzione `view(target, zoom, offset)` vivono in `src/main.ts`. Nessun altro modulo sposta la camera: la guida chiede un'inquadratura chiamando `view`.
-2. **Orientamento.** La mappa e la prima vista di guida usano la direzione isometrica. Le altre viste di guida orientano la stessa camera ortografica lungo la traiettoria.
+2. **Orientamento.** La mappa ruota a scatti attorno alla verticale mantenendo l'inclinazione isometrica. La vista Isométrica in guida riprende l'orientamento all'ingresso. Le altre viste di guida orientano la stessa camera ortografica lungo la traiettoria.
 3. **Lo zoom è in pixel per metro.** I bordi della camera sono in pixel CSS, quindi `camera.zoom` dice quanti pixel occupa un metro. Tutte le soglie si ragionano così.
 4. **Il bersaglio resta dentro il perimetro.** `draw()` riporta il bersaglio nel riquadro del confine a ogni frame.
 5. **Niente salti.** Ogni cambio di inquadratura è un volo o una rincorsa smorzata. I pulsanti `+`, `−` e panoramica animano per 300 ms. Un taglio netto è ammesso solo al ripristino dopo la perdita del contesto, dove si torna all'ultima vista salvata.
@@ -15,11 +15,12 @@ I valori citati sono quelli del codice al 22 novembre 2026. Se cambiano nel codi
 ## Mappa
 
 - **Apertura:** dettaglio sul luogo indicato da `data.focus`, non la panoramica.
-- **Panoramica** (mirino o tasto Inizio): tutto il perimetro entra nello schermo con un margine (`fit` in `sizeCamera`).
+- **Panoramica** (mirino o tasto Inizio): mantiene l'orientamento e inquadra tutto il perimetro con un margine (`fitAt`).
 - **Pulsanti zoom:** `+`, `−` e panoramica interpolano bersaglio e zoom in 300 ms; nuovi input sostituiscono il volo in corso partendo dalla vista corrente.
-- **Limiti di zoom:** da 0,8 × la panoramica fino a 12 × la panoramica, con un minimo di 4 px/m.
+- **Pulsanti di rotazione:** ±90° attorno al bersaglio, a zoom e inclinazione costanti. Uno scatto dura 300 ms. I clic ravvicinati si sommano e ripartono dalla posa visibile.
+- **Limiti di zoom interattivo:** minimo di 0,8 × il minore dei livelli di panoramica, massimo di 12 × il maggiore con un minimo di 4 px/m e spazio per lo zoom di apertura.
 - **Luogo selezionato:** volo di 320 ms verso il punto del marker, con zoom tale che il lato corto copra circa 245 m.
-- **Rotazione dello schermo e ridimensionamento:** bersaglio e zoom restano invariati.
+- **Rotazione dello schermo e ridimensionamento:** bersaglio, zoom e orientamento restano invariati.
 - **Marker:** proiettati a ogni frame, nascosti quando escono dallo schermo.
 
 ## Guida
@@ -54,7 +55,7 @@ L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita i
 
 ## Verifica
 
-- `npm.cmd test` controlla che l'inquadratura cambi entrando in guida e torni identica all'uscita, e che rotazione e ripristino del contesto conservino la vista della mappa.
+- `npm.cmd test` controlla il ciclo di quattro scatti, la panoramica ai quattro angoli e il ripristino della posa dopo ridimensionamento, uscita dalla guida e perdita del contesto.
 - Dopo una modifica alla camera di guida, campionare lo zoom ogni mezzo secondo per una decina di secondi (nono campo di `data-drive` su `#scene`) e confrontarlo con i valori del punto 4.
 - Guardare almeno uno screenshot a 390×844 e uno a 1440×900 con l'auto in una via stretta.
 - Su telefono fisico la sensazione di movimento non è stata ancora provata.

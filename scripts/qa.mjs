@@ -23,6 +23,10 @@ try{
     await page.goto(origin+path);await page.waitForSelector('#scene[data-view]',{timeout:60000});
   }
   const settled=()=>page.waitForFunction(()=>document.querySelector('#scene').dataset.moving==='false');
+  const angle=async()=>Number(await host.getAttribute('data-map-angle'));
+  const left=page.getByRole('button',{name:'Girar vista a la izquierda'});
+  const right=page.getByRole('button',{name:'Girar vista a la derecha'});
+  const turnRight=()=>mobile?right.tap():right.click();
   async function snap(name){
     await settled();
     await page.waitForFunction(()=>{
@@ -44,7 +48,26 @@ try{
     await page.waitForTimeout(800);
     assert.ok(!restingFrame.equals(await page.locator('canvas').screenshot()),'Wind and cloud shadows should keep moving on a resting map');
     assert.equal(await host.getAttribute('data-view'),restingView);
+    for(const expected of [90,180,270,0]){
+      await turnRight();await settled();
+      assert.equal(await angle(),expected);
+      assert.equal(await host.getAttribute('data-view'),restingView,'Rotation must preserve the center and zoom');
+    }
+    await page.evaluate(()=>{
+      const right=document.getElementById('rotate-right'),left=document.getElementById('rotate-left');
+      right.click();right.click();left.click();left.click();
+    });
+    await settled();assert.equal(await angle(),0,'Rapid clicks should count in both directions');
+    await left.focus();await page.keyboard.press('Enter');await settled();assert.equal(await angle(),270);
+    await turnRight();await settled();assert.equal(await angle(),0);
     if(!mobile)await snap('opening');await page.locator('#reset').click();await page.waitForFunction(()=>{const s=JSON.parse(document.querySelector('#scene').dataset.sectors);return !s.pending && s.visible===0 && document.querySelector('#scene').dataset.moving==='false';});const initial=await host.getAttribute('data-view');if(!mobile)await snap('overview');
+    for(const expected of [90,180,270,0]){
+      await turnRight();await page.locator('#reset').click();await settled();
+      assert.equal(await angle(),expected,'Overview must keep the chosen orientation');
+      assert.equal(await page.locator('.pin:visible').count(),await page.locator('.pin').count());
+      if(expected===90)await snap(mobile?'rotation-mobile':'rotation-desktop');
+    }
+    assert.equal(await host.getAttribute('data-view'),initial);
     const credits=page.locator('footer');
     assert.equal(await credits.isVisible(),false);
     for(let i=0;i<await page.locator('#places button').count();i++){
@@ -94,10 +117,13 @@ try{
     await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);await page.locator('.pin[data-place-id="san-telmo"]').waitFor({state:'visible'});await page.locator('.pin[data-place-id="san-telmo"]').focus();await page.keyboard.press('Enter');assert.match(await page.locator('h3').textContent(),/San Telmo/);
     await page.waitForFunction(()=>document.querySelector('.pin[data-place-id="san-telmo"]').getAttribute('aria-pressed')==='true');
     await settled();
+    await turnRight();await settled();assert.equal(await angle(),90);
     const beforeRotation=await host.getAttribute('data-view');
     const originalSize=page.viewportSize();const fullWidth=await page.locator('canvas').evaluate(c=>c.width);
     await page.setViewportSize({width:originalSize.height,height:originalSize.width});
     await page.waitForTimeout(120);assert.equal(await host.getAttribute('data-view'),beforeRotation);
+    assert.equal(await angle(),90);
+    if(mobile)await snap('rotation-landscape');
     await page.setViewportSize(originalSize);
     await page.waitForFunction(w=>document.querySelector('canvas').width===w,fullWidth);
     for(let cycle=0;cycle<3;cycle++){
@@ -116,6 +142,7 @@ try{
       await ext.evaluate(e=>e.restoreContext());
       await page.locator('#status').waitFor({state:'hidden'});
       assert.equal(await host.getAttribute('data-view'),savedView);
+      assert.equal(await angle(),90);
       assert.equal(await page.locator('article').isVisible(),true);
       if(cycle>=1)assert.ok(await page.locator('canvas').evaluate(c=>c.width)<fullWidth);
       // Inspect the central map without the DOM controls: a cleared canvas is a failure.
@@ -149,12 +176,15 @@ try{
     await page.getByRole('button',{name:'Recargar'}).click();
     await page.waitForSelector('#scene[data-view]');
     assert.equal(await host.getAttribute('data-view'),retryView);
+    assert.equal(await angle(),90);
     assert.match(await page.locator('article:visible h3').textContent(),/Santa Ana/);
 
   }
   if(!process.argv.includes('pilot')){
     // Driving mode: start, steer, collect, get caught, retry and leave.
     await visit('/');
+    const entryAngle=((await angle())+90)%360;
+    await turnRight();await settled();assert.equal(await angle(),entryAngle);
     const before=await host.getAttribute('data-view');
     const drive=async()=>(await host.getAttribute('data-drive')).split(',');
     await page.locator('#drive').click();
@@ -163,6 +193,7 @@ try{
     await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[12])>0);
     assert.ok(Number((await host.getAttribute('data-drive')).split(',')[13])>=2.2,'A pedestrian stands on the car');
     assert.equal(await page.locator('#pins').isVisible(),false);
+    assert.equal(await right.isVisible(),false);
     assert.equal(await page.locator('footer').isVisible(),false);
     assert.equal(await page.locator('#hud-stats .stat').count(),2);
     assert.equal(await page.locator('#over-record').isVisible(),false);
@@ -233,6 +264,7 @@ try{
     assert.equal(await host.getAttribute('data-drive'),null);
     assert.equal(await page.locator('#plus').isVisible(),true);
     await page.waitForFunction(v=>document.querySelector('#scene').dataset.view===v,before);
+    assert.equal(await angle(),entryAngle);
   }
   if(!mobile && !process.argv.includes('pilot')){
     let reorder=false;

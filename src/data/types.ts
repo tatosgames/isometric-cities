@@ -18,6 +18,9 @@ export interface Building {
 }
 
 export interface Road {
+  id?:string;
+  bridge?: string;
+  layer?: string;
   kind: string;
   line: Point[];
 }
@@ -38,7 +41,13 @@ export interface Terrain {
   values: number[] | Float32Array<ArrayBuffer>;
 }
 
+export interface Carriageway {
+  positions:number[];
+  indices:number[];
+  fallback:Ring[][];
+}
 export interface Layers {
+  carriageway?:Carriageway;
   buildings: Building[];
   trees: Point[];
   ground: Ring[];
@@ -68,6 +77,9 @@ export interface Sector {
 }
 
 export interface SectorIndex {
+  carriageways?: boolean;
+  roadExceptions?:string[];
+  roadFallback?:Ring[][];
   sectors: Sector[];
   sectorSize: number;
   buildingOwners: string[];
@@ -86,5 +98,6 @@ export interface Place {
 export interface ViewState {
   target: [number, number, number];
   zoom: number;
+  turn: number;
   selected?: string | number | null;
 }

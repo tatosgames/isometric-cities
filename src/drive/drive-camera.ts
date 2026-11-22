@@ -10,7 +10,8 @@ const modes=[
 const key='drive-camera';
 
 export function makeDriveCamera(mapDirection: Vector3){
-  const mapYaw=Math.atan2(mapDirection.z,mapDirection.x),mapPitch=Math.asin(mapDirection.y);
+  const mapPitch=Math.asin(mapDirection.y);
+  let mapYaw=Math.atan2(mapDirection.z,mapDirection.x);
   const pose={direction:new Vector3(),yaw:mapYaw,pitch:mapPitch,zoom:1,framing:0};
   let index=0,travelYaw=mapYaw,lift=0,clearTime=0,blend=1;
   let from={...pose};
@@ -18,8 +19,9 @@ export function makeDriveCamera(mapDirection: Vector3){
   return {
     get mode(){return modes[index].id;},
     get label(){return modes[index].label;},
-    enter(){
+    enter(direction=mapDirection){
       try{index=Math.max(0,modes.findIndex(m=>m.id===localStorage.getItem(key)));}catch{}
+      mapYaw=Math.atan2(direction.z,direction.x);
       Object.assign(pose,{yaw:mapYaw,pitch:mapPitch,zoom:1,framing:0});
       lift=clearTime=0;transition();
     },

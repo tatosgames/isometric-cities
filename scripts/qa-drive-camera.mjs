@@ -33,4 +33,8 @@ function run(rate){
   return turn;
 }
 assert.ok(run(30).distanceTo(run(120))<.02);
+const rotated=direction.clone().applyAxisAngle(new Vector3(0,1,0),Math.PI/2);
+const rig=makeDriveCamera(direction);
+rig.enter(rotated);
+assert.ok(rig.update(1/60,car,clear).direction.distanceTo(rotated)<1e-9);
 console.log('Drive camera turn, stop, occlusion and frame-rate checks passed');

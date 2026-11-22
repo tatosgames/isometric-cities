@@ -190,3 +190,28 @@ Tre aperture in Chrome mobile emulato con un nuovo processo per prova, eseguite 
 - Non verificato: prova a mano in vie strette, leggibilità su telefono fisico (le figure sono alte circa 3 m in scala, come le auto maggiorate), comportamento con molte pattuglie insieme.
 
 Il catalogo `lab.html` carica ogni prova tramite un ingresso dedicato in `src/lab/main.ts`. Per aggiungere un test, registrare ID, titolo, descrizione e import dinamico del modulo. La suite `node scripts/qa-road-lab.mjs` verifica il collegamento alla prova strade, i tre materiali, la tendina A/B sullo stesso fotogramma e il replay in Chrome desktop e mobile emulato. Per i risultati delle prove visive ritirate, vedi lo [storico](STORICO_PROVE_VISIVE.md).
+
+## Rotazione della mappa
+
+`npm.cmd test` esercita i quattro scatti da 90° e controlla che centro e zoom restino invariati. Prova anche clic ravvicinati nei due sensi, attivazione da tastiera, panoramica con tutti i marker visibili, cambio di orientamento dello schermo, uscita da Play e ripristino WebGL con e senza ricarica della pagina. Le catture `rotation-desktop.png`, `rotation-mobile.png` e `rotation-landscape.png` vengono salvate nella directory scelta con `QA_SCREENSHOT_DIR`.
+
+`node scripts/qa-drive-camera.mjs` controlla che la vista Isométrica in guida parta dall'orientamento scelto sulla mappa.
+
+Typecheck, build e suite Chrome completati. Controllate le catture a 1440×900, 390×844 e 844×390. La prova tattile è stata eseguita in emulazione Chrome.
+
+## Carreggiate geometriche sui confini dei settori
+
+Prima prova su Calle San Nicolás, settori `-2_-2` e `-1_-2`. Il generatore produce 962 triangoli e il dettaglio residente cresce di 30.909 byte. Su cinque passaggi per configurazione il p95 mediano resta a 18,2 ms sul profilo mobile e passa da 18,2 a 18,3 ms su desktop. La cattura alla stessa posizione mostra il bordo dell'asfalto in curva accanto all'auto. [Confronto texture e geometria](screenshots/carreggiate-san-nicolas.png)
+
+L'estensione a 80 settori produce 37.487 triangoli. Il controllo dei dati verifica 124 confini attraversati dall'asfalto, con tolleranza di 1 cm in pianta e quota, e l'esclusione dei corridoi attorno a 10 way OSM con ponte o livello esplicito. I JSON di dettaglio dell'intera città crescono da 4.291.052 a 5.661.927 byte prima della compressione HTTP. Ogni settore scarica soltanto il proprio file.
+
+Il test del gioco attraversa il confine nei due sensi in Conducir con pattuglia attiva. Il laboratorio riproduce inoltre l'arrivo ritardato del settore est. I tempi misurati con Chrome su computer e viewport mobile coprono lo streaming e il disegno del percorso. La stabilità percepita durante una sterzata e il comportamento termico richiedono ancora una prova su telefono fisico.
+
+Ripetizione con l'indice completo e cinque passaggi per configurazione. La memoria indica i dati residenti conteggiati dallo streamer al punto di confronto.
+
+| Profilo Chrome | p95 texture | p95 geometria | Memoria texture | Memoria geometria |
+|---|---:|---:|---:|---:|
+| Mobile emulato, 390 × 844 | 18,3 ms | 18,3 ms | 46,81 MiB | 46,97 MiB |
+| Desktop, 1024 × 720 | 18,2 ms | 18,3 ms | 59,81 MiB | 59,98 MiB |
+
+Entrambi i profili rispettano la soglia di +10% sul p95 a caldo. Durante il singolo avvio a freddo, il massimo intervallo osservato con una richiesta pendente è stato 1.614 ms / 960 ms su mobile e 1.516 ms / 1.295 ms su desktop (texture / geometria). Questi valori includono il caricamento iniziale e dipendono dalla macchina di test. Verificati anche costruzione sul thread principale con OffscreenCanvas disabilitato, recupero del contesto WebGL e tre giri del circuito cittadino con espulsione dei settori dal budget mobile di 48 MiB.

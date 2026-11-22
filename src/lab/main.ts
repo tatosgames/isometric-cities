@@ -1,5 +1,8 @@
 // Each entry owns its assets and UI. A full-page navigation releases the previous WebGL context.
 const tests = [
+  {id:'settori',title:'Calle San Nicolás · attraversamento settori',
+    description:'Confronta il passaggio tra panoramica e carreggiata sulla curva in pendenza.',
+    start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},
   {id:'strade', title:'Strade · Mercado de Vegueta',
     description:'Confronta la resa attuale, la texture a 4 px/m e la carreggiata geometrica lungo lo stesso percorso.',
     start:async()=>{const {roadLab}=await import('./road-lab.ts');await roadLab();}}

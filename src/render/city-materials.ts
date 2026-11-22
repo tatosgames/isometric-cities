@@ -42,5 +42,7 @@ export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
     vertexShader:'varying vec2 v; void main(){v=uv-.5;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}',
     fragmentShader:'varying vec2 v;void main(){gl_FragColor=vec4(.13,.14,.10,.22*(1.-smoothstep(.08,.50,length(v))));}'
   });
-  return {mat,buildingMat,shadeMat,wood:breezy(timber()),leaf:breezy(timber(),'crown')};
+  const road=breezy(new T.MeshStandardMaterial({...surfaceStencil(),vertexColors:true,flatShading:true,roughness:1,
+    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+  return {mat,road,buildingMat,shadeMat,wood:breezy(timber()),leaf:breezy(timber(),'crown')};
 }

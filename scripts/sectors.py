@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(".cache/pylib").resolve()))
 from PIL import Image
+from carriageways import Carriageways, grade_separated
 
 SIZE = 240
 ROOT = Path("public/data")
@@ -27,7 +28,7 @@ def write_versioned(directory, name, value):
     return path.name
 
 
-def partition(stage):
+def partition(stage, road_cells=None):
     data = json.loads((ROOT / f"{stage}.json").read_bytes())
     directory = ROOT / f"{stage}-sectors"
     directory.mkdir(exist_ok=True)
@@ -64,6 +65,7 @@ def partition(stage):
                         tiles[x,y][layer].append(feature)
     roof=Image.open(".cache/roof-atlas.png")
     west,south,width,height=json.loads((ROOT/"roof-tones.json").read_bytes())["bounds"]
+    carriageways = Carriageways(data)
     entries = []
     generated = set()
     for (cx, cy), detail in sorted(tiles.items()):
@@ -74,6 +76,8 @@ def partition(stage):
         xs, ys = zip(*points)
         bounds = [min(xs) - 7, min(ys) - 7, max(xs) + 7, max(ys) + 7]
         detail["textureBounds"]=[cx*SIZE-5,cy*SIZE-5,(cx+1)*SIZE+5,(cy+1)*SIZE+5]
+        if road_cells is None or name in road_cells:
+            detail["carriageway"]=carriageways.tile(detail,[cx*SIZE,cy*SIZE,(cx+1)*SIZE,(cy+1)*SIZE])
         left,bottom,right,top=floor(min(xs))-2,floor(min(ys))-2,ceil(max(xs))+2,ceil(max(ys))+2
         tile=roof.crop((left-west,south+height-top,right-west,south+height-bottom))
         image=BytesIO()
@@ -97,7 +101,8 @@ def partition(stage):
         generated.update((file, roof_file))
     # The same footprint index serves collision, the low LOD and the route graph.
     # Detail files remain independently cacheable on static hosting.
-    index = dict(sectors=entries, sectorSize=SIZE, buildingOwners=owners)
+    index = dict(sectors=entries, sectorSize=SIZE, buildingOwners=owners, carriageways=True,
+                 roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
     (ROOT / f"{stage}-index.json").write_bytes(encode(index))
     for path in directory.iterdir():
         if re.fullmatch(r"-?\d+_-?\d+-[0-9a-f]{12}\.(json|webp)",path.name) and path.name not in generated:
@@ -106,4 +111,4 @@ def partition(stage):
 
 
 if __name__ == "__main__":
-    partition("city")
+    partition("city", {"-2_-2","-1_-2"} if "--road-pilot" in sys.argv else None)
