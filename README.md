@@ -15,6 +15,10 @@ Aprire http://127.0.0.1:5197/ . Trascinare per spostarsi, usare rotella o pinch 
 
 La pagina iniziale apre un dettaglio di Triana a tutto schermo. Il menu in alto a sinistra raccoglie dieci luoghi da Vegueta al Parque Doramas e al Club de Natación Metropole. Il mirino in alto a destra mostra l’intera area. Usare `/?area=pilot` per il quadrato di Santa Ana e aggiungere `&neutral` per il confronto a camera identica.
 
+## Editor del pilota
+
+L’editor si apre su [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) o in locale su `http://127.0.0.1:5197/editor.html`. Scarica le correzioni in JSON e ricaricale nell’editor oppure in **Probar en Conducir**. Il browser legge il file dal dispositivo.
+
 ## Riprodurre i dati
 
 La visione richiede solo Node. Per ricostruire i dati, dalla radice con Python 3.13 e curl:

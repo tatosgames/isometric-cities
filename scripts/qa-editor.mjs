@@ -15,7 +15,7 @@ const empty = { version:1,base:hash,footprints:[],props:[] };
 const file = value => ({ name:'corrections.json',mimeType:'application/json',buffer:Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)) });
 const server = process.env.MAP_URL ? null : await createServer({ server:{ host:'127.0.0.1',port:0 } });
 await server?.listen();
-const origin = process.env.MAP_URL || server.resolvedUrls.local[0];
+const mapRoot = (process.env.MAP_URL || server.resolvedUrls.local[0]).replace(/\/?$/,'/');
 let browser;
 try {
   browser = await chromium.launch({ channel:'chrome',args:['--enable-unsafe-swiftshader'] });
@@ -29,7 +29,7 @@ try {
   const button = (label,pageRef = page) => pageRef.getByRole('button',{ name:label,exact:true });
   const status = () => page.locator('#message').textContent();
   async function open(page) {
-    await page.goto(new URL('/editor.html',origin).href);
+    await page.goto(new URL('editor.html',mapRoot).href);
     await page.waitForFunction(() => !document.querySelector('#save').disabled && document.querySelector('canvas')?.clientWidth > 300);
   }
   async function save(page) {
@@ -162,9 +162,11 @@ try {
   assert.equal(wallHit(world,chosen.p),0);
   assert.ok(wallHit(world,chosen.q));
 
-  const viewer = await browser.newPage();
+  const [viewer] = await Promise.all([
+    fresh.waitForEvent('popup'),fresh.getByRole('link',{name:'Probar en Conducir'}).click()
+  ]);
   observe(viewer);
-  await viewer.goto(new URL('/?area=pilot&editorPreview',origin).href);
+  assert.equal(viewer.url(),new URL('?area=pilot&editorPreview',mapRoot).href);
   await viewer.getByLabel('Cargar correcciones del piloto').setInputFiles(file({...patch,base:'otro'}));
   await viewer.getByText(/otra versión/).waitFor();
   await viewer.getByLabel('Cargar correcciones del piloto').setInputFiles(file(patch));

@@ -29,7 +29,7 @@ async function start(){
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
   const neutral=query.has('neutral');
-  const pilotPreview=import.meta.env.DEV && pilot && query.has('editorPreview')
+  const pilotPreview=pilot && query.has('editorPreview')
     ? import('./editor/pilot-preview.ts').then(({loadEditedPilot})=>loadEditedPilot(el('status'))) : null;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
   const stage=query.get('area')==='stress'?'stress':'city';
