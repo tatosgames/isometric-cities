@@ -40,6 +40,4 @@ Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell�
 
 **L · Pedoni.** In guida le strade hanno pedoni che camminano ai bordi, sulle vie pedonali e nelle piazze, e scattano di lato all'arrivo dell'auto o di una pattuglia. Non possono essere investiti e non cambiano il punteggio. Logica in `src/drive/pedestrians.ts`, regole in [JUICE](docs/JUICE.md#pedoni). Da fare: giudizio su dimensione e densità giocando a mano e su telefono fisico.
 
-**Laboratorio visivo A/B.** Disponibile su `lab.html` in locale e su GitHub Pages. Cinque campioni consentono di confrontare suolo OSM, facciate, coperture PNOA, contatto col pendio e chiome. I preset restano sperimentali e vengono salvati nel laboratorio. [Prove e due ricette riproducibili](docs/QA.md#laboratorio-visivo-ab--22-novembre-2026).
-
-**Test strade al Mercado.** Nel laboratorio, «Test strade» confronta la resa attuale, una texture pulita a 4 px/m e una carreggiata geometrica su un percorso ripetibile con l’auto del gioco. [QA e costi misurati](docs/QA.md#test-strade-al-mercado).
+Laboratorio visivo ritirato. La scelta per le strade resta aperta. [Storico delle prove](docs/STORICO_PROVE_VISIVE.md).

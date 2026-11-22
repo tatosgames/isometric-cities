@@ -4,19 +4,18 @@ import * as T from 'three';
 export interface GroundMap {
   texture: T.Texture<HTMLCanvasElement | OffscreenCanvas | ImageBitmap>;
   bounds: T.Vector4;
-  flatRoad?: { mask:T.Texture; color:T.Color };
 }
 
 
 // Ground features share the terrain triangles. Paint their plan-view coverage once.
-export function makeGroundMap(data: CityData, decorate?: import('./scene-study.ts').SceneStudy['road'], pixelsPerMetre = data.textureBounds ? 2 : 3): GroundMap {
+export function makeGroundMap(data: CityData): GroundMap {
   const extent = new T.Box2();
   for (const [x, y] of data.boundary) extent.expandByPoint(new T.Vector2(x, y));
   if(data.textureBounds){
     extent.min.fromArray(data.textureBounds);extent.max.fromArray(data.textureBounds,2);
   }
   const size = extent.getSize(new T.Vector2());
-  const scale = Math.min(pixelsPerMetre, 2048 / Math.max(size.x, size.y));
+  const scale = Math.min(data.textureBounds ? 2 : 3, 2048 / Math.max(size.x, size.y));
   const canvas = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
   canvas.width = Math.max(1, Math.ceil(size.x * scale));
   canvas.height = Math.max(1, Math.ceil(size.y * scale));
@@ -55,7 +54,6 @@ export function makeGroundMap(data: CityData, decorate?: import('./scene-study.t
       ctx.beginPath();
       trace(road.line);
       ctx.stroke();
-      decorate?.(ctx,road);
     }
   }
 
