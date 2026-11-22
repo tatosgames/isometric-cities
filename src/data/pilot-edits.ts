@@ -1,7 +1,7 @@
 import { isCity } from './load.ts';
 import type { CityData, Point, Ring } from './types.ts';
 
-export const propKinds = { bench: 'Banco', bollard: 'Bolardo', planter: 'Macetero' } as const;
+export const propKinds = { bench: 'Bench', bollard: 'Bollard', planter: 'Planter' } as const;
 export type PropKind = keyof typeof propKinds;
 export interface MapProp { id: string; kind: PropKind; position: Point; yaw: number }
 interface FootprintEdit { part: number; id: number; rings: Ring[] }
@@ -10,10 +10,10 @@ export interface PilotBase { data: CityData; hash: string }
 
 export async function loadPilotBase(): Promise<PilotBase> {
   const response = await fetch('./data/pilot.json');
-  if (!response.ok) throw new Error('No se pudo abrir pilot.json.');
+  if (!response.ok) throw new Error('Could not load pilot.json.');
   const bytes = await response.arrayBuffer();
   const data: unknown = JSON.parse(new TextDecoder().decode(bytes));
-  if (!isCity(data)) throw new Error('Los datos del piloto no son válidos.');
+  if (!isCity(data)) throw new Error('The pilot map data is invalid.');
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
     byte => byte.toString(16).padStart(2, '0')).join('');
   return { data, hash };
@@ -84,16 +84,16 @@ export function isFixedBuilding(data: CityData, part: number) {
 
 export function readPilotEdits(base: PilotBase, value: unknown): PilotEdits {
   if (!record(value) || value.version !== 1 || !Array.isArray(value.footprints) || !Array.isArray(value.props)) {
-    throw new Error('El archivo de correcciones no es válido.');
+    throw new Error('Invalid edits file.');
   }
-  if (value.base !== base.hash) throw new Error('El archivo corresponde a otra versión del mapa piloto.');
+  if (value.base !== base.hash) throw new Error('This file was saved for a different version of the pilot map.');
   const parts = new Set<number>();
   const footprints = value.footprints.map((edit: unknown): FootprintEdit => {
     if (!record(edit) || !finite(edit.part) || !Number.isInteger(edit.part) || !finite(edit.id)
       || base.data.buildings[edit.part]?.id !== edit.id || parts.has(edit.part) || isFixedBuilding(base.data,edit.part)) {
-      throw new Error('El archivo contiene una referencia de edificio no válida.');
+      throw new Error('The file contains an invalid building reference.');
     }
-    if (!validFootprint(base.data,edit.rings)) throw new Error('El contorno del edificio no es válido.');
+    if (!validFootprint(base.data,edit.rings)) throw new Error('The building footprint is invalid.');
     parts.add(edit.part);
     return { part: edit.part, id: edit.id, rings: edit.rings };
   });
@@ -102,7 +102,7 @@ export function readPilotEdits(base: PilotBase, value: unknown): PilotEdits {
     if (!record(prop) || typeof prop.id !== 'string' || !prop.id || ids.has(prop.id)
       || typeof prop.kind !== 'string' || !Object.hasOwn(propKinds,prop.kind)
       || !point(prop.position) || !inPilot(base.data,prop.position) || !finite(prop.yaw)) {
-      throw new Error('El archivo contiene un objeto no válido.');
+      throw new Error('The file contains an invalid prop.');
     }
     ids.add(prop.id);
     return { id: prop.id, kind: prop.kind as PropKind, position: prop.position, yaw: prop.yaw };
@@ -113,7 +113,7 @@ export function readPilotEdits(base: PilotBase, value: unknown): PilotEdits {
 export async function readPilotFile(base: PilotBase, file: File) {
   let value: unknown;
   try { value = JSON.parse(await file.text()); }
-  catch { throw new Error('El archivo no contiene JSON válido.'); }
+  catch { throw new Error('The file does not contain valid JSON.'); }
   return readPilotEdits(base,value);
 }
 

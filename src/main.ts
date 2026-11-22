@@ -286,6 +286,13 @@ async function start(){
     }
     syncSize();
   }).observe(host);
-  el('status').hidden=true;
+  status.removeAttribute('lang');
+  status.hidden=true;
 }
-start().catch(e=>{console.error(e);el('status').textContent='No se pudo abrir el mapa. Comprueba WebGL y los datos locales.';});
+start().catch(error=>{
+  console.error(error);
+  const notice=el('status');
+  notice.textContent=notice.lang==='en'
+    ? 'Could not open the pilot map. Check WebGL and the map data.'
+    : 'No se pudo abrir el mapa. Comprueba WebGL y los datos locales.';
+});

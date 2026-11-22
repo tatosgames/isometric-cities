@@ -17,7 +17,7 @@ La pagina iniziale apre un dettaglio di Triana a tutto schermo. Il menu in alto 
 
 ## Editor del pilota
 
-L’editor si apre su [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) o in locale su `http://127.0.0.1:5197/editor.html`. Scarica le correzioni in JSON e ricaricale nell’editor oppure in **Probar en Conducir**. Il browser legge il file dal dispositivo.
+L’editor si apre su [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) o in locale su `http://127.0.0.1:5197/editor.html`. Scarica le correzioni in JSON e ricaricale nell’editor oppure in **Test Drive**. Il browser legge il file dal dispositivo.
 
 ## Riprodurre i dati
 

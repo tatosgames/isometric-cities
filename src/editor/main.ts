@@ -16,7 +16,7 @@ type Mode = 'move' | 'vertices' | 'rotate';
 const ui = <E extends HTMLElement>(id: string) => required(document.querySelector<E>('#'+id),id);
 const button = (id: string) => ui<HTMLButtonElement>(id);
 const message = ui('message');
-const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'No se pudo completar la operación.';
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Could not complete the action.';
 const round = (value: number) => Math.round(value*1000)/1000;
 
 async function start() {
@@ -134,7 +134,7 @@ async function start() {
     const fixed = !!(selected && 'part' in selected && isFixedBuilding(data,selected.part));
     ui('selection').hidden = !selected;
     if (building || prop) {
-      ui('object-name').textContent = prop ? propKinds[prop.kind] : `Edificio ${building!.id}${fixed ? ' · Solo lectura' : ''}`;
+      ui('object-name').textContent = prop ? propKinds[prop.kind] : `Building ${building!.id}${fixed ? ' · Read-only' : ''}`;
       button('move').disabled = fixed;
       button('vertices').hidden = !building;
       button('vertices').disabled = fixed;
@@ -159,7 +159,7 @@ async function start() {
         if (editingVertices) {
           const entries = vertexList(building.rings);
           vertex = Math.min(vertex,entries.length-1);
-          vertexSelect.replaceChildren(...entries.map(({r,i},index) => new Option(r ? `Patio ${r} · ${i+1}` : `Exterior · ${i+1}`,String(index))));
+          vertexSelect.replaceChildren(...entries.map(({r,i},index) => new Option(r ? `Courtyard ${r} · ${i+1}` : `Outer edge · ${i+1}`,String(index))));
           vertexSelect.value = String(vertex);
           const sphere = new T.SphereGeometry(1,12,8);
           const active = new T.MeshBasicMaterial({ color: 0xa64227, depthTest: false });
@@ -295,7 +295,7 @@ async function start() {
       const hit = ray.intersectObject(city.group,true).find(({object,face}) =>
         object instanceof T.Mesh && face && object.geometry.getAttribute('surface')?.getX(face.a) === GROUND_SURFACE);
       const position: Point | null = hit ? [round(hit.point.x),round(-hit.point.z)] : null;
-      if (!position || !inPilot(data,position)) { message.textContent = 'Elige un punto dentro del mapa.'; return; }
+      if (!position || !inPilot(data,position)) { message.textContent = 'Choose a point inside the map.'; return; }
       const prop: MapProp = { id: crypto.randomUUID(), kind: catalog.value as PropKind, position, yaw: 0 };
       selected = { prop: prop.id }; placing = false; mode = 'move';
       commit({ ...edits, props: [...edits.props,prop] });
@@ -351,14 +351,14 @@ async function start() {
       const next = await readPilotFile(base,chosen);
       selected = null; placing = false;
       commit(next);
-      message.textContent = 'Correcciones cargadas.';
+      message.textContent = 'Edits loaded.';
     } catch (error) { message.textContent = errorMessage(error); }
     finally { file.value = ''; importing = false; button('open').disabled = false; }
   };
   button('save').onclick = () => {
     const href = URL.createObjectURL(new Blob([JSON.stringify(edits,null,2)+'\n'],{ type:'application/json' }));
     const link = document.createElement('a');
-    link.download = 'las-palmas-piloto-correcciones.json'; link.href = href; link.click();
+    link.download = 'las-palmas-pilot-edits.json'; link.href = href; link.click();
     setTimeout(() => URL.revokeObjectURL(href),1000);
   };
   show(edits);

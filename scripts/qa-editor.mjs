@@ -33,7 +33,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('#save').disabled && document.querySelector('canvas')?.clientWidth > 300);
   }
   async function save(page) {
-    const [download] = await Promise.all([page.waitForEvent('download'),button('Descargar JSON',page).click()]);
+    const [download] = await Promise.all([page.waitForEvent('download'),button('Download JSON',page).click()]);
     const path = await download.path();
     return JSON.parse(await readFile(path,'utf8'));
   }
@@ -43,6 +43,7 @@ try {
   }
 
   await open(page);
+  assert.equal(await page.locator('html').getAttribute('lang'),'en');
   const bounds = await page.locator('canvas').boundingBox();
   const { width,height } = bounds;
   const [x,y] = ringCenter(data.boundary);
@@ -77,7 +78,7 @@ try {
     const [clickX,clickY] = screen(building.rings[0][1],roof-.4);
     if (clickX < bounds.x+10 || clickX > bounds.x+width-10 || clickY < bounds.y+10 || clickY > bounds.y+height-10) continue;
     await page.mouse.click(clickX,clickY);
-    if (await page.locator('#object-name').textContent() !== `Edificio ${building.id}` || !await page.locator('#selection').isVisible()) continue;
+    if (await page.locator('#object-name').textContent() !== `Building ${building.id}` || !await page.locator('#selection').isVisible()) continue;
     for (const [dx,dy] of [[60,0],[-60,0],[0,60],[0,-60]]) {
       const proposed = { ...empty,footprints:[{part,id:building.id,rings:translated(building,dx,dy)}] };
       try { readPilotEdits(base,proposed); } catch { continue; }
@@ -107,34 +108,34 @@ try {
   const dragged = (await save(page)).footprints[0];
   assert.equal(dragged?.part,chosen.part);
   assert.ok(Math.abs(ringCenter(dragged.rings[0])[0]-start[0]-10) < .1,'The X-axis gizmo moves the footprint');
-  await button('Deshacer').click();
+  await button('Undo').click();
 
   await page.locator('#east').fill(String(chosen.center[0]));
   await page.locator('#north').fill(String(chosen.center[1]));
-  await button('Aplicar').click();
-  await button('Vértices').click();
-  await page.locator('#vertex').selectOption({label:'Patio 1 · 1'});
+  await button('Apply').click();
+  await button('Vertices').click();
+  await page.locator('#vertex').selectOption({label:'Courtyard 1 · 1'});
   await page.locator('#east').fill(String(chosen.point[0]));
   await page.locator('#north').fill(String(chosen.point[1]));
-  await button('Aplicar').click();
+  await button('Apply').click();
   assert.equal(await status(),'');
 
   const placePoints = [[x,y],[x+140,y-130]];
   for (const [i,p] of placePoints.entries()) {
     await page.locator('#catalog').selectOption(i === 0 ? 'planter' : 'bench');
-    await button('Colocar en el mapa').click();
+    await button('Place on map').click();
     await page.mouse.click(...screen(p,altitude(...p)));
-    await page.getByRole('heading',{name:i === 0 ? 'Macetero' : 'Banco',exact:true}).waitFor();
+    await page.getByRole('heading',{name:i === 0 ? 'Planter' : 'Bench',exact:true}).waitFor();
   }
-  await button('Girar').click();
+  await button('Rotate').click();
   await page.locator('#yaw').fill('45');
-  await button('Aplicar').click();
-  await button('Eliminar').click();
-  await button('Deshacer').click();
+  await button('Apply').click();
+  await button('Remove').click();
+  await button('Undo').click();
   const restored = await save(page);
   assert.equal(restored.props.length,2);
   assert.equal(restored.props.find(prop => prop.kind === 'bench').yaw,Math.PI/4);
-  await button('Rehacer').click();
+  await button('Redo').click();
   const patch = await save(page);
   assert.equal(patch.footprints.length,1);
   assert.equal(patch.footprints[0].part,chosen.part);
@@ -150,7 +151,7 @@ try {
   const bow = structuredClone(patch);
   const [a,b] = bow.footprints[0].rings[0][0];
   bow.footprints[0].rings = [[[a,b],[a+3,b+3],[a-2,b+3],[a+3,b],[a,b]]];
-  for (const [invalid,expected] of [['{','JSON válido'],[{...patch,base:'otro'},'otra versión'],[bow,'contorno']]) {
+  for (const [invalid,expected] of [['{','valid JSON'],[{...patch,base:'other'},'different version'],[bow,'footprint']]) {
     await importFile(fresh,invalid);
     assert.match(await fresh.locator('#message').textContent(),new RegExp(expected));
     assert.deepEqual(await save(fresh),patch);
@@ -163,13 +164,13 @@ try {
   assert.ok(wallHit(world,chosen.q));
 
   const [viewer] = await Promise.all([
-    fresh.waitForEvent('popup'),fresh.getByRole('link',{name:'Probar en Conducir'}).click()
+    fresh.waitForEvent('popup'),fresh.getByRole('link',{name:'Test Drive'}).click()
   ]);
   observe(viewer);
   assert.equal(viewer.url(),new URL('?area=pilot&editorPreview',mapRoot).href);
-  await viewer.getByLabel('Cargar correcciones del piloto').setInputFiles(file({...patch,base:'otro'}));
-  await viewer.getByText(/otra versión/).waitFor();
-  await viewer.getByLabel('Cargar correcciones del piloto').setInputFiles(file(patch));
+  await viewer.getByLabel('Load pilot map edits').setInputFiles(file({...patch,base:'other'}));
+  await viewer.getByText(/different version/).waitFor();
+  await viewer.getByLabel('Load pilot map edits').setInputFiles(file(patch));
   await viewer.locator('#scene[data-view]').waitFor({timeout:60000});
   await button('Play',viewer).click();
   await viewer.locator('#map.driving').waitFor({timeout:15000});
