@@ -25,8 +25,21 @@ try{
   const state=async()=>JSON.parse(await host.getAttribute('data-sectors'));
   const settle=()=>p.waitForFunction(()=>{
     const e=document.querySelector('#scene');
-    return e?.dataset.moving==='false' && e.dataset.sectors && !JSON.parse(e.dataset.sectors).pending;
+    if(e?.dataset.moving!=='false' || !e.dataset.sectors)return false;
+    const s=JSON.parse(e.dataset.sectors);
+    return !s.pending && !s.fading;
   },null,{timeout:60000});
+  // A sector uploads its buffers on its first drawn frame: read the counters once they stop changing.
+  async function gpu(){
+    let last='';
+    for(let i=0;i<40;i++){
+      await settle();
+      const now=JSON.stringify(await p.evaluate(()=>window.sectorGpu));
+      if(now===last)return JSON.parse(now);
+      last=now;await p.waitForTimeout(150);
+    }
+    throw new Error('WebGL counters never settled');
+  }
   async function select(id){
     await p.locator('#index-toggle').click();await p.locator('#places [data-place-id="'+id+'"]').click();
   }
@@ -45,8 +58,8 @@ try{
   for(let lap=0;lap<3;lap++){
     for(const id of ['santa-ana','plaza-de-la-feria','parque-doramas','metropole']){
       await select(id);await settle();
-      const s=await state();assert.ok(s.bytes<=s.budget && s.visible>0);
-      stops.push({id,...await p.evaluate(()=>window.sectorGpu),bytes:s.bytes,visible:s.visible,evictions:s.evictions});
+      const counters=await gpu(),s=await state();assert.ok(s.bytes<=s.budget && s.visible>0);
+      stops.push({id,...counters,bytes:s.bytes,visible:s.visible,evictions:s.evictions});
     }
   }
   assert.ok(stops.at(-1).evictions>0);
