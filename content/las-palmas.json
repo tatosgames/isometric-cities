@@ -92,6 +92,24 @@
         "city"
       ],
       "markerHeight": 3
+    },
+    {
+      "id": "santo-domingo",
+      "name": "Iglesia de Santo Domingo",
+      "osm": "way/38062759",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "parroquia-san-cristobal",
+      "name": "Parroquia de San Cristóbal",
+      "osm": "way/842431973",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
     }
   ],
   "buildings": {
@@ -130,15 +148,12 @@
   ],
   "coverage": {
     "bounds": [
-      -15.438,
-      28.096,
-      -15.41,
-      28.132
+      -15.44,
+      28.07,
+      -15.4,
+      28.14
     ],
-    "grid": [
-      3,
-      4
-    ],
+    "lattice": 0.01,
     "zones": [
       {
         "id": "vegueta-triana",
@@ -177,8 +192,20 @@
           ]
         ],
         "radius": 570
+      },
+      {
+        "id": "vegueta",
+        "osm": "relation/16905756"
+      },
+      {
+        "id": "vega-de-san-jose",
+        "osm": "relation/16905755"
+      },
+      {
+        "id": "san-cristobal",
+        "osm": "relation/16905754"
       }
     ],
-    "minimumLandM2": 2436567
+    "minimumLandM2": 4400000
   }
 }

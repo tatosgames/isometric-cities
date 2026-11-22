@@ -87,10 +87,21 @@ try{
     }
     await page.locator('#reset').click();await page.waitForTimeout(150);
     await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);
-    const rect=await host.boundingBox();const x=rect.x+rect.width*.4,y=rect.y+rect.height*.6;
+    const rect=await host.boundingBox();
+    // Start the drag on the map itself: in the whole-city view a place marker can sit under a fixed point.
+    const [x,y]=await page.evaluate(r=>{
+      for(const [fx,fy] of [[.4,.6],[.3,.7],[.6,.75],[.25,.5],[.7,.4],[.5,.85]]){
+        const x=r.x+r.width*fx,y=r.y+r.height*fy;
+        if(document.elementFromPoint(x,y)?.tagName==='CANVAS')return [x,y];
+      }
+      throw new Error('No free map point for the drag');
+    },rect);
     await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+55,y+36,{steps:5});await page.mouse.up();await page.waitForTimeout(100);
     assert.notEqual(await host.getAttribute('data-view'),initial);
-    const moved=await host.getAttribute('data-view');await page.mouse.wheel(0,-180);await page.waitForTimeout(150);assert.notEqual(await host.getAttribute('data-view'),moved);
+    const moved=await host.getAttribute('data-view');
+    // The view prints zoom with two decimals: at whole-city scale one wheel notch does not reach the second one.
+    for(let notch=0;notch<8 && await host.getAttribute('data-view')===moved;notch++){await page.mouse.wheel(0,-180);await page.waitForTimeout(150);}
+    assert.notEqual(await host.getAttribute('data-view'),moved);
     await host.focus();await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.waitForTimeout(150);assert.notEqual(await host.getAttribute('data-view'),initial);
     await page.locator('#reset').click();
     // Hold one gesture across two slow sampling windows, then release it.

@@ -55,10 +55,16 @@ for p in places:
     point=polygons[p['id']].representative_point()
     features.append(feature(point,dict(p,xy=[point.x,point.y])))
 save('poi.geojson',dict(type='FeatureCollection',features=features))
-# Each zone is an envelope of places, a buffered corridor or an explicit lon/lat polygon.
+# Each zone is an envelope of places, a buffered corridor, a mapped OSM boundary or an explicit lon/lat polygon.
 def zone_shape(z):
     if 'places' in z: return MultiPoint([v for key in z['places'] for v in polygons[key].exterior.coords]).convex_hull.buffer(z['margin'],quad_segs=2)
     if 'axis' in z: return LineString([project(*p) for p in z['axis']]).buffer(z['radius'])
+    if 'osm' in z:
+        # A mapped boundary relation, such as a barrio: its member ways close into the area. One metre joins neighbours.
+        members=osm.find(f"relation[@id='{z['osm'].split('/')[1]}']").findall('member')
+        area=unary_union(list(polygonize(unary_union([LineString(ways[m.get('ref')][1]) for m in members if m.get('type')=='way']))))
+        assert area.area>0, 'Open boundary: '+z['id']
+        return area.buffer(1)
     return Polygon([project(*p) for p in z['polygon']])
 zones=[zone_shape(z) for z in coverage['zones']]
 assert len({z['id'] for z in coverage['zones']})==len(zones), 'Duplicate zone ID'
@@ -67,7 +73,9 @@ for z in zones[1:]: covered=covered.union(z)
 # Classify the coast partitions inside the acquisition window using the known inland plaza.
 window=transform(project,box(*coverage['bounds']))
 coast=[LineString(v).intersection(window) for t,v in ways.values() if t.get('natural')=='coastline']
-partitions=list(polygonize(unary_union([window.boundary,*coast])))
+# Cross the window edge with the whole coastline: clipped ends can miss the edge by a rounding error.
+shorelines=[LineString(v) for t,v in ways.values() if t.get('natural')=='coastline' and len(v)>1]
+partitions=[p for p in polygonize(unary_union([window.boundary,*shorelines])) if window.buffer(1).contains(p)]
 land=next(p for p in partitions if p.contains(polygons[catalog['pilotFocus']].representative_point()))
 assert len(partitions)>1 and land.area<window.area*.99, 'Coastline failed to split the acquisition window'
 aoi=covered.intersection(land)
