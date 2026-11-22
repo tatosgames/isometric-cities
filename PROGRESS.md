@@ -55,3 +55,7 @@ La mappa e Conducir mostrano l'asfalto geometrico quando il settore dettagliato 
 Le carreggiate raggiungono 5 e 9 m nei tratti liberi. Un bordo può crescere anche quando quello opposto incontra un ostacolo mappato. Il laboratorio `lab.html?test=larghezze` confronta tre sezioni reali con la versione precedente alla stessa posizione. [Risultati e misure](docs/QA.md#carreggiate-da-5-e-9-metri)
 
 Il laboratorio comprende la prova `lab.html?test=lod` per l'isteresi di zoom e priorità, la sfumatura suolo/strade e il retino per edifici/alberi. I controlli includono arrivo in ritardo a camera ferma, zoom oscillante, curva con inversione e ispezione della transizione. [Prove LOD](docs/QA.md#transizioni-lod-nel-laboratorio)
+
+Altezze con il LiDAR PNOA: `scripts/lidar-check.py` e `content/lidar-heights.json` sono pronti e `data.py` usa l'altezza misurata per gli edifici senza dato comunale (49 in città, 1 coperto dal tile 459-3109). I dati in `public/data` non sono ancora rigenerati. [Procedura](docs/EXPAND_CITY.md#controllo-delle-altezze-con-il-lidar) · [Risultati](docs/QA.md#altezze-comunali-contro-lidar-22-novembre-2026)
+
+Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.md): LiDAR PNOA (validato sulle altezze), ortofoto 20 cm SITCAN (tinte coincidenti con il PNOA), restrizioni GRAFCAN. Le palme SITCAN sono rinviate. Nessun dato in `public/data` è stato rigenerato.

@@ -1,0 +1,10 @@
+{
+ "source": "PNOA-LiDAR 3a cobertura, NPC02 (Canarias 2023-2024), (c) Instituto Geografico Nacional, licencia compatible con CC BY 4.0",
+ "method": "p95 della quota dei punti classe 6 nell'impronta meno la mediana dei punti classe 2 in un anello di 8 m; solo OBJECTID senza altezza comunale valida",
+ "tiles": [
+  "PNOA-2023-CANAR-459-3109-H28-NPC02.laz"
+ ],
+ "heights": {
+  "41667": 16.2
+ }
+}

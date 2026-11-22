@@ -1,5 +1,7 @@
 # Fonti e trasformazioni · 21 novembre 2026
 
+Fonti valutate ma non ancora in produzione (ortofoto 20 cm SITCAN, altri dataset, restrizioni GRAFCAN): [GEODATA_SOURCES.md](GEODATA_SOURCES.md).
+
 | Fonte | Impiego e attribuzione |
 |---|---|
 | [Comune di Las Palmas de Gran Canaria](https://datosabiertos.laspalmasgc.es/dataset/?id=ubicaciones-edificios-geoespaciales) · [FeatureServer](https://services-eu1.arcgis.com/eV9RayDSwR2BokOl/ArcGIS/rest/services/Building/FeatureServer/0) | Geometrie e altezza massima. Il catalogo comunale indica CC BY 4.0. Ritaglio, riproiezione, estrusione, semplificazione grafica e colori del progetto. |
@@ -22,3 +24,5 @@
 **Estensione Arenales–Ciudad Jardín.** Area del poligono metrico prima dell’arrotondamento: 3.040.938 m². I quattro nuovi riferimenti sono Plaza de la Feria (way 30913318), El Obelisco (582805814), Parque Doramas (30801597) e Club de Natación Metropole (30801615). Il rettangolo di acquisizione ArcGIS contiene 7.299 record comunali. Il ritaglio contiene 4.698 parti di edificio, 1.433 tratti stradali, 737 superfici e 10.376 alberi. Le coordinate dei sei marker originari coincidono con la revisione precedente.
 
 **Mare.** `sea.json` deriva dalle vie `natural=coastline` di OpenStreetMap già scaricate per separare terra e mare: è la parte della finestra di acquisizione che non è terra, limitata a 260 m dal perimetro. Contiene il poligono d'acqua, la costa cartografata entro 360 m e il lato tagliato del poligono. Nessuna geometria è inventata; colore, onde e schiuma sono resa grafica. Attribuzione: © OpenStreetMap contributors.
+
+**LiDAR di controllo (22 novembre 2026).** Tile `PNOA-2023-CANAR-459-3109-H28-NPC02.laz` (E 459–460 km, N 3108–3109 km, REGCAN95 / UTM 28N, 6,7 punti/m², classificazione NPC02) dal [Centro de Descargas del CNIG](https://centrodedescargas.cnig.es/CentroDescargas/lidar-tercera-cobertura). © Instituto Geográfico Nacional, licenza compatibile con CC BY 4.0, attribuzione obbligatoria. Il file resta in `.cache/lidar` e non entra in Git. `scripts/lidar-check.py` confronta le altezze comunali con quelle misurate. `content/lidar-heights.json` conserva solo l'altezza LiDAR (p95 dei punti tetto meno la mediana del terreno) degli OBJECTID senza altezza comunale valida; `data.py` la usa al posto dei 9 m di stima e marca l'edificio con `source: lidar-pnoa`. Il resto non viene modificato.

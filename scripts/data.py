@@ -102,6 +102,9 @@ if stage=='city':
     save('sea.json',dict(water=[rings(p) for p in water],shore=[coords(l.coords) for l in shore],edge=[coords(l.coords) for l in edge]))
     print('Sea',round(sum(p.area for p in water)),'m2, shore',round(sum(l.length for l in shore)),'m',flush=True)
 buildings=[]; roads=[]; surfaces=[]; trees=[]
+# Altezze misurate dal LiDAR PNOA solo per gli edifici senza altezza comunale valida (vedi scripts/lidar-check.py --export).
+lidar_file=Path('content/lidar-heights.json')
+lidar_heights=json.loads(lidar_file.read_text(encoding='utf8'))['heights'] if lidar_file.exists() else {}
 for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))
     h=f['properties']['MAX_BLDGHEIGHT_1']
@@ -115,7 +118,10 @@ for f in features:
     for section,style in sections:
       for p in parts(section,'Polygon'):
         if p.area<2: continue
-        buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=rings(p),height=round(h,1) if h and 2<h<100 else 9,source='municipal-provisional' if h and 2<h<100 else 'estimate'))
+        valid=bool(h and 2<h<100)
+        measured=lidar_heights.get(str(f['properties']['OBJECTID']))
+        height,origin=(round(h,1),'municipal-provisional') if valid else (measured,'lidar-pnoa') if measured else (9,'estimate')
+        buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=rings(p),height=height,source=origin))
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')
