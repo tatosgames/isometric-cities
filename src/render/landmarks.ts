@@ -170,9 +170,19 @@ function auditorioAlfredoKraus(add: AddBuilding,altitude: Altitude,hall: Buildin
   add(new T.ConeGeometry(5.6,4.6,8).translate(lx,top+16.9,-ly),pale,lx,ly);
   const tx=-3309,ty=2828;
   add(new T.CylinderGeometry(7.4,7.4,3,8).translate(tx,top+1.5,-ty),stone,tx,ty);
-  const sea=facade(add,-3328,2832.6,26,-21,base);
-  sea(new T.BoxGeometry(16,14,.6),0,15,-.6,dark);
-  for(const u of [-5.4,0,5.4])sea(new T.BoxGeometry(.5,14,.3),u,15,-1,stone);
+  // The window sits on the wall of the footprint that faces the ocean: the long side nearest to this point.
+  const ring=hall.rings[0],{cx,cy}=frame(hall);
+  let wall=[0,0,1,0],nearest=Infinity;
+  for(let i=1;i<ring.length;i++){
+    const [ax,ay]=ring[i-1],[bx,by]=ring[i],mx=(ax+bx)/2,my=(ay+by)/2,away=Math.hypot(mx+3328,my-2832.6);
+    if(Math.hypot(bx-ax,by-ay)>12 && away<nearest){nearest=away;wall=[ax,ay,bx,by];}
+  }
+  const [ax,ay,bx,by]=wall,mx=(ax+bx)/2,my=(ay+by)/2,length=Math.hypot(bx-ax,by-ay),ux=(bx-ax)/length,uy=(by-ay)/length;
+  // `facade` pushes positive depth to the right of the heading: turn the heading so that side is the outside.
+  const outward=(mx-cx)*uy-(my-cy)*ux>0?1:-1,sea=facade(add,mx,my,ux*outward,uy*outward,base);
+  const width=Math.min(16,length-3);
+  sea(new T.BoxGeometry(width,14,.5),0,15,.3,dark);
+  for(const u of [-width/3,0,width/3])sea(new T.BoxGeometry(.5,14,.3),u,15,.7,stone);
 }
 
 const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario,'castillo-de-la-luz':castilloDeLaLuz,
