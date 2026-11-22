@@ -32,7 +32,7 @@ Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell�
 
 **H · Avvio e recupero.** La guida verifica il punto di partenza prima di prendere il controllo della mappa. Il caricamento dei settori passa al thread principale se il worker non risponde entro 10 s. La build verifica la coerenza dell’indice dei geodati. La logica di destinazioni e monete è separata dal rendering e verificabile in Node.
 
-**I · Sterzo arcade.** Il giocatore mantiene 16,5 m/s di velocità massima, con accelerazione a 11,5 m/s², frenata a 20 m/s² e sterzo dal 35% al pieno in 140 ms. La regressione a 120 Hz misura 2,58° di correzione della traiettoria con un tocco da 100 ms a partire da 13 m/s e 175 ms di recupero della presa dopo il rilascio. La scocca si inclina sulle ruote, un puff breve segnala l'inizio della scivolata e l'ombra rettangolare segue l'auto a terra. [Taratura](docs/JUICE.md#sterzata-e-derapata) e [verifica](docs/QA.md#sterzo-arcade--22-novembre-2026).
+**I · Sterzo arcade.** Da fermo, il giocatore arriva a 60 km/h in 1,44 s e a 90 km/h in altri 4 s. Le pattuglie raggiungono 94 km/h negli stessi tempi in rettilineo e perdono più velocità in derapata. La frenata è a 27 m/s² e lo sterzo parte dal 35% e raggiunge il pieno in 140 ms. La scocca si inclina sulle ruote, un puff breve segnala l'inizio della scivolata e l'ombra rettangolare segue l'auto a terra. [Taratura](docs/JUICE.md#sterzata-e-derapata) e [verifica](docs/QA.md#velocità-e-frenata--23-novembre-2026).
 
 **J · Vento e nuvole.** Un solo vento, l'aliseo da nord-est, muove insieme ombre di nuvole, chiome e fronde delle palme (`src/render/wind.ts`). Le ombre sono una texture di rumore che scorre nello shader di suolo, tetti e alberi: nessuna draw call in più, attive anche su telefono. Per questo la mappa ferma ora ridisegna a circa 30 fotogrammi al secondo invece di restare immobile. Da fare: misura di consumo e calore su telefono fisico; nastri di vento, pedoni e mare restano proposte. [Verifica](docs/QA.md#vento-e-ombre-di-nuvole--22-novembre-2026).
 
@@ -84,8 +84,10 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
 
+**Conducir · Titolo e fluidità della cattura.** Il titolo avorio usa un'ombra corta. La scena passa al bianco e nero con un filtro CSS. Nelle tre prove in Chrome con emulazione mobile il primo fotogramma filtrato scende da circa 897 ms a circa 18 ms. [Misure](docs/QA.md#desaturazione-css-e-titolo).
+
 **Preloader.** L’anello di avvio segue i traguardi reali del caricamento. La mappa entra in dissolvenza dopo il primo frame della vista iniziale con la zona e il dettaglio previsti dallo zoom. Se lo streaming tarda, entra il livello già disegnato e il dettaglio continua in background. Il terreno si scarica in parallelo al core. [Verifiche](docs/QA.md#preloader-della-mappa).
 
 **Preloader · Fluidità e recupero.** Core e terreno partono dall’HTML mentre si scarica il modulo principale. L’anello avanza con i completamenti dei dati e il settore iniziale viene renderizzato al livello finale sotto la schermata di avvio. Gli errori transitori dei dati ricevono un tentativo automatico e il limite di avvio si sospende in background. [Verifiche](docs/QA.md#fluidità-e-recupero).
 
-**Preloader · Revisione anti-slop.** Un solo indicatore per l’attesa e il progresso. Attribuzioni visibili anche dopo l’apertura e separate da Play. [Verifiche](docs/QA.md#revisione-anti-slop-del-preloader).
+**Preloader · Revisione anti-slop.** Un solo indicatore per l’attesa e il progresso. Attribuzioni visibili fino al primo comando e poi consultabili da «Licencias de datos» nel menu. [Verifiche](docs/QA.md#revisione-anti-slop-del-preloader).

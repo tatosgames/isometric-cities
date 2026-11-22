@@ -13,12 +13,14 @@ export function createPlacesUI(features: Place[], altitude: Altitude, onSelect: 
   const card=required(document.querySelector('article'),'place card');
   const heading=required(card.querySelector('h3'),'place heading');
   const nav=required(document.querySelector('nav'),'places navigation');
+  const licences=required(nav.querySelector('details'),'data licences');
   const toggle=element('index-toggle');
   const closeButton=element('close');
   const places=new Map<string,PlaceControl>();
   const projected=new T.Vector3();
   let selected: string | null=null,returnTo=toggle;
   function menu(open: boolean){
+    if(open)licences.open=false;
     nav.classList.toggle('open',open);
     toggle.setAttribute('aria-expanded',String(open));
   }

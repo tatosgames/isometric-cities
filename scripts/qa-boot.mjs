@@ -78,10 +78,24 @@ try {
     const startup = await timings(page);
     assert.ok(startup.interactive > startup['ready-frame']);
     assert.ok(startup['stream-ready'] <= startup['ready-frame']);
+    if(!mobile){
+      await page.locator('#scene').press('ArrowRight');
+      assert.equal(await page.locator('footer').isVisible(),false);
+    }
     await page.getByRole('button',{name:'Play',exact:true}).click();
     await page.waitForSelector('#scene[data-drive^="ready"]');
+    assert.equal(await page.locator('footer').isVisible(),false);
     const play = await page.evaluate(() => performance.getEntriesByName('atlas:play-first-frame').at(-1)?.duration);
     assert.ok(play > 0);
+    await page.locator('#drive-exit').click();
+    assert.equal(await page.locator('#map > footer').count(),0);
+    await page.locator('#index-toggle').click();
+    assert.equal(await page.locator('footer').isVisible(),false);
+    await page.getByText('Licencias de datos',{exact:true}).click();
+    assert.equal(await page.getByRole('link',{name:'OpenStreetMap contributors'}).isVisible(),true);
+    await page.locator('#index-toggle').click();
+    await page.locator('#index-toggle').click();
+    assert.equal(await page.locator('footer').isVisible(),false);
     console.log(mobile?'Mobile boot':'Desktop boot', startup, 'Play',Math.round(play),'ms');
     await page.close();
   }

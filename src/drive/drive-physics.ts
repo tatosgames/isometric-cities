@@ -10,25 +10,31 @@ export interface Body {
 }
 
 
-type Handling = Pick<typeof TUNE, 'accel' | 'brake' | 'gripReleaseRate'> & {releaseGrip?: number};
-type PhysicsTuning = Handling & Pick<typeof TUNE, 'player' | 'maxSpeed' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'driftDrag' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss'>;
+type Handling = Pick<typeof TUNE.player, 'maxSpeed' | 'cruiseAccel' | 'gripReleaseRate' | 'driftDrag'> & {releaseGrip?: number};
+type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'accel' | 'accelTaperStart' | 'accelTaperEnd' | 'brake' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss'>;
 
 export function makeDrivePhysics(tune: PhysicsTuning){
   let steerTime=0,steerDirection=0;
 
-  function steerBody(b: Body,steer: number,brake: boolean,max: number,dt: number,agility: number,handling: Handling=tune){
+  function steerBody(b: Body,steer: number,brake: boolean,dt: number,agility: number,handling: Handling){
     const speed=Math.hypot(b.vx,b.vy);
     b.h+=steer*tune.turn*agility*Math.min(1,.35+speed/8)*dt;
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
     let forward=b.vx*fx+b.vy*fy,side=-b.vx*fy+b.vy*fx;
-    forward=brake?Math.max(0,forward-handling.brake*dt):forward>max?Math.max(max,forward-handling.brake*dt):Math.min(max,forward+handling.accel*dt);
+    const max=handling.maxSpeed;
+    if(brake)forward=Math.max(0,forward-tune.brake*dt);
+    else if(forward>max)forward=Math.max(max,forward-tune.brake*dt);
+    else{
+      const taper=T.MathUtils.smoothstep(forward,tune.accelTaperStart,tune.accelTaperEnd);
+      forward=Math.min(max,forward+T.MathUtils.lerp(tune.accel,handling.cruiseAccel,taper)*dt);
+    }
     b.wayHold-=dt;b.dive+=((brake?1:0)-b.dive)*Math.min(1,dt*8);
     b.hold=steer?Math.min(1,b.hold+dt*2.2):Math.max(0,b.hold-dt*handling.gripReleaseRate);
     b.steer+=(steer-b.steer)*Math.min(1,dt*9);
     const baseGrip=steer?tune.grip:handling.releaseGrip??tune.grip;
     const grip=brake?tune.brakeGrip:T.MathUtils.lerp(baseGrip,tune.driftGrip,b.hold);
     side*=Math.exp(-grip*dt);
-    forward*=1-tune.driftDrag*Math.abs(side)*dt;
+    forward*=1-handling.driftDrag*Math.abs(side)*dt;
     b.slip=Math.abs(side);b.side=side;
     b.vx=fx*forward-fy*side;b.vy=fy*forward+fx*side;
     b.x+=b.vx*dt;b.y+=b.vy*dt;
@@ -39,9 +45,21 @@ export function makeDrivePhysics(tune: PhysicsTuning){
     const handling=tune.player;
     if(steer)steerTime=Math.min(handling.turnRamp,steerTime+dt);
     const agility=T.MathUtils.lerp(handling.turnStart,1,steerTime/handling.turnRamp);
-    const before=steerBody(b,steer,brake,tune.maxSpeed,dt,agility,handling);
+    const before=steerBody(b,steer,brake,dt,agility,handling);
     const change=Math.hypot(b.vx,b.vy)-before;
-    return T.MathUtils.clamp(change/((change>=0?handling.accel:handling.brake)*dt),-1,1);
+    return T.MathUtils.clamp(change/((change>=0?tune.accel:tune.brake)*dt),-1,1);
+  }
+  function steerPatrol(b: Body,steer: number,world: Pick<ReturnType<typeof buildDriveWorld>,'near'>,dt: number){
+    const speed=Math.hypot(b.vx,b.vy);
+    const lookAhead=Math.max(4,speed*speed/(2*tune.brake)+tune.radius);
+    const samples=Math.ceil((lookAhead-4)/1.8);
+    const fx=Math.cos(b.h),fy=Math.sin(b.h);
+    let brake=false;
+    for(let i=0;speed>8 && i<=samples;i++){
+      const distance=4+(lookAhead-4)*i/Math.max(1,samples);
+      if(world.near(b.x+fx*distance,b.y+fy*distance,1.1)){brake=true;break;}
+    }
+    steerBody(b,steer,brake,dt,tune.patrol.turn,tune.patrol);
   }
   function push(b: Body,px: number,py: number,r: number){
     let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);
@@ -88,5 +106,5 @@ export function makeDrivePhysics(tune: PhysicsTuning){
     a.vx-=closing*nx*.6;a.vy-=closing*ny*.6;b.vx+=closing*nx*.6;b.vy+=closing*ny*.6;
     return closing;
   }
-  return {steerBody,steerPlayer,collide,bump,resetPlayerSteering(){steerTime=steerDirection=0;}};
+  return {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering(){steerTime=steerDirection=0;}};
 }

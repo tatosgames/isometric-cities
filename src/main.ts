@@ -13,7 +13,6 @@ import { makeDrive } from './drive/drive.ts';
 import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
 import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
-import { makeCaptureGrade } from './render/capture-grade.ts';
 
 interface Flight {
   start: number; duration: number;
@@ -86,7 +85,6 @@ async function start(){
   let losses=Number(resume?.losses)||0;
   const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
   const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true,stencil:true});
-  const captureGrade=makeCaptureGrade(renderer,compact);
   renderer.setPixelRatio(baseRatio());
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
@@ -194,7 +192,17 @@ async function start(){
     if(adaptive.reset()){renderer.setPixelRatio(baseRatio());draw();}
   }
   function stopGesture(){gesture=false;settle();}
-  controls.addEventListener('start',()=>{flight=null;gesture=true;});
+  const credits=required(map.querySelector('footer'),'data attribution');
+  const licences=el('data-licences');
+  function dismissCredits(){
+    if(map.dataset.boot!=='ready' || !licences.hidden)return;
+    licences.append(credits);
+    licences.hidden=false;
+  }
+  el('map-content').addEventListener('click',event=>{
+    if(event.target instanceof Element && event.target.closest('button:not(:disabled):not([aria-disabled="true"])'))dismissCredits();
+  },{capture:true});
+  controls.addEventListener('start',()=>{dismissCredits();flight=null;gesture=true;});
   controls.addEventListener('end',stopGesture);
   function sampleCadence(time: number){
     if(!moving()){adaptive.suspend();return;}
@@ -205,6 +213,13 @@ async function start(){
     if(!lastView)return;
     try{sessionStorage.setItem(sessionKey,JSON.stringify({...lastView,selected:places.selected,losses}));}catch{}
   }
+  let desaturation=0;
+  function setDesaturation(amount: number){
+    if(desaturation===amount)return;
+    desaturation=amount;
+    if(amount)host.style.filter='grayscale('+amount+')';
+    else host.style.removeProperty('filter');
+  }
   const status=el('status');
   signal.addEventListener('abort',()=>{
     clearTimeout(openingTimer);
@@ -212,10 +227,11 @@ async function start(){
     streamed?.suspend();
     controls.dispose();
     renderer.dispose();
+    setDesaturation(0);
   },{once:true});
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
-    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();captureGrade.release();
+    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();
     cancelAnimationFrame(frame);frame=0;gesture=false;adaptive.reset();delete host.dataset.scale;
     controls.enabled=false;controls.disconnect();
     remember();
@@ -245,6 +261,7 @@ async function start(){
   });
   window.addEventListener('pagehide',remember);
   document.addEventListener('visibilitychange',()=>{
+    drive?.visibilityChanged();
     if(document.hidden){flight=null;stopGesture();remember();}
     else if(!lost)syncSize();
   });
@@ -253,7 +270,8 @@ async function start(){
     const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
     wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
     painted=time;
-    captureGrade.render(scene,camera,drive?.desaturation??0);
+    renderer.render(scene,camera);
+    if(!document.hidden)setDesaturation(drive?.desaturation??0);
   }
   function draw(){
     if(frame || lost || signal.aborted)return;
@@ -345,11 +363,13 @@ async function start(){
       const up=new T.Vector3().crossVectors(new T.Vector3(0,1,0),right);
       const delta=(['ArrowLeft','ArrowRight'].includes(e.key)?right:up).multiplyScalar((['ArrowLeft','ArrowDown'].includes(e.key)?-1:1)*50/camera.zoom);
       view(controls.target.clone().add(delta),camera.zoom);
-    }else return;e.preventDefault();
+    }else return;
+    dismissCredits();
+    e.preventDefault();
   };
   function leaveDrive(){
     if(!drive?.active)return;
-    drive.exit();captureGrade.release();map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
+    drive.exit();setDesaturation(0);map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
     if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
     el('drive').focus({preventScroll:true});
   }

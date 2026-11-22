@@ -9,6 +9,12 @@ const modes=[
 ];
 const key='drive-camera';
 
+export function driveLookAhead(speed: number,maxSpeed: number){
+  const lowSpeed=10/3.6;
+  if(speed<=lowSpeed)return 5*speed/lowSpeed;
+  return MathUtils.lerp(5,12,Math.min(1,(speed-lowSpeed)/(maxSpeed-lowSpeed)));
+}
+
 export function makeDriveCamera(mapDirection: Vector3){
   const mapPitch=Math.asin(mapDirection.y);
   let mapYaw=Math.atan2(mapDirection.z,mapDirection.x);

@@ -10,7 +10,7 @@ import type {Zoning} from './drive-world.ts';
 import type {ZoneData} from '../data/types.ts';
 import {makeDrivePhysics} from './drive-physics.ts';
 import {makeDrivePose} from './drive-pose.ts';
-import {makeDriveCamera} from './drive-camera.ts';
+import {driveLookAhead,makeDriveCamera} from './drive-camera.ts';
 import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
 import { chooseStartNode, type RoadNode } from './road-routing.ts';
@@ -44,7 +44,6 @@ interface Vehicle extends Body {
   hop: number;
   wreck: number;
   stuck: number;
-  max: number;
   trail: [number,number,number][] | null;
   puff: number;
   node: number;
@@ -60,8 +59,9 @@ type RouteField = ReturnType<typeof routesFrom>;
 
 // Every gameplay number lives here. Metres, seconds, radians.
 export const TUNE={
-  maxSpeed:16.5, accel:9, turn:2.6, grip:7.5, driftGrip:3.2, gripReleaseRate:6, driftDrag:.035, brake:16, brakeGrip:2.2,
-  player:{accel:11.5,brake:20,turnStart:.35,turnRamp:.14,releaseGrip:9.5,gripReleaseRate:10},
+  accel:11.574,accelTaperStart:60/3.6,accelTaperEnd:63/3.6,brake:27,brakeGrip:2.2,turn:2.6,grip:7.5,driftGrip:3.2,
+  player:{maxSpeed:90/3.6,cruiseAccel:1.957,driftDrag:.035,turnStart:.35,turnRamp:.14,releaseGrip:9.5,gripReleaseRate:10},
+  patrol:{maxSpeed:94/3.6,cruiseAccel:2.240,driftDrag:.0525,turn:.8,gripReleaseRate:6},
   deflect:4.5,
   // Juice: visual only, no effect on collisions.
   roll:.035, tailSwing:.3, hop:.5, dive:.09, skidSpeed:4,
@@ -70,16 +70,16 @@ export const TUNE={
   poseMinSpeed:2, poseFullSpeed:10, poseAttack:.085, poseRelease:.17, poseReverse:.04,
   puffSlip:2.5,puffRearm:1.5,puffLife:.22,
   // Hit-stop: seconds of held simulation per event, the wall impact that earns one and the least gap between two.
-  stopImpact:9, stopWall:.055, stopArrive:.05, stopCaught:.11, stopGap:.6,
+  stopImpact:11, stopWall:.055, stopArrive:.05, stopCaught:.11, stopGap:.6,
   // Camera kick: launch speed of a full hit (m/s), spring back to rest, hard limit in metres.
   kick:36, kickStiff:220, kickDamp:22, kickMax:1.2,
   // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.
   zoomSpeed:.1, zoomThreat:.08, zoomCaught:.14, zoomRate:1.1, paceRate:.7, leadRate:2.4, followRate:9,
   radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:carVisualScale,
   catchSpeed:4.5, catchReach:4, grace:2.5,
-  chaserEvery:18, chaserSpeed:1.04, chaserSpeedStep:.02, chaserSpeedMax:1.16, chaserTurn:.8, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
+  chaserEvery:18, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
   coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
-  viewSpanCompact:62, viewSpanWide:95, lookAhead:.42
+  viewSpanCompact:62, viewSpanWide:95
 };
 const SKIDS=600, DUST=48, COINS=220;
 const CAPTURE={speed:.3,coast:1,maxSpeed:6,grade:.85,summary:.3,actions:.6};
@@ -90,7 +90,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
-  const {steerBody,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE);
+  const {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE);
   const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -131,7 +131,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';
-    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,dive:0,way:1,wayHold:0,hitX:0,hitY:0,mesh,blob,wreck:0,stuck:0,max:0,trail:null,puff:0,node:-1};
+    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,dive:0,way:1,wayHold:0,hitX:0,hitY:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
@@ -236,7 +236,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   // ---- game state ----
   let state: DriveState='off';
   let score=0,time=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,held=false,warmed=false,lastStart: number | undefined;
-  let capture: {patrol: Patrol;elapsed: number;started: number} | null=null;
+  let capture: {patrol: Patrol;elapsed: number;motionElapsed: number;started: number} | null=null;
   let puffArmed=true;
   let chasers: Patrol[]=[];
   let field: RouteField | null=null;
@@ -257,6 +257,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     over.hidden=actions.hidden=true;
     over.inert=false;
     delete over.dataset.caught;
+    delete over.dataset.paused;
   }
   // Screen position of a map point, in CSS pixels of the host.
   function project(x: number,y: number,lift: number): Point{
@@ -279,6 +280,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   function stop(seconds: number,then?: () => void){
     freeze=Math.max(freeze,seconds);stops++;
     if(then)release=then;
+  }
+  function advanceStop(dt: number){
+    freeze=Math.max(0,freeze-dt);
+    if(!freeze){release?.();release=null;}
   }
   // Camera kick towards whatever hit, along (dx,dy) in map coordinates. Strength 0 to 1.
   function kick(dx: number,dy: number,strength: number){
@@ -322,7 +327,6 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
     const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
     Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,slip:0,side:0,puff:0});
-    c.max=TUNE.maxSpeed*Math.min(TUNE.chaserSpeedMax,TUNE.chaserSpeed+TUNE.chaserSpeedStep*Math.floor(time/TUNE.chaserEvery));
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function nextStart(){
@@ -356,7 +360,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     state='caught';buzz(140);guide.className='';
     controls.release();
     over.dataset.caught='';
-    capture={patrol:by,elapsed:0,started:last};
+    capture={patrol:by,elapsed:0,motionElapsed:0,started:last};
     for(const car of [player,by]){
       const speed=Math.hypot(car.vx,car.vy);
       if(speed>CAPTURE.maxSpeed){
@@ -434,8 +438,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       }else c.node=-1;
       let turn=T.MathUtils.clamp(wrap(Math.atan2(ty-c.y,tx-c.x)-c.h)*2.5,-1,1);
       for(const side of [-1,1])if(world.near(c.x+Math.cos(c.h+side*.45)*6,c.y+Math.sin(c.h+side*.45)*6,1.2))turn-=side*.9;
-      const ahead=world.near(c.x+Math.cos(c.h)*4,c.y+Math.sin(c.h)*4,1.1);
-      steerBody(c,T.MathUtils.clamp(turn,-1,1),ahead && Math.hypot(c.vx,c.vy)>8,c.max,dt,TUNE.chaserTurn);
+      steerPatrol(c,T.MathUtils.clamp(turn,-1,1),world,dt);
       const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
       c.stuck=pace<1.5?c.stuck+dt:0;
@@ -491,23 +494,29 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
 
   function frame(now: number){
     raf=requestAnimationFrame(frame);
-    const wallDt=Math.min(.05,(now-(last||now))/1000);last=now;
-    let dt=wallDt;
-    if(freeze){
-      freeze=Math.max(0,freeze-dt);
-      if(!freeze){release?.();release=null;}
-    }else if(state==='playing' && !held){
-      acc+=dt;
-      for(;acc>=1/120 && state==='playing' && !freeze;acc-=1/120)step(1/120);
-      if(freeze)acc=0;
+    if(document.hidden){last=0;return;}
+    const wallDt=(now-(last||now))/1000;last=now;
+    const captureDt=capture?wallDt:0;
+    let dt=Math.min(.05,wallDt);
+    if(!capture){
+      if(freeze)advanceStop(dt);
+      else if(state==='playing' && !held){
+        acc+=dt;
+        for(;acc>=1/120 && state==='playing' && !freeze;acc-=1/120)step(1/120);
+        if(freeze)acc=0;
+      }
     }
     if(capture){
-      // Preserve the hit-stop, then advance the result and the slowed scene on separate clocks.
-      dt=0;
-      if(!freeze){
-        capture.elapsed+=wallDt;
-        dt=wallDt*CAPTURE.speed;
-        if(player.vx || player.vy || capture.patrol.vx || capture.patrol.vy)coast(capture.patrol,capture.elapsed,dt);
+      // Use the part of the frame after the hit-stop for the result. Bound world motion on long frames.
+      const stopped=Math.min(freeze,captureDt);
+      if(freeze)advanceStop(stopped);
+      const elapsed=captureDt-stopped;
+      const motion=Math.min(.05,elapsed);
+      capture.elapsed+=elapsed;
+      capture.motionElapsed+=motion;
+      dt=motion*CAPTURE.speed;
+      if(elapsed){
+        if(player.vx || player.vy || capture.patrol.vx || capture.patrol.vy)coast(capture.patrol,capture.motionElapsed,dt);
         if(capture.elapsed>=CAPTURE.summary)over.hidden=false;
         if(capture.elapsed>=CAPTURE.actions && actions.hidden){
           actions.hidden=false;
@@ -524,7 +533,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
-    const lightTime=capture?capture.started+capture.elapsed*CAPTURE.speed*1000:now;
+    const lightTime=capture?capture.started+capture.motionElapsed*CAPTURE.speed*1000:now;
     chasers.forEach((c,i)=>{
       place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32),-c.dive*TUNE.dive);
       c.light.visible=!c.wreck;c.light.material=(Math.floor(lightTime/140)+i)%2?lightRed:lightBlue;
@@ -565,7 +574,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
     // the follow itself is tight, which keeps the car steady on screen.
-    lead.lerp(new T.Vector3(player.vx,0,-player.vy).multiplyScalar(TUNE.lookAhead),Math.min(1,dt*TUNE.leadRate));
+    const speed=Math.hypot(player.vx,player.vy);
+    const leadScale=speed?driveLookAhead(speed,TUNE.player.maxSpeed)/speed:0;
+    lead.lerp(new T.Vector3(player.vx*leadScale,0,-player.vy*leadScale),Math.min(1,dt*TUNE.leadRate));
     const cx=player.x+lead.x,cy=player.y-lead.z;
     focus.lerp(new T.Vector3(cx,playerGround,-cy),Math.min(1,dt*TUNE.followRate));
     // Kick: a damped spring back to rest, in small steps so a long frame cannot blow it up.
@@ -576,8 +587,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const reach=Math.hypot(kickX,kickY);
     if(reach>TUNE.kickMax){kickX*=TUNE.kickMax/reach;kickY*=TUNE.kickMax/reach;}
     const nearest=Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y)));
-    const speed=Math.hypot(player.vx,player.vy);
-    paceEase+=(speed/TUNE.maxSpeed-paceEase)*Math.min(1,dt*TUNE.paceRate);
+    paceEase+=(Math.min(1,speed/TUNE.player.maxSpeed)-paceEase)*Math.min(1,dt*TUNE.paceRate);
     threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*Math.min(1,dt*TUNE.paceRate);
     // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
     const wantZoom=state==='caught'?(freeze?zoomNow:1+TUNE.zoomCaught):1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
@@ -679,18 +689,24 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     zone(id: string,content: ZoneData | null){
       if(content)world?.addZone(id,content.buildings,content.trees);else world?.removeZone(id);
     },
+    visibilityChanged(){
+      last=0;
+      if(capture)over.toggleAttribute('data-paused',document.hidden || !raf);
+    },
     // Graphics interruption: stop drawing and stepping, drop any touch in progress, keep the run.
     suspend(){
       if(state==='off')return;
       cancelAnimationFrame(raf);raf=0;controls.release();
       resetPlayerSteering();
-      if(capture)over.inert=true;else playerPose.reset();
+      if(capture){over.inert=true;over.dataset.paused='';}
+      else playerPose.reset();
       if(state==='playing'){held=true;guide.className='ready';}
     },
     resume(){
       if(state==='off' || raf)return;
       warmed=false;warm();
       over.inert=false;
+      if(capture)over.toggleAttribute('data-paused',document.hidden);
       last=0;acc=0;raf=requestAnimationFrame(frame);
     }
   };

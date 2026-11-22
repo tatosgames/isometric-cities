@@ -65,7 +65,7 @@ La parte dell’auto coperta da un edificio appare in giallo sulla sua superfici
 - A 390×844 e in orizzontale compatto, auto, prossime monete e pattuglia più vicina restano scoperte?
 - I comandi a sola icona hanno un nome accessibile, e l'esito (destinazione, cattura) arriva alla regione `role="status"`?
 - Aree di tocco di almeno 40 px, contrasto di testo e numeri di almeno 4,5:1 sullo sfondo reale.
-- L'attribuzione OpenStreetMap resta visibile in ogni stato.
+- Le attribuzioni compaiono durante il caricamento e sulla prima vista fino al primo comando. Dopo, sono consultabili in «Licencias de datos» nel menu dei luoghi. La barra di avvio non ricompare durante la navigazione, la guida o il recupero WebGL.
 
 ## Non deciso
 

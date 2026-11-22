@@ -2,7 +2,7 @@
 
 Cosa risponde a cosa nella modalità «Conducir», con quali valori e con quali limiti. Va letto prima di aggiungere o ritoccare un effetto. Sul modello di `doc/JUICE.md` di Butter Run e delle regole di juice di Smash Royale, tenendo solo ciò che serve a una guida arcade vista dall'alto.
 
-I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
+I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
 
 ## Regole
 
@@ -19,12 +19,12 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 | Evento | Simulazione | Camera | Auto e scena | Interfaccia | Vibrazione |
 |---|---|---|---|---|---|
 | Moneta raccolta | – | – | La moneta è attirata entro 6 m | «+1» che sale dal punto, pillola delle monete che pulsa | 8 ms |
-| Accelerazione | 11,5 m/s² fino a 16,5 m/s | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
+| Accelerazione | 60 km/h in 1,44 s, poi 90 km/h in altri 4 s | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
 | Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 17° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
-| Frenata | 20 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
+| Frenata | 27 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
 | Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
 | Urto medio (oltre 6 m/s) | – | Spinta verso il muro, in proporzione | Saltello | – | 18 ms |
-| Urto forte (oltre 9 m/s) | Fermo di 55 ms | Spinta verso il muro | Saltello | – | 18 ms |
+| Urto forte (oltre 11 m/s) | Fermo di 55 ms | Spinta verso il muro | Saltello | – | 18 ms |
 | Spinta di una pattuglia (oltre 6 m/s) | – | Spinta verso la pattuglia, al 70% | – | – | – |
 | Schianto di una pattuglia | – | Spinta verso il rottame entro 40 m, più debole da lontano | Rottame scuro che gira, fumo per 3 s | «+2» con icona dell'urto | – |
 | Pedone vicino a un veicolo in arrivo | – | – | Il pedone scatta di lato a 6,2 m/s per 0,9 s, saltellando; se un muro non lascia spazio salta sopra l'auto | – | – |
@@ -33,7 +33,9 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 22 novembre 2026. Se c
 
 ## Sterzata e derapata
 
-- L'auto raggiunge 16,5 m/s in rettilineo. La prima pattuglia conserva il vantaggio del 4%. Per la cattura vale la soglia di 4,5 m/s, per il richiamo delle monete il limite di 25 m/s.
+- L'accelerazione in rettilineo è 11,574 m/s² fino a 60 km/h, poi scende gradualmente tra 60 e 63 km/h. Sopra i 63 la spinta è 1,957 m/s² per il giocatore e 2,240 m/s² per le pattuglie. I limiti di velocità in avanti sono 90 e 94 km/h. La prima ondata ha già la stessa punta delle successive.
+- Le pattuglie hanno un coefficiente di perdita longitudinale da slittamento di 0,0525, contro 0,035 del giocatore. Frenano anche prima dei muri, con un controllo da 4 m fino alla distanza di arresto più il raggio dell'auto, circa 13,8 m a 94 km/h.
+- Per la cattura vale la soglia di 4,5 m/s. Per le monete il raggio di richiamo è 6 m e la trazione è 25 m/s.
 - A ogni cambio di lato la rampa ricomincia dal 35%. Al rilascio il peso della derapata cala di 10 al secondo e il coefficiente di aderenza laterale tende a 9,5 s⁻¹. La frenata usa il proprio coefficiente di 2,2 s⁻¹.
 - La posa si aggiorna a 120 Hz. La risposta allo sterzo cresce tra 2 e 10 m/s. A pieno sterzo la rotazione aggiuntiva va da 10,5° a 21° e il rollio da 8,5° a 17°, secondo lo slittamento. Quando amplifica lo slittamento, la rotazione aggiuntiva porta il muso fino a 45° dalla direzione di marcia.
 - Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa.
@@ -46,11 +48,11 @@ Per alcuni fotogrammi la simulazione non avanza: auto, pattuglie, monete e crono
 
 - **Eventi:** urto forte contro un muro o un albero, arrivo a destinazione, cattura. Lo schianto di una pattuglia non lo usa (scelta di Luca, 22 novembre 2026).
 - **Durate:** `stopWall` 0,055 s, `stopArrive` 0,05 s, `stopCaught` 0,11 s. A 60 fotogrammi al secondo sono circa 3, 3 e 7 fotogrammi.
-- **Soglia dell'urto:** `stopImpact` 9 m/s di velocità contro l'ostacolo, cioè un urto quasi frontale oltre il 60% della velocità massima. Le strisciate nelle vie strette restano sotto.
+- **Soglia dell'urto:** `stopImpact` 11 m/s di velocità nella direzione dell'ostacolo. Le strisciate nelle vie strette restano sotto.
 - **Intervallo minimo:** `stopGap` 0,6 s tra due fermi da urto. Arrivo e cattura non hanno intervallo perché non possono ripetersi.
 - **Fermi sovrapposti:** vale il più lungo, non si sommano.
 - **Alla cattura** il contatto blocca punteggio e cronometro. Dopo 110 ms, camera, polvere, pedoni e vento rallentano al 30%. Auto e pattuglia si assestano per un secondo con l'inerzia residua, limitata da ostacoli e superficie disponibile.
-- La saturazione scende a zero in 850 ms con un passaggio WebGL. «ATRAPADO» e i tre valori compaiono dopo 300 ms di rallentatore. I pulsanti a icona compaiono dopo 600 ms.
+- La saturazione scende a zero in 850 ms con un filtro CSS sulla scena e sul suo sfondo. «ATRAPADO» e i tre valori compaiono dopo 300 ms di rallentatore. I pulsanti a icona compaiono dopo 600 ms. Il tempo dell'esito avanza mentre la scheda è visibile e il contesto WebGL è disponibile. L'inerzia e la camera usano un delta limitato per evitare salti.
 - Il tempo fermo non conta nel cronometro. Dopo il fermo la simulazione riparte da dove era, senza recuperare i passi saltati.
 
 ## Colpo di camera

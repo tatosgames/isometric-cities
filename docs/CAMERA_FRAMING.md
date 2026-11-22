@@ -2,7 +2,7 @@
 
 Cosa deve garantire la camera in ogni stato del viewer. È solo presentazione: l'inquadratura non cambia mai geometria, collisioni, percorsi o esiti di gioco. Sul modello di `CAMERA_FRAMING.md` di Smash Royale, adattato a una camera ortografica isometrica.
 
-I valori citati sono quelli del codice al 22 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato.
+I valori citati sono quelli del codice al 23 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato.
 
 ## Regole comuni
 
@@ -26,9 +26,9 @@ I valori citati sono quelli del codice al 22 novembre 2026. Se cambiano nel codi
 ## Guida
 
 1. **L'auto è il soggetto.** La camera insegue l'auto in modo stretto (`followRate` 9): l'auto resta quasi ferma sullo schermo, è il mondo a scorrere.
-2. **Si vede dove si sta andando.** Il bersaglio è spostato in avanti lungo la velocità (`lookAhead` 0,42 s). Lo spostamento è smorzato a parte (`leadRate` 2,4), così un urto contro un muro non lo fa oscillare: l'unico movimento dovuto all'urto è la spinta del punto 6.
+2. **Si vede dove si sta andando.** Il bersaglio avanza lungo la direzione di marcia da 0 m da fermo a 5 m a 10 km/h, poi cresce fino a 12 m a 90 km/h e resta entro quel limite. L'anticipo è smorzato a parte (`leadRate` 2,4). Il colpo di camera segue la propria molla (punto 6).
 3. **Campo visivo di base:** il lato corto dello schermo copre 62 m su telefono e 95 m su desktop (`viewSpanCompact`, `viewSpanWide`). A 390 px di larghezza sono circa 6,3 px/m, con l'auto intorno ai 25 px.
-4. **Zoom dinamico lento e piccolo.** Si allarga fino al 10% con la velocità e fino all'8% con una pattuglia entro 45 m, e si stringe del 14% alla cattura. I due ingressi sono filtrati (`paceRate` 0,7) e lo zoom li insegue con `zoomRate` 1,1: un singolo urto non lo muove. Misurato in guida: tra 0,91 e 0,97 del valore base, al più 1,2% di variazione ogni mezzo secondo.
+4. **Zoom dinamico lento e piccolo.** Si allarga fino al 10% a 90 km/h e fino all'8% con una pattuglia entro 45 m, e si stringe del 14% alla cattura. I due ingressi sono filtrati (`paceRate` 0,7) e lo zoom li insegue con `zoomRate` 1,1.
 5. **Ingresso in planata.** Entrando in guida la camera parte dall'inquadratura della mappa e raggiunge quella di gioco in circa un secondo e mezzo.
 6. **Spinta direzionale, mai tremolio.** Per urti oltre 6 m/s, spinte di pattuglie, rottami entro 40 m e cattura, il bersaglio scatta verso ciò che ha colpito e torna con una molla smorzata (`kick` 36, `kickStiff` 220, `kickDamp` 22). Un colpo pieno sposta la vista di circa 1 m e rientra in 0,28 s; il limite è `kickMax` 1,2 m. Non c'è alcuno spostamento casuale. Mai mentre si è fermi in attesa del primo tocco. Dettagli in [JUICE.md](JUICE.md).
 7. **Nessun limite di zoom della mappa.** In guida `controls.maxZoom` è infinito; all'uscita tornano i limiti della mappa e l'inquadratura di prima.

@@ -21,6 +21,7 @@ try{
   });
   page.on('response',r=>{if(r.status()>=400||!r.url().startsWith(origin))faults.push(r.url());});
   const host=page.locator('#scene');
+  const credits=page.locator('footer');
   async function visit(path){
     await page.goto(origin+path);await page.waitForSelector('#scene[data-view]',{timeout:60000});
   }
@@ -71,14 +72,12 @@ try{
       if(expected===90)await snap(mobile?'rotation-mobile':'rotation-desktop');
     }
     assert.equal(await host.getAttribute('data-view'),initial);
-    const credits=page.locator('footer');
     assert.equal(await credits.isVisible(),false);
     for(let i=0;i<await page.locator('#places button').count();i++){
       await page.locator('#index-toggle').click();
-      assert.equal(await credits.isVisible(),true);
+      assert.equal(await credits.isVisible(),false);
       const b=page.locator('#places button').nth(i);
       await (mobile?b.tap():b.click());assert.equal(await page.locator('article').isVisible(),true);await page.waitForFunction(i=>document.querySelectorAll('#places button')[i].getAttribute('aria-pressed')==='true',i);
-      assert.equal(await credits.isVisible(),true);
       const placeId=await b.getAttribute('data-place-id');
       if(!mobile&&placeId==='parque-doramas')await snap('ciudad-jardin');
       if(!mobile&&placeId==='san-telmo')await snap('san-telmo');
@@ -86,7 +85,6 @@ try{
       if(mobile&&placeId==='teatro-perez-galdos')await snap('teatro-mobile');
       if(mobile&&placeId==='gabinete-literario')await snap('triana-mobile');
       await page.locator('#close').click();
-      assert.equal(await credits.isVisible(),false);
     }
     await page.locator('#reset').click();await page.waitForTimeout(150);
     await page.waitForFunction(v=>document.getElementById('scene').dataset.view===v,initial);
@@ -208,7 +206,7 @@ try{
     assert.ok(Number((await host.getAttribute('data-drive')).split(',')[13])>=2.2,'A pedestrian stands on the car');
     assert.equal(await page.locator('#pins').isVisible(),false);
     assert.equal(await right.isVisible(),false);
-    assert.equal(await page.locator('footer a[href*="openstreetmap"]').isVisible(),true);
+    assert.equal(await credits.isVisible(),false);
     assert.equal(await page.locator('#hud-stats .stat').count(),2);
     assert.equal(await page.locator('#over-record').isVisible(),false);
     if(mobile){
@@ -249,24 +247,43 @@ try{
     const caughtTime=await page.locator('#over-time').textContent();
     const caughtRecord=await page.locator('#over-record').textContent();
     if(!mobile){
+      await page.waitForFunction(()=>document.querySelector('#scene').style.filter.startsWith('grayscale'));
+      const pausedGrade=await host.evaluate(node=>{
+        Object.defineProperty(document,'hidden',{configurable:true,value:true});
+        document.dispatchEvent(new Event('visibilitychange'));
+        return node.style.filter;
+      });
+      try{
+        await page.waitForTimeout(400);
+        assert.equal(await host.evaluate(node=>node.style.filter),pausedGrade,'A hidden page must hold the grade');
+        assert.equal(await page.locator('#over').getAttribute('data-paused'),'');
+      }finally{
+        await page.evaluate(()=>{
+          delete document.hidden;
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+      }
       const ext=await page.evaluateHandle(()=>document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context'));
       await ext.evaluate(e=>e.loseContext());
       await page.locator('#status').waitFor({state:'visible'});
       assert.equal(await page.locator('#over').isVisible(),false);
       const frozen=await host.getAttribute('data-drive');
+      const frozenGrade=await host.evaluate(node=>node.style.filter);
       await page.waitForTimeout(400);
       assert.equal(await host.getAttribute('data-drive'),frozen,'The capture sequence must pause with graphics lost');
+      assert.equal(await host.evaluate(node=>node.style.filter),frozenGrade,'The grade must survive graphics loss');
       await ext.evaluate(e=>e.restoreContext());
       await page.locator('#status').waitFor({state:'hidden'});
       await ext.dispose();
     }
     await page.locator('#again').waitFor({state:'visible'});
     assert.equal(await page.locator('#over-title').innerText(),'ATRAPADO');
+    assert.equal(await page.locator('#over-title').evaluate(node=>getComputedStyle(node).webkitTextStrokeWidth),'0px');
     assert.equal(await page.locator('#over-record').isVisible(),true);
     for(const id of ['hud-stats','drive-location','drive-camera']){
       assert.equal(await page.locator('#'+id).isVisible(),false);
     }
-    assert.equal(await page.locator('footer').isVisible(),true);
+    assert.equal(await credits.isVisible(),false);
     // The capture held the simulation at least once, and the camera kick has sprung back to rest.
     assert.ok(Number((await drive())[10])>=1,'Capture should hit-stop');
     await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[11])<.02,null,{timeout:6000});
@@ -303,8 +320,7 @@ try{
       await page.waitForFunction(()=>document.querySelector('#scene canvas').clientWidth===844);
       const summary=await page.locator('.over-summary').boundingBox();
       const actions=await page.locator('#over-actions').boundingBox();
-      const credits=await page.locator('footer').boundingBox();
-      assert.ok(summary.y+summary.height<actions.y && actions.y+actions.height<credits.y,'Results fit above the credits in landscape');
+      assert.ok(summary.y+summary.height<actions.y && actions.y+actions.height<390,'Results fit in landscape');
       await page.screenshot({path:dir+'/conducir-fin-landscape.png'});
       await page.setViewportSize({width:390,height:844});
       await page.waitForFunction(()=>document.querySelector('#scene canvas').clientWidth===390);
@@ -314,6 +330,7 @@ try{
     const retry=await drive();
     assert.equal(retry[1],'0');
     assert.notDeepEqual([retry[2],retry[3]],initialSpawn,'Retry should use a different random start node');
+    assert.equal(await host.evaluate(node=>node.style.filter),'');
     assert.ok(await colorSpread()>1,'Retry should restore the scene colors');
     // A straight start runs along the first metres of the coin trail.
     await page.keyboard.press('ArrowDown');
@@ -345,6 +362,7 @@ try{
       await page.locator('#leave').tap();
     }else await page.locator('#drive-exit').click();
     assert.equal(await host.getAttribute('data-drive'),null);
+    assert.equal(await host.evaluate(node=>node.style.filter),'');
     assert.equal(await page.locator('#plus').isVisible(),true);
     await page.waitForFunction(v=>document.querySelector('#scene').dataset.view===v,before);
     assert.equal(await angle(),entryAngle);

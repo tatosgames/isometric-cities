@@ -7,7 +7,7 @@ import {carShellHeight,carShellParts,carShellPivot} from '../src/drive/car-model
 
 const dt = 1/120;
 const degrees = angle => angle * 180 / Math.PI;
-const {steerPlayer,collide} = makeDrivePhysics(TUNE);
+const {steerPlayer,steerPatrol,collide} = makeDrivePhysics(TUNE);
 const pose = makeDrivePose(TUNE);
 const speed = car => Math.hypot(car.vx,car.vy);
 const heading = car => degrees(Math.atan2(car.vy,car.vx));
@@ -16,16 +16,47 @@ function body(vx = 0) {
   return {x:0,y:0,h:0,vx,vy:0,wayHold:0,dive:0,hold:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0};
 }
 
-const straight = body();
-let launchSteps=0;
-for(;speed(straight)<TUNE.maxSpeed && launchSteps<240;launchSteps++)steerPlayer(straight,0,false,dt);
-assert.equal(speed(straight),16.5);
-assert.ok(Math.abs(launchSteps*dt-1.44)<.02);
-const braking=body(13);
+const clear={near:()=>false};
+const playerLaunch=(car)=>steerPlayer(car,0,false,dt);
+const patrolLaunch=(car)=>steerPatrol(car,0,clear,dt);
+function measureLaunch(step,limit){
+  const straight=body();
+  let steps=0,launchSteps=0;
+  for(;speed(straight)<limit && steps<700;steps++){
+    step(straight);
+    if(!launchSteps && speed(straight)>=60/3.6)launchSteps=steps+1;
+  }
+  assert.equal(speed(straight),limit);
+  assert.ok(Math.abs(launchSteps*dt-1.44)<=2*dt);
+  assert.ok(Math.abs((steps-launchSteps)*dt-4)<=2*dt);
+  return {launch:launchSteps*dt,top:steps*dt,distance:straight.x};
+}
+const playerRun=measureLaunch(playerLaunch,90/3.6);
+const patrolRun=measureLaunch(patrolLaunch,94/3.6);
+const braking=body(25);
 let brakeSteps=0;
-for(;speed(braking)>0 && brakeSteps<120;brakeSteps++)steerPlayer(braking,0,true,dt);
+for(;speed(braking)>0 && brakeSteps<180;brakeSteps++)steerPlayer(braking,0,true,dt);
 assert.equal(speed(braking),0);
-assert.ok(Math.abs(brakeSteps*dt-.65)<.02);
+assert.ok(Math.abs(brakeSteps*dt-.93)<=2*dt);
+assert.ok(Math.abs(braking.x-11.6)<.2);
+
+const patrolTop=94/3.6;
+const sampleCar=body(patrolTop),probes=[];
+steerPatrol(sampleCar,0,{near:(x)=>{probes.push(x);return false;}},dt);
+assert.equal(probes[0],4);
+assert.ok(Math.abs(probes.at(-1)-13.8)<.05);
+assert.ok(probes.slice(1).every((x,i)=>x-probes[i]<=1.8));
+for(const obstacle of [4,8,13.8]){
+  const approaching=body(patrolTop);
+  steerPatrol(approaching,0,{near:(x,_y,r)=>Math.abs(x-obstacle)<r},dt);
+  assert.ok(Math.abs(approaching.vx-(patrolTop-27*dt))<1e-9,`Patrol missed an obstacle at ${obstacle} m`);
+}
+const slidingPlayer={...body(13),vy:4},slidingPatrol={...slidingPlayer};
+steerPlayer(slidingPlayer,0,true,dt);
+steerPatrol(slidingPatrol,0,{near:()=>true},dt);
+const withoutDrag=13-27*dt;
+assert.equal(slidingPatrol.slip,slidingPlayer.slip);
+assert.ok(Math.abs((withoutDrag-slidingPatrol.vx)/(withoutDrag-slidingPlayer.vx)-1.5)<1e-9);
 
 const car = body(13);
 function advance(steer, steps, brake = false) {
@@ -95,4 +126,4 @@ pose.update(wall,-1,dt,0);
 assert.equal(pose.yaw,0,'A rebound past the yaw limit should clear exaggeration towards the wall');
 pose.reset();
 assert.equal(pose.roll,0);
-console.log(`Drive pose QA passed (travel correction: ${earlyHeading.toFixed(2)}°, nose vs travel: ${earlyAngle.toFixed(1)}°, launch: ${(launchSteps*dt).toFixed(3)} s, brake: ${(brakeSteps*dt).toFixed(3)} s, grip recovery: ${(releaseSteps*dt).toFixed(3)} s)`);
+console.log(`Drive QA passed (60 km/h at ${playerRun.launch.toFixed(3)} s, 90 at ${playerRun.top.toFixed(3)} s / ${playerRun.distance.toFixed(1)} m, patrol 94 at ${patrolRun.top.toFixed(3)} s, brake ${(brakeSteps*dt).toFixed(3)} s / ${braking.x.toFixed(1)} m, grip recovery ${(releaseSteps*dt).toFixed(3)} s, short turn ${earlyHeading.toFixed(2)}°)`);

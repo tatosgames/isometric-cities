@@ -172,10 +172,13 @@ for f in features:
         height,origin=(round(h,1),'municipal-provisional') if valid else (measured,'lidar-pnoa') if measured else (9,'estimate')
         outline=rings(p)
         # Low bodies of a complex and roofs measured far above the municipal value: see scripts/lidar-check.py --export.
-        part=lidar_parts.get(f"{f['properties']['OBJECTID']}:{math.floor(min(v[0] for v in outline[0]))}:{math.floor(min(v[1] for v in outline[0]))}")
+        key=f"{f['properties']['OBJECTID']}:{math.floor(min(v[0] for v in outline[0]))}:{math.floor(min(v[1] for v in outline[0]))}"
+        part=lidar_parts.get(key)
         if part and valid: height,origin=part,'lidar-pnoa'
-        if tank_index is not None and 'wallColor' not in style and any(p.contains(tanks[i]) for i in tank_index.query(p)): style={**tank_style,**style}
-        buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=outline,height=height,source=origin))
+        # One municipal record can hold several separate bodies: the catalogue may style a single one by the same key.
+        look={**style,**catalog['buildings'].get(key,{})}
+        if tank_index is not None and 'wallColor' not in look and any(p.contains(tanks[i]) for i in tank_index.query(p)): look={**tank_style,**look}
+        buildings.append(dict(id=f['properties']['OBJECTID'],**look,rings=outline,height=height,source=origin))
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')

@@ -1,5 +1,11 @@
 # Verifica locale · 21 novembre 2026
 
+## Velocità e frenata · 23 novembre 2026
+
+La regressione a 120 Hz misura 60 km/h a **1,442 s** e la punta a **5,442 s**, pari a 90 km/h per il giocatore e 94 km/h per le pattuglie. Il giocatore percorre **96,5 m** da fermo prima di arrivare a 90 e si ferma da quella velocità in **0,933 s** e **11,5 m**. A parità di slittamento la pattuglia perde il 50% in più per effetto del coefficiente di derapata. Il controllo ostacoli trova ostacoli a 4, 8 e 13,8 m. La prova camera verifica 0 m da fermo, 5 m a 10 km/h e 12 m da 90 km/h.
+
+In Chrome desktop e touch emulato, la prova strumentata ha raggiunto 90 km/h su un viale del grafo, verificato una curva stretta e fermato l'auto prima di un incrocio partendo da 90. Un urto frontale a circa 10,6 m/s ha prodotto il rimbalzo e quello a circa 11,6 m/s ha attivato anche il fermo.
+
 ## Sterzo arcade · 22 novembre 2026
 
 La regressione a 120 Hz misura **1,442 s** fino a 16,5 m/s e **0,658 s** per fermarsi da 13 m/s in rettilineo. Un tocco di 100 ms a 13 m/s cambia la direzione della traiettoria di **2,58°**, contro i **0,96°** della taratura precedente. Dopo 400 ms di sterzo, al rilascio lo slittamento scende sotto 1,5 m/s in **175 ms**. La prova controlla anche rollio, controsterzo entro 50 ms, inclinazione longitudinale, ritorno in posizione neutra, altezza della scocca sulle ruote e limite della posa dopo un urto.
@@ -463,6 +469,12 @@ Replay con coordinate stradali reali in Chrome a 1440×900, 390×844 e 844×390.
 
 `typecheck`, `build` e `npm.cmd test` passati. Schermate controllate in Chrome a 1440×900, 390×844 e 844×390. Titolo, statistiche e pulsanti lasciano libera l'area centrale attorno all'auto. In una cattura campionata sul lungomare, l'auto si è assestata di circa 45 cm dopo il contatto e il punteggio è rimasto fisso per tutti i 117 fotogrammi osservati. La verifica mobile è in emulazione.
 
+### Desaturazione CSS e titolo
+
+Sul pilota in Chrome con emulazione mobile a 390×844, tre prime catture dopo caricamenti nuovi hanno registrato 17,8, 18,1 e 18,2 ms al primo fotogramma filtrato. Il valore precedente era circa 897 ms. Durante la transizione le mediane erano tra 17,6 e 18,0 ms. La desaturazione ha creato zero programmi WebGL in tutte e tre le prove, rispetto ai 14 del passaggio precedente. In una prova titolo e pulsanti sono comparsi insieme a circa 844 ms dalla cattura, dopo un ritardo successivo all'avvio del filtro. Nelle altre due sono comparsi separatamente, nei primi fotogrammi utili dopo le rispettive soglie.
+
+`typecheck`, `build` e `npm.cmd test` passati. La suite controlla la pausa della desaturazione a scheda nascosta e con WebGL interrotto, la rimozione del contorno del titolo e il ripristino del filtro al retry e all'uscita. Schermate controllate su desktop e in emulazione mobile, in verticale e orizzontale. L'emulazione desktop non riproduce il font di sistema Android. La verifica sul dispositivo resta aperta.
+
 ## Preloader della mappa
 
 La città scarica core, indice e terreno in parallelo. Fino all’apertura lo streamer dà priorità alla zona centrale e, a zoom ravvicinato, al settore visibile più vicino al bersaglio. La dissolvenza dura 260 ms e parte dopo il frame con il dettaglio assestato. Il livello di riserva può entrare dopo quattro secondi dal primo frame di base. In quel caso Play attende le collisioni della zona. Il retry per un errore essenziale ricarica lo stesso URL.
@@ -479,4 +491,4 @@ Un HTTP 503 isolato viene recuperato con un secondo tentativo dopo 200 ms. Due f
 
 ### Revisione anti-slop del preloader
 
-Un solo anello. Ruota mentre il progresso è ignoto e interpola i traguardi reali quando iniziano ad arrivare. Le attribuzioni restano visibili e mantengono il focus da tastiera durante l’apertura. Il test controlla anche che le attribuzioni e Play occupino spazi distinti su desktop e mobile.
+Un solo anello. Ruota mentre il progresso è ignoto e interpola i traguardi reali quando iniziano ad arrivare. Le attribuzioni restano visibili durante il caricamento e sulla prima vista. Il test verifica che il primo comando sposti i crediti in «Licencias de datos» e che la barra resti assente in guida e al ritorno sulla mappa.

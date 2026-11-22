@@ -80,7 +80,103 @@ function gabineteLiterario(add: AddBuilding,altitude: Altitude,gabinete: Buildin
   front(new T.BoxGeometry(.43,.09,.06),.18,17.1,.56,recess);
 }
 
-const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario};
+// Centre, long side and half sizes of a footprint, for models laid out on the building itself.
+function frame(building: Building){
+  const ring=building.rings[0].slice(0,-1);
+  let cx=0,cy=0,best=0,dx=1,dy=0;
+  ring.forEach(([x,y],i)=>{
+    cx+=x/ring.length;cy+=y/ring.length;
+    const [nx,ny]=ring[(i+1)%ring.length],length=Math.hypot(nx-x,ny-y);
+    if(length>best){best=length;dx=(nx-x)/length;dy=(ny-y)/length;}
+  });
+  let along=0,across=0;
+  for(const [x,y] of ring){
+    along=Math.max(along,Math.abs((x-cx)*dx+(y-cy)*dy));across=Math.max(across,Math.abs((y-cy)*dx-(x-cx)*dy));
+  }
+  return {cx,cy,dx,dy,along,across};
+}
+
+// Rubble-stone fortress of La Isleta: merlons along the wall walk and the small turret with its conical cap.
+// The round bastions are already in the municipal footprint; the turret place comes from the 2024 orthophoto.
+function castilloDeLaLuz(add: AddBuilding,altitude: Altitude,castle: Building){
+  const stone='#8f867a',cap='#77736d';
+  const ring=castle.rings[0],[x0,y0]=ring[0],top=altitude(x0,y0)+(castle.heightOverride??castle.height);
+  for(let i=1;i<ring.length;i++){
+    const [ax,ay]=ring[i-1],[bx,by]=ring[i],length=Math.hypot(bx-ax,by-ay),count=Math.floor(length/2.2);
+    const angle=Math.atan2(by-ay,bx-ax);
+    for(let k=0;k<count;k++){
+      const t=(k+.5)/count,x=ax+(bx-ax)*t,y=ay+(by-ay)*t;
+      add(new T.BoxGeometry(1,.9,.5).rotateY(angle).translate(x,top+1,-y),stone,x,y);
+    }
+  }
+  const tx=-956.4,ty=4851.4;
+  add(new T.CylinderGeometry(2.6,2.6,3.4,10).translate(tx,top+1.7,-ty),stone,tx,ty);
+  add(new T.ConeGeometry(3.1,2.8,10).translate(tx,top+4.8,-ty),cap,tx,ty);
+}
+
+// Iron market hall of 1891, after the orthophoto, the LiDAR and street photographs: ivory walls with dark
+// openings, a band of louvres under the hipped roof, a canopy on dark green iron columns all around, gabled
+// porches at the middle of each side and a raised octagonal lantern (walls 7 m, ridge 9 m, lantern 14 m).
+function mercadoDelPuerto(add: AddBuilding,altitude: Altitude,market: Building){
+  const roof='#6f6964',zinc='#aaa69d',iron='#2f4a45',louvre='#5b5550',opening='#3a403e',glass='#dfe6de';
+  const {cx,cy,dx,dy,along,across}=frame(market),place=facade(add,cx,cy,dx,dy,altitude(cx,cy));
+  const wall=7.4,ridge=9.2,shade=4.4,reach=3;
+  // A ring of four sloping faces between two rectangles, or a closed hip when `lid` is set.
+  function slopes(a: number,b: number,y0: number,c: number,d: number,y1: number,lid: boolean){
+    const low=[[-a,-b],[a,-b],[a,b],[-a,b]],high=[[-c,-d],[c,-d],[c,d],[-c,d]],v: number[]=[];
+    for(let i=0;i<4;i++){
+      const k=(i+1)%4;
+      v.push(low[i][0],y0,low[i][1],high[k][0],y1,high[k][1],low[k][0],y0,low[k][1],low[i][0],y0,low[i][1],high[i][0],y1,high[i][1],high[k][0],y1,high[k][1]);
+    }
+    if(lid)v.push(-c,y1,-d,-c,y1,d,c,y1,d,-c,y1,-d,c,y1,d,c,y1,-d);
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();
+    return g;
+  }
+  place(slopes(along+.6,across+.6,0,along*.42,across*.42,ridge-wall,true),0,wall,0,roof);
+  place(slopes(along+reach,across+reach,-.6,along,across,0,false),0,shade,0,zinc);
+  const radius=Math.min(along,across)*.34;
+  place(new T.CylinderGeometry(radius,radius,2.6,8),0,ridge+1.1,0,glass);
+  place(new T.ConeGeometry(radius+.9,2.2,8),0,ridge+3.5,0,roof);
+  for(const [length,offset,turn] of [[along,across,0],[across,along,1]] as const){
+    const at=(u: number,v: number)=>turn?[v,u] as const:[u,v] as const;
+    const count=Math.round(length*2/4.4);
+    for(const side of [-1,1]){
+      const [bu,bv]=at(0,side*(offset+.12));
+      place(new T.BoxGeometry(turn?.3:length*2,1.7,turn?length*2:.3),bu,wall-.9,bv,louvre);
+      for(let k=0;k<=count;k++){
+        const u=-length-reach+.3+k*(length*2+reach*2-.6)/count,[pu,pv]=at(u,side*(offset+reach-.3));
+        place(new T.BoxGeometry(.3,shade-.6,.3),pu,(shade-.6)/2,pv,iron);
+      }
+      for(let k=0;k<count;k++){
+        const u=-length+(k+.5)*length*2/count,[pu,pv]=at(u,side*(offset+.1));
+        place(new T.BoxGeometry(turn?.2:2.2,2.7,turn?2.2:.2),pu,1.5,pv,opening);
+      }
+      // Gabled porch over the entrance, its ridge running out from the wall.
+      const [gu,gv]=at(0,side*(offset+reach/2));
+      const gable=new T.CylinderGeometry(2.6,2.6,reach+.6,3).rotateX(Math.PI/2).rotateY(turn?Math.PI/2:0).scale(1,.75,1);
+      place(gable,gu,shade+.9,gv,iron);
+    }
+  }
+}
+
+// Sandstone concert hall on the sea front: the glazed lantern over the main hall, the octagonal tower beside it
+// and the great window to the ocean. Places from the 2024 orthophoto, heights from the LiDAR (lantern to 48 m).
+function auditorioAlfredoKraus(add: AddBuilding,altitude: Altitude,hall: Building){
+  const stone='#c9a973',glass='#7fa9a6',pale='#eceae4',dark='#3f4b4d';
+  const [x0,y0]=hall.rings[0][0],base=altitude(x0,y0),top=base+(hall.heightOverride??hall.height);
+  const lx=-3331.4,ly=2809;
+  add(new T.CylinderGeometry(5.2,5.2,14,8).translate(lx,top+7,-ly),glass,lx,ly);
+  add(new T.CylinderGeometry(5.6,5.6,.8,8).translate(lx,top+14.2,-ly),stone,lx,ly);
+  add(new T.ConeGeometry(5.6,4.6,8).translate(lx,top+16.9,-ly),pale,lx,ly);
+  const tx=-3309,ty=2828;
+  add(new T.CylinderGeometry(7.4,7.4,3,8).translate(tx,top+1.5,-ty),stone,tx,ty);
+  const sea=facade(add,-3328,2832.6,26,-21,base);
+  sea(new T.BoxGeometry(16,14,.6),0,15,-.6,dark);
+  for(const u of [-5.4,0,5.4])sea(new T.BoxGeometry(.5,14,.3),u,15,-1,stone);
+}
+
+const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario,'castillo-de-la-luz':castilloDeLaLuz,
+  'mercado-del-puerto':mercadoDelPuerto,'auditorio-alfredo-kraus':auditorioAlfredoKraus};
 
 export function addLandmarks(buildings: Building[],add: AddBuilding,altitude: Altitude){
   const built=new Set();

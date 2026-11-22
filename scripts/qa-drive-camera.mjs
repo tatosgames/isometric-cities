@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import {Vector3,MathUtils} from 'three';
-import {makeDriveCamera} from '../src/drive/drive-camera.ts';
+import {driveLookAhead,makeDriveCamera} from '../src/drive/drive-camera.ts';
+import {TUNE} from '../src/drive/drive.ts';
+
+for(const [kmh,metres] of [[0,0],[5,2.5],[10,5],[50,8.5],[90,12],[100,12]]){
+  assert.equal(driveLookAhead(kmh/3.6,TUNE.player.maxSpeed),metres);
+}
 
 const direction=new Vector3(-.82,1.15,.68).normalize();
 const clear=()=>false;

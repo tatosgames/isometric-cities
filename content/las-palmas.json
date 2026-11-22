@@ -149,6 +149,26 @@
     }
   ],
   "buildings": {
+    "32072": {
+      "landmark": "castillo-de-la-luz",
+      "heightOverride": 10,
+      "wallColor": "#8f867a",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "26966": {
+      "landmark": "mercado-del-puerto",
+      "heightOverride": 7.4,
+      "wallColor": "#efe6d2",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "14627:-3366:2768": {
+      "landmark": "auditorio-alfredo-kraus",
+      "wallColor": "#c9a973",
+      "windows": false,
+      "roofFurniture": false
+    },
     "41119": {
       "heightOverride": 12,
       "split": {
