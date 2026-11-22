@@ -92,7 +92,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
   function showMode(){
-    button.title='Cambiar cámara (C) · '+rig.label;
+    button.title='Cambiar vista (C) · '+rig.label;
     button.setAttribute('aria-label',button.title);
     button.dataset.mode=rig.mode;
   }

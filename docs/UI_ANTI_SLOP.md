@@ -20,6 +20,10 @@ La causa comune dei pattern scartati è sempre la stessa: abitudini da dashboard
 
 ## Catalogo
 
+### Guida: cambio di vista
+
+Il pulsante usa un occhio per indicare il cambio di punto di vista. La fotocamera faceva pensare a uno scatto.
+
 ### Guida: via e quartiere
 
 Il nome della via e il titolo del quartiere stanno direttamente sul plastico. Il contorno scuro segue le lettere e le rende leggibili sui tetti chiari.
