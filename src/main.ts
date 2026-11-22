@@ -3,6 +3,7 @@ import { validateSectorIndex } from './data/sector-index.ts';
 import type { ViewState } from './data/types.ts';
 import { element as el } from './map/dom.ts';
 import { required } from './required.ts';
+import { lodTransition } from './render/sectors/lod-transition.ts';
 import { streamCity } from './render/sectors/sector-stream.ts';
 import { createPlacesUI } from './map/places-ui.ts';
 import * as T from 'three';
@@ -44,6 +45,7 @@ async function start(){
   renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   host.append(renderer.domElement);
   const streamed=index?streamCity({data:{...data,...index},neutral,tones,compact,host,
+    lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
   const {group,altitude}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
   if(sea)scene.add(makeSea(sea));

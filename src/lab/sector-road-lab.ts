@@ -4,7 +4,7 @@ import {loadData,isCity,isSectorIndex,isRoofPalette,isLayers} from '../data/load
 import {ringCenter,sectorOwner} from '../data/sector-index.ts';
 import {streamCity} from '../render/sectors/sector-stream.ts';
 import {carGeometry,carVisualScale} from '../drive/car-model.ts';
-import {lodTransition} from './lod-transition.ts';
+import {lodTransition} from '../render/sectors/lod-transition.ts';
 import type {Point} from '../data/types.ts';
 
 export async function sectorRoadLab(){
@@ -46,7 +46,7 @@ export async function sectorRoadLab(){
   let changes=0,previousFrame=0,switchGap=0,switchNext=false;
   const ready=new Set<string>();
   const stream=streamCity({data:layers,compact,neutral:false,tones:palette.tones,host,legacyRoads:ui.legacy,
-    ...(lod?{trial:{stable:options.mode!=='attuale',...(options.mode==='visivo'?{attach:lodTransition(options)}:{}),
+    ...(lod?{lod:{stable:options.mode!=='attuale',...(options.mode==='visivo'?{attach:lodTransition(options)}:{}),
       observe(){changes++;}}}:{}),
     async loadLayers(s,signal){
       if(ui.delay&&s.id==='-1_-2')await new Promise<void>(r=>setTimeout(r,1800));

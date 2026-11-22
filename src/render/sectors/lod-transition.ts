@@ -1,14 +1,14 @@
-// Laboratory-only transition. The overview ground and detail terrain share world coordinates.
+// Sector LOD transition. The overview ground and detail terrain share world coordinates.
 import * as T from 'three';
-import type {SectorTrial} from '../render/sectors/sector-stream.ts';
+import type {SectorLod} from './sector-stream.ts';
 
-export interface LodSettings {ground:boolean;objects:boolean;duration:number;manual:boolean;progress:number}
+export interface LodSettings {ground:boolean;objects:boolean;duration:number;manual?:boolean;progress?:number}
 const threshold=`float lodThreshold(){
   vec2 p=mod(floor(gl_FragCoord.xy),4.);
   vec2 a=mod(p,2.), b=floor(p*.5);
   return (4.*(2.*a.x+3.*a.y-4.*a.x*a.y)+(2.*b.x+3.*b.y-4.*b.x*b.y)+.5)/16.;
 }`;
-export function lodTransition(settings:LodSettings):NonNullable<SectorTrial['attach']>{
+export function lodTransition(settings:LodSettings={ground:true,objects:true,duration:250}):NonNullable<SectorLod['attach']>{
   return (low,detail,overview)=>{
     const objects={value:0},ground={value:0};
     const {mat,road,buildingMat,wood,leaf,shadeMat}=detail.materials;
@@ -52,7 +52,7 @@ export function lodTransition(settings:LodSettings):NonNullable<SectorTrial['att
         if(show!==goal){goal=show;last=now;}
         const delta=(now-last)/Math.max(1,settings.duration);last=now;
         phase=T.MathUtils.clamp(phase+(show?delta:-delta),0,1);
-        const weight=settings.manual && show?settings.progress/100:phase;
+        const weight=settings.manual && show?(settings.progress??100)/100:phase;
         objects.value=settings.objects?weight:Number(show);ground.value=settings.ground?weight:Number(show);
         detail.group.visible=phase>0 && (objects.value>0 || ground.value>0);
         simplified.visible=!detail.group.visible||objects.value<1;

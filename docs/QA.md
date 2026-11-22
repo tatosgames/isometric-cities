@@ -229,6 +229,12 @@ Mediane di cinque passaggi a caldo sul percorso di Calle San Nicolás, confronto
 
 Il test di Conducir attraversa il confine in entrambi i sensi con pattuglia attiva. Il primo giro di QA sui settori ha segnalato una crescita dei contatori WebGL a Santa Ana. La ripetizione dell'intero circuito ha superato la stessa soglia, con 48.584.527 byte residenti a Santa Ana in entrambi gli ultimi due giri. Il test del laboratorio copre il selettore delle tre sezioni, il cambio di larghezza e la posizione dell'auto conservata.
 
+## Transizioni LOD nel gioco principale
+
+Mappa cittadina e Conducir condividono il fade di 250 ms del laboratorio. La mappa entra nel dettaglio a 520 m e lo mantiene fino a 580 m. La diagnostica dello streamer espone `near` e `fading` (settori in transizione). Il renderer richiede altri frame fino al completamento e conserva il ridisegno ambientale della mappa ferma.
+
+La prova `node scripts/qa-main-lod.mjs` ritarda un settore, forza la perdita del contesto al primo fade a camera ferma e verifica il ripristino. Con camera ortografica a zoom unitario verifica le due direzioni attorno a 550 m, il completamento dei fade, il budget e la modalità neutra. Il benchmark sul percorso Santa Ana–San Telmo in Chrome mobile emulato misura un p95 di 18,3 ms sulla build di riferimento `5d75c91` e 18,4 ms sulla nuova build (+0,55%). I risultati riguardano il computer di prova.
+
 ## Transizioni LOD nel laboratorio
 
 Aprire `lab.html?test=lod`. Le tre varianti confrontano il comportamento attuale, l'isteresi (ingresso a 520 m e uscita oltre 580 m) con una preferenza temporanea in guida per i settori visibili recenti, e la stessa politica con transizione visiva. La durata iniziale è 250 ms. La carreggiata campiona la texture panoramica nelle coordinate del mondo durante il passaggio al materiale locale. Le sagome di edifici e alberi usano maschere complementari su una matrice di 4 × 4 pixel. Le espulsioni necessarie a rispettare il budget avvengono subito.
