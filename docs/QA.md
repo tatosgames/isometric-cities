@@ -6,6 +6,8 @@ La regressione a 120 Hz misura 60 km/h a **1,442 s** e la punta a **5,442 s**, p
 
 In Chrome desktop e touch emulato, la prova strumentata ha raggiunto 90 km/h su un viale del grafo, verificato una curva stretta e fermato l'auto prima di un incrocio partendo da 90. Un urto frontale a circa 10,6 m/s ha prodotto il rimbalzo e quello a circa 11,6 m/s ha attivato anche il fermo.
 
+Typecheck, build e `npm.cmd test` superati. La suite ha evidenziato un aggiornamento del filtro di cattura già accodato quando la pagina viene nascosta. Il rendering ora applica il filtro soltanto a pagina visibile. La verifica del feel su telefono fisico resta aperta.
+
 ## Sterzo arcade · 22 novembre 2026
 
 La regressione a 120 Hz misura **1,442 s** fino a 16,5 m/s e **0,658 s** per fermarsi da 13 m/s in rettilineo. Un tocco di 100 ms a 13 m/s cambia la direzione della traiettoria di **2,58°**, contro i **0,96°** della taratura precedente. Dopo 400 ms di sterzo, al rilascio lo slittamento scende sotto 1,5 m/s in **175 ms**. La prova controlla anche rollio, controsterzo entro 50 ms, inclinazione longitudinale, ritorno in posizione neutra, altezza della scocca sulle ruote e limite della posa dopo un urto.
