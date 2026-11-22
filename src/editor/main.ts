@@ -9,10 +9,13 @@ import type { Point, Ring } from '../data/types.ts';
 import { required } from '../required.ts';
 import { GROUND_SURFACE } from '../render/ground-surface.ts';
 import { makeCity } from '../render/scene.ts';
+import type { BuildingRange } from '../render/scene.ts';
+import type { Building } from '../data/types.ts';
+import { previewBuilding } from './building-drag.ts';
 import { disposeMeshes, makeProp, poseProp } from './props.ts';
 
 type Selection = { part: number } | { prop: string };
-type Mode = 'move' | 'vertices' | 'rotate';
+type Mode = 'select' | 'move' | 'vertices' | 'rotate';
 const ui = <E extends HTMLElement>(id: string) => required(document.querySelector<E>('#'+id),id);
 const button = (id: string) => ui<HTMLButtonElement>(id);
 const message = ui('message');
@@ -40,17 +43,27 @@ async function start() {
   scene.add(sun,new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const controls = new OrbitControls(camera,canvas);
   controls.maxPolarAngle = Math.PI/2.6;
+  controls.mouseButtons.LEFT = T.MOUSE.PAN;
+  controls.mouseButtons.MIDDLE = T.MOUSE.PAN;
+  controls.mouseButtons.RIGHT = T.MOUSE.ROTATE;
+  controls.touches.ONE = T.TOUCH.PAN;
   controls.minZoom = .25;
   controls.maxZoom = 80;
   const [centerEast,centerNorth] = ringCenter(data.boundary);
-  controls.target.set(centerEast,0,-centerNorth);
-  camera.position.copy(controls.target).add(new T.Vector3(-490,690,410));
+  const overviewTarget = new T.Vector3(centerEast,0,-centerNorth);
+  const overviewOffset = new T.Vector3(-490,690,410);
+  controls.target.copy(overviewTarget);
+  camera.position.copy(overviewTarget).add(overviewOffset);
   controls.update();
 
   const gizmo = new TransformControls(camera,canvas), anchor = new T.Object3D();
   gizmo.enabled = false;
   const helpers = new T.Group(), props = new T.Group(), pickables = new T.Group();
   const propModels = new Map<string,T.Object3D>();
+  const buildingRanges = new Map<Building['rings'],BuildingRange[]>();
+  let movingBuilding: ReturnType<typeof previewBuilding> | undefined;
+  let reshapedBuilding: T.Mesh | undefined;
+  let propOutline: T.BoxHelper | undefined;
   const pointer = new T.Vector2(), ray = new T.Raycaster();
   scene.add(gizmo.getHelper(),anchor,helpers,props);
   let city: ReturnType<typeof makeCity>;
@@ -68,12 +81,21 @@ async function start() {
   new ResizeObserver(() => {
     const w = host.clientWidth, h = host.clientHeight;
     if (!w || !h) return;
-    if (!fitted) { camera.zoom = Math.min(w/980,h/790); fitted = true; }
+    if (!fitted) { camera.zoom = overviewZoom(); fitted = true; }
     camera.left = -w/2; camera.right = w/2; camera.top = h/2; camera.bottom = -h/2;
     camera.updateProjectionMatrix();
     renderer.setSize(w,h);
     draw();
   }).observe(host);
+
+  const overviewZoom = () => Math.min(host.clientWidth/980,host.clientHeight/790);
+
+  function extrude(rings: Ring[], height: number, altitude: number) {
+    const paths = rings.map(ring => ring.map(([x,y]) => new T.Vector2(x,y)));
+    const shape = new T.Shape(paths[0]);
+    shape.holes = paths.slice(1).map(ring => new T.Path(ring));
+    return new T.ExtrudeGeometry(shape,{ depth: height, bevelEnabled: false }).translate(0,0,altitude).rotateX(-Math.PI/2);
+  }
 
   function rebuild() {
     const previous = sceneData;
@@ -84,16 +106,13 @@ async function start() {
         disposeMeshes(pickables);
         pickables.clear();
       }
-      city = makeCity(data,false,tones);
+      buildingRanges.clear();
+      city = makeCity(data,false,tones,false,null,buildingRanges);
       scene.add(city.group);
       const material = new T.MeshBasicMaterial({ side: T.DoubleSide });
       data.buildings.forEach((building,part) => {
-        const rings = building.rings.map(ring => ring.map(([x,y]) => new T.Vector2(x,y)));
-        const shape = new T.Shape(rings[0]);
-        shape.holes = rings.slice(1).map(ring => new T.Path(ring));
         const z = city.altitude(...building.rings[0][0]);
-        const geometry = new T.ExtrudeGeometry(shape,{ depth: building.heightOverride ?? building.height, bevelEnabled: false });
-        geometry.translate(0,0,z).rotateX(-Math.PI/2);
+        const geometry = extrude(building.rings,building.heightOverride ?? building.height,z);
         const mesh = new T.Mesh(geometry,material);
         mesh.userData.part = part;
         pickables.add(mesh);
@@ -122,28 +141,43 @@ async function start() {
   const azimuth = T.MathUtils.radToDeg;
   const angle = T.MathUtils.degToRad;
 
+  function toolAllowed(tool: Mode) {
+    const building = buildingSelected();
+    if (tool === 'vertices') return !!(building && selected && 'part' in selected && !isFixedBuilding(data,selected.part));
+    if (tool === 'rotate') return !!propSelected();
+    return true;
+  }
+
+  const keyboard = matchMedia('(pointer:fine)').matches;
   function refreshSelection() {
     gizmo.enabled = false;
     gizmo.detach();
     disposeMeshes(helpers);
     helpers.clear();
     scene.add(helpers);
-    handles = []; outlines = [];
+    handles = []; outlines = []; propOutline = undefined;
     const building = buildingSelected(), prop = propSelected();
     if (!building && !prop) selected = null;
+    if (!toolAllowed(mode)) mode = 'move';
     const fixed = !!(selected && 'part' in selected && isFixedBuilding(data,selected.part));
     ui('selection').hidden = !selected;
+    ui('selection-empty').hidden = !!selected;
+    button('frame').disabled = !selected;
+    for (const tool of ['select','move','vertices','rotate'] as const) {
+      button(tool).disabled = !toolAllowed(tool);
+      button(tool).setAttribute('aria-pressed',String(!placing && mode === tool));
+    }
+    ui('viewport-hint').textContent = placing ? 'Choose where to place the prop.'
+      : mode === 'vertices' ? 'Drag a vertex to reshape the footprint.'
+      : mode === 'rotate' ? 'Drag the ring to rotate the prop.'
+      : keyboard ? (mode === 'move' ? 'Drag an object to move it. Right-drag to orbit.' : 'Click an object to select it. Right-drag to orbit.')
+      : (mode === 'move' ? 'Drag an object to move it. Pinch to zoom.' : 'Tap an object to select it. Pinch to zoom.');
     if (building || prop) {
       ui('object-name').textContent = prop ? propKinds[prop.kind] : `Building ${building!.id}${fixed ? ' · Read-only' : ''}`;
-      button('move').disabled = fixed;
-      button('vertices').hidden = !building;
-      button('vertices').disabled = fixed;
-      button('rotate').hidden = !prop;
       button('remove').hidden = !prop;
-      for (const tool of ['move','vertices','rotate']) button(tool).setAttribute('aria-pressed',String(mode === tool));
       const editingVertices = mode === 'vertices' && !!building && !fixed;
       ui('vertex-field').hidden = !editingVertices;
-      ui('coordinates').hidden = fixed;
+      ui('coordinates').hidden = fixed || mode === 'select';
       east.disabled = north.disabled = mode === 'rotate';
       yaw.disabled = mode !== 'rotate';
       ui('east-field').hidden = ui('north-field').hidden = east.disabled;
@@ -175,10 +209,15 @@ async function start() {
         } else anchor.position.copy(world(ringCenter(building.rings[0]),z));
         anchor.rotation.set(0,0,0);
       } else if (prop) {
+        const model = required(propModels.get(prop.id),'prop');
+        propOutline = new T.BoxHelper(model,0xd66438);
+        propOutline.material.depthTest = false;
+        propOutline.renderOrder = 3;
+        helpers.add(propOutline);
         poseProp(anchor,prop,city.groundAt);
         anchor.position.y += .45;
       }
-      if (!fixed && !placing) {
+      if (!fixed && !placing && (mode === 'move' || mode === 'rotate')) {
         gizmo.setMode(mode === 'rotate' ? 'rotate' : 'translate');
         gizmo.showX = gizmo.showZ = mode !== 'rotate';
         gizmo.showY = mode === 'rotate';
@@ -191,7 +230,7 @@ async function start() {
     button('undo').disabled = !undo.length;
     button('redo').disabled = !redo.length;
     button('place').setAttribute('aria-pressed',String(placing));
-    canvas.style.cursor = placing ? 'crosshair' : 'grab';
+    canvas.style.cursor = placing ? 'crosshair' : mode === 'move' ? 'grab' : 'default';
     draw();
   }
 
@@ -209,6 +248,7 @@ async function start() {
   }
 
   function commit(next: PilotEdits) {
+    clearPreview();
     try {
       const valid = readPilotEdits(base,next);
       if (JSON.stringify(valid) !== JSON.stringify(edits)) {
@@ -248,75 +288,206 @@ async function start() {
   }
 
   const position = (): Point => [round(anchor.position.x),round(-anchor.position.z)];
-  gizmo.addEventListener('dragging-changed',event => { controls.enabled = !event.value; });
-  gizmo.addEventListener('objectChange',() => {
+  function clearPreview() {
+    movingBuilding?.restore();
+    movingBuilding = undefined;
+    if (reshapedBuilding) disposeMeshes(reshapedBuilding);
+    reshapedBuilding = undefined;
+  }
+
+  function updatePreview() {
     const part = selected && 'part' in selected ? selected.part : null;
     const next = draft(position(),anchor.rotation.y);
     const prop = propSelected();
     if (prop) {
       const moved = next.props.find(entry => entry.id === prop.id);
-      if (moved) poseProp(required(propModels.get(prop.id),'prop'),moved,city.groundAt);
+      if (moved) {
+        poseProp(required(propModels.get(prop.id),'prop'),moved,city.groundAt);
+        propOutline?.update();
+      }
     } else if (part !== null) {
+      const building = data.buildings[part];
       const rings = next.footprints.find(edit => edit.part === part)?.rings ?? base.data.buildings[part].rings;
+      const origin = building.rings[0][0], target = rings[0][0];
+      const bottom = city.altitude(...target), height = building.heightOverride ?? building.height;
+      const top = bottom + height + .18;
+      movingBuilding ??= previewBuilding(buildingRanges.get(building.rings) ?? []);
+      if (mode === 'move') {
+        movingBuilding.move(target[0]-origin[0],bottom-city.altitude(...origin),origin[1]-target[1]);
+      } else {
+        if (!reshapedBuilding) {
+          movingBuilding.hide();
+          reshapedBuilding = new T.Mesh(extrude(rings,height,bottom),new T.MeshLambertMaterial({color:0xbc7958}));
+          scene.add(reshapedBuilding);
+        } else {
+          reshapedBuilding.geometry.dispose();
+          reshapedBuilding.geometry = extrude(rings,height,bottom);
+        }
+      }
       for (const [i,line] of outlines.entries()) {
-        const z = line.geometry.attributes.position.getY(0);
-        line.geometry.setFromPoints(rings[i].map(p => world(p,z)));
+        line.geometry.setFromPoints(rings[i].map(p => world(p,top)));
         line.geometry.computeBoundingSphere();
       }
-      for (const [i,{point}] of vertexList(rings).entries()) handles[i]?.position.copy(world(point,anchor.position.y));
+      for (const [i,{point}] of vertexList(rings).entries()) handles[i]?.position.copy(world(point,top));
     }
     syncFields();
-  });
+    draw();
+  }
+
+  gizmo.addEventListener('dragging-changed',event => { controls.enabled = !event.value; });
+  gizmo.addEventListener('objectChange',updatePreview);
   gizmo.addEventListener('mouseUp',() => commit(draft(position(),anchor.rotation.y)));
 
-  let clickStart: {x:number;y:number;id:number;gizmo:boolean} | null = null;
+
+  function pointRay(event: PointerEvent) {
+    const rect = canvas.getBoundingClientRect();
+    pointer.set(2*(event.clientX-rect.left)/rect.width-1,1-2*(event.clientY-rect.top)/rect.height);
+    scene.updateMatrixWorld();
+    camera.updateMatrixWorld();
+    ray.setFromCamera(pointer,camera);
+  }
+
+  function pick() {
+    const vertexHit = ray.intersectObjects(handles,false)[0];
+    if (vertexHit) return {selection:selected,vertex:handles.indexOf(vertexHit.object as T.Mesh),point:vertexHit.point};
+    const hit = ray.intersectObjects([...props.children,...pickables.children],true)[0];
+    if (!hit) return null;
+    const part: unknown = hit.object.userData.part;
+    const prop: unknown = hit.object.parent?.userData.prop;
+    const selection = typeof prop === 'string' ? {prop} : typeof part === 'number' ? {part} : null;
+    return {selection,vertex:null,point:hit.point};
+  }
+
+  const plane = new T.Plane(new T.Vector3(0,1,0));
+  const planeHit = new T.Vector3();
+  let direct: { id: number; x: number; y: number; offset: T.Vector3; moved: boolean } | null = null;
+  let clickStart: { id: number; x: number; y: number; gizmo: boolean } | null = null;
+
   canvas.addEventListener('pointerdown',event => {
-    if (!event.isPrimary || event.button !== 0) return;
-    clickStart = { x:event.clientX,y:event.clientY,id:event.pointerId,gizmo:gizmo.dragging };
-  });
-  canvas.addEventListener('pointercancel',() => {
-    clickStart = null;
-    if (gizmo.dragging) {
-      gizmo.dragging = false;
-      gizmo.axis = null;
-      rebuild(); refreshSelection();
+    if (!event.isPrimary || event.button !== 0 || placing || event.shiftKey || event.ctrlKey || event.metaKey) return;
+    pointRay(event);
+    if (gizmo.enabled) {
+      gizmo.pointerHover({x:pointer.x,y:pointer.y,button:event.button} as PointerEvent);
+      if (gizmo.axis) return;
     }
+    const picked = pick();
+    if (!picked?.selection) return;
+    if (picked.vertex !== null) vertex = picked.vertex;
+    else {
+      const previous = selected;
+      selected = picked.selection;
+      const samePart = previous && 'part' in previous && 'part' in selected && previous.part === selected.part;
+      if (mode === 'vertices' && !samePart) mode = 'move';
+      if (!samePart) vertex = 0;
+    }
+    message.textContent = '';
+    refreshSelection();
+    const fixed = selected && 'part' in selected && isFixedBuilding(data,selected.part);
+    if (fixed || (mode !== 'move' && picked.vertex === null)) return;
+    plane.constant = -picked.point.y;
+    if (!ray.ray.intersectPlane(plane,planeHit)) return;
+    direct = {id:event.pointerId,x:event.clientX,y:event.clientY,offset:anchor.position.clone().sub(planeHit),moved:false};
+    canvas.setPointerCapture(event.pointerId);
+    canvas.style.cursor = 'grabbing';
+    event.stopImmediatePropagation();
+  },{capture:true});
+
+  canvas.addEventListener('pointermove',event => {
+    if (direct?.id !== event.pointerId) return;
+    if (!direct.moved && Math.hypot(event.clientX-direct.x,event.clientY-direct.y) < 4) return;
+    pointRay(event);
+    if (!ray.ray.intersectPlane(plane,planeHit)) return;
+    direct.moved = true;
+    host.dataset.dragging = 'true';
+    anchor.position.copy(planeHit.add(direct.offset));
+    updatePreview();
   });
+
+  function stopDirect() {
+    if (!direct) return false;
+    const {id,moved} = direct;
+    direct = null;
+    delete host.dataset.dragging;
+    if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+    canvas.style.cursor = mode === 'move' ? 'grab' : 'default';
+    return moved;
+  }
+
+  function cancelDrag() {
+    if (!direct && !gizmo.dragging) return;
+    stopDirect();
+    gizmo.dragging = false;
+    gizmo.axis = null;
+    clearPreview();
+    const prop = propSelected();
+    if (prop) poseProp(required(propModels.get(prop.id),'prop'),prop,city.groundAt);
+    refreshSelection();
+  }
+
+  canvas.addEventListener('pointerup',event => {
+    if (direct?.id !== event.pointerId) return;
+    if (stopDirect()) commit(draft(position(),anchor.rotation.y));
+    event.stopImmediatePropagation();
+  },{capture:true});
+
+  canvas.addEventListener('pointerdown',event => {
+    if (!event.isPrimary || event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey) return;
+    clickStart = {x:event.clientX,y:event.clientY,id:event.pointerId,gizmo:gizmo.dragging};
+  });
+  canvas.addEventListener('pointercancel',() => { clickStart = null; cancelDrag(); });
+  canvas.addEventListener('lostpointercapture',event => { if (direct?.id === event.pointerId) cancelDrag(); });
+  window.addEventListener('blur',cancelDrag);
+
   canvas.addEventListener('pointerup',event => {
     const start = clickStart;
     clickStart = null;
     if (!start || start.id !== event.pointerId || start.gizmo
       || Math.hypot(event.clientX-start.x,event.clientY-start.y) > 5) return;
-    const rect = canvas.getBoundingClientRect();
-    pointer.set(2*(event.clientX-rect.left)/rect.width-1,1-2*(event.clientY-rect.top)/rect.height);
-    scene.updateMatrixWorld(); camera.updateMatrixWorld(); pickables.updateMatrixWorld(true);
-    ray.setFromCamera(pointer,camera);
+    pointRay(event);
     if (placing) {
       const hit = ray.intersectObject(city.group,true).find(({object,face}) =>
         object instanceof T.Mesh && face && object.geometry.getAttribute('surface')?.getX(face.a) === GROUND_SURFACE);
       const position: Point | null = hit ? [round(hit.point.x),round(-hit.point.z)] : null;
       if (!position || !inPilot(data,position)) { message.textContent = 'Choose a point inside the map.'; return; }
-      const prop: MapProp = { id: crypto.randomUUID(), kind: catalog.value as PropKind, position, yaw: 0 };
-      selected = { prop: prop.id }; placing = false; mode = 'move';
-      commit({ ...edits, props: [...edits.props,prop] });
-      return;
+      const prop: MapProp = {id:crypto.randomUUID(),kind:catalog.value as PropKind,position,yaw:0};
+      selected = {prop:prop.id}; placing = false; mode = 'move';
+      commit({...edits,props:[...edits.props,prop]});
+    } else if (!pick()) {
+      selected = null;
+      message.textContent = '';
+      refreshSelection();
     }
-    const handle = ray.intersectObjects(handles,false)[0];
-    if (handle) { vertex = handles.indexOf(handle.object as T.Mesh); refreshSelection(); return; }
-    const hit = ray.intersectObjects([...props.children,...pickables.children],true)[0];
-    const mesh = hit?.object;
-    const part: unknown = mesh?.userData.part;
-    const prop: unknown = mesh?.parent?.userData.prop;
-    selected = typeof prop === 'string' ? { prop } : typeof part === 'number' ? { part } : null;
-    mode = 'move'; vertex = 0;
-    message.textContent = '';
-    refreshSelection();
   });
 
+  function setTool(tool: Mode) {
+    if (!toolAllowed(tool)) return;
+    mode = tool; placing = false;
+    refreshSelection();
+  }
+
+  function showView(target: T.Vector3,offset: T.Vector3,zoom: number) {
+    controls.target.copy(target);
+    camera.position.copy(target).add(offset);
+    camera.zoom = T.MathUtils.clamp(zoom,controls.minZoom,controls.maxZoom);
+    camera.updateProjectionMatrix();
+    controls.update();
+    draw();
+  }
+
+  function frameSelection() {
+    if (!selected) return;
+    const target = 'part' in selected ? pickables.children[selected.part] : propModels.get(selected.prop);
+    if (!target) return;
+    const box = new T.Box3().setFromObject(target), size = box.getSize(new T.Vector3());
+    showView(box.getCenter(new T.Vector3()),camera.position.clone().sub(controls.target),
+      Math.min(host.clientWidth,host.clientHeight)*.52/Math.max(size.x,size.y,size.z,5));
+  }
   for (const [kind,label] of Object.entries(propKinds)) catalog.add(new Option(label,kind));
-  for (const name of ['open','save','place']) button(name).disabled = false;
+  for (const name of ['open','save','place','overview']) button(name).disabled = false;
   catalog.disabled = false;
-  for (const tool of ['move','vertices','rotate'] as const) button(tool).onclick = () => { mode = tool; refreshSelection(); };
+  for (const tool of ['select','move','vertices','rotate'] as const) button(tool).onclick = () => setTool(tool);
+  button('frame').onclick = frameSelection;
+  button('overview').onclick = () => showView(overviewTarget,overviewOffset,overviewZoom());
   vertexSelect.onchange = () => { vertex = Number(vertexSelect.value); refreshSelection(); };
   button('place').onclick = () => { placing = !placing; refreshSelection(); };
   button('remove').onclick = () => { const prop = propSelected(); if (prop) commit({ ...edits, props: edits.props.filter(p => p.id !== prop.id) }); };
@@ -334,8 +505,21 @@ async function start() {
   button('undo').onclick = () => step(undo,redo);
   button('redo').onclick = () => step(redo,undo);
   window.addEventListener('keydown',event => {
-    if (event.defaultPrevented || gizmo.dragging || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
-    if (event.key === 'Escape' && placing) { placing = false; refreshSelection(); }
+    if (event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    if (event.key === 'Escape') {
+      if (direct || gizmo.dragging) { cancelDrag(); return; }
+      if (placing) placing = false;
+      else selected = null;
+      refreshSelection();
+      return;
+    }
+    if (direct || gizmo.dragging) return;
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      const tools = {q:'select',w:'move',v:'vertices',e:'rotate'} as const;
+      const key = event.key.toLowerCase();
+      if (Object.hasOwn(tools,key)) setTool(tools[key as keyof typeof tools]);
+      if (key === 'f') frameSelection();
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault();
       if (event.shiftKey) step(redo,undo); else step(undo,redo);

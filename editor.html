@@ -11,40 +11,54 @@
   <main>
     <header>
       <h1>Pilot Map Editor</h1>
-      <div class="tools">
+      <div class="tools file-tools">
         <button id="open" disabled>Open edits</button>
         <input id="file" type="file" accept=".json,application/json" hidden>
         <button id="save" disabled>Download JSON</button>
         <a href="./?area=pilot&amp;editorPreview" target="_blank" rel="noopener">Test Drive</a>
       </div>
     </header>
-    <div id="viewport" aria-label="Pilot map view"></div>
+    <div class="viewport-shell">
+      <div id="viewport" aria-label="Pilot map view"></div>
+      <div class="viewport-toolbar">
+        <div class="tools tool-group" role="group" aria-label="Viewport tools">
+          <button id="select" type="button" aria-pressed="false" aria-keyshortcuts="Q" title="Select (Q)" disabled>Select</button>
+          <button id="move" type="button" aria-pressed="true" aria-keyshortcuts="W" title="Move (W)" disabled>Move</button>
+          <button id="vertices" type="button" aria-pressed="false" aria-keyshortcuts="V" title="Edit vertices (V)" disabled>Vertices</button>
+          <button id="rotate" type="button" aria-pressed="false" aria-keyshortcuts="E" title="Rotate (E)" disabled>Rotate</button>
+        </div>
+        <div class="tools tool-group" role="group" aria-label="Camera">
+          <button id="frame" type="button" aria-keyshortcuts="F" title="Frame selection (F)" disabled>Frame</button>
+          <button id="overview" type="button" disabled>Overview</button>
+        </div>
+      </div>
+      <p id="viewport-hint"></p>
+    </div>
     <aside aria-label="Editing tools">
       <div class="tools" role="group" aria-label="Edit history">
         <button id="undo" disabled>Undo</button>
         <button id="redo" disabled>Redo</button>
       </div>
+      <section class="inspector" aria-label="Inspector">
+        <h2>Inspector</h2>
+        <p id="selection-empty">Select a building or prop.</p>
+        <section id="selection" hidden aria-label="Selection">
+          <h3 id="object-name"></h3>
+          <label id="vertex-field" hidden>Vertex <select id="vertex"></select></label>
+          <form id="coordinates">
+            <label id="east-field">East (m) <input id="east" type="number" step="any" required></label>
+            <label id="north-field">North (m) <input id="north" type="number" step="any" required></label>
+            <label id="yaw-field" hidden>Angle (°) <input id="yaw" type="number" step="any" required disabled></label>
+            <button>Apply</button>
+          </form>
+          <button id="remove" type="button">Remove</button>
+        </section>
+      </section>
       <label for="catalog">Street furniture</label>
       <div class="tools">
         <select id="catalog" disabled></select>
         <button id="place" disabled aria-pressed="false">Place on map</button>
       </div>
-      <section id="selection" hidden aria-label="Selection">
-        <h2 id="object-name"></h2>
-        <div class="tools">
-          <button id="move" aria-pressed="true">Move</button>
-          <button id="vertices" aria-pressed="false">Vertices</button>
-          <button id="rotate" aria-pressed="false">Rotate</button>
-          <button id="remove">Remove</button>
-        </div>
-        <label id="vertex-field" hidden>Vertex <select id="vertex"></select></label>
-        <form id="coordinates">
-          <label id="east-field">East (m) <input id="east" type="number" step="any" required></label>
-          <label id="north-field">North (m) <input id="north" type="number" step="any" required></label>
-          <label id="yaw-field" hidden>Angle (°) <input id="yaw" type="number" step="any" required disabled></label>
-          <button>Apply</button>
-        </form>
-      </section>
       <p id="message" role="status">Loading…</p>
     </aside>
     <footer>© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · Ayuntamiento de Las Palmas de G.C. · <a href="https://pnoa.ign.es/">PNOA / IGN</a></footer>

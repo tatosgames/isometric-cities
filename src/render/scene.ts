@@ -1,4 +1,4 @@
-import type { CityData, Ring, RoofTones } from '../data/types.ts';
+import type { Building, CityData, Ring, RoofTones } from '../data/types.ts';
 import style from '../data/road-style.json';
 import type { GroundMap } from './ground-map.ts';
 import {cityMaterials} from './city-materials.ts';
@@ -12,10 +12,18 @@ interface Bucket {
   parts: T.BufferGeometry[];
   vertices: number;
   material: T.Material;
+  editable?: { building: Building; start: number; count: number }[];
+}
+
+export interface BuildingRange {
+  mesh: T.Mesh;
+  start: number;
+  count: number;
 }
 
 
-export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null) {
+export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null,
+  buildingRanges?: Map<Building['rings'], BuildingRange[]>) {
   const group = new T.Group();
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
   const {mat,road,buildingMat,wood,leaf,shadeMat}=cityMaterials(neutral,groundMap);
@@ -34,12 +42,23 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const mesh=new T.Mesh(geometry,road);mesh.receiveShadow=true;group.add(mesh);
   }
   const buckets = new Map<string, Bucket>();
+  let editableBuilding: Building | undefined;
   function flush(bucket: Bucket){
     if(!bucket.parts.length)return;
     const geometry=mergeGeometries(bucket.parts);
     if(!geometry)throw new Error("Incompatible city geometries");
     const mesh=new T.Mesh(geometry,bucket.material);
     mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
+    if(bucket.editable && buildingRanges){
+      const position = geometry.getAttribute('position');
+      if(position instanceof T.BufferAttribute)position.setUsage(T.DynamicDrawUsage);
+      for(const {building,start,count} of bucket.editable){
+        const ranges=buildingRanges.get(building.rings) ?? [];
+        if(!ranges.length)buildingRanges.set(building.rings,ranges);
+        ranges.push({mesh,start,count});
+      }
+      bucket.editable.length=0;
+    }
     bucket.parts.length=0;bucket.vertices=0;
   }
   const terrain = data.terrain;
@@ -69,7 +88,14 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const key=Math.floor(x/120)+','+Math.floor(y/120)+','+material.id;
     let bucket=buckets.get(key);
     if(!bucket){bucket={parts:[],vertices:0,material};buckets.set(key,bucket);}
-    bucket.parts.push(geom);bucket.vertices+=geom.attributes.position.count;
+    const count=geom.attributes.position.count;
+    if(editableBuilding && buildingRanges){
+      const ranges=bucket.editable??=[];
+      const previous=ranges[ranges.length-1];
+      if(previous?.building===editableBuilding && previous.start+previous.count===bucket.vertices)previous.count+=count;
+      else ranges.push({building:editableBuilding,start:bucket.vertices,count});
+    }
+    bucket.parts.push(geom);bucket.vertices+=count;
     if(bucket.vertices>=49152)flush(bucket);
   }
   function shape(rings: Ring[]) {
@@ -124,6 +150,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
   const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
   for(const b of data.buildings){
+    editableBuilding=b;
     const [x,y]=b.rings[0][0], s=shape(b.rings);
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
     const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
@@ -182,6 +209,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(sills,3));trim.computeVertexNormals();addBuilding(trim,'#ede8dc',x,y);
     }
   }
+  editableBuilding=undefined;
   addLandmarks(data.buildings,addBuilding,altitude);
   const templates={
     crown:new T.IcosahedronGeometry(1,compact?0:1),
