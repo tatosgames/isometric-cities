@@ -55,15 +55,22 @@ for p in places:
     point=polygons[p['id']].representative_point()
     features.append(feature(point,dict(p,xy=[point.x,point.y])))
 save('poi.geojson',dict(type='FeatureCollection',features=features))
-historic=MultiPoint([v for key in coverage['historicPlaces'] for v in polygons[key].exterior.coords]).convex_hull.buffer(95,quad_segs=2)
-corridor=LineString([project(*p) for p in coverage['axis']]).buffer(coverage['radius'])
+# Each zone is an envelope of places, a buffered corridor or an explicit lon/lat polygon.
+def zone_shape(z):
+    if 'places' in z: return MultiPoint([v for key in z['places'] for v in polygons[key].exterior.coords]).convex_hull.buffer(z['margin'],quad_segs=2)
+    if 'axis' in z: return LineString([project(*p) for p in z['axis']]).buffer(z['radius'])
+    return Polygon([project(*p) for p in z['polygon']])
+zones=[zone_shape(z) for z in coverage['zones']]
+assert len({z['id'] for z in coverage['zones']})==len(zones), 'Duplicate zone ID'
+covered=zones[0]
+for z in zones[1:]: covered=covered.union(z)
 # Classify the coast partitions inside the acquisition window using the known inland plaza.
 window=transform(project,box(*coverage['bounds']))
 coast=[LineString(v).intersection(window) for t,v in ways.values() if t.get('natural')=='coastline']
 partitions=list(polygonize(unary_union([window.boundary,*coast])))
 land=next(p for p in partitions if p.contains(polygons[catalog['pilotFocus']].representative_point()))
 assert len(partitions)>1 and land.area<window.area*.99, 'Coastline failed to split the acquisition window'
-aoi=historic.union(corridor).intersection(land)
+aoi=covered.intersection(land)
 assert aoi.geom_type=='Polygon' and aoi.area>=coverage['minimumLandM2'], aoi.area
 assert all(aoi.covers(poly.representative_point()) for poly in polygons.values())
 print('Land area',round(aoi.area),'m2',flush=True)

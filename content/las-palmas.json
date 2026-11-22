@@ -139,37 +139,46 @@
       3,
       4
     ],
-    "historicPlaces": [
-      "santa-ana",
-      "casa-de-colon",
-      "mercado-de-vegueta",
-      "teatro-perez-galdos",
-      "gabinete-literario",
-      "san-telmo"
+    "zones": [
+      {
+        "id": "vegueta-triana",
+        "places": [
+          "santa-ana",
+          "casa-de-colon",
+          "mercado-de-vegueta",
+          "teatro-perez-galdos",
+          "gabinete-literario",
+          "san-telmo"
+        ],
+        "margin": 95
+      },
+      {
+        "id": "arenales-ciudad-jardin",
+        "axis": [
+          [
+            -15.417,
+            28.1085
+          ],
+          [
+            -15.4208,
+            28.1124
+          ],
+          [
+            -15.4239,
+            28.1161
+          ],
+          [
+            -15.4272,
+            28.1207
+          ],
+          [
+            -15.4292,
+            28.1242
+          ]
+        ],
+        "radius": 570
+      }
     ],
-    "axis": [
-      [
-        -15.417,
-        28.1085
-      ],
-      [
-        -15.4208,
-        28.1124
-      ],
-      [
-        -15.4239,
-        28.1161
-      ],
-      [
-        -15.4272,
-        28.1207
-      ],
-      [
-        -15.4292,
-        28.1242
-      ]
-    ],
-    "radius": 570,
     "minimumLandM2": 2436567
   }
 }
