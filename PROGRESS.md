@@ -81,3 +81,9 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
+
+**Preloader.** L’anello di avvio segue i traguardi reali del caricamento. La mappa entra in dissolvenza dopo il primo frame della vista iniziale con la zona e il dettaglio previsti dallo zoom. Se lo streaming tarda, entra il livello già disegnato e il dettaglio continua in background. Il terreno si scarica in parallelo al core. [Verifiche](docs/QA.md#preloader-della-mappa).
+
+**Preloader · Fluidità e recupero.** Core e terreno partono dall’HTML mentre si scarica il modulo principale. L’anello avanza con i completamenti dei dati e il settore iniziale viene renderizzato al livello finale sotto la schermata di avvio. Gli errori transitori dei dati ricevono un tentativo automatico e il limite di avvio si sospende in background. [Verifiche](docs/QA.md#fluidità-e-recupero).
+
+**Preloader · Revisione anti-slop.** Un solo indicatore per l’attesa e il progresso. Attribuzioni visibili anche dopo l’apertura e separate da Play. [Verifiche](docs/QA.md#revisione-anti-slop-del-preloader).

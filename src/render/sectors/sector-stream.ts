@@ -13,7 +13,7 @@ import { groundSampler } from '../ground-surface.ts';
 
 export interface SectorLod {
   stable:boolean;
-  attach?:(low:T.Group, detail:Pick<ReturnType<typeof makeCity>,'group'|'materials'>, overview:ReturnType<typeof makeGroundMap>)=>{step:(show:boolean,now:number)=>boolean;dispose:()=>void};
+  attach?:(low:T.Group, detail:Pick<ReturnType<typeof makeCity>,'group'|'materials'>, overview:ReturnType<typeof makeGroundMap>)=>{step:(show:boolean,now:number,covered?:boolean)=>boolean;dispose:()=>void};
   observe?:(id:string,show:boolean)=>void;
 }
 interface StreamOptions {
@@ -159,7 +159,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   const frustum=new T.Frustum(),matrix=new T.Matrix4(),projected=new T.Vector3();
   const lastTarget=new T.Vector3(),ahead=new T.Vector3(),aheadPoint=new T.Vector3();
   let requested: ResidentSector[]=[],requestedZones: ResidentZone[]=[];
-  const demanded=new Set<ResidentZone>();
+  let demanded: ResidentZone | undefined;
   let near=false,mid=false,activeFades=0;
   const transitions=new Map<string,ReturnType<NonNullable<SectorLod['attach']>>>();
   const displayed=new Set<string>(), lastVisible=new Map<string,number>();
@@ -269,18 +269,19 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     }
   }
   function suspend(){
-    requested=[];requestedZones=[];demanded.clear();for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
+    requested=[];requestedZones=[];demanded=undefined;for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
   }
   function zoneAt(x: number,y: number){return zoneById.get(sectorOwner(x,y,data.zoneSize));}
   /** Ask for the zone under a point whatever the camera shows. True once its footprints are resident. */
   function demand(x: number,y: number){
     const z=zoneAt(x,y);
-    if(!z)return true;
-    demanded.add(z);
-    if(!z.assets)refresh();
-    return !!z.assets;
+    if(z!==demanded){
+      demanded=z;
+      if(z && !z.assets)refresh();
+    }
+    return !z || !!z.assets;
   }
-  function update(camera: T.OrthographicCamera,target: T.Vector3,driving=false){
+  function update(camera: T.OrthographicCamera,target: T.Vector3,driving=false,opening?:'covered'|'revealing'){
     tick++;
     const width=(camera.right-camera.left)/camera.zoom,height=(camera.top-camera.bottom)/camera.zoom;
     const span=Math.min(width,height),long=Math.max(width,height);
@@ -290,10 +291,20 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const now=performance.now();
     near=driving || (lod?.stable?(near?span<=580:span<=520):span<=550);
     mid=driving || long<=(mid?zoneSpan*1.09:zoneSpan);
-    for(const z of zones)if(demanded.has(z) || (mid && (frustum.intersectsBox(z.prefetch) ||
+    const openingZone=opening && mid?zoneAt(target.x,-target.z):undefined;
+    let openingSector: ResidentSector | undefined,closest=Infinity;
+    if(opening && near && mid)for(const s of sectors){
+      if(!frustum.intersectsBox(s.bounds))continue;
+      const distance=s.bounds.getCenter(projected).distanceToSquared(target);
+      if(distance<closest){openingSector=s;closest=distance;}
+    }
+    for(const z of zones)if(z===openingZone || z===openingSector?.zone || z===demanded || (mid && (frustum.intersectsBox(z.prefetch) ||
       (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize))))z.wanted=now;
-    requestedZones=zones.filter(z=>now-z.wanted<linger);
-    const zoneRank=(z: ResidentZone)=>(frustum.intersectsBox(z.bounds)?0:1e10)+z.bounds.getCenter(projected).distanceToSquared(aheadPoint);
+    requestedZones=opening
+      ? zones.filter(z=>z===openingZone || z===openingSector?.zone)
+      : zones.filter(z=>now-z.wanted<linger);
+    const zoneRank=(z: ResidentZone)=>z===demanded?-3:z===openingZone?-2:z===openingSector?.zone?-1:
+      (frustum.intersectsBox(z.bounds)?0:1e10)+z.bounds.getCenter(projected).distanceToSquared(aheadPoint);
     requestedZones.sort((a,b)=>zoneRank(a)-zoneRank(b));
     for(const z of requestedZones)if(z.assets)z.used=tick;
     // A zone kept for a quick return shows the far level, so one view never mixes the two.
@@ -301,7 +312,9 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const idle=zones.filter(z=>z.assets&&!requestedZones.includes(z)).sort((a,b)=>b.used-a.used);
     for(const z of idle.slice(idleZones))releaseZone(z);
     if(near)for(const s of sectors)if(frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize))s.wanted=now;
-    requested=sectors.filter(s=>s.low && requestedZones.includes(s.zone) && now-s.wanted<linger);
+    requested=opening
+      ? openingSector?.low?[openingSector]:[]
+      : sectors.filter(s=>s.low && requestedZones.includes(s.zone) && now-s.wanted<linger);
     // Come back once the lingering requests have expired, even if the camera stays still.
     if(!lingerTimer && (requestedZones.some(z=>z.wanted!==now) || requested.some(s=>s.wanted!==now))){
       lingerTimer=window.setTimeout(()=>{lingerTimer=0;refresh();},linger+20);
@@ -315,7 +328,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     // The same grace as the requests: a sector on the edge of the screen keeps one answer while its download runs.
     for(const s of sectors){if(frustum.intersectsBox(s.bounds))s.seen=now;s.inView=now-s.seen<linger;}
     requested.sort((a,b)=>rank(a)-rank(b));
-    let fading=0;
+    let fading=0,openingFading=false;
     for(const s of sectors){
       if(!s.low)continue;
       const show=requested.includes(s)&&!!s.detail;
@@ -328,7 +341,10 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       }
       s.low.visible=!show;
       if(s.detail){s.detail.visible=show;if(show)s.used=tick;}
-      if(transitions.get(s.id)?.step(show,now))fading++;
+      if(transitions.get(s.id)?.step(show,now,opening==='covered' && s===openingSector)){
+        fading++;
+        if(s===openingSector)openingFading=true;
+      }
     }
     if(fading || activeFades)refresh();
     activeFades=fading;
@@ -351,6 +367,10 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       visible:sectors.filter(s=>s.detail?.visible).length,zones:zones.filter(z=>z.assets).map(z=>z.id),
       zoneBytes,bytes,budget,evictions,
       pending:pending?.s.id??pendingZone?.z.id??null});
+    return {
+      zoneReady:!openingZone || !!openingZone.assets,
+      detailReady:!openingSector || (!!openingSector.detail?.visible && !openingFading)
+    };
   }
-  return {...base,groundAt,update,suspend,demand,undemand(){demanded.clear();}};
+  return {...base,groundAt,update,suspend,demand,undemand(){demanded=undefined;}};
 }

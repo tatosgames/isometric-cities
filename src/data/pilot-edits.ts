@@ -8,8 +8,8 @@ interface FootprintEdit { part: number; id: number; rings: Ring[] }
 export interface PilotEdits { version: 1; base: string; footprints: FootprintEdit[]; props: MapProp[] }
 export interface PilotBase { data: CityData; hash: string }
 
-export async function loadPilotBase(): Promise<PilotBase> {
-  const response = await fetch('./data/pilot.json');
+export async function loadPilotBase(signal?: AbortSignal): Promise<PilotBase> {
+  const response = await fetch('./data/pilot.json', {signal: signal ?? null});
   if (!response.ok) throw new Error('Could not load pilot.json.');
   const bytes = await response.arrayBuffer();
   const data: unknown = JSON.parse(new TextDecoder().decode(bytes));

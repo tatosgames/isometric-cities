@@ -25,25 +25,64 @@ interface Flight {
 const turnDuration=300;
 const upAxis=new T.Vector3(0,1,0);
 const normalizeTurn=(turn: number)=>T.MathUtils.euclideanModulo(turn,4);
+const map=el('map');
+const startup=new AbortController();
+const booting=()=>map.dataset.boot==='loading';
+const bootEvent=(name: string)=>dispatchEvent(new Event('atlas:boot-'+name));
+addEventListener('atlas:boot-failed',()=>startup.abort(),{once:true});
+let bootPercent=0;
+function bootProgress(percent: number){
+  if(percent<bootPercent || startup.signal.aborted)return;
+  const progress=el('boot-progress');
+  if(percent===bootPercent && progress.hasAttribute('aria-valuenow'))return;
+  bootPercent=percent;
+  progress.style.setProperty('--boot-progress',String(percent));
+  progress.setAttribute('aria-valuenow',String(percent));
+}
+function bootError(error: unknown){
+  if(startup.signal.aborted)return;
+  console.error(error);
+  bootEvent('error');
+}
 
 async function start(){
+  if(!booting())return;
+  bootProgress(12);
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
   const neutral=query.has('neutral');
-  const pilotPreview=pilot && query.has('editorPreview')
-    ? import('./editor/pilot-preview.ts').then(({loadEditedPilot})=>loadEditedPilot(el('status'))) : null;
+  const {signal}=startup;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
   const stage=query.get('area')==='stress'?'stress':'city';
-  const [core,single,poi,{tones},index,sea,edited]=await Promise.all([pilot?null:loadCore(stage),pilot&&!pilotPreview?loadData('pilot.json',isCity):null,loadData('poi.geojson',isPlaces),
-    neutral?{tones:null}:loadData('roof-tones.json',isRoofPalette),pilot?null:loadData(stage+'-index.json',isSectorIndex),
-    pilot||neutral||stage!=='city'?null:loadData('sea.json',isSea),pilotPreview]);
+  const withSea=!pilot && !neutral && stage==='city';
+  const tasks=(pilot?2:3)+Number(!neutral)+Number(withSea);
+  let completed=0;
+  function track<T>(job: Promise<T>){
+    return job.then(result=>{
+      bootProgress(12+Math.round(34*++completed/tasks));
+      return result;
+    });
+  }
+  function startupData<T>(file: string, valid: (value: unknown)=>value is T){
+    return track(loadData(file,valid,signal,true));
+  }
+  const pilotPreview=pilot && query.has('editorPreview')
+    ? track(import('./editor/pilot-preview.ts').then(({loadEditedPilot})=>loadEditedPilot(el('status'),signal,
+      waiting=>bootEvent(waiting?'picker':'resume')))) : null;
+  const [core,single,poi,{tones},index,sea,edited]=await Promise.all([
+    pilot?null:track(loadCore(stage,signal)),pilot&&!pilotPreview?startupData('pilot.json',isCity):null,startupData('poi.geojson',isPlaces),
+    neutral?{tones:null}:startupData('roof-tones.json',isRoofPalette),pilot?null:startupData(stage+'-index.json',isSectorIndex),
+    withSea?startupData('sea.json',isSea):null,pilotPreview
+  ]);
+  signal.throwIfAborted();
   const data=required(core??single??edited?.data,'map data');
   if(index)validateSectorIndex(index);
+  performance.mark('atlas:startup-data');
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
   const sessionKey='map-view:'+location.pathname+location.search;
   let resume: ReturnType<typeof parseViewState>=null;
-  try{resume=parseViewState(sessionStorage.getItem(sessionKey));sessionStorage.removeItem(sessionKey);}catch{}
+  try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
   let losses=Number(resume?.losses)||0;
   const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
   const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true,stencil:true});
@@ -62,6 +101,8 @@ async function start(){
   const {group,altitude,groundAt}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
   if(edited)for(const prop of edited.props(groundAt))group.add(prop);
   if(sea)scene.add(makeSea(sea));
+  performance.mark('atlas:startup-scene');
+  bootProgress(64);
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
@@ -75,6 +116,7 @@ async function start(){
   let flight: Flight | null=null;
   let lastView: ViewState | null=null;
   let drive: ReturnType<typeof makeDrive> | null=null,awaitingZone=false;
+  let openingDeadline=0,openingTimer=0,playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
@@ -164,23 +206,37 @@ async function start(){
     try{sessionStorage.setItem(sessionKey,JSON.stringify({...lastView,selected:places.selected,losses}));}catch{}
   }
   const status=el('status');
+  signal.addEventListener('abort',()=>{
+    clearTimeout(openingTimer);
+    cancelAnimationFrame(frame);
+    streamed?.suspend();
+    controls.dispose();
+    renderer.dispose();
+  },{once:true});
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
     event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();captureGrade.release();
     cancelAnimationFrame(frame);frame=0;gesture=false;adaptive.reset();delete host.dataset.scale;
     controls.enabled=false;controls.disconnect();
     remember();
+    if(map.dataset.boot!=='ready'){
+      el('boot-progress').removeAttribute('aria-valuenow');
+      bootEvent('interrupt');
+      return;
+    }
     status.textContent='Restableciendo el mapa... ';
     const retry=document.createElement('button');
     retry.textContent='Recargar';retry.onclick=()=>{remember();location.reload();};
     status.append(retry);status.hidden=false;
   });
   function syncSize(){
+    if(signal.aborted)return;
     renderer.setSize(host.clientWidth,host.clientHeight);
     sizeCamera();draw();
   }
   renderer.domElement.addEventListener('webglcontextrestored',()=>{
-    lost=false;controls.connect(renderer.domElement);controls.enabled=!drive?.active;
+    if(signal.aborted)return;
+    lost=false;controls.connect(renderer.domElement);controls.enabled=map.dataset.boot==='ready'&&!drive?.active;
     renderer.setPixelRatio(baseRatio());renderer.shadowMap.enabled=!compact && losses<2;
     renderer.shadowMap.needsUpdate=true;
     if(drive?.active){syncSize();drive.resume();return;}
@@ -200,46 +256,80 @@ async function start(){
     captureGrade.render(scene,camera,drive?.desaturation??0);
   }
   function draw(){
-    if(frame || lost)return;
+    if(frame || lost || signal.aborted)return;
     frame=requestAnimationFrame(time=>{
-      frame=0;sampleCadence(time);
-      if(flight){
-        const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
-        mapTurn=t>=1?normalizeTurn(flight.turn1):T.MathUtils.lerp(flight.turn0,flight.turn1,ease);
-        const zoom=flight.z0===flight.z1?flight.z0:Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease));
-        view(flight.from.clone().lerp(flight.to,ease),zoom);
-        if(t>=1){flight=null;settle();}
+      frame=0;
+      try{drawFrame(time);}
+      catch(error){
+        if(map.dataset.boot==='ready')throw error;
+        if(!renderer.getContext().isContextLost())bootError(error);
       }
-      const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
-      camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
-      camera.updateMatrixWorld();
-      if(renderer.shadowMap.enabled){
-        const sx=Math.round(controls.target.x/240)*240,sz=Math.round(controls.target.z/240)*240;
-        if(sun.target.position.x!==sx || sun.target.position.z!==sz){
-          sun.target.position.set(sx,0,sz);sun.position.set(sx-550,690,sz-370);
-          renderer.shadowMap.needsUpdate=true;
-        }
-      }
-      streamed?.update(camera,controls.target,drive?.active);
-      if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(()=>el('drive').click());
-      paint(time);
-      if(renderer.getContext().isContextLost())return;
-      status.hidden=true;
-      if(!drive?.active){
-        lastView={target:controls.target.toArray(),zoom:camera.zoom,turn:normalizeTurn(mapTurn),selected:places.selected};
-        host.dataset.mapAngle=(lastView.turn*90).toFixed(2);
-      }
-      host.dataset.moving=String(!!flight);
-      places.project(camera);
-      host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     });
+  }
+  function drawFrame(time: number){
+    sampleCadence(time);
+    if(flight){
+      const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
+      mapTurn=t>=1?normalizeTurn(flight.turn1):T.MathUtils.lerp(flight.turn0,flight.turn1,ease);
+      const zoom=flight.z0===flight.z1?flight.z0:Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease));
+      view(flight.from.clone().lerp(flight.to,ease),zoom);
+      if(t>=1){flight=null;settle();}
+    }
+    const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
+    camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
+    camera.updateMatrixWorld();
+    if(renderer.shadowMap.enabled){
+      const sx=Math.round(controls.target.x/240)*240,sz=Math.round(controls.target.z/240)*240;
+      if(sun.target.position.x!==sx || sun.target.position.z!==sz){
+        sun.target.position.set(sx,0,sz);sun.position.set(sx-550,690,sz-370);
+        renderer.shadowMap.needsUpdate=true;
+      }
+    }
+    const opening=booting();
+    const level=streamed?.update(camera,controls.target,drive?.active,opening?'covered':map.dataset.boot==='revealing'?'revealing':undefined);
+    if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(beginDrive);
+    paint(time);
+    if(renderer.getContext().isContextLost())return;
+    if(drive?.active && playRequestedAt){
+      performance.measure('atlas:play-first-frame',{start:playRequestedAt,end:performance.now()});
+      playRequestedAt=0;
+    }
+    status.hidden=true;
+    if(!drive?.active){
+      lastView={target:controls.target.toArray(),zoom:camera.zoom,turn:normalizeTurn(mapTurn),selected:places.selected};
+      host.dataset.mapAngle=(lastView.turn*90).toFixed(2);
+    }
+    host.dataset.moving=String(!!flight);
+    places.project(camera);
+    if(map.dataset.boot==='ready'){
+      host.dataset.view=[controls.target.x,controls.target.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
+    }else if(opening){
+      const now=performance.now();
+      if(!openingDeadline){
+        performance.mark('atlas:startup-base-frame');
+        openingDeadline=now+4000;
+        openingTimer=window.setTimeout(draw,4000);
+        if(!drive?.prepare())disablePlay();
+        bootProgress(84);
+      }
+      if(level?.zoneReady)bootProgress(92);
+      const streamReady=!level || (level.zoneReady && level.detailReady);
+      if(streamReady || now>=openingDeadline){
+        clearTimeout(openingTimer);
+        performance.mark(streamReady?'atlas:startup-stream-ready':'atlas:startup-stream-fallback');
+        performance.mark('atlas:startup-ready-frame');
+        bootProgress(100);
+        bootEvent('reveal');
+      }
+    }
   }
   // Wind and cloud shadows keep moving while the view rests. A resting map repaints at 30 frames a second
   // at most, with the camera, sectors and pins left as the last full frame set them; a hidden tab stops
   // because the browser stops calling back.
   function ambient(time: number){
+    if(signal.aborted)return;
     requestAnimationFrame(ambient);
-    if(lost || frame || !painted || time-painted<31)return;
+    if(map.dataset.boot!=='ready' || lost || frame || !painted || time-painted<31)return;
     paint(time);
   }
   requestAnimationFrame(ambient);
@@ -257,7 +347,6 @@ async function start(){
       view(controls.target.clone().add(delta),camera.zoom);
     }else return;e.preventDefault();
   };
-  const map=el('map');
   function leaveDrive(){
     if(!drive?.active)return;
     drive.exit();captureGrade.release();map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
@@ -267,26 +356,45 @@ async function start(){
   drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
-  play.onclick=()=>{
-    if(lost || !drive || drive.active || play.getAttribute('aria-disabled')==='true')return;
-    // The run starts on streets whose walls are loaded: wait for the zone under the view.
-    if(streamed && !streamed.demand(controls.target.x,-controls.target.z)){awaitingZone=true;draw();return;}
+  function disablePlay(){
+    play.setAttribute('aria-disabled','true');
+    play.setAttribute('aria-label','Play · Modo de conducción no disponible');
+    play.title='Modo de conducción no disponible';
+  }
+  function beginDrive(){
+    if(lost || !drive || drive.active || map.dataset.boot!=='ready')return;
     awaitingZone=false;streamed?.undemand();
+    play.removeAttribute('aria-busy');play.setAttribute('aria-label','Play');
     if(drive.enter()==='unavailable'){
-      play.setAttribute('aria-disabled','true');
-      play.setAttribute('aria-label','Play · Modo de conducción no disponible');
-      play.title='Modo de conducción no disponible';
+      disablePlay();
       return;
     }
     flight=null;places.close();required(document.querySelector('nav'),'navigation').classList.remove('open');
     beforeDrive={target:controls.target.clone(),zoom:camera.zoom};
     controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');
+  }
+  play.onclick=()=>{
+    if(lost || !drive || drive.active || awaitingZone || map.dataset.boot!=='ready' || play.getAttribute('aria-disabled')==='true')return;
+    playRequestedAt=performance.now();
+    // The run starts on streets whose walls are loaded: wait for the zone under the view.
+    if(streamed && !streamed.demand(controls.target.x,-controls.target.z)){
+      awaitingZone=true;play.setAttribute('aria-busy','true');play.setAttribute('aria-label','Play · Preparando la conducción');
+      return;
+    }
+    beginDrive();
   };
   el('drive-exit').onclick=leaveDrive;
   controls.addEventListener('change',draw);
+  controls.enabled=false;
+  addEventListener('atlas:boot-ready',()=>{
+    try{sessionStorage.removeItem(sessionKey);}catch{}
+    controls.enabled=!lost;
+    performance.mark('atlas:startup-interactive');
+    draw();
+  },{once:true});
   let firstView=true;
   new ResizeObserver(()=>{
-    if(lost || !host.clientWidth || !host.clientHeight)return;
+    if(signal.aborted || lost || !host.clientWidth || !host.clientHeight)return;
     if(firstView){
       firstView=false;
       const start=home();
@@ -296,16 +404,12 @@ async function start(){
         view(new T.Vector3().fromArray(resume.target),resume.zoom);
         places.restore(resume.selected);
       }
+    }else if(booting() && !resume){
+      view(controls.target,openingZoom());
     }
     syncSize();
   }).observe(host);
   status.removeAttribute('lang');
   status.hidden=true;
 }
-start().catch(error=>{
-  console.error(error);
-  const notice=el('status');
-  notice.textContent=notice.lang==='en'
-    ? 'Could not open the pilot map. Check WebGL and the map data.'
-    : 'No se pudo abrir el mapa. Comprueba WebGL y los datos locales.';
-});
+start().catch(bootError);

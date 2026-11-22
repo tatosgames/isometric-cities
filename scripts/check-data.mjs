@@ -18,6 +18,7 @@ const [core, index] = await Promise.all([
   load('barrios.json', isBarrios)
 ]);
 validateSectorIndex(index);
+if (core.terrain.file !== 'city-terrain.bin') throw new Error('Core must point to city-terrain.bin');
 const heights = await readFile(new URL('../public/data/' + core.terrain.file, import.meta.url));
 coreWithTerrain(core, heights.buffer.slice(heights.byteOffset, heights.byteOffset + heights.byteLength));
 let buildings = 0;

@@ -442,3 +442,21 @@ Replay con coordinate stradali reali in Chrome a 1440×900, 390×844 e 844×390.
 `npm.cmd test` copre la cattura durante una partita reale, il blocco di monete, tempo e record, il focus sul pulsante di riprova e il recupero WebGL a sequenza iniziata. Un campione della scena a fine cattura verifica che i canali RGB coincidano e che il colore torni al riavvio. La prova mobile ruota lo schermo con l'esito aperto, controlla lo spazio sopra le attribuzioni e usa il pulsante della mappa dopo una seconda cattura. Impostare `QA_SCREENSHOT_DIR` per salvare fuori dal checkout le schermate desktop, mobile verticale e orizzontale.
 
 `typecheck`, `build` e `npm.cmd test` passati. Schermate controllate in Chrome a 1440×900, 390×844 e 844×390. Titolo, statistiche e pulsanti lasciano libera l'area centrale attorno all'auto. In una cattura campionata sul lungomare, l'auto si è assestata di circa 45 cm dopo il contatto e il punteggio è rimasto fisso per tutti i 117 fotogrammi osservati. La verifica mobile è in emulazione.
+
+## Preloader della mappa
+
+La città scarica core, indice e terreno in parallelo. Fino all’apertura lo streamer dà priorità alla zona centrale e, a zoom ravvicinato, al settore visibile più vicino al bersaglio. La dissolvenza dura 260 ms e parte dopo il frame con il dettaglio assestato. Il livello di riserva può entrare dopo quattro secondi dal primo frame di base. In quel caso Play attende le collisioni della zona. Il retry per un errore essenziale ricarica lo stesso URL.
+
+`node scripts/qa-boot.mjs` verifica l’ordine delle richieste, la schermata ancora visibile a zona o settore sospesi, le attribuzioni e il focus da tastiera, l’apertura di riserva con Play in attesa, il retry dopo un errore del modulo, i dati essenziali mancanti, WebGL indisponibile e il ripristino del contesto. Passati anche `typecheck`, `build`, `npm.cmd test`, `qa-sectors.mjs`, `qa-recovery.mjs` e `qa-editor.mjs`.
+
+Nel test locale a cache fredda che sospende e rilascia le richieste, la mappa è interattiva dopo 6,46 s a 1440×900 e 3,64 s a 390×844 emulato. Il primo frame dopo Play arriva rispettivamente in 547 ms e 461 ms. I traguardi `atlas:startup-*` e la misura `atlas:play-first-frame` sono leggibili nella User Timing API del browser. Il confronto a cache fredda in Vite dev, con due prove per variante e per viewport, non mostra un guadagno ripetibile per il warm-up della scena con `compileAsync()`. Il pre-bake di costa e panoramica resta una prova separata.
+
+### Fluidità e recupero
+
+Il test trattiene il modulo d’ingresso e verifica che core e terreno inizino a scaricarsi durante l’attesa e che ciascun file sia richiesto una sola volta. La suite è passata anche dalla build servita sotto `/atlas/`. Con il core ancora in attesa, il completamento dell’indice ha fatto passare l’anello dal 30 al 36 per cento, con un valore visivo intermedio campionato dopo 80 ms. Il dettaglio iniziale viene disegnato direttamente al livello finale finché il preloader copre la scena. Le transizioni visibili dello streaming usano la dissolvenza esistente.
+
+Un HTTP 503 isolato viene recuperato con un secondo tentativo dopo 200 ms. Due fallimenti portano a `Reintentar`. Il test verifica anche che il limite di avvio sia sospeso con la scheda in background. Se il contesto WebGL si perde durante la dissolvenza, il preloader torna subito opaco e l’anello diventa indeterminato fino al recupero. Il confronto dei tempi tra singole esecuzioni in Chrome headless varia da un profilo all’altro. La prova su telefono fisico resta aperta.
+
+### Revisione anti-slop del preloader
+
+Un solo anello. Ruota mentre il progresso è ignoto e interpola i traguardi reali quando iniziano ad arrivare. Le attribuzioni restano visibili e mantengono il focus da tastiera durante l’apertura. Il test controlla anche che le attribuzioni e Play occupino spazi distinti su desktop e mobile.

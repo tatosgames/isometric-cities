@@ -627,6 +627,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     try{renderer.compile(scene,camera);}catch{}
     group.remove(...stand);
   }
+  function prepare(){
+    if(!pois.length || !data.roads.length)return false;
+    if(!world){
+      world=buildDriveWorld(data,altitude,TUNE,zoning);
+      for(const [id,zone] of zoning?.resident??[])world.addZone(id,zone.buildings,zone.trees);
+    }
+    people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
+    return true;
+  }
   again.onclick=()=>{
     if(state!=='caught' || actions.hidden)return;
     const start=nextStart();
@@ -637,14 +646,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     get active(){return state!=='off';},
     get desaturation(){return capture?T.MathUtils.smoothstep(capture.elapsed,0,CAPTURE.grade):0;},
     get visualTimeScale(){return capture?(freeze?0:CAPTURE.speed):1;},
+    prepare,
     enter(): 'started' | 'unavailable'{
       if(state!=='off')return 'started';
-      if(!pois.length)return 'unavailable';
-      if(!world){
-        world=buildDriveWorld(data,altitude,TUNE,zoning);
-        for(const [id,zone] of zoning?.resident??[])world.addZone(id,zone.buildings,zone.trees);
-      }
-      people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
+      if(!prepare())return 'unavailable';
       const start=nextStart();
       if(!start)return 'unavailable';
       location??=makeDriveLocation(data.roads,street,barrio);

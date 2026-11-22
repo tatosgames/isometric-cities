@@ -95,11 +95,14 @@ export function coreWithTerrain(core: CoreFile, heights: ArrayBuffer): CityCore 
   return {...core, terrain: {...core.terrain, values}, buildings: [], trees: [], ground: []};
 }
 
-export async function loadCore(stage: string): Promise<CityCore> {
-  const core = await loadData(stage + '-core.json', isCoreFile);
-  const response = await fetch('./data/' + core.terrain.file);
-  if (!response.ok) throw new Error(core.terrain.file + ' HTTP ' + response.status);
-  return coreWithTerrain(core, await response.arrayBuffer());
+export async function loadCore(stage: string, signal?: AbortSignal): Promise<CityCore> {
+  const file = stage + '-terrain.bin';
+  const [core, heights] = await Promise.all([
+    loadData(stage + '-core.json', isCoreFile, signal, true),
+    readMapFile(file, response=>response.arrayBuffer(), signal, true)
+  ]);
+  if (core.terrain.file !== file) throw new Error('Unexpected terrain file: ' + core.terrain.file);
+  return coreWithTerrain(core, heights);
 }
 
 const zone = (v: unknown): v is Zone =>
@@ -122,10 +125,27 @@ export const isPlaces = (v: unknown): v is {features: Place[]} =>
 export const isRoofPalette = (v: unknown): v is {tones: RoofTones} =>
   record(v) && record(v.tones) && Object.values(v.tones).every(string);
 
-export async function loadData<T>(path: string, valid: (v: unknown) => v is T, signal?: AbortSignal): Promise<T> {
-  const response = await fetch('./data/' + path, {signal: signal ?? null});
-  if (!response.ok) throw new Error(path + ' HTTP ' + response.status);
-  const payload: unknown = await response.json();
+const transientStatus = new Set([408,500,502,503,504]);
+
+async function readMapFile<T>(path: string, read: (response: Response) => Promise<T>, signal?: AbortSignal, retry = false): Promise<T> {
+  async function attempt(second: boolean): Promise<T> {
+    let response: Response | undefined;
+    try {
+      response = await fetch('./data/' + path, {signal: signal ?? null, ...(second?{cache:'reload'}:{})});
+      if (!response.ok) throw new Error(path + ' HTTP ' + response.status);
+      return await read(response);
+    } catch (error) {
+      if (second || !retry || signal?.aborted || !(error instanceof TypeError || (response && transientStatus.has(response.status)))) throw error;
+    }
+    await new Promise(resolve=>setTimeout(resolve,200));
+    signal?.throwIfAborted();
+    return attempt(true);
+  }
+  return attempt(false);
+}
+
+export async function loadData<T>(path: string, valid: (v: unknown) => v is T, signal?: AbortSignal, retry = false): Promise<T> {
+  const payload: unknown = await readMapFile(path, response=>response.json(), signal, retry);
   if (!valid(payload)) throw new Error('Invalid map data: ' + path);
   return payload;
 }

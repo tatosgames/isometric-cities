@@ -19,7 +19,7 @@ try {
     });
     await page.goto(origin);
     await page.waitForSelector('#scene[data-view]');
-    await page.locator('#drive').tap();
+    await page.waitForSelector('#drive[aria-disabled="true"]');
     assert.equal(await page.locator('#drive').getAttribute('aria-disabled'),'true');
     assert.equal(await page.locator('#hud').isHidden(),true);
     assert.equal(await page.locator('#scene').getAttribute('data-drive'),null);

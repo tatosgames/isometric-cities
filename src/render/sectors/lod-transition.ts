@@ -48,10 +48,10 @@ export function lodTransition(settings:LodSettings={ground:true,objects:true,dur
     }
     let phase=0,last=0,goal=false;
     return {
-      step(show,now){
+      step(show,now,covered){
         if(show!==goal){goal=show;last=now;}
         const delta=(now-last)/Math.max(1,settings.duration);last=now;
-        phase=T.MathUtils.clamp(phase+(show?delta:-delta),0,1);
+        phase=covered?Number(show):T.MathUtils.clamp(phase+(show?delta:-delta),0,1);
         const weight=settings.manual && show?(settings.progress??100)/100:phase;
         objects.value=settings.objects?weight:Number(show);ground.value=settings.ground?weight:Number(show);
         detail.group.visible=phase>0 && (objects.value>0 || ground.value>0);
