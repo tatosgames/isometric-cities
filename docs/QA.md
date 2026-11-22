@@ -388,6 +388,31 @@ Il pulsante di ripristino ora torna alla Plaza de Santa Ana alla distanza massim
 
 Limiti. Nell'area nuova 97 edifici hanno un tetto misurato oltre 10 m più alto del dato comunale (ad esempio 25810: 41,7 m comunali, 78,2 m misurati; 22817: 3,6 contro 29,1 m) e 16 lo hanno più basso. Non corretti: decisione di Luca. Elenco in `.cache/lidar-control/scarti-santa-catalina-guanarteme.csv`. Mancano i tile 454-3112, 455-3111, 458-3106 e 458-3107 (61 parti in tutto). La vista più ampia sul centro storico supera il fotogramma a 60 Hz sulla GPU integrata. Nessuna prova su telefono fisico; la guida nei quartieri nuovi non è stata provata a mano. I due luoghi nuovi non hanno un modello dedicato. La Isleta e il porto non sono ancora inclusi.
 
+## Isolati densi più leggeri (22 novembre 2026)
+
+Passaggio di ottimizzazione dopo Triana–Alcaravaneras e Santa Catalina–Guanarteme. Il conteggio di un settore denso (-8_14, 217 edifici) ha mostrato che pesano i parapetti (36 % dei triangoli) e i muri, non le finestre: le impronte comunali hanno in media 16 lati per edificio, con un vertice ovunque un vicino tocca il muro. Due interventi, entrambi senza cambiare la sagoma:
+
+- `sectors.py` toglie dalle impronte di settori e zone i vertici entro 0,1 m da un muro dritto (`lighter()`); `city.json` resta intatto. In città i vertici d'impronta scendono da 237.142 a 185.654 (−22 %); i settori da 16,5 a 15,6 MB, le zone da 8,3 a 7,5 MB.
+- `scene.ts` non costruisce finestre, cornici e parapetti sepolti in un edificio adiacente più alto (`buriedTo()`). Nell'editor del pilota resta tutto, perché lì gli edifici si spostano.
+
+`frame-profile.mjs` accetta ora una vista per coordinate (`x,y,zoom`). Telefono emulato 390×844 su GPU Intel UHD, triangoli per fotogramma:
+
+| Vista | Prima | Dopo |
+|---|---|---|
+| Santa Catalina (-1800, 3480), da vicino | 320.468 | 268.625 |
+| Santa Catalina (-2040, 3480), da vicino | 372.062 | 297.209 |
+| Alcaravaneras (-1560, 2760), da vicino | 324.423 | 297.319 |
+| Arenales (-840, 1080), da vicino | 342.061 | 296.681 |
+| Santa Ana, da vicino | 270.743 | 220.331 |
+| Santa Catalina, vista più ampia | 335.264 | 264.493 |
+| Santa Ana, vista più ampia | 169.321 | 138.222 |
+
+Da vicino il calo a schermo è minore di quello per settore, perché il budget di memoria si riempie con più settori (da 14 a 15, da 16 a 17). `benchmark.mjs`: apertura 2.087 ms (era 2.304), picco heap 51,6 MB (era 60,5), vista ravvicinata p95 18,2 ms con 159.124 triangoli (erano 176.654), vista più ampia 323.183 triangoli (erano 383.282).
+
+`typecheck`, `build`, `npm.cmd test` e due esecuzioni di `qa-sectors.mjs`: verdi su una copia pulita del commit. Confronto a camera identica su Parque Santa Catalina e controllo a occhio di un isolato denso a zoom 3,2: nessuna differenza di sagoma; un edificio a gradoni ha ora un volume tecnico sul tetto, perché la triangolazione del tetto è cambiata.
+
+Limiti. Le viste più ampie sono stabili a 18 ms in `frame-profile.mjs`, ma `benchmark.mjs` misura ancora 35,4 ms di p95 nella vista lontana: la sua misura parte con le richieste precedenti ancora valide. Da vicino, in tre dei cinque isolati densi misurati un fotogramma su dieci dura ancora 35 ms, come a Santa Ana prima: il costo è lato GPU e non dipende dal solo numero di triangoli. Le misure dei tempi sono state prese con un altro processo attivo sulla macchina e vanno ripetute a macchina libera. Nessuna prova su telefono fisico. Il catalogo dei trucchi applicati è in [PERFORMANCE.md](PERFORMANCE.md).
+
 ## Toponimi in Conducir
 
 L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.

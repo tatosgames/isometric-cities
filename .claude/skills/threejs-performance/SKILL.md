@@ -380,6 +380,10 @@ renderer.setAnimationLoop(animate);
 - `function animate() { mesh.position.add(new THREE.Vector3(0, 0.01, 0)); }` → `const offset = new THREE.Vector3(0, 0.01, 0); function animate() { mesh.position.add(offset); }`: every per-frame allocation becomes garbage that the collector must pause to reclaim, which shows up as periodic frame spikes.
 - `const dt = uniform(0); /* fed from the timer each frame */` → `const dt = deltaTime;`: the built-in time and deltaTime nodes are uniforms the renderer already updates on every render, so a hand-fed copy duplicates them and needs its own Timer.
 
+## In this repository
+
+The optimizations already applied to the city model, each with its measured effect, and the pass to repeat after every new neighbourhood are listed in [docs/PERFORMANCE.md](../../../docs/PERFORMANCE.md). Read it before optimizing: it also records what was tried and did not help. Measure with `node scripts/frame-profile.mjs <place-id | x,y,zoom>` (frame pacing, triangles, main-thread time), `node scripts/benchmark.mjs dist` and `node scripts/qa-sectors.mjs`. Count what a heavy sector is made of before changing code: in the dense northern blocks the parapets outweighed the windows.
+
 ## See Also
 
 - `threejs-fundamentals` - renderer construction, the render loop and resize handling around everything measured here.

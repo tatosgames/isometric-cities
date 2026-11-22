@@ -37,6 +37,8 @@ Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson`
 
 ## Settori, guida e memoria
 
+Dopo ogni quartiere nuovo ripeti il passaggio di ottimizzazione descritto in [PERFORMANCE.md](PERFORMANCE.md): misura i settori più pesanti con `node scripts/frame-profile.mjs <x,y,zoom>` e controlla che i trucchi già applicati reggano. `sectors.py` semplifica le impronte di settori e zone entro 0,1 m; `city.json` conserva i vertici originali.
+
 Il catalogo dei settori è `public/data/city-index.json`. I JSON e i WebP dettagliati in `city-sectors/` hanno nomi derivati dal contenuto. Distribuiscili insieme all’indice. Il passaggio `sectors.py` rimuove i propri vecchi file generati. Per una rigenerazione ripetibile conserva il mosaico intermedio `.cache/roof-atlas.png` oppure rigeneralo prima.
 
 Il viewer cittadino non carica più `city.json`. `sectors.py` scrive tre livelli:

@@ -33,6 +33,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `scripts/qa.mjs`, `scripts/benchmark.mjs`, `scripts/frame-profile.mjs` | QA Playwright, benchmark e profilo dei fotogrammi in un luogo (cadenza, triangoli, tempo sul thread principale) |
 | `docs/UI_ANTI_SLOP.md`, `docs/CAMERA_FRAMING.md`, `docs/JUICE.md` | Regole UI (niente testi nel gioco, un fatto un indicatore), contratto di inquadratura e catalogo del game feel della guida (hit-stop, colpo di camera): da leggere prima di toccare HUD, camera o effetti |
 | `docs/DATA_SOURCES.md`, `docs/QA.md` | Fonti dati/attribuzioni, rapporto QA e screenshot |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Catalogo delle ottimizzazioni che non toccano la resa, con misure, e passaggio da ripetere dopo ogni quartiere |
 | [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.md) | Catalogo di fonti aggiuntive: LiDAR PNOA, ortofoto 20 cm SITCAN, GRAFCAN, licenze, accesso e esiti |
 | `scripts/lidar-check.py`, `content/lidar-heights.json`, `scripts/roof-compare-20cm.py` | Controllo altezze con il LiDAR (e correzione dei soli edifici senza dato comunale), confronto tinte dei tetti con l'ortofoto 20 cm |
 | `PLAN.md` | Brief originale per l'agente (perimetro, stile, checkpoint) |

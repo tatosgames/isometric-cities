@@ -74,6 +74,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **P · Quartiere 3: Santa Catalina-Canteras e Guanarteme.** La mappa passa da 5,05 a 8,06 km² e da 6.878 a 10.137 parti di edificio, con 14 luoghi (nuovi: Parque Santa Catalina e Auditorio Alfredo Kraus). Il ripristino torna a Santa Ana. Venti tile LiDAR controllano 9.471 parti. [Verifiche e limiti](docs/QA.md#santa-catalina-canteras-e-guanarteme-22-novembre-2026). Aperto: 97 edifici con tetto misurato oltre 10 m sopra il dato comunale, da decidere; vista più ampia sul centro storico a 36 ms di p95 sulla GPU integrata. Prossimo: La Isleta e il porto.
 
+**Q · Isolati densi più leggeri.** Impronte senza vertici superflui e niente dettaglio sepolto nei vicini più alti: da −8 a −21 % di triangoli negli isolati densi, picco heap da 60,5 a 51,6 MB. I trucchi che non toccano la resa sono raccolti in [docs/PERFORMANCE.md](docs/PERFORMANCE.md), con il passaggio da ripetere dopo ogni quartiere. [Misure e limiti](docs/QA.md#isolati-densi-più-leggeri-22-novembre-2026).
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
