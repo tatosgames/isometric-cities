@@ -43,6 +43,7 @@ interface ResidentZone {
   assets: Assets | null;
   group: T.Group | null;
   map: ReturnType<typeof makeGroundMap> | null;
+  wanted: number;
   used: number;
   failed: number;
   retry: number;
@@ -60,6 +61,10 @@ interface ResidentSector {
   failed: number;
   retry: number;
   estimate: number;
+  wanted: number;
+  /** Inside the camera frustum just now or a moment ago, as opposed to only prefetched around it. */
+  inView: boolean;
+  seen: number;
 }
 
 // Backing image plus RGBA texture and its mip chain.
@@ -112,18 +117,22 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     base.group.add(far);
     const bounds=box(z.bounds,z.vertical);
     return {id:z.id,file:z.file,far,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
-      sectors:[],assets:null,group:null,map:null,used:0,failed:0,retry:0};
+      sectors:[],assets:null,group:null,map:null,wanted:-Infinity,used:0,failed:0,retry:0};
   });
   const zoneById=new Map(zones.map(z=>[z.id,z]));
   const sectors: ResidentSector[]=data.sectors.map(s=>{
     const zone=required(zoneById.get(zoneOfSector(s.id,data)),'zone of sector '+s.id);
     const bounds=box(s.bounds,s.vertical);
     const sector={id:s.id,file:s.file,zone,low:null,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.55),
-      detail:null,assets:null,used:0,failed:0,retry:0,estimate:0};
+      detail:null,assets:null,used:0,failed:0,retry:0,estimate:0,wanted:-Infinity,inView:false,seen:-Infinity};
     zone.sectors.push(sector);
     return sector;
   });
   const budget=(compact?58:115)*1024*1024;
+  // What leaves the view stays requested this long, in milliseconds. A camera hovering on a boundary would
+  // otherwise start and cancel the same download at every step.
+  const linger=600;
+  let lingerTimer=0;
   // Zones that left the view stay for a quick return, up to this many.
   const idleZones=2;
   // Longest side of the view, in metres, that still shows one silhouette per building. Beyond it, merged blocks.
@@ -195,6 +204,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     }
   }
 
+  // Detail that may make room for `s`: anything no longer requested and, for a sector on screen, the prefetched
+  // ring around the view. Sectors of the same kind never displace each other: their order changes with every
+  // camera step, so when the budget is full the first to arrive stay and the rest keep their overview.
+  function evictableFor(s: ResidentSector){
+    return sectors.filter(other=>other.detail && other!==s &&
+      (!requested.includes(other) || (s.inView && !other.inView)));
+  }
   async function load(s: ResidentSector){
     const controller=new AbortController();
     pending={s,controller};
@@ -213,9 +229,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         assets.dispose=()=>{releaseGeometry();texture.dispose();if ("close" in texture.image)texture.image.close();};
       }
       s.estimate=assets.bytes;
-      const priority=requested.indexOf(s);
-      const victims=sectors.filter(other=>other.detail &&
-        (!requested.includes(other)||requested.indexOf(other)>priority)).sort((a,b)=>a.used-b.used);
+      const victims=evictableFor(s).sort((a,b)=>a.used-b.used);
       for(const other of victims){
         if(bytes+assets.bytes<=budget)break;
         release(other);
@@ -235,7 +249,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     }
   }
   function suspend(){
-    requested=[];requestedZones=[];demanded.clear();pending?.controller.abort();pendingZone?.controller.abort();
+    requested=[];requestedZones=[];demanded.clear();for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
   }
   const zoneAt=(x: number,y: number)=>zoneById.get(Math.floor(x/data.zoneSize)+'_'+Math.floor(y/data.zoneSize));
   /** Ask for the zone under a point whatever the camera shows. True once its footprints are resident. */
@@ -256,8 +270,9 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const now=performance.now();
     near=driving || (lod?.stable?(near?span<=580:span<=520):span<=550);
     mid=driving || long<=(mid?zoneSpan*1.09:zoneSpan);
-    requestedZones=zones.filter(z=>demanded.has(z) || (mid && (frustum.intersectsBox(z.prefetch) ||
-      (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize))));
+    for(const z of zones)if(demanded.has(z) || (mid && (frustum.intersectsBox(z.prefetch) ||
+      (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize))))z.wanted=now;
+    requestedZones=zones.filter(z=>now-z.wanted<linger);
     const zoneRank=(z: ResidentZone)=>(frustum.intersectsBox(z.bounds)?0:1e10)+z.bounds.getCenter(projected).distanceToSquared(aheadPoint);
     requestedZones.sort((a,b)=>zoneRank(a)-zoneRank(b));
     for(const z of requestedZones)if(z.assets)z.used=tick;
@@ -265,14 +280,20 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     for(const z of zones)if(z.group){z.group.visible=requestedZones.includes(z);z.far.visible=!z.group.visible;}
     const idle=zones.filter(z=>z.assets&&!requestedZones.includes(z)).sort((a,b)=>b.used-a.used);
     for(const z of idle.slice(idleZones))releaseZone(z);
-    requested=!near?[]:sectors.filter(s=>s.low && requestedZones.includes(s.zone) &&
-      (frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize)));
+    if(near)for(const s of sectors)if(frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize))s.wanted=now;
+    requested=sectors.filter(s=>s.low && requestedZones.includes(s.zone) && now-s.wanted<linger);
+    // Come back once the lingering requests have expired, even if the camera stays still.
+    if(!lingerTimer && (requestedZones.some(z=>z.wanted!==now) || requested.some(s=>s.wanted!==now))){
+      lingerTimer=window.setTimeout(()=>{lingerTimer=0;refresh();},linger+20);
+    }
     function rank(s: ResidentSector){
       s.bounds.getCenter(projected);
       const visible=frustum.intersectsBox(s.bounds);
       const retained=lod?.stable && driving && now-(lastVisible.get(s.id)??-Infinity)<350;
       return (visible?0:1e10)+projected.distanceToSquared(aheadPoint)-(retained?3600:0);
     }
+    // The same grace as the requests: a sector on the edge of the screen keeps one answer while its download runs.
+    for(const s of sectors){if(frustum.intersectsBox(s.bounds))s.seen=now;s.inView=now-s.seen<linger;}
     requested.sort((a,b)=>rank(a)-rank(b));
     let fading=0;
     for(const s of sectors){
@@ -298,10 +319,11 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     }
     if(pending && !requested.includes(pending.s))pending.controller.abort();
     if(!pending){
-      let reserved=0;
       for(const s of requested){
-        if(s.detail){reserved+=required(s.assets,"sector assets").bytes;continue;}
-        if(s.retry>performance.now() || reserved+s.estimate>budget)continue;
+        if(s.detail || s.retry>performance.now())continue;
+        // Once its size is known, a sector is fetched only if what cannot be evicted for it leaves room.
+        const free=evictableFor(s).reduce((n,other)=>n+required(other.assets,"sector assets").bytes,0);
+        if(s.estimate && bytes-free+s.estimate>budget)continue;
         void load(s);break;
       }
     }

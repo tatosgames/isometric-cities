@@ -31,10 +31,12 @@ try {
       }
     });
     observer.observe(host,{attributes:true,attributeFilter:['data-sectors']});
+    // Recovery can finish between two polls: let the page record that the notice was shown.
+    const status=document.querySelector('#status');
+    new MutationObserver(()=>{if(!status.hidden)window.statusShown=true;}).observe(status,{attributes:true,attributeFilter:['hidden']});
   });
   release();
-  await page.locator('#status').waitFor({state:'visible'});
-  await page.locator('#status').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>window.statusShown && document.querySelector('#status').hidden);
   const settle=()=>page.waitForFunction(()=>{
     const s=JSON.parse(document.querySelector('#scene').dataset.sectors||'{}');
     return s.visible>0&&!s.pending&&s.fading===0&&s.bytes<=s.budget;

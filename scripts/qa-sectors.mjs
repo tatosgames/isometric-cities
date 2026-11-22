@@ -31,6 +31,8 @@ try{
   },null,{timeout:60000});
   // A sector uploads its buffers on its first drawn frame: read the counters once they stop changing.
   async function gpu(){
+    // Requests linger 600 ms after the camera leaves: read once what the last place still held is gone.
+    await p.waitForTimeout(800);
     let last='';
     for(let i=0;i<40;i++){
       await settle();
@@ -65,12 +67,13 @@ try{
   }
   assert.ok(stops.at(-1).evictions>0);
   // Zones and their overview come and go, so one stop swings by about one sector of buffers between laps.
+  // One sector is about 45 buffers, so a single reading can sit that much above the others.
   // A leak keeps growing instead, by a sector or more per lap: compare the highest reading of the last two laps
   // with the two before, after two laps of warm-up. A sector not drawn yet only lowers a reading.
   for(const id of circuit){
     const laps=stops.filter(s=>s.id===id),early=laps.slice(2,4),late=laps.slice(4,6);
     const high=(list,key)=>Math.max(...list.map(s=>s[key]));
-    assert.ok(high(late,'buffers')<=high(early,'buffers')+32 && high(late,'textures')<=high(early,'textures')+2,
+    assert.ok(high(late,'buffers')<=high(early,'buffers')+64 && high(late,'textures')<=high(early,'textures')+2,
       'WebGL resources grew on the repeated circuit: '+JSON.stringify({early,late}));
     assert.ok(Math.abs(late[1].bytes-early[1].bytes)<late[1].bytes*.15,'Circuit memory did not stabilize at '+id);
   }

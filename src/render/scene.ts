@@ -96,12 +96,35 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   function addBuilding(g: T.BufferGeometry,color: T.ColorRepresentation,x: number,y: number,surface=0,wallBase: number | null=null){
     add(g,color,x,y,surface,wallBase,buildingMat);
   }
+  // An extrusion also closes both ends. The floor is buried and the lid lies under the roof: keep the sides.
+  function wallsOnly(g: T.ExtrudeGeometry){
+    const sides=g.groups.find(group=>group.materialIndex===1);
+    if(!sides)return g;
+    const out=new T.BufferGeometry();
+    for(const name of ['position','normal'] as const){
+      const a=g.attributes[name];
+      out.setAttribute(name,new T.BufferAttribute(a.array.slice(sides.start*3,(sides.start+sides.count)*3),3));
+    }
+    g.dispose();
+    return out;
+  }
+  // A parapet is seen from above and from the sides. On small screens it is three faces instead of a closed box.
+  function parapet(length: number,height: number,depth: number): T.BufferGeometry{
+    if(!compact)return new T.BoxGeometry(length,height,depth);
+    const x=length/2,y=height/2,d=depth/2,g=new T.BufferGeometry();
+    g.setAttribute('position',new T.Float32BufferAttribute([
+      -x,-y,d, x,-y,d, x,y,d, x,y,d, -x,y,d, -x,-y,d,
+      x,-y,-d, -x,-y,-d, -x,y,-d, -x,y,-d, x,y,-d, x,-y,-d,
+      -x,y,d, x,y,d, x,y,-d, x,y,-d, -x,y,-d, -x,y,d],3));
+    g.setAttribute('normal',new T.Float32BufferAttribute([...Array(6).fill([0,0,1]),...Array(6).fill([0,0,-1]),...Array(6).fill([0,1,0])].flat(),3));
+    return g;
+  }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
   const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
   for(const b of data.buildings){
     const [x,y]=b.rings[0][0], s=shape(b.rings);
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
-    const g=new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false}).translate(0,0,z-2).rotateX(-Math.PI/2);
+    const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
     addBuilding(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
     addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
@@ -150,7 +173,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
         }
       }
-      addBuilding(new T.BoxGeometry(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
+      addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
     }
     if(windows.length){
       const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);

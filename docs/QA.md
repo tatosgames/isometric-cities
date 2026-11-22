@@ -297,7 +297,29 @@ Primo quartiere dell'espansione, branch `espansione-costa`. Le tre zone nuove us
 Gli estratti OSM usano ora un reticolo fisso di 0,01° nella finestra [-15.44, 28.07, -15.40, 28.14]. Con la finestra allargata e i dati riscaricati, la città precedente è risultata identica salvo l'ordine degli elementi.
 
 - `typecheck`, `build`, `npm.cmd test`: verdi (apertura 2.996 ms desktop, 1.225 ms mobile emulato). `qa-sectors.mjs`: 2 esecuzioni verdi su 2.
-- Benchmark, Chrome con emulazione mobile, quattro esecuzioni: p95 del fotogramma nella vista ravvicinata 52,8, 70,5, 70,9 e 35,8 ms, contro 18,7 ms prima del quartiere; 142 draw call e circa 371.000 triangoli per fotogramma contro 116 e 266.000. A Santa Ana ora sono visibili 13 settori invece di 11 e 58,9 MB di dettaglio invece di 43,0: la vista è piena dove prima a sud c'era il vuoto. Vista lontana: p95 18,2 ms in tre esecuzioni su quattro, 201 draw call, 35.634 triangoli. Picco heap all'apertura 36-40 MB. Il banco usa il rendering software, quindi il peggioramento va verificato su un telefono reale prima di aggiungere altri quartieri densi.
+- Benchmark, Chrome con emulazione mobile, quattro esecuzioni: p95 del fotogramma nella vista ravvicinata 52,8, 70,5, 70,9 e 35,8 ms, contro 18,7 ms prima del quartiere; 142 draw call e circa 371.000 triangoli per fotogramma contro 116 e 266.000. A Santa Ana ora sono visibili 13 settori invece di 11 e 58,9 MB di dettaglio invece di 43,0: la vista è piena dove prima a sud c'era il vuoto. Vista lontana: p95 18,2 ms in tre esecuzioni su quattro, 201 draw call, 35.634 triangoli. Picco heap all'apertura 36-40 MB. Il banco usa la GPU integrata Intel UHD di questa macchina (non il rendering software, come scritto in una prima stesura): il peggioramento era reale e la causa è descritta nella sezione seguente.
 - Altezze con il LiDAR (tile 458-3108, 459-3106, 459-3107, 459-3108, 459-3109): nell'area nuova 679 parti misurate, scarto mediano +0,44 m, errore medio assoluto 3,88 m, 66 % entro 2 m, 87 % entro 5 m. Santo Domingo 15,6 m comunali contro 13,4 m; Parroquia de San Cristóbal 16,2 contro 12,5 m. 70 parti di 13 OBJECTID superano 10 m di scarto, tutte con il comunale più alto e tutte in complessi con più parti: l'«altura máxima» del complesso è applicata anche ai corpi bassi (ad esempio 40994: 51,7 m comunali, 3,3 m misurati su due parti; 39616: 30 parti). Elenco in `.cache/lidar-control/scarti-vegueta-sur-san-cristobal.csv`. Non corretti: decisione di Luca. Nessuna altezza nuova esportata: l'edificio 39623, senza altezza comunale, non ha punti classificati come edificio nel LiDAR (81 m², resta a 9 m e va controllato sull'ortofoto); il 36746 cade fuori dai tile scaricati. I tile 458-3106 e 458-3107 (50 parti) non sono stati scaricati.
 
 Limiti: il Torreón de San Pedro Mártir sta sugli scogli fuori dalla terraferma del plastico e non è tra i luoghi. Il confine di Vegueta include una lingua stretta lungo il Guiniguada. Su desktop la città intera supera 6 km e la vista completa passa agli isolati fusi. La prova di trascinamento e zoom in `qa.mjs` è stata resa indipendente dalla scala. Nessuna prova su telefono fisico; la guida nel quartiere nuovo non è stata provata a mano.
+
+## Streaming stabile e geometria più leggera (22 novembre 2026)
+
+Il peggioramento misurato dopo il primo quartiere non dipendeva dal carico di disegno. Con il budget pieno, un settore sul bordo dello schermo veniva scaricato e costruito, poi scartato perché nel frattempo la camera si era spostata di un passo, e subito richiesto di nuovo: 160 fotogrammi su 160 con un caricamento in corso, p95 oltre 100 ms. Tre correzioni in `sector-stream.ts`:
+
+- una richiesta di zona o settore resta valida 600 ms dopo l'uscita dalla vista, e lo stesso vale per lo stato «in vista»;
+- un settore in vista può far posto solo espellendo settori non richiesti o precaricati attorno alla vista; settori dello stesso tipo non si espellono a vicenda;
+- un settore di cui è nota la dimensione viene scaricato solo se c'è posto.
+
+In `scene.ts` gli edifici non costruiscono più il fondo e il coperchio dell'estrusione (uno è interrato, l'altro sta sotto il tetto) e, nel profilo compatto, i parapetti hanno tre facce invece di una scatola chiusa.
+
+Chrome con emulazione mobile 390×844 su GPU Intel UHD, `node scripts/frame-profile.mjs <luogo>` (160 fotogrammi di piccoli spostamenti alternati):
+
+| Luogo | Prima: p95, triangoli | Dopo: mediana / p90 / p95, triangoli |
+|---|---|---|
+| Santa Ana | 107-123 ms, 359.000 | 16,7 / 33,3 / 33,4 ms, 264.000 |
+| Santo Domingo | 89-124 ms, 384.000 | 16,9 / 33,4 / 33,5 ms, 277.000 |
+| San Telmo | 18,3 ms, 304.000 | 16,7 / 16,8 / 16,9 ms, 229.000 |
+
+`benchmark.mjs`: p95 da vicino 16,8 ms (era 36-71), 93 draw call e 190.000 triangoli per fotogramma, apertura 1,9 s. Thread principale 4,5 ms per fotogramma a Santa Ana.
+
+Limiti: a Santa Ana e Santo Domingo circa un fotogramma su dieci dura ancora il doppio. Togliere altri triangoli (prova senza davanzali, −11 %) non lo cambia e il thread principale è scarico: il costo residuo è lato GPU e non è diagnosticato. La misura della vista lontana in `benchmark.mjs` ora parte mentre le richieste precedenti sono ancora valide (429 draw call, 483.000 triangoli): va letta con questa riserva. `qa-sectors.mjs` attende 800 ms prima di leggere i contatori e tollera 64 buffer (un settore ne vale circa 45): 5 esecuzioni verdi su 5. `qa-main-lod.mjs` registra nella pagina la comparsa dell'avviso di recupero, che ora dura meno dell'intervallo di campionamento: 6 verdi su 6. `npm.cmd test` verde. Nessuna prova su telefono fisico.
