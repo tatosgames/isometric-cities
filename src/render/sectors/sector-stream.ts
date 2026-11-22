@@ -41,6 +41,7 @@ interface ResidentZone {
   prefetch: T.Box3;
   sectors: ResidentSector[];
   assets: Assets | null;
+  group: T.Group | null;
   map: ReturnType<typeof makeGroundMap> | null;
   used: number;
   failed: number;
@@ -111,7 +112,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     base.group.add(far);
     const bounds=box(z.bounds,z.vertical);
     return {id:z.id,file:z.file,far,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
-      sectors:[],assets:null,map:null,used:0,failed:0,retry:0};
+      sectors:[],assets:null,group:null,map:null,used:0,failed:0,retry:0};
   });
   const zoneById=new Map(zones.map(z=>[z.id,z]));
   const sectors: ResidentSector[]=data.sectors.map(s=>{
@@ -125,6 +126,8 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   const budget=(compact?58:115)*1024*1024;
   // Zones that left the view stay for a quick return, up to this many.
   const idleZones=2;
+  // Longest side of the view, in metres, that still shows one silhouette per building. Beyond it, merged blocks.
+  const zoneSpan=compact?3200:6000;
   const frustum=new T.Frustum(),matrix=new T.Matrix4(),projected=new T.Vector3();
   const lastTarget=new T.Vector3(),ahead=new T.Vector3(),aheadPoint=new T.Vector3();
   let requested: ResidentSector[]=[],requestedZones: ResidentZone[]=[];
@@ -146,7 +149,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   function releaseZone(z: ResidentZone){
     if(!z.assets)return;
     for(const s of z.sectors){release(s);s.low=null;}
-    z.assets.dispose();zoneBytes-=z.assets.bytes;z.assets=null;z.map=null;z.far.visible=true;
+    z.assets.dispose();zoneBytes-=z.assets.bytes;z.assets=null;z.group=null;z.map=null;z.far.visible=true;
     onZone?.(z.id,null);
   }
   async function loadZoneLevel(z: ResidentZone){
@@ -179,7 +182,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         group.traverse(mesh=>{if(mesh instanceof T.Mesh)mesh.geometry.dispose();});
         material.dispose();map?.texture.dispose();
       }};
-      z.assets=assets;z.map=map;z.failed=0;zoneBytes+=assets.bytes;base.group.add(group);z.far.visible=false;
+      z.assets=assets;z.group=group;z.map=map;z.failed=0;zoneBytes+=assets.bytes;base.group.add(group);z.far.visible=false;
       onZone?.(z.id,content);
     }catch(error){
       if(!controller.signal.aborted){
@@ -252,12 +255,14 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     lastTarget.copy(target);aheadPoint.copy(target).addScaledVector(ahead,driving?data.sectorSize*.5:0);
     const now=performance.now();
     near=driving || (lod?.stable?(near?span<=580:span<=520):span<=550);
-    mid=driving || (mid?long<=3500:long<=3200);
+    mid=driving || long<=(mid?zoneSpan*1.09:zoneSpan);
     requestedZones=zones.filter(z=>demanded.has(z) || (mid && (frustum.intersectsBox(z.prefetch) ||
       (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize))));
     const zoneRank=(z: ResidentZone)=>(frustum.intersectsBox(z.bounds)?0:1e10)+z.bounds.getCenter(projected).distanceToSquared(aheadPoint);
     requestedZones.sort((a,b)=>zoneRank(a)-zoneRank(b));
     for(const z of requestedZones)if(z.assets)z.used=tick;
+    // A zone kept for a quick return shows the far level, so one view never mixes the two.
+    for(const z of zones)if(z.group){z.group.visible=requestedZones.includes(z);z.far.visible=!z.group.visible;}
     const idle=zones.filter(z=>z.assets&&!requestedZones.includes(z)).sort((a,b)=>b.used-a.used);
     for(const z of idle.slice(idleZones))releaseZone(z);
     requested=!near?[]:sectors.filter(s=>s.low && requestedZones.includes(s.zone) &&

@@ -14,7 +14,8 @@ await page.addInitScript(()=>{
 });
 const cdp=await page.context().newCDPSession(page);
 let peak=0;const timer=setInterval(async()=>{try{const h=await cdp.send('Runtime.getHeapUsage');peak=Math.max(peak,h.usedSize+(h.backingStorageSize||0));}catch{}},40);
-const t=Date.now();await page.goto(server.resolvedUrls.local[0]);await page.waitForSelector('#scene[data-view]');clearInterval(timer);
+// Second argument: query string of the dataset, e.g. ?area=stress.
+const t=Date.now();await page.goto(server.resolvedUrls.local[0]+(process.argv[3]||''));await page.waitForSelector('#scene[data-view]');clearInterval(timer);
 console.log({openMs:Date.now()-t,sampledHeapPeak:peak});
 console.log(await page.evaluate(async()=>{
  const tick=()=>new Promise(requestAnimationFrame),times=[];let base,atEnd,calls=0,tris=0,frames=0;
@@ -33,4 +34,17 @@ console.log(await page.evaluate(async()=>{
  const idle=window.stats.draws;await new Promise(r=>setTimeout(r,5000));times.sort((a,b)=>a-b);
  return {p95:times[Math.floor(times.length*.95)],drawsPerFrame:calls/frames,trianglesPerFrame:Math.round(tris/frames),base,atEnd,idleDraws:window.stats.draws-idle};
 }));
+// Far view: the whole dataset on screen, then the heap once collection has run.
+await page.locator('#reset').click();
+await page.waitForFunction(()=>{const e=document.querySelector('#scene');return e.dataset.moving==='false' && !JSON.parse(e.dataset.sectors).pending;});
+const farFrames=await page.evaluate(async()=>{
+ const tick=()=>new Promise(requestAnimationFrame),times=[],start={...window.stats};let last=await tick();
+ for(let i=0;i<40;i++){document.querySelector('#scene').dispatchEvent(new KeyboardEvent('keydown',{key:i%2?'ArrowLeft':'ArrowRight'}));const now=await tick();times.push(now-last);last=now;}
+ times.sort((a,b)=>a-b);
+ return {p95:times[Math.floor(times.length*.95)],drawsPerFrame:(window.stats.draws-start.draws)/40,trianglesPerFrame:Math.round((window.stats.tris-start.tris)/40)};
+});
+console.log({farFrames});
+await cdp.send('HeapProfiler.collectGarbage');
+const heap=await cdp.send('Runtime.getHeapUsage');
+console.log({far:JSON.parse(await page.locator('#scene').getAttribute('data-sectors')),heapAfterGc:heap.usedSize+(heap.backingStorageSize||0),stats:await page.evaluate(()=>window.stats)});
 }finally{await browser.close();await server.close();}

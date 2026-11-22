@@ -21,7 +21,8 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/drive/drive-input.ts` | Comandi touch e tastiera, registrazione e rilascio degli input |
 | `src/render/sectors/sector-stream.ts`, `src/render/sectors/sector-builder.ts`, `src/render/sectors/sector-worker.ts`, `src/render/overview.ts` | Priorità e budget, costruzione fuori thread, panoramica |
 | `src/drive/road-routing.ts` | Indice dei nodi e percorsi delle pattuglie |
-| `scripts/sectors.py`, `scripts/qa-sectors.mjs` | Generazione dei settori e prova di attraversamento |
+| `scripts/sectors.py`, `scripts/qa-sectors.mjs` | Generazione di nucleo, zone e settori (`--stress N` per la replica di carico) e prova di attraversamento |
+| `public/data/city-core.json`, `city-terrain.bin`, `city-zones/`, `city-sectors/` | I tre livelli caricati dal viewer: nucleo con isolati fusi, zone da 960 m, settori da 240 m |
 | `src/render/scene.ts` | Costruzione scena: edifici, strade, superfici, alberi, mesh ottimizzate |
 | `content/las-palmas.json` | Catalogo dei luoghi, centro del pilota e stili per edificio |
 | `src/map/places-ui.ts`, `src/render/landmarks.ts` | Menu e marker con ID persistenti, modelli procedurali dedicati |

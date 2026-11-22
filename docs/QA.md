@@ -269,3 +269,23 @@ Branch `espansione-costa`, perimetro invariato (3,04 km², 80 settori, 4.698 par
 ## Prova dei settori: misura a contatori fermi (22 novembre 2026)
 
 Il fallimento intermittente di `qa-sectors.mjs` non era una perdita di risorse. Su otto giri del circuito i buffer WebGL si fermano dal quarto giro (1054, 1160 e 1257 a Plaza de la Feria, Parque Doramas e Metropole) e le espulsioni crescono regolarmente. Oscillava solo Santa Ana, di circa 40 buffer e 1 texture: un settore residente carica i propri buffer al primo fotogramma disegnato, e la prova leggeva i contatori prima di quel fotogramma o durante la dissolvenza LOD. Ora la prova attende `pending` e `fading` a zero e due letture uguali dei contatori a 150 ms. Dopo la correzione: scarto massimo 14 buffer fra giri (soglia 24) e sei esecuzioni verdi su sei. Il viewer non è stato modificato.
+
+## Viewer a tre livelli e prova a scala 6× (22 novembre 2026)
+
+Branch `espansione-costa`. Il viewer carica un nucleo (0,67 MB più 0,62 MB di terreno binario) al posto di `city.json` (4,6 MB), 10 zone a richiesta e gli 80 settori. Chrome con emulazione mobile 390×844, stessa procedura della base.
+
+| Misura | Base (Fase 0) | Città, tre livelli | Replica 6× |
+|---|---|---|---|
+| Apertura | 3.162 ms | 3.649 ms | 4.669 ms |
+| Picco heap campionato all'apertura | 80,9 MB | 21,5 MB | 77,6 MB |
+| p95 fotogramma, vista ravvicinata | 18,4 ms | 18,7 ms | 18,3 ms |
+| Draw call e triangoli per fotogramma | 115 / 263.657 | 116 / 266.280 | 107 / 265.653 |
+| p95 fotogramma, vista lontana | non misurato | 18,2 ms | 18,3 ms |
+| Draw call e triangoli, vista lontana | non misurato | 120 / 25.963 | 267 / 155.132 |
+| Heap dopo la raccolta, vista lontana | non misurato | 21,9 MB | 49,1 MB |
+
+`npm.cmd test` verde (apertura 2.649 ms desktop, 1.255 ms mobile emulato, contro 2.617 e 2.076 della base). `qa-sectors.mjs` verde 8 volte su 8 con il nuovo controllo e 3 su 3 dopo l'ultima modifica alla visibilità delle zone; ora include la vista lontana (nessuna zona richiesta, al massimo due in memoria) e il ritorno. `qa-recovery.mjs` e `qa-drive-route.mjs` verdi. `qa-main-lod.mjs` verde 4 volte su 5: un'esecuzione non ha visto la dissolvenza entro il tempo limite; non diagnosticato.
+
+Limiti delle misure: il p95 di circa 18 ms coincide in tutti i casi, quindi è il limite del banco di prova e non distingue i carichi. La replica 6× ha coordinate non arrotondate e file più pesanti del reale (zone 36 MB contro 3,3 × 6), e non ha costa. In guida, la replica non è stata percorsa: l'attraversamento di confine è provato solo sulla città reale. Nessuna prova su telefono fisico. Su desktop la panoramica della città attuale resta edificio per edificio; nel profilo compatto la vista intera passa agli isolati fusi.
+
+La prova dei settori confronta ora il massimo dei buffer WebGL degli ultimi due giri con quello dei due precedenti, dopo due giri di assestamento (sei giri in tutto): su nove giri i contatori restano fermi, con oscillazioni di circa 20 buffer legate alla panoramica disegnata.

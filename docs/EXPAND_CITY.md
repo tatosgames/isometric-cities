@@ -39,9 +39,17 @@ Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson`
 
 Il catalogo dei settori è `public/data/city-index.json`. I JSON e i WebP dettagliati in `city-sectors/` hanno nomi derivati dal contenuto. Distribuiscili insieme all’indice. Il passaggio `sectors.py` rimuove i propri vecchi file generati. Per una rigenerazione ripetibile conserva il mosaico intermedio `.cache/roof-atlas.png` oppure rigeneralo prima.
 
-La panoramica contiene sagome, chiome semplificate e terreno. Il passaggio al dettaglio usa la dimensione in metri della vista. I gruppi piccoli mantengono il frustum culling di Three.js. La priorità dei settori segue la camera e, in guida, anticipa la direzione di avanzamento. Un worker crea mesh trasferibili e bitmap. Una risposta obsoleta viene scartata prima del caricamento sulla GPU. Il materiale globale rimane di proprietà della panoramica. Ogni dettaglio possiede le proprie geometrie, istanze, materiali e bitmap, che vengono liberati allo scaricamento.
+Il viewer cittadino non carica più `city.json`. `sectors.py` scrive tre livelli:
 
-Il budget del dettaglio è 48 MiB nel profilo compatto e 96 MiB su desktop. Comprende array geometrici, pixel delle bitmap e una stima delle texture RGBA con mipmap. La memoria totale del browser comprende anche scena base, worker, driver e risorse temporanee. Misura sul dispositivo obiettivo. Leggi i contatori `data-sectors` sul contenitore della scena per settore in attesa, residenti, visibili, espulsioni e byte stimati.
+- **Nucleo** (`city-core.json` e `city-terrain.bin`): confine, strade, superfici, griglia del terreno in Int16 a decimetri e, per ogni zona, il livello lontano: un prisma per isolato (unione delle impronte, altezza e tinta medie pesate sull'area) e il suolo a maglia di 60 m. È sempre residente.
+- **Zone** da 960 m (`city-zones/`, 4×4 settori): sagoma di ogni edificio, chiome, suolo a 15 m e impronte per le collisioni. Si caricano quando il lato lungo della vista scende sotto 3.200 m nel profilo compatto e 6.000 m su desktop, con isteresi del 9 %. Due zone uscite dalla vista restano in memoria, mostrate come livello lontano.
+- **Settori** da 240 m (`city-sectors/`): dettaglio, solo dentro una zona caricata, sotto circa 550 m di vista.
+
+Il budget del dettaglio è 58 MiB nel profilo compatto e 115 MiB su desktop. Comprende array geometrici, pixel delle bitmap e una stima delle texture RGBA con mipmap. Le zone sono contate a parte (`zoneBytes`) e limitate dalla vista. La memoria totale del browser comprende anche nucleo, worker, driver e risorse temporanee. Misura sul dispositivo obiettivo. Leggi i contatori `data-sectors` sul contenitore della scena: `near`, `mid`, zone residenti, settori in attesa, residenti, visibili, espulsioni e byte stimati.
+
+In Conducir la rete stradale e i percorsi valgono su tutta la città. Muri, tetti e alberi arrivano con le zone: il terreno di una zona non ancora caricata conta come occupato, e la partenza attende la zona sotto la vista.
+
+Per misurare a scala piena senza dati nuovi: `python scripts/sectors.py --stress 6` affianca sei copie della città in `public/data/stress-*` (ignorato da Git), poi `npm.cmd run build` e `node scripts/benchmark.mjs dist "?area=stress"`. Il dataset misura il carico, non la resa.
 
 La maglia del terreno è allineata all’origine metrica a passi di 15 m. Ogni cella da 240 m include i tratti OSM che intersecano un margine e dipinge il terreno a 2 px/m, con 5 m esterni per il filtro. Il grafo stradale e la griglia di collisione sono residenti a prescindere dai settori visivi. I percorsi riusano il campo di distanze quando il nodo sorgente è lo stesso.
 
