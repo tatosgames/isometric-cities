@@ -103,14 +103,17 @@ async function start(){
       halfWidth=Math.max(halfWidth,Math.abs(point.dot(right)));
       halfHeight=Math.max(halfHeight,Math.abs(point.dot(up)));
     }
-    return Math.min(host.clientWidth/(2*halfWidth+60),host.clientHeight/(2*halfHeight+65))*.92;
+    return Math.max(farthest(),Math.min(host.clientWidth/(2*halfWidth+60),host.clientHeight/(2*halfHeight+65))*.92);
   }
+  // The widest view shows a district, never the whole city: its longer side covers this many metres.
+  // It stays inside the span where every building is drawn, so the merged far level only fills in while zones load.
+  function farthest(){return Math.max(host.clientWidth,host.clientHeight)/(compact?2400:3000);}
   function sizeCamera(){
     const w=host.clientWidth,h=host.clientHeight;
     camera.left=-w/2;camera.right=w/2;camera.top=h/2;camera.bottom=-h/2;
     camera.updateProjectionMatrix();camera.updateMatrixWorld();
     const fits=[0,1,2,3].map(fitAt);
-    controls.minZoom=Math.min(...fits,fitAt(mapTurn))*.8;
+    controls.minZoom=Math.max(farthest(),Math.min(...fits,fitAt(mapTurn))*.8);
     controls.maxZoom=drive?.active?Infinity:Math.max(Math.max(...fits)*12,4,openingZoom());
   }
   function openingZoom(){return Math.max(host.clientWidth/340,host.clientHeight/225);}

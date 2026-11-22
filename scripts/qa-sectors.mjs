@@ -78,10 +78,10 @@ try{
     assert.ok(Math.abs(late[1].bytes-early[1].bytes)<late[1].bytes*.15,'Circuit memory did not stabilize at '+id);
   }
   await p.locator('#reset').click();await p.waitForFunction(()=>JSON.parse(document.querySelector('#scene').dataset.sectors).visible===0);
-  // The whole city in view is the far level: merged blocks only, with at most the idle zones kept for a quick return.
+  // The widest view frames a district: every building of its zones, no sector detail, and never the merged far level.
   await settle();
   const far=await state();
-  assert.ok(!far.mid && far.zones.length<=2 && far.visible===0,'Far view kept zones or detail: '+JSON.stringify(far));
+  assert.ok(far.mid && far.zones.length>0 && far.visible===0,'Widest view lost its zones or kept detail: '+JSON.stringify(far));
   await select('parque-doramas');await settle();
   const back=await state();
   assert.ok(back.zones.length>0 && back.visible>0 && back.bytes<=back.budget,'Zones did not return: '+JSON.stringify(back));
