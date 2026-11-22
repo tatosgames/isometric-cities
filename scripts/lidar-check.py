@@ -118,14 +118,19 @@ def main():
         count = Counter(b['id'] for b in city['buildings'])
         low = {r['key']: round(r['lidar_p95'], 1) for r in rows if r['status'] == 'ok' and r['source'] == 'municipal-provisional'
                and count[r['id']] > 1 and r['area_m2'] >= 30 and r['roof_pts'] >= 50 and r['delta_p95'] < -10 and r['lidar_p95'] >= 2}
-        part_heights = {**old.get('parts', {}), **low}
+        # The opposite case: a roof measured more than 10 m above the municipal value. The 95th percentile alone
+        # can be a tree or a neighbour's overhang, so the median of the roof must rise too and sit close to it.
+        tall = {r['key']: round(r['lidar_p95'], 1) for r in rows if r['status'] == 'ok' and r['source'] == 'municipal-provisional'
+                and r['area_m2'] >= 30 and r['roof_pts'] >= 50 and r['delta_p95'] > 10
+                and r['lidar_p50'] - r['municipal_m'] > 5 and r['lidar_p50'] >= .75 * r['lidar_p95']}
+        part_heights = {**old.get('parts', {}), **low, **tall}
         tiles = sorted(set(old.get('tiles', [])) | {m['file'] for m in meta})
         target.write_text(json.dumps(dict(
             source='PNOA-LiDAR 3a cobertura, NPC02 (Canarias 2023-2024), (c) Instituto Geografico Nacional, licencia compatible con CC BY 4.0',
             method='p95 della quota dei punti classe 6 nell\'impronta meno la mediana dei punti classe 2 in un anello di 8 m; solo OBJECTID senza altezza comunale valida',
-            parts_method="parti di un OBJECTID con piu poligoni dove l'altezza comunale supera di oltre 10 m il p95 misurato; chiave OBJECTID:floor(x minimo):floor(y minimo) in metri locali",
+            parts_method="parti di un OBJECTID con piu poligoni dove l'altezza comunale supera di oltre 10 m il p95 misurato; oppure dove il p95 misurato supera di oltre 10 m l'altezza comunale e la mediana del tetto lo conferma (oltre 5 m sopra il comunale e almeno il 75 % del p95); chiave OBJECTID:floor(x minimo):floor(y minimo) in metri locali",
             tiles=tiles, heights=dict(sorted(heights.items(), key=lambda kv: int(kv[0]))), parts=dict(sorted(part_heights.items()))), indent=1, ensure_ascii=False), encoding='utf8')
-        print('Esportate', len(best), 'altezze e', len(low), 'parti in', target)
+        print('Esportate', len(best), 'altezze,', len(low), 'parti basse e', len(tall), 'parti alte in', target)
     print(json.dumps({k: v for k, v in report.items() if k != 'poi'}, indent=1))
     print('POI:', json.dumps(report['poi'], ensure_ascii=False))
 

@@ -162,7 +162,7 @@ for f in features:
         measured=lidar_heights.get(str(f['properties']['OBJECTID']))
         height,origin=(round(h,1),'municipal-provisional') if valid else (measured,'lidar-pnoa') if measured else (9,'estimate')
         outline=rings(p)
-        # Low bodies of a complex: see scripts/lidar-check.py --export.
+        # Low bodies of a complex and roofs measured far above the municipal value: see scripts/lidar-check.py --export.
         part=lidar_parts.get(f"{f['properties']['OBJECTID']}:{math.floor(min(v[0] for v in outline[0]))}:{math.floor(min(v[1] for v in outline[0]))}")
         if part and valid: height,origin=part,'lidar-pnoa'
         buildings.append(dict(id=f['properties']['OBJECTID'],**style,rings=outline,height=height,source=origin))
