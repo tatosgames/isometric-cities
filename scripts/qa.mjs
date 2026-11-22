@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import './qa-drive-pose.mjs';
+import './qa-drive-location.mjs';
 import './qa-pedestrians.mjs';
 import './qa-ground.mjs';
 const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
@@ -207,7 +208,7 @@ try{
     assert.ok(Number((await host.getAttribute('data-drive')).split(',')[13])>=2.2,'A pedestrian stands on the car');
     assert.equal(await page.locator('#pins').isVisible(),false);
     assert.equal(await right.isVisible(),false);
-    assert.equal(await page.locator('footer').isVisible(),false);
+    assert.equal(await page.locator('footer a[href*="openstreetmap"]').isVisible(),true);
     assert.equal(await page.locator('#hud-stats .stat').count(),2);
     assert.equal(await page.locator('#over-record').isVisible(),false);
     if(mobile){
@@ -255,7 +256,7 @@ try{
     await page.locator('#again').waitFor({state:'visible'});
     assert.equal(await page.locator('#over-title').innerText(),'ATRAPADO');
     assert.equal(await page.locator('#over-record').isVisible(),true);
-    for(const id of ['hud-stats','drive-camera']){
+    for(const id of ['hud-stats','drive-location','drive-camera']){
       assert.equal(await page.locator('#'+id).isVisible(),false);
     }
     assert.equal(await page.locator('footer').isVisible(),true);

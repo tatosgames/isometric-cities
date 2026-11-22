@@ -19,10 +19,16 @@ export interface Building {
 
 export interface Road {
   id?:string;
+  name?: string | null;
   bridge?: string;
   layer?: string;
   kind: string;
   line: Point[];
+}
+
+export interface Barrio {
+  name: string;
+  polygons: Ring[][];
 }
 
 export interface Surface {

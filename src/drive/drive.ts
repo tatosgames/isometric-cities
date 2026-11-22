@@ -15,6 +15,7 @@ import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
 import { chooseStartNode, type RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
+import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians} from './pedestrians.ts';
 import {breezy} from '../render/wind.ts';
 import * as T from 'three';
@@ -83,6 +84,8 @@ const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 
 export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
+  let location: ReturnType<typeof makeDriveLocation> | undefined;
+  const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
   const {steerBody,collide,bump}=makeDrivePhysics(TUNE);
   const playerPose=makeDrivePose(TUNE);
@@ -320,6 +323,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     return world.nodes[index];
   }
   function restart(n: RoadNode){
+    location?.reset();
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
     steerTime=steerDirection=0;
@@ -337,6 +341,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     state='ready';
   }
   function caught(by: Patrol){
+    location?.clearTitle();
     state='caught';buzz(140);guide.className='';
     controls.release();
     over.dataset.caught='';
@@ -542,7 +547,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const reach=Math.hypot(kickX,kickY);
     if(reach>TUNE.kickMax){kickX*=TUNE.kickMax/reach;kickY*=TUNE.kickMax/reach;}
     const nearest=Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y)));
-    paceEase+=(Math.hypot(player.vx,player.vy)/TUNE.maxSpeed-paceEase)*Math.min(1,dt*TUNE.paceRate);
+    const speed=Math.hypot(player.vx,player.vy);
+    paceEase+=(speed/TUNE.maxSpeed-paceEase)*Math.min(1,dt*TUNE.paceRate);
     threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*Math.min(1,dt*TUNE.paceRate);
     // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
     const wantZoom=state==='caught'?(freeze?zoomNow:1+TUNE.zoomCaught):1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
@@ -558,6 +564,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     view(targetPoint,zoom,pose.direction);
     heading.visible=cabinIsHidden(pose.direction.x/pose.direction.y,-pose.direction.z/pose.direction.y);
     // HUD
+    if(state!=='caught')location?.update(player.x,player.y,speed>2?Math.atan2(player.vy,player.vx):player.h,now);
     el('hud-coins').textContent=String(score);
     el('hud-time').textContent=clock(time);
     const {steer,brake}=controls.read();
@@ -567,7 +574,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(target){
       // The destination chip sits over the place, or slides along the screen edge and points at it.
       const end=activeWorld().nodes[target.node],[gx,gy]=project(end.x,end.y,14);
-      const w=host.clientWidth,h=host.clientHeight,pad=34,top=88,bottom=h-150;
+      const w=host.clientWidth,h=host.clientHeight,pad=34,bottom=h-150;
+      const nearLabels=Math.abs(gx-w/2)<Math.min(180,w/2);
+      let top=88;
+      if(nearLabels && w<=620 && street.textContent)top=112;
+      if(nearLabels && barrio.textContent)top=w<=620?142:112;
       const px=T.MathUtils.clamp(gx,pad,w-pad),py=T.MathUtils.clamp(gy,top,bottom),off=px!==gx || py!==gy;
       goal.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
       goal.classList.toggle('near',!off);
@@ -607,6 +618,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
       const start=nextStart();
       if(!start)return 'unavailable';
+      location??=makeDriveLocation(data.roads,street,barrio);
       scene.add(group);
       const mapOffset=camera.getWorldDirection(new T.Vector3()).negate();
       rig.enter(mapOffset);showMode();
@@ -624,6 +636,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       if(state==='off')return;
       state='off';cancelAnimationFrame(raf);scene.remove(group);
       controls.deactivate();
+      location?.reset();
       held=false;
       el('hud').hidden=true;clearCapture();guide.className='';el('pops').replaceChildren();
       delete host.dataset.drive;

@@ -54,6 +54,28 @@ features=[]
 for p in places:
     point=polygons[p['id']].representative_point()
     features.append(feature(point,dict(p,xy=[point.x,point.y])))
+# Keep the exact OSM boundary for labels. The coverage can add a margin.
+def mapped_area(relation):
+    return unary_union(list(polygonize(unary_union([LineString(ways[m.get('ref')][1]) for m in relation.findall('member') if m.get('type')=='way']))))
+
+def save_barrios():
+    barrios=[]
+    for zone in coverage['zones']:
+        if 'osm' not in zone: continue
+        relation=osm.find(f"relation[@id='{zone['osm'].split('/')[1]}']")
+        area=mapped_area(relation).simplify(.25, preserve_topology=True)
+        assert area.area>0, 'Open boundary: '+zone['id']
+        polygons=[area] if area.geom_type=='Polygon' else list(area.geoms)
+        name=tags(relation)['name']
+        if zone['id']=='san-cristobal': name='San Cristóbal'
+        barrios.append(dict(name=name,polygons=[
+            [[[round(x,1),round(y,1)] for x,y in ring.coords] for ring in [p.exterior,*p.interiors]]
+            for p in polygons]))
+    save('barrios.json',barrios)
+
+stage=sys.argv[1] if len(sys.argv)>1 else 'city'
+if stage in ('city','barrios'): save_barrios()
+if stage=='barrios': sys.exit()
 save('poi.geojson',dict(type='FeatureCollection',features=features))
 # Each zone is an envelope of places, a buffered corridor, a mapped OSM boundary or an explicit lon/lat polygon.
 def zone_shape(z):
@@ -61,8 +83,7 @@ def zone_shape(z):
     if 'axis' in z: return LineString([project(*p) for p in z['axis']]).buffer(z['radius'])
     if 'osm' in z:
         # A mapped boundary relation, such as a barrio: its member ways close into the area. One metre joins neighbours.
-        members=osm.find(f"relation[@id='{z['osm'].split('/')[1]}']").findall('member')
-        area=unary_union(list(polygonize(unary_union([LineString(ways[m.get('ref')][1]) for m in members if m.get('type')=='way']))))
+        area=mapped_area(osm.find(f"relation[@id='{z['osm'].split('/')[1]}']"))
         assert area.area>0, 'Open boundary: '+z['id']
         return area.buffer(1)
     return Polygon([project(*p) for p in z['polygon']])
@@ -82,7 +103,6 @@ aoi=covered.intersection(land)
 assert aoi.geom_type=='Polygon' and aoi.area>=coverage['minimumLandM2'], aoi.area
 assert all(aoi.covers(poly.representative_point()) for poly in polygons.values())
 print('Land area',round(aoi.area),'m2',flush=True)
-stage=sys.argv[1] if len(sys.argv)>1 else 'city'
 a=polygons[catalog['pilotFocus']].representative_point()
 pilot=box(a.x-325,a.y-325,a.x+325,a.y+325)
 area=pilot if stage=='pilot' else aoi

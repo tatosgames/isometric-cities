@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {coreWithTerrain, isCity, isCoreFile, isLayers, isPlaces, isRoofPalette, isSea, isSectorIndex, isZone} from '../src/data/load.ts';
+import {coreWithTerrain, isBarrios, isCity, isCoreFile, isLayers, isPlaces, isRoofPalette, isSea, isSectorIndex, isZone} from '../src/data/load.ts';
 import {validateSectorIndex, validateZone} from '../src/data/sector-index.ts';
 
 async function load(file, valid) {
@@ -14,7 +14,8 @@ const [core, index] = await Promise.all([
   load('pilot.json', isCity),
   load('poi.geojson', isPlaces),
   load('roof-tones.json', isRoofPalette),
-  load('sea.json', isSea)
+  load('sea.json', isSea),
+  load('barrios.json', isBarrios)
 ]);
 validateSectorIndex(index);
 const heights = await readFile(new URL('../public/data/' + core.terrain.file, import.meta.url));
@@ -26,4 +27,4 @@ for (const {id, file} of index.zones) {
 }
 if (buildings !== index.buildingCount) throw new Error('Zones hold ' + buildings + ' buildings, the index expects ' + index.buildingCount);
 for (const {file} of index.sectors) await load('city-sectors/' + file, isLayers);
-console.log('Map data validated: core, pilot, places, roof palette, sea, ' + index.zones.length + ' zones and ' + index.sectors.length + ' sectors');
+console.log('Map data validated: core, pilot, places, roof palette, sea, barrios, ' + index.zones.length + ' zones and ' + index.sectors.length + ' sectors');

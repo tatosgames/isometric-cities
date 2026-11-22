@@ -1,4 +1,4 @@
-import type { Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, Point, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
+import type { Barrio, Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, Point, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -25,7 +25,10 @@ function building(v: unknown): v is Building {
     && (v.windows === undefined || boolean(v.windows));
 }
 const road = (v: unknown): v is Road => record(v) && (v.id===undefined||string(v.id)) && string(v.kind) && list(v.line, point)
-  && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer));
+  && (v.name == null || string(v.name)) && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer));
+const barrio = (v: unknown): v is Barrio =>
+  record(v) && string(v.name) && v.name.trim().length > 0 && list(v.polygons, rings) && v.polygons.length > 0;
+export const isBarrios = (v: unknown): v is Barrio[] => list(v, barrio);
 const surface = (v: unknown): v is Surface =>
   record(v) && string(v.id) && string(v.kind) && rings(v.rings)
   && (v.paved === undefined || boolean(v.paved));

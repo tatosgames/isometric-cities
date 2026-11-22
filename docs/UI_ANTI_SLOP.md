@@ -20,6 +20,10 @@ La causa comune dei pattern scartati è sempre la stessa: abitudini da dashboard
 
 ## Catalogo
 
+### Guida: via e quartiere
+
+Il nome della via e il titolo del quartiere stanno direttamente sul plastico. Il contorno scuro segue le lettere e le rende leggibili sui tetti chiari.
+
 ### Guida: testi nell'HUD (Luca, 21 novembre 2026)
 
 La prima versione mostrava «12 monedas · 23.4 s · Récord 30», «→ Teatro Pérez Galdós», un suggerimento di una riga («Toca izquierda o derecha…») e un pannello «¡Atrapado!» con due pulsanti di testo. Scartato: troppo da leggere mentre si guida.

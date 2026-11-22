@@ -10,7 +10,7 @@ interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[]}
 
 
 const CELL=20;
-function inRing(ring: Ring,x: number,y: number){
+export function inRing(ring: Ring,x: number,y: number){
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
     const [ax,ay]=ring[i],[bx,by]=ring[j];

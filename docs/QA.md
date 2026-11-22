@@ -388,6 +388,16 @@ Il pulsante di ripristino ora torna alla Plaza de Santa Ana alla distanza massim
 
 Limiti. Nell'area nuova 97 edifici hanno un tetto misurato oltre 10 m più alto del dato comunale (ad esempio 25810: 41,7 m comunali, 78,2 m misurati; 22817: 3,6 contro 29,1 m) e 16 lo hanno più basso. Non corretti: decisione di Luca. Elenco in `.cache/lidar-control/scarti-santa-catalina-guanarteme.csv`. Mancano i tile 454-3112, 455-3111, 458-3106 e 458-3107 (61 parti in tutto). La vista più ampia sul centro storico supera il fotogramma a 60 Hz sulla GPU integrata. Nessuna prova su telefono fisico; la guida nei quartieri nuovi non è stata provata a mano. I due luoghi nuovi non hanno un modello dedicato. La Isleta e il porto non sono ancora inclusi.
 
+## Toponimi in Conducir
+
+L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.
+
+Il controllo gira ogni 140 ms. Il nome della via richiede 400 ms di conferma, il quartiere 700 ms. Agli incroci contano distanza e allineamento con la marcia. I test verificano l’incrocio fra una via con nome e una senza nome, una corrispondenza ambigua, i POI reali di Vegueta e Triana e un attraversamento del confine annullato prima della conferma. Il dataset locale copre i 12 confini OSM presenti nel catalogo.
+
+Replay con coordinate stradali reali in Chrome a 1440×900, 390×844 e 844×390. Da Calle Mayor de Triana a Calle Pelota compare una sola volta «Vegueta». Il titolo termina, la via si svuota fuori copertura e la HUD sparisce tornando alla mappa. I due nomi usano testo avorio con un contorno verde scuro e restano distinti dai comandi in tutti e tre i formati.
+
+`typecheck`, build e suite Playwright desktop/mobile passati. La suite completa è stata ripetuta su una build isolata dopo un errore di servizio dei settori nella build condivisa.
+
 ## Cattura in Conducir
 
 `npm.cmd test` copre la cattura durante una partita reale, il blocco di monete, tempo e record, il focus sul pulsante di riprova e il recupero WebGL a sequenza iniziata. Un campione della scena a fine cattura verifica che i canali RGB coincidano e che il colore torni al riavvio. La prova mobile ruota lo schermo con l'esito aperto, controlla lo spazio sopra le attribuzioni e usa il pulsante della mappa dopo una seconda cattura. Impostare `QA_SCREENSHOT_DIR` per salvare fuori dal checkout le schermate desktop, mobile verticale e orizzontale.
