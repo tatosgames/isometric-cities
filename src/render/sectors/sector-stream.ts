@@ -142,6 +142,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   function groundAt(x: number,y: number): number {
     const height=sampleGround(x,y);
     if(height!==undefined)return height;
+    // A shared edge can have ground only in the sector to its west or south.
     const west=x%data.sectorSize===0,south=y%data.sectorSize===0;
     return (west?sampleGround(x,y,x-1,y):undefined)??(south?sampleGround(x,y,x,y-1):undefined)??
       (west&&south?sampleGround(x,y,x-1,y-1):undefined)??base.altitude(x,y);

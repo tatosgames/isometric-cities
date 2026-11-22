@@ -364,4 +364,6 @@ Auto, pattuglie e rottami seguono la quota del triangolo sotto il loro centro. O
 
 In Chrome desktop e mobile emulato (390 × 844), percorsi entrambi i sensi di un tratto con 3,06 m di dislivello su 35,27 m. L'auto era visibile durante il rettilineo e la sterzata, con una pattuglia attiva.
 
+`npm.cmd run typecheck`, `npm.cmd run build` e `npm.cmd test` completati. `node scripts/qa-sectors.mjs` è passato in esecuzione isolata, con attraversamento nei due sensi e una pattuglia attiva. Il tentativo precedente aveva superato di un buffer la tolleranza del circuito.
+
 Sui dossi più netti può ancora compenetrare una singola ruota, perché l'appoggio si calcola al centro. Resta da riprodurre il punto preciso degli screenshot originali.
