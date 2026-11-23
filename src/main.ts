@@ -14,6 +14,8 @@ import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
 import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
 import { propObstacles } from './render/port-props.ts';
+import { makeMapFraming, normalizeTurn } from './map/framing.ts';
+import { bootError, bootEvent, bootPaint, bootPhase, bootProgress, booting, startup } from './boot.ts';
 
 interface Flight {
   start: number; duration: number;
@@ -24,57 +26,7 @@ interface Flight {
 }
 
 const turnDuration=300;
-const upAxis=new T.Vector3(0,1,0);
-const normalizeTurn=(turn: number)=>T.MathUtils.euclideanModulo(turn,4);
 const map=el('map');
-const startup=new AbortController();
-const booting=()=>map.dataset.boot==='loading';
-const bootEvent=(name: string)=>dispatchEvent(new Event('atlas:boot-'+name));
-addEventListener('atlas:boot-failed',()=>startup.abort(),{once:true});
-// While the map opens, a note ahead of the credits says which step is running and for how long: on a phone, with
-// no console at hand, that is how a slow or stuck start can be told apart. The note goes once the map is open.
-const credits=required(document.querySelector<HTMLElement>('#map>footer'),'credits'),bootNote=document.createElement('span');
-bootNote.id='boot-step';credits.prepend(bootNote);
-const bootStarted=performance.now();
-let bootStep='';
-const bootSeconds=()=>Math.round((performance.now()-bootStarted)/1000)+' s';
-const noteStep=(text: string)=>{bootNote.textContent=text+' — ';};
-function bootPhase(step: string){
-  if(!booting())return;
-  bootStep=step;
-  noteStep(step+' · '+bootSeconds());
-  bootEvent('progress');
-}
-const bootClock=setInterval(()=>{if(booting()&&bootStep)noteStep(bootStep+' · '+bootSeconds());},1000);
-addEventListener('atlas:boot-ready',()=>{clearInterval(bootClock);bootNote.remove();},{once:true});
-let bootFault='';
-addEventListener('atlas:boot-failed',()=>{
-  clearInterval(bootClock);
-  noteStep(bootFault||'Sin avance en: '+(bootStep||'inicio')+' · '+bootSeconds());
-},{once:true});
-// Lets the step just announced reach the screen before the next stretch of work holds the page.
-// A hidden tab gets no frames: the timer keeps the start from waiting for one.
-const bootPaint=()=>new Promise<void>(done=>{
-  const late=setTimeout(done,150);
-  requestAnimationFrame(()=>{clearTimeout(late);setTimeout(done,0);});
-});
-let bootPercent=0;
-function bootProgress(percent: number){
-  if(percent<bootPercent || startup.signal.aborted)return;
-  const progress=el('boot-progress');
-  if(percent===bootPercent && progress.hasAttribute('aria-valuenow'))return;
-  bootPercent=percent;
-  bootEvent('progress');
-  progress.style.setProperty('--boot-progress',String(percent));
-  progress.setAttribute('aria-valuenow',String(percent));
-}
-function bootError(error: unknown){
-  if(startup.signal.aborted)return;
-  console.error(error);
-  bootFault='Error en: '+(bootStep||'inicio')+' · '+(error instanceof Error?error.message:String(error)).slice(0,120);
-  noteStep(bootFault);
-  bootEvent('error');
-}
 
 async function start(){
   if(!booting())return;
@@ -153,8 +105,7 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
-  const mapInclination=Math.acos(direction.y);
-  const mapOffset=new T.Vector3();
+  const {mapInclination,mapDirection,bounds,center,fitAt,farthest,openingZoom}=makeMapFraming({host,compact,data,altitude,direction});
   let frame=0,lost=false,painted=0,mapTurn=0;
   let flight: Flight | null=null;
   let lastView: ViewState | null=null;
@@ -167,7 +118,6 @@ async function start(){
     fly(point,Math.max(fitAt(flight?.turn1??mapTurn),Math.min(host.clientWidth,host.clientHeight)/245),320);
     return true;
   });
-  function mapDirection(turn: number){return mapOffset.copy(direction).applyAxisAngle(upAxis,normalizeTurn(turn)*Math.PI/2);}
   function view(target: T.Vector3,zoom: number,offset=mapDirection(mapTurn)){
     controls.target.copy(target);
     camera.position.copy(target).addScaledVector(offset,1500);
@@ -176,26 +126,6 @@ async function start(){
     if(camera.zoom!==zoom){camera.zoom=zoom;camera.updateProjectionMatrix();}
     draw();
   }
-  const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
-  const bounds=new T.Box3().setFromPoints(border);
-  const center=bounds.getCenter(new T.Vector3());
-  function fitAt(turn: number){
-    const offset=mapDirection(turn);
-    const right=new T.Vector3().crossVectors(upAxis,offset).normalize();
-    const up=new T.Vector3().crossVectors(offset,right);
-    const point=new T.Vector3();
-    let halfWidth=0,halfHeight=0;
-    // Measure from the actual orbit center so an asymmetric coastline still fits.
-    for(const vertex of border){
-      point.copy(vertex).sub(center);
-      halfWidth=Math.max(halfWidth,Math.abs(point.dot(right)));
-      halfHeight=Math.max(halfHeight,Math.abs(point.dot(up)));
-    }
-    return Math.max(farthest(),Math.min(host.clientWidth/(2*halfWidth+60),host.clientHeight/(2*halfHeight+65))*.92);
-  }
-  // The widest view shows a district, never the whole city: its longer side covers this many metres.
-  // It stays inside the span where every building is drawn, so the merged far level only fills in while zones load.
-  function farthest(){return Math.max(host.clientWidth,host.clientHeight)/(compact?2400:3000);}
   function sizeCamera(){
     const w=host.clientWidth,h=host.clientHeight;
     camera.left=-w/2;camera.right=w/2;camera.top=h/2;camera.bottom=-h/2;
@@ -204,7 +134,6 @@ async function start(){
     controls.minZoom=Math.max(farthest(),Math.min(...fits,fitAt(mapTurn))*.8);
     controls.maxZoom=drive?.active?Infinity:Math.max(Math.max(...fits)*12,4,openingZoom());
   }
-  function openingZoom(){return Math.max(host.clientWidth/340,host.clientHeight/225);}
   // A city wider than the widest view has no centre worth showing: the reset goes home to the focus place.
   function home(){return places.point(data.focus) ?? new T.Vector3(-95,11,218);}
   function reset(){

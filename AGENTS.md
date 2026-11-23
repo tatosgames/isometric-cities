@@ -12,7 +12,8 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/main.ts` | Camera, input, filtro per area e recupero contesto WebGL |
 | `src/data/` | Contratti e validazione dei geodati e della vista salvata |
 | `src/data/load.ts`, `types.ts`, `sector-index.ts`, `pilot-edits.ts`, `src/required.ts` | Caricamento a tre livelli, tipi condivisi con il worker, indice dei settori, correzioni dell'editor, accesso obbligatorio al DOM |
-| `src/map/dom.ts` | Riferimenti DOM della mappa |
+| `src/boot.ts`, `src/map/dom.ts`, `src/map/framing.ts` | Avvio (fase, progresso, errore, nota delle attribuzioni), riferimenti DOM, orientamento e limiti di zoom della camera della mappa |
+| `src/drive/drive-tune.ts`, `drive-types.ts`, `drive-effects.ts`, `drive-crowd.ts` | Parametri `TUNE` e costanti, tipi condivisi, particelle e segni di sgommata, vista dei pedoni (estratti da `drive.ts`) |
 | `src/drive/drive-route.ts`, `drive-location.ts`, `drive-pose.ts`, `road-grade.ts`, `building-occlusion.ts`, `car-model.ts` | Destinazioni e monete, toponimi, appoggio al terreno, pendenza e ripresa, camera sopra gli edifici, modello dell'auto |
 | `src/render/city-materials.ts`, `ground-surface.ts`, `ground-map.ts`, `building-stencil.ts`, `port-props.ts`, `sectors/lod-transition.ts`, `sectors/protocol.ts` | Materiali condivisi, suolo e carreggiate, retino edifici, gru e oggetti del porto, transizioni LOD da 250 ms, protocollo worker |
 | `scripts/check-data.mjs`, `audit-city.py`, `osm_extract.py`, `carriageways.py`, `road_sections.py`, `source_cache.py`, `requirements.txt` | Controllo dell'indice dati (parte di `build`), audit della città, estratti OSM su reticolo, carreggiate, cache delle fonti |
