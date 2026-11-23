@@ -1,5 +1,7 @@
 # Fonti e trasformazioni · 21 novembre 2026
 
+Impronte OSM per i monumenti assenti nello strato comunale (`osmBuildings` nel catalogo: Estadio de Gran Canaria, Castillo de Mata), con altezza stimata da confermare con il LiDAR.
+
 Fonti valutate ma non ancora in produzione (ortofoto 20 cm SITCAN, altri dataset, restrizioni GRAFCAN): [GEODATA_SOURCES.md](GEODATA_SOURCES.md).
 
 | Fonte | Impiego e attribuzione |

@@ -1,4 +1,4 @@
-import type { Altitude, Building } from '../data/types.ts';
+import type { Altitude, Building, Ring } from '../data/types.ts';
 import * as T from 'three';
 
 type AddBuilding = (geometry: T.BufferGeometry, color: string, x: number, y: number) => void;
@@ -98,9 +98,8 @@ function frame(building: Building){
 
 // Rubble-stone fortress of La Isleta: merlons along the wall walk and the small turret with its conical cap.
 // The round bastions are already in the municipal footprint; the turret place comes from the 2024 orthophoto.
-function castilloDeLaLuz(add: AddBuilding,altitude: Altitude,castle: Building){
-  const stone='#8f867a',cap='#77736d';
-  const ring=castle.rings[0],[x0,y0]=ring[0],top=altitude(x0,y0)+(castle.heightOverride??castle.height);
+// Merlons every 2.2 m along the top of a footprint's outer wall.
+function merlons(add: AddBuilding,ring: Ring,top: number,stone: string){
   for(let i=1;i<ring.length;i++){
     const [ax,ay]=ring[i-1],[bx,by]=ring[i],length=Math.hypot(bx-ax,by-ay),count=Math.floor(length/2.2);
     const angle=Math.atan2(by-ay,bx-ax);
@@ -109,6 +108,11 @@ function castilloDeLaLuz(add: AddBuilding,altitude: Altitude,castle: Building){
       add(new T.BoxGeometry(1,.9,.5).rotateY(angle).translate(x,top+1,-y),stone,x,y);
     }
   }
+}
+function castilloDeLaLuz(add: AddBuilding,altitude: Altitude,castle: Building){
+  const stone='#8f867a',cap='#77736d';
+  const ring=castle.rings[0],[x0,y0]=ring[0],top=altitude(x0,y0)+(castle.heightOverride??castle.height);
+  merlons(add,ring,top,stone);
   const tx=-956.4,ty=4851.4;
   add(new T.CylinderGeometry(2.6,2.6,3.4,10).translate(tx,top+1.7,-ty),stone,tx,ty);
   add(new T.ConeGeometry(3.1,2.8,10).translate(tx,top+4.8,-ty),cap,tx,ty);
@@ -185,8 +189,53 @@ function auditorioAlfredoKraus(add: AddBuilding,altitude: Altitude,hall: Buildin
   for(const u of [-width/3,0,width/3])sea(new T.BoxGeometry(.5,14,.3),u,15,.7,stone);
 }
 
+// Bastioned enclosure of the old city wall, after its OpenStreetMap outline: merlons along the rampart.
+// The municipal layer does not map it; footprint and estimated heights come from the catalogue `osmBuildings`.
+function castilloDeMata(add: AddBuilding,altitude: Altitude,castle: Building){
+  const ring=castle.rings[0],[x0,y0]=ring[0];
+  merlons(add,ring,altitude(x0,y0)+(castle.heightOverride??castle.height),'#a59a88');
+}
+
+// Football stadium of Siete Palmas. The OpenStreetMap footprint of the stands already leaves the pitch out.
+// The extruded footprint is only the low podium (`heightOverride`); the raked stands rise from it, from the pitch
+// edge to the outer wall at the catalogue `height`, and the pitch lies in the middle. The roofs over parts of the
+// stands are left out: their extent is not mapped.
+function estadioDeGranCanaria(add: AddBuilding,altitude: Altitude,stands: Building){
+  // The extrusion stands on the ground under its first corner, and so do the stands; the pitch lies on the ground below.
+  const ring=stands.rings[0],{cx,cy,dx,dy}=frame(stands),base=altitude(ring[0][0],ring[0][1]);
+  const podium=stands.heightOverride??4,crest=stands.height;
+  const reach=ring.map(([x,y])=>Math.hypot(x-cx,y-cy)),near=Math.min(...reach),far=Math.max(...reach),middle=(near+far)/2;
+  const rise=(x: number,y: number)=>base+podium+.05+(crest-podium)*T.MathUtils.clamp((Math.hypot(x-cx,y-cy)-near)/(far-near),0,1);
+  // Seating: the footprint triangulated once, each corner lifted by its distance from the pitch.
+  const seats=new T.ShapeGeometry(new T.Shape(ring.slice(0,-1).map(([x,y])=>new T.Vector2(x,y)))).rotateX(-Math.PI/2);
+  const at=seats.getAttribute('position');
+  for(let k=0;k<at.count;k++)at.setY(k,rise(at.getX(k),-at.getZ(k)));
+  seats.computeVertexNormals();
+  add(seats,'#8e9396',cx,cy);
+  let along=0,across=0;
+  const wall: number[]=[];
+  for(let i=1;i<ring.length;i++){
+    const [ax,ay]=ring[i-1],[bx,by]=ring[i],mx=(ax+bx)/2,my=(ay+by)/2,length=Math.hypot(bx-ax,by-ay);
+    if(length<.3)continue;
+    if(Math.hypot(mx-cx,my-cy)>=middle){
+      // Outer wall from the podium up to the seats, so the stands read as one closed bowl from outside.
+      const a=base+podium,ta=rise(ax,ay),tb=rise(bx,by);
+      wall.push(ax,a,-ay,bx,a,-by,bx,tb,-by,ax,a,-ay,bx,tb,-by,ax,ta,-ay);
+      continue;
+    }
+    for(const [x,y] of [[ax,ay],[bx,by]]){
+      along=Math.max(along,Math.abs((x-cx)*dx+(y-cy)*dy));across=Math.max(across,Math.abs((y-cy)*dx-(x-cx)*dy));
+    }
+  }
+  const outer=new T.BufferGeometry();outer.setAttribute('position',new T.Float32BufferAttribute(wall,3));outer.computeVertexNormals();
+  add(outer,stands.wallColor??'#d9d4c8',cx,cy);
+  // The pitch fills most of the space the stands enclose, short of the track around it.
+  facade(add,cx,cy,dx,dy,altitude(cx,cy))(new T.BoxGeometry(Math.max(10,along*2-14),.12,Math.max(10,across*2-14)),0,.15,0,'#5f8f4e');
+}
+
 const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario,'castillo-de-la-luz':castilloDeLaLuz,
-  'mercado-del-puerto':mercadoDelPuerto,'auditorio-alfredo-kraus':auditorioAlfredoKraus};
+  'mercado-del-puerto':mercadoDelPuerto,'auditorio-alfredo-kraus':auditorioAlfredoKraus,
+  'castillo-de-mata':castilloDeMata,'estadio-de-gran-canaria':estadioDeGranCanaria};
 
 export function addLandmarks(buildings: Building[],add: AddBuilding,altitude: Altitude){
   const built=new Set();

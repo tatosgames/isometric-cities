@@ -134,6 +134,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AE · Luoghi nei quartieri nuovi.** Da 16 a 25 luoghi, almeno due per area che ne era priva: Ciudad Alta (Parque de La Ballena, Parque de Las Rehoyas, Mercado de Altavista), riscos (Castillo de San Francisco, Cementerio Inglés), anello sud (Parque Gloria Fuertes, Iglesia San Francisco Javier), Alcaravaneras (Parque Antiguo Estadio Insular, Real Club Náutico). Diventano anche mete di Conducir. Scartati Estadio de Gran Canaria e Castillo de Mata: la mappa lì non ha costruzioni. [Verifica](docs/QA.md#luoghi-nei-quartieri-nuovi-23-novembre-2026). Da fare: rigenerare `poi.geojson` con `data.py city` sulla macchina con la cache.
 
+**AF · Monumenti fuori dallo strato comunale.** Estadio de Gran Canaria (gradinate e campo) e Castillo de Mata (recinto con merli e corpo interno) da impronte OSM con altezza stimata, tramite la nuova voce `osmBuildings`. [Verifica](docs/QA.md#modelli-dedicati-estadio-de-gran-canaria-e-castillo-de-mata-23-novembre-2026). Da fare sulla macchina con la cache: `python scripts/data.py city`, `python scripts/sectors.py`, poi `lidar-check.py` per le altezze; solo allora i due luoghi entrano in `poi.geojson`.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 25 luoghi, 75 zone e 805 settori.

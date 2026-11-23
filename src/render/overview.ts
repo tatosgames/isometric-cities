@@ -14,7 +14,7 @@ export function overviewBuildings(buildings: Building[],trees: Point[],altitude:
   for(const b of buildings){
     const base=altitude(...b.rings[0][0]),top=base+(b.heightOverride??b.height);
     const outline=b.rings.map(r=>r.slice(0,-1));
-    tint(b.wallColor??['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'][b.id%6]);
+    tint(b.wallColor??['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'][Math.abs(b.id)%6]);
     for(const r of outline)for(let j=0;j<r.length;j++){
       const a=r[j],c=r[(j+1)%r.length];
       point(a,base-2);point(c,base-2);point(c,top);

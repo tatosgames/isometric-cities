@@ -227,6 +227,24 @@
         "city"
       ],
       "markerHeight": 2
+    },
+    {
+      "id": "estadio-de-gran-canaria",
+      "name": "Estadio de Gran Canaria",
+      "osm": "way/838353907",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "castillo-de-mata",
+      "name": "Castillo de Mata",
+      "osm": "way/182801321",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
     }
   ],
   "buildings": {
@@ -278,6 +296,35 @@
       "roofFurniture": false
     }
   },
+  "osmBuildings": [
+    {
+      "osm": "way/838329801",
+      "landmark": "estadio-de-gran-canaria",
+      "height": 20,
+      "wallColor": "#d9d4c8",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Tribune dello stadio (building=stadium): base estrusa a 4 m, gradinate fino a 20 m disegnate da landmarks.ts. Altezze stimate, da misurare con il LiDAR.",
+      "heightOverride": 4
+    },
+    {
+      "osm": "way/182801321",
+      "landmark": "castillo-de-mata",
+      "height": 7,
+      "wallColor": "#a59a88",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Recinto bastionato (historic=castle). Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/251520474",
+      "height": 10,
+      "wallColor": "#a59a88",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Corpo del Castillo de Mata dentro il recinto. Altezza stimata, da misurare con il LiDAR."
+    }
+  ],
   "pavedParks": [
     "584041194",
     "168978301",

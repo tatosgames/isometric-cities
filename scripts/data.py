@@ -13,6 +13,7 @@ import numpy as np
 import rasterio
 from source_cache import fetch
 from osm_extract import acquire
+from osm_buildings import osm_buildings
 
 cache = Path('.cache')
 out = Path('public/data')
@@ -218,6 +219,8 @@ for f in features:
         look={**style,**catalog['buildings'].get(key,{})}
         if tank_index is not None and 'wallColor' not in look and any(p.contains(tanks[i]) for i in tank_index.query(p)): look={**tank_style,**look}
         buildings.append(dict(id=f['properties']['OBJECTID'],**look,rings=outline,height=height,source=origin))
+# Monuments the municipal layer leaves out: OSM footprint, catalogue height (see scripts/osm_buildings.py).
+buildings+=osm_buildings(catalog,place_polygon,area,parts,rings)
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')

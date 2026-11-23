@@ -177,19 +177,21 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   for(const b of data.buildings){
     editableBuilding=b;
     const [x,y]=b.rings[0][0], s=shape(b.rings);
+    // Buildings from the catalogue `osmBuildings` have negative ids: pick colours and details by the magnitude.
+    const n=Math.abs(b.id);
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
     const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2+RIM,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
-    addBuilding(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
+    addBuilding(g,b.wallColor??walls[n%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
-    addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
-    if(b.roofFurniture!==false && b.id%6!==1){
+    addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[n%roofs.length],x,y,4);
+    if(b.roofFurniture!==false && n%6!==1){
       const {radius,rx,ry}=roofClearance(roof);
       if(radius>2.1){
         const size=Math.min(5,radius),angle=Math.atan2(b.rings[0][1][1]-y,b.rings[0][1][0]-x);
         addBuilding(new T.BoxGeometry(size,1.8,size*.72).rotateY(angle).translate(rx,top+.9,-ry),'#dcd7c9',x,y);
         // The thin lid and the tank beside the rooftop cabin are smaller than a pixel on a phone.
         if(!compact)addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
-        if(!compact && radius>3.5 && b.id%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
+        if(!compact && radius>3.5 && n%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
       }
     }
     // Low parapets trace the actual perimeter and distinguish adjoining roofs.
@@ -215,7 +217,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
             const right=[cx+ux*.74,z+floor,-cy-uy*.74];
             const tl=[left[0],left[1]+1.95,left[2]],tr=[right[0],right[1]+1.95,right[2]];
             windows.push(...left,...right,...tl,...tl,...right,...tr);
-            const projection=(b.id%4===0 && bay%2===0)?.65:.22;
+            const projection=(n%4===0 && bay%2===0)?.65:.22;
             const lipLeft=[left[0]+nx*projection,left[1],left[2]-ny*projection];
             const lipRight=[right[0]+nx*projection,right[1],right[2]-ny*projection];
             // A plain sill is a 22 cm lip: on a phone only the balconies are worth their triangles.
@@ -237,7 +239,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
     }
     if(windows.length){
-      const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);
+      const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][n%3],x,y);
     }
     if(sills.length){
       const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(sills,3));trim.computeVertexNormals();addBuilding(trim,'#ede8dc',x,y);
