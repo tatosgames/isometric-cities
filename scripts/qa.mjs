@@ -1,13 +1,13 @@
-import { chromium } from 'playwright';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import './qa-drive-pose.mjs';
 import './qa-drive-location.mjs';
 import './qa-pedestrians.mjs';
 import './qa-ground.mjs';
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
-const server=process.env.MAP_URL?null:await (await import('vite')).preview({preview:{host:'127.0.0.1',port:0,open:false}});
-const origin=process.env.MAP_URL||server.resolvedUrls.local[0].replace(/\/$/,'');
+const browser=await launchBrowser();
+const {server,origin:served}=await serveMap();
+const origin=served.replace(/\/$/,'');
 const dir=process.env.QA_SCREENSHOT_DIR||'docs/screenshots';
 await mkdir(dir,{recursive:true});
 try{

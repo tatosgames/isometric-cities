@@ -17,6 +17,9 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/drive/drive-route.ts`, `drive-location.ts`, `drive-pose.ts`, `road-grade.ts`, `building-occlusion.ts`, `car-model.ts` | Destinazioni e monete, toponimi, appoggio al terreno, pendenza e ripresa, camera sopra gli edifici, modello dell'auto |
 | `src/render/city-materials.ts`, `ground-surface.ts`, `ground-map.ts`, `building-stencil.ts`, `port-props.ts`, `sectors/lod-transition.ts`, `sectors/protocol.ts` | Materiali condivisi, suolo e carreggiate, retino edifici, gru e oggetti del porto, transizioni LOD da 250 ms, protocollo worker |
 | `scripts/check-data.mjs`, `audit-city.py`, `osm_extract.py`, `carriageways.py`, `road_sections.py`, `source_cache.py`, `requirements.txt` | Controllo dell'indice dati (parte di `build`), audit della città, estratti OSM su reticolo, carreggiate, cache delle fonti |
+| `scripts/qa-browser.mjs` | Avvio condiviso delle prove browser: scelta del browser (`CHROME_PATH`) e server della build (`MAP_URL` per una mappa già in esecuzione) |
+| `scripts/geo.py` | Origine della mappa e conversioni EPSG:32628/4083 condivise dagli script Python |
+| `src/geometry.ts` | Angolo nell'intervallo ±π e punto dentro un poligono, condivisi da mappa, guida e dati |
 | `scripts/qa-*.mjs` (boot, drive-*, pedestrians, recovery, sectors, ground, carriageways, lod, road-lab…) | Prove Playwright mirate; `qa.mjs` è la suite completa |
 | `src/drive/drive-camera.ts` | Calcolo delle pose e transizioni della camera in guida |
 | `tsconfig.json` | Controllo rigoroso del runtime browser e del worker |
@@ -58,6 +61,8 @@ npm.cmd run typecheck
 npm.cmd run build
 npm.cmd test            # scripts/qa.mjs, richiede Chrome
 ```
+
+Le prove browser partono da `scripts/qa-browser.mjs`. Senza Chrome installato (per esempio su Linux) si indica un altro Chromium con `CHROME_PATH`, ad esempio `CHROME_PATH=/opt/pw-browsers/chromium npm test`.
 
 ## Regole
 

@@ -15,6 +15,7 @@ import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
 import { propObstacles } from './render/port-props.ts';
 import { makeMapFraming, normalizeTurn } from './map/framing.ts';
+import { wrapAngle } from './geometry.ts';
 import { bootError, bootEvent, bootPaint, bootPhase, bootProgress, booting, startup } from './boot.ts';
 
 interface Flight {
@@ -267,7 +268,7 @@ async function start(){
       if(orbit && t<1){
         const yaw=Math.atan2(offset.x,offset.z)-orbit.theta;
         offset.setFromSphericalCoords(1,T.MathUtils.lerp(orbit.phi,mapInclination,ease),
-          orbit.theta+Math.atan2(Math.sin(yaw),Math.cos(yaw))*ease);
+          orbit.theta+wrapAngle(yaw)*ease);
       }
       view(flight.from.clone().lerp(flight.to,ease),zoom,offset);
       if(t>=1){

@@ -1,4 +1,5 @@
 import { isCity } from './load.ts';
+import { pointInRing } from '../geometry.ts';
 import type { CityData, Point, Ring } from './types.ts';
 
 export const propKinds = { bench: 'Bench', bollard: 'Bollard', planter: 'Planter' } as const;
@@ -40,13 +41,8 @@ function intersects(a: Point, b: Point, c: Point, d: Point) {
     || onSegment(c,a,b) || onSegment(d,a,b) || onSegment(a,c,d) || onSegment(b,c,d);
 }
 
-function inside(ring: Ring, [x,y]: Point) {
-  let result = false;
-  for (const [[ax,ay],[bx,by]] of edges(ring)) {
-    if ((ay > y) !== (by > y) && x < ax + (bx-ax)*(y-ay)/(by-ay)) result = !result;
-  }
-  return result;
-}
+// Rings are checked closed before this runs, so the shared test sees the same edges.
+const inside = (ring: Ring, [x,y]: Point) => pointInRing(ring,x,y);
 
 export function inPilot(data: CityData, [x,y]: Point) {
   // The pilot AOI is a rectangle in the local metric projection.

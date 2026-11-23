@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
-from pyproj import Transformer
+from geo import CANARY, origin
 
 # Keep the 1 m grid fixed to the original scene origin. Adjacent requests share edges.
 from source_cache import fetch
@@ -15,7 +15,7 @@ stages = [json.loads(Path(f'public/data/{s}.json').read_bytes()) for s in ('pilo
 xs,ys = zip(*(p for stage in stages for p in stage['boundary']))
 west,south=floor(min(xs))-8,floor(min(ys))-8
 width,height=ceil(max(xs))-west+8,ceil(max(ys))-south+8
-ox, oy = Transformer.from_crs(4326, 4083, always_xy=True).transform(-15.415, 28.105)
+ox, oy = origin(CANARY)
 def mosaic():
     image=Image.new('RGB',(width,height))
     for x in range(0,width,1024):

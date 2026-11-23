@@ -30,4 +30,4 @@ export const TUNE={
 };
 export const SKIDS=600, DUST=48, COINS=220;
 export const CAPTURE={speed:.3,coast:1,maxSpeed:6,grade:.85,summary:.3,actions:.6};
-export const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
+export { wrapAngle as wrap } from '../geometry.ts';

@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
-import {preview} from 'vite';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 
-const server=await preview({preview:{host:'127.0.0.1',port:0}});
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server}=await serveMap({env:null});
+const browser=await launchBrowser();
 try {
   const page=await browser.newPage({viewport:{width:510,height:850}});
   const errors=[];

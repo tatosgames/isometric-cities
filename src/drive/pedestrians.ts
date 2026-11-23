@@ -1,4 +1,5 @@
 import type { Road, Surface } from '../data/types.ts';
+import { pointInRing as inside, wrapAngle } from '../geometry.ts';
 
 // Ambient pedestrians for the driving mode. Pure logic: positions in map metres, no rendering.
 // They stroll along road edges, footways and squares near the car and jump aside when a vehicle
@@ -38,14 +39,6 @@ const CELL=40;
 const footways=new Set(['steps','footway','path','pedestrian','cycleway']);
 const mainRoads=new Set(['primary','secondary','trunk','motorway']);
 
-function inside(ring: [number,number][],x: number,y: number){
-  let hit=false;
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
-    const [ax,ay]=ring[i],[bx,by]=ring[j];
-    if((ay>y)!==(by>y) && x<(bx-ax)*(y-ay)/(by-ay)+ax)hit=!hit;
-  }
-  return hit;
-}
 
 export function makePedestrians(roads: Road[],surfaces: Surface[],world: {free(x: number,y: number,r: number): boolean},
   count: number,tune=PEDESTRIANS,random=Math.random){
@@ -168,7 +161,7 @@ export function makePedestrians(roads: Road[],surfaces: Surface[],world: {free(x
         if(w.stuck>1.5){w.alive=false;continue;}
       }
       if(moved){
-        const turn=Math.atan2(Math.sin(Math.atan2(dy,dx)-w.h),Math.cos(Math.atan2(dy,dx)-w.h));
+        const turn=wrapAngle(Math.atan2(dy,dx)-w.h);
         w.h+=turn*Math.min(1,dt*(w.alarm>0?18:6));
       }
       resolve(w,threats);

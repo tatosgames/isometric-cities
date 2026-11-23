@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {preview} from 'vite';
-import {chromium} from 'playwright';
+import {launchBrowser} from './qa-browser.mjs';
 
 const server=process.env.LAB_URL?null:await preview({preview:{port:0,host:'127.0.0.1'}});
 const url=process.env.LAB_URL||new URL('lab.html?test=strade',server.resolvedUrls.local[0]).href;
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const browser=await launchBrowser();
 try{
   await mkdir('.cache/road-lab',{recursive:true});
   for(const mobile of [false,true]){

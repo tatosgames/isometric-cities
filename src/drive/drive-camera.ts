@@ -1,7 +1,7 @@
 import {MathUtils,Vector3} from 'three';
+import { wrapAngle as shortest } from '../geometry.ts';
 
 const radians=MathUtils.degToRad;
-const shortest=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 const modes=[
   {id:'fixed',label:'Isométrica',zoom:1,framing:0},
   {id:'high',label:'Aérea',pitch:radians(65),zoom:1,framing:.055},

@@ -1,10 +1,9 @@
 // Frame pacing at one place: node scripts/frame-profile.mjs [place-id | x,y,zoom] [dist] [query]
 // x and y are local metres; zoom 1.59 is the place view and 0.352 the widest view of the 390 px phone.
-import {chromium} from 'playwright';
-import {preview} from 'vite';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 const [place='santa-ana',dir='dist',query='']=process.argv.slice(2);
-const server=await preview({build:{outDir:dir},preview:{host:'127.0.0.1',port:0}});
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server}=await serveMap({env:null,outDir:dir});
+const browser=await launchBrowser();
 try{
   const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   await page.addInitScript(()=>{

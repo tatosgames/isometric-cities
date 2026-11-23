@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
-import {preview} from 'vite';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 
-const server = process.env.MAP_URL ? null : await preview({preview:{host:'127.0.0.1',port:0}});
-const origin = process.env.MAP_URL ?? server.resolvedUrls.local[0];
-const browser = await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server,origin} = await serveMap();
+const browser = await launchBrowser();
 
 async function delayFirst(page, pattern) {
   const requested = page.waitForRequest(pattern);

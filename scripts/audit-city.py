@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path[:0] = [str(Path(".cache/pylib").resolve()), str(Path(__file__).resolve().parent)]
-from pyproj import Transformer
+from geo import from_crs, origin, to_crs
 from shapely import make_valid, union_all
 from shapely.geometry import LineString, Polygon, mapping
 from shapely.ops import transform
@@ -51,9 +51,9 @@ def main():
     data = read("public/data/city.json")
     catalog = read("content/las-palmas.json")
     osm = acquire(catalog["coverage"], offline=True)
-    forward = Transformer.from_crs(4326, 32628, always_xy=True)
-    inverse = Transformer.from_crs(32628, 4326, always_xy=True)
-    ox, oy = forward.transform(-15.415, 28.105)
+    forward = to_crs()
+    inverse = from_crs()
+    ox, oy = origin()
     nodes = {}
     for e in osm.iterfind("node"):
         x, y = forward.transform(float(e.get("lon")), float(e.get("lat")))

@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
-import {preview} from 'vite';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 
-const server = process.env.MAP_URL ? null : await preview({preview:{host:'127.0.0.1',port:0}});
-const browser = await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server,origin} = await serveMap();
+const browser = await launchBrowser();
 try {
-  const origin = process.env.MAP_URL ?? server.resolvedUrls.local[0];
   const viewport = {width:390,height:844};
   for (const [file, field] of [['city-core.json','roads'],['poi.geojson','features']]) {
     const page = await browser.newPage({viewport,hasTouch:true,isMobile:true});

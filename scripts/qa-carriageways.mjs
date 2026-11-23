@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {mkdir,writeFile} from 'node:fs/promises';
-import {chromium} from 'playwright';
-import {preview} from 'vite';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 
 const widths=process.argv.includes('--larghezze'),ref=widths?'85b05aa':'6bdb2da';
 const full=process.argv.includes('--full'), out='.cache/qa-carriageways/'+(widths?'larghezze':full?'city':'pilot');
 await mkdir(out,{recursive:true});
-const server=await preview({preview:{host:'127.0.0.1',port:0}});
-const origin=server.resolvedUrls.local[0],browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server,origin}=await serveMap({env:null});
+const browser=await launchBrowser();
 const summary=[];
 const oldIndex=JSON.parse(execFileSync('git',['show',ref+':public/data/city-index.json']));
 const oldFiles=new Map();

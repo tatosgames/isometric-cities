@@ -18,11 +18,11 @@ import shapely
 from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
-from pyproj import Transformer
+from geo import origin
 
 OUT = Path('.cache/lidar-control')
 GROUND, BUILDING = 2, 6
-ORIGIN = Transformer.from_crs(4326, 32628, always_xy=True).transform(-15.415, 28.105)
+ORIGIN = origin()
 
 def load_points(paths):
     files = []

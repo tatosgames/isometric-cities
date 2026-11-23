@@ -8,7 +8,7 @@ from shapely.geometry import Polygon, LineString, Point, shape, mapping, box, Mu
 from shapely.ops import transform, unary_union, polygonize, nearest_points
 from shapely import make_valid
 from shapely.strtree import STRtree
-from pyproj import Transformer
+from geo import from_crs, origin, to_crs
 import numpy as np
 import rasterio
 from source_cache import fetch
@@ -24,9 +24,9 @@ def save(name, data):
 catalog=json.loads(Path('content/las-palmas.json').read_text(encoding='utf8'))
 coverage=catalog['coverage']
 osm=acquire(coverage)
-utm = Transformer.from_crs(4326,32628,always_xy=True)
-geo = Transformer.from_crs(32628,4326,always_xy=True)
-ox,oy = utm.transform(-15.415,28.105)
+utm = to_crs()
+geo = from_crs()
+ox,oy = origin()
 def project(lon,lat):
     x,y=utm.transform(lon,lat)
     return x-ox,y-oy

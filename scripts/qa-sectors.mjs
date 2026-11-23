@@ -1,12 +1,10 @@
-import {chromium} from 'playwright';
 import {readFile} from 'node:fs/promises';
 import {buildDriveWorld} from '../src/drive/drive-world.ts';
-import {preview} from 'vite';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 import assert from 'node:assert/strict';
 
-const server=process.env.MAP_URL?null:await preview({preview:{port:0,host:'127.0.0.1'}});
-const origin=process.env.MAP_URL??server.resolvedUrls.local[0];
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server,origin}=await serveMap();
+const browser=await launchBrowser();
 try{
   const p=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   await p.addInitScript(()=>{

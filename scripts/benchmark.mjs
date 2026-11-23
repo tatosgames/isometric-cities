@@ -1,7 +1,6 @@
-import {chromium} from 'playwright';
-import {preview} from 'vite';
-const server=await preview({build:{outDir:process.argv[2]||'dist'},preview:{host:'127.0.0.1',port:0}});
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader','--enable-precise-memory-info']});
+import {launchBrowser,serveMap} from './qa-browser.mjs';
+const {server}=await serveMap({env:null,outDir:process.argv[2]||'dist'});
+const browser=await launchBrowser(['--enable-precise-memory-info']);
 try{
 const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
 await page.addInitScript(()=>{

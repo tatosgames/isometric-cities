@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
-import {preview} from 'vite';
-import {chromium} from 'playwright';
+import {launchBrowser,serveMap} from './qa-browser.mjs';
 
 const city=process.argv.includes('--citta');
 const out=city?'.cache/qa-lod/citta':'.cache/qa-lod',results=[];
 await mkdir(out,{recursive:true});
-const server=await preview({preview:{host:'127.0.0.1',port:0}});
-const browser=await chromium.launch({channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const {server}=await serveMap({env:null});
+const browser=await launchBrowser();
 const percentile=(a,q)=>a.toSorted((x,y)=>x-y)[Math.ceil(a.length*q)-1];
 try{
  for(const mobile of (city?[true]:[true,false])){

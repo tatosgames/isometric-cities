@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { chromium } from 'playwright';
+import {launchBrowser} from './qa-browser.mjs';
 import { BufferGeometry, Float32BufferAttribute, Mesh, OrthographicCamera, Vector3 } from 'three';
 import { previewBuilding } from '../src/editor/building-drag.ts';
 import { createServer } from 'vite';
@@ -32,7 +32,7 @@ await server?.listen();
 const mapRoot = (process.env.MAP_URL || server.resolvedUrls.local[0]).replace(/\/?$/,'/');
 let browser;
 try {
-  browser = await chromium.launch({ channel:'chrome',args:['--enable-unsafe-swiftshader'] });
+  browser = await launchBrowser();
   const page = await browser.newPage({ viewport:{width:1400,height:950} });
   const faults = [];
   const observe = page => {
