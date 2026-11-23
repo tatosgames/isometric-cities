@@ -386,6 +386,65 @@
         "id": "diaz-casanova",
         "municipal": 49,
         "name": "Díaz Casanova"
+      },
+      {
+        "id": "miller",
+        "municipal": 39,
+        "name": "Miller"
+      },
+      {
+        "id": "miller-industrial",
+        "municipal": 40,
+        "name": "Miller Industrial"
+      },
+      {
+        "id": "lomo-apolinario",
+        "municipal": 38,
+        "name": "Lomo Apolinario"
+      },
+      {
+        "id": "san-roque",
+        "municipal": 33,
+        "name": "San Roque"
+      },
+      {
+        "id": "el-batan",
+        "municipal": 30,
+        "name": "El Batán"
+      },
+      {
+        "id": "san-juan-san-jose",
+        "municipal": 31,
+        "name": "San Juan - San José"
+      },
+      {
+        "id": "zarate",
+        "municipal": 18,
+        "name": "Zárate"
+      },
+      {
+        "id": "el-lasso",
+        "municipal": 13,
+        "name": "El Lasso"
+      },
+      {
+        "id": "la-paterna",
+        "municipal": 36,
+        "name": "La Paterna"
+      },
+      {
+        "id": "los-tarahales",
+        "municipal": 37,
+        "name": "Los Tarahales"
+      },
+      {
+        "id": "casablanca-iii",
+        "municipal": 34,
+        "name": "Casablanca III"
+      },
+      {
+        "id": "diseminado-las-palmas",
+        "municipal": 99
       }
     ],
     "minimumLandM2": 5000000

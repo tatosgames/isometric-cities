@@ -84,6 +84,8 @@ def save_barrios():
     barrios=[]
     for zone in coverage['zones']:
         if 'municipal' in zone:
+            # A scattered remainder between barrios has no name of its own: it is covered, not labelled.
+            if 'name' not in zone: continue
             area=municipal_area(zone['municipal']).simplify(.25, preserve_topology=True)
             barrios.append(dict(name=zone['name'],polygons=[
                 [[[round(x,1),round(y,1)] for x,y in ring.coords] for ring in [p.exterior,*p.interiors]]
@@ -121,7 +123,7 @@ zones=[zone_shape(z) for z in coverage['zones']]
 assert len({z['id'] for z in coverage['zones']})==len(zones), 'Duplicate zone ID'
 covered=unary_union(zones)
 # Slivers left between two sources of boundaries are not courtyards: close the holes smaller than a block.
-covered=unary_union([Polygon(p.exterior,[r for r in p.interiors if Polygon(r).area>2000]) for p in getattr(covered,'geoms',[covered])])
+covered=unary_union([Polygon(p.exterior,[r for r in p.interiors if Polygon(r).area>5000]) for p in getattr(covered,'geoms',[covered])])
 # Classify the coast partitions inside the acquisition window using the known inland plaza.
 window=transform(project,box(*coverage['bounds']))
 # Cross the window edge with the whole coastline: clipped ends can miss the edge by a rounding error.
@@ -232,7 +234,7 @@ for e in osm.findall('node'):
 # quay edge; its mapped place is approximate. Tanks and silos are municipal buildings already.
 props=[]
 if stage=='city':
-    quays=unary_union(coast)
+    quays=unary_union(shorelines).intersection(window)
     for kind,e in [(e.tag,e) for e in osm.findall('node')]+[(e.tag,e) for e in osm.findall('way')]:
         t=tags(e)
         if t.get('man_made') not in ('crane','chimney'): continue

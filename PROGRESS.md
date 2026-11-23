@@ -98,6 +98,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Y · Geometrie solo sulla GPU.** La copia in memoria delle geometrie di zone e settori si libera all'upload; alla perdita del contesto WebGL si ricaricano dai file. Heap dopo la raccolta da 101 a 79 MB nel benchmark. [Misure e limiti](docs/QA.md#geometrie-solo-sulla-gpu-23-novembre-2026).
 
+**Z · Vuoto centrale riempito.** Dodici barrios comunali tra Ciudad Alta, Triana-Vegueta e San Cristóbal (riscos di San Juan, San Roque, San Nicolás già presente, barranco, Miller, La Paterna, Zárate, El Lasso). Città a 33,86 km², 27.086 parti di edificio, 66 zone e 747 settori; a sud di La Isleta riempie il 67 % del proprio inviluppo (era il 51 %). LiDAR su 44 tessere, 90,4 % entro 5 m. [Dettagli, misure e limiti](docs/QA.md#vuoto-centrale-riempito-riscos-e-barrancos-23-novembre-2026). Aperto: heap dopo la raccolta di nuovo a 103 MB.
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).

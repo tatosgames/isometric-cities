@@ -583,6 +583,30 @@ Prova di perdita e ripristino del contesto (`WEBGL_lose_context`) a vista ravvic
 
 Limiti. Il picco campionato all'apertura resta a 108 MB. Dopo una perdita di contesto la città torna prima come livello lontano e poi si ricarica: un secondo o due senza dettaglio, non misurato su telefono. Perdita di contesto durante una partita di guida non provata. Nessuna prova su telefono fisico.
 
+## Vuoto centrale riempito: riscos e barrancos (23 novembre 2026)
+
+La città coperta era oblunga, con una grande insenatura tra Ciudad Alta, Triana-Vegueta e San Cristóbal: a sud di La Isleta riempiva il 51 % del proprio inviluppo convesso. Aggiunti i 12 barrios comunali dentro quell'insenatura: Miller, Miller Industrial, Lomo Apolinario, San Roque, El Batán, San Juan - San José, Zárate, El Lasso, La Paterna, Los Tarahales, Casablanca III e il «Diseminado Las Palmas de GC» (barranco, 1,4 km² quasi senza case, coperto ma senza etichetta). Ora la parte a sud di La Isleta riempie circa il 67 % dell'inviluppo.
+
+| | Prima | Dopo |
+|---|---|---|
+| Area | 27,83 km² | 33,86 km² |
+| Parti di edificio | 21.326 | 27.086 |
+| Strade | 7.201 | 8.391 |
+| Alberi | 42.782 | 45.420 |
+| Zone / settori | 61 / 639 | 66 / 747 |
+
+Dei 21.326 edifici precedenti, 21.266 sono identici; i 60 cambiati stavano sul vecchio confine. Gru e ciminiere invariate.
+
+**LiDAR.** Quattro tessere nuove (44 in cache, compresa la 454-3109 riscaricata e letta fino in fondo). Misurati 25.545 edifici su 27.086: scarto mediano +0,54 m, 66,7 % entro 2 m, 90,4 % entro 5 m. Esportate 151 altezze dove manca il dato comunale, 37 parti basse e 5 alte. In città 820 parti hanno altezza dal LiDAR e 132 restano stimate a 9 m.
+
+**Correzione.** Dopo il commit del lavoro sul mare `data.py` non girava più: l'orientamento delle gru usava una variabile rimossa (`coast`). Ora usa la linea di costa dentro la finestra; le 23 posizioni e direzioni sono identiche a prima.
+
+**Verifiche** su una copia pulita: `typecheck`, `build`, `check-data.mjs`, `npm.cmd test` per intero e due esecuzioni di `qa-sectors.mjs`, tutte verdi. Schermate della vista d'insieme, di San Juan - San José e della vista più ampia sul telefono guardate a occhio.
+
+Telefono emulato, `frame-profile.mjs` (mediana / p90, triangoli): San Juan - San José (-650, -1300) da vicino 17,4 / 18,1 ms, 110.603; centro (-1500, -900) alla distanza massima 17,5 / 18,1 ms, 320.814; San Roque (-1250, -850) da vicino 17,4 / 18,1 ms, 85.166. `benchmark.mjs`: apertura 5,6 s, vista ravvicinata p95 18,2 ms, fotogramma peggiore dopo il ripristino 36,1 ms.
+
+Limiti. **La memoria è risalita**: heap dopo la raccolta 102,6 MB nel benchmark (79,4 prima di questo passo), 106,7 MB alla vista più ampia su Schamann (88,5), 98,2 MB alla vista più ampia sul centro, 78,5 MB da vicino a San Juan. Il guadagno del passo precedente è quasi tutto speso: le viste ampie sul centro ora caricano zone piene dove prima erano vuote. El Secadero e Lomo Verdejo (0,21 km²) restano fuori perché non toccano l'area coperta. Il bordo sud segue i perimetri comunali ed è frastagliato, con alcune punte sottili. Mancano le tessere LiDAR 454-3112, 455-3107 e 457-3106 (24 edifici in tutto). Nessun luogo nel menu e nessun modello dedicato nei barrios nuovi. Nessuna prova su telefono fisico; guida nei barrios nuovi non provata a mano.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.
