@@ -31,18 +31,48 @@ const startup=new AbortController();
 const booting=()=>map.dataset.boot==='loading';
 const bootEvent=(name: string)=>dispatchEvent(new Event('atlas:boot-'+name));
 addEventListener('atlas:boot-failed',()=>startup.abort(),{once:true});
+// While the map opens, a note ahead of the credits says which step is running and for how long: on a phone, with
+// no console at hand, that is how a slow or stuck start can be told apart. The note goes once the map is open.
+const credits=required(document.querySelector<HTMLElement>('#map>footer'),'credits'),bootNote=document.createElement('span');
+bootNote.id='boot-step';credits.prepend(bootNote);
+const bootStarted=performance.now();
+let bootStep='';
+const bootSeconds=()=>Math.round((performance.now()-bootStarted)/1000)+' s';
+const noteStep=(text: string)=>{bootNote.textContent=text+' — ';};
+function bootPhase(step: string){
+  if(!booting())return;
+  bootStep=step;
+  noteStep(step+' · '+bootSeconds());
+  bootEvent('progress');
+}
+const bootClock=setInterval(()=>{if(booting()&&bootStep)noteStep(bootStep+' · '+bootSeconds());},1000);
+addEventListener('atlas:boot-ready',()=>{clearInterval(bootClock);bootNote.remove();},{once:true});
+let bootFault='';
+addEventListener('atlas:boot-failed',()=>{
+  clearInterval(bootClock);
+  noteStep(bootFault||'Sin avance en: '+(bootStep||'inicio')+' · '+bootSeconds());
+},{once:true});
+// Lets the step just announced reach the screen before the next stretch of work holds the page.
+// A hidden tab gets no frames: the timer keeps the start from waiting for one.
+const bootPaint=()=>new Promise<void>(done=>{
+  const late=setTimeout(done,150);
+  requestAnimationFrame(()=>{clearTimeout(late);setTimeout(done,0);});
+});
 let bootPercent=0;
 function bootProgress(percent: number){
   if(percent<bootPercent || startup.signal.aborted)return;
   const progress=el('boot-progress');
   if(percent===bootPercent && progress.hasAttribute('aria-valuenow'))return;
   bootPercent=percent;
+  bootEvent('progress');
   progress.style.setProperty('--boot-progress',String(percent));
   progress.setAttribute('aria-valuenow',String(percent));
 }
 function bootError(error: unknown){
   if(startup.signal.aborted)return;
   console.error(error);
+  bootFault='Error en: '+(bootStep||'inicio')+' · '+(error instanceof Error?error.message:String(error)).slice(0,120);
+  noteStep(bootFault);
   bootEvent('error');
 }
 
@@ -58,20 +88,24 @@ async function start(){
   const withSea=!pilot && !neutral && stage==='city';
   const tasks=(pilot?2:3)+Number(!neutral)+Number(withSea);
   let completed=0;
-  function track<T>(job: Promise<T>){
+  const waiting=new Set<string>();
+  const downloading=()=>bootPhase(waiting.size?'Descargando: '+[...waiting].join(', '):'Datos recibidos');
+  function track<T>(job: Promise<T>,label: string){
+    waiting.add(label);downloading();
     return job.then(result=>{
+      waiting.delete(label);downloading();
       bootProgress(12+Math.round(34*++completed/tasks));
       return result;
     });
   }
   function startupData<T>(file: string, valid: (value: unknown)=>value is T){
-    return track(loadData(file,valid,signal,true));
+    return track(loadData(file,valid,signal,true),file.replace(/\.\w+$/,''));
   }
   const pilotPreview=pilot && query.has('editorPreview')
     ? track(import('./editor/pilot-preview.ts').then(({loadEditedPilot})=>loadEditedPilot(el('status'),signal,
-      waiting=>bootEvent(waiting?'picker':'resume')))) : null;
+      waiting=>bootEvent(waiting?'picker':'resume'))),'editor') : null;
   const [core,single,poi,{tones},index,sea,edited]=await Promise.all([
-    pilot?null:track(loadCore(stage,signal)),pilot&&!pilotPreview?startupData('pilot.json',isCity):null,startupData('poi.geojson',isPlaces),
+    pilot?null:track(loadCore(stage,signal),'ciudad y terreno'),pilot&&!pilotPreview?startupData('pilot.json',isCity):null,startupData('poi.geojson',isPlaces),
     neutral?{tones:null}:startupData('roof-tones.json',isRoofPalette),pilot?null:startupData(stage+'-index.json',isSectorIndex),
     withSea?startupData('sea.json',isSea):null,pilotPreview
   ]);
@@ -79,6 +113,9 @@ async function start(){
   const data=required(core??single??edited?.data,'map data');
   if(index)validateSectorIndex(index);
   performance.mark('atlas:startup-data');
+  bootPhase('Preparando la ciudad');
+  await bootPaint();
+  signal.throwIfAborted();
   const scene=new T.Scene(),host=el('scene'),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
   const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
   const sessionKey='map-view:'+location.pathname+location.search;
@@ -105,6 +142,9 @@ async function start(){
   if(sea)scene.add(makeSea(sea));
   performance.mark('atlas:startup-scene');
   bootProgress(64);
+  bootPhase('Preparando la vista');
+  await bootPaint();
+  signal.throwIfAborted();
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
@@ -343,8 +383,9 @@ async function start(){
         openingTimer=window.setTimeout(draw,4000);
         if(!drive?.prepare())disablePlay();
         bootProgress(84);
+        bootPhase('Cargando el barrio');
       }
-      if(level?.zoneReady)bootProgress(92);
+      if(level?.zoneReady && bootPercent<92){bootProgress(92);bootPhase('Cargando los edificios');}
       const streamReady=!level || (level.zoneReady && level.detailReady);
       if(streamReady || now>=openingDeadline){
         clearTimeout(openingTimer);

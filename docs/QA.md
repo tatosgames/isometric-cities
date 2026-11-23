@@ -632,6 +632,19 @@ Telefono emulato (mediana / p90, triangoli): Pedro Hidalgo (-1250, -4150) da vic
 
 Limiti. La memoria continua a salire con l'area: 106,5 MB dopo la raccolta nel benchmark. I tempi di questo passo sono stati presi con la macchina molto occupata (anche la build ha impiegato il triplo): vanno rimisurati. Mancano le tessere LiDAR 454-3112, 455-3107 e 459-3104 (11 edifici). Bordo sud frastagliato, con la striscia costiera di Hoya de La Plata che sporge. Nessun luogo nel menu nei barrios nuovi. Nessuna prova su telefono fisico; guida nei barrios nuovi non provata a mano.
 
+## Apertura fallita su telefono: limite di tempo e fase a schermo (23 novembre 2026)
+
+Segnalazione di Luca: sul telefono la pagina pubblicata carica lenta, non risponde e poi mostra «No se pudo abrir el mapa». Causa trovata: la pagina interrompeva l'apertura dopo 25 secondi in tutto. Con la città a 36 km² un telefono emulato con CPU sei volte più lenta impiega da 15 a 25 secondi, secondo il carico della macchina di misura: un telefono vero può superare il limite senza che niente sia rotto.
+
+- **Limite sullo stallo, non sul totale** (`index.html`): l'apertura fallisce solo dopo 45 secondi senza alcun progresso. Ogni passo riarma il limite (`atlas:boot-progress`).
+- **Fase a schermo** (`main.ts`): davanti alle attribuzioni, che restano visibili, una nota dice quale passo è in corso e da quanti secondi: i file ancora in scaricamento («Descargando: ciudad y terreno, city-index…»), «Preparando la ciudad», «Preparando la vista», «Cargando el barrio», «Cargando los edificios». In caso di errore la nota resta: «Error en: <fase> · <messaggio>» oppure «Sin avance en: <fase>». Sparisce a mappa aperta.
+
+Tempi delle fasi con CPU 6× più lenta (telefono emulato, rete locale): dati 2,4 s; preparazione della città 3,3 s; preparazione della vista 5,4 s; barrio 1,4 s; edifici 1,8 s; totale 14,3 s. La pagina pubblicata serve i dati iniziali compressi: 2,8 MB in tutto (terreno 1,0 MB, città 1,2 MB, indice 0,4 MB).
+
+`typecheck`, `build`, `npm.cmd test` e `qa-boot.mjs` (tre esecuzioni) verdi su una copia pulita. `qa-boot.mjs` aggiornato in due punti: il limite atteso è 45 s e, a scheda visibile, i timer armati sono almeno uno.
+
+Limiti. Non ho riprodotto l'errore su un telefono vero: la causa è dedotta dal limite di 25 s e dai tempi con CPU rallentata. Se sul telefono compare «Error en: …», la causa è un'altra e la nota dice in quale fase. L'apertura non è più veloce di prima: durante «Preparando la ciudad» e «Preparando la vista» la pagina resta occupata e non risponde. Il lavoro da spostare fuori dall'avvio è elencato in PERFORMANCE.md.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.

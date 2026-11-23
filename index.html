@@ -86,7 +86,9 @@
     for (const type of ['contextmenu', 'selectstart', 'dragstart']) {
       map.addEventListener(type, event => event.preventDefault());
     }
-    let remaining = 25000, started = 0, timer = 0, revealTimer = 0;
+    // The limit is time without progress, not total time: a slow phone keeps loading while each step advances.
+    const STALL = 45000;
+    let remaining = STALL, started = 0, timer = 0, revealTimer = 0;
     function stop() {
       if (!timer) return;
       clearTimeout(timer);
@@ -119,6 +121,12 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else arm(); });
     retry.onclick = () => location.reload();
     addEventListener('atlas:boot-error', fail);
+    addEventListener('atlas:boot-progress', () => {
+      if (map.dataset.boot !== 'loading') return;
+      stop();
+      remaining = STALL;
+      arm();
+    });
     addEventListener('atlas:boot-picker', () => {
       if (map.dataset.boot !== 'loading') return;
       stop();

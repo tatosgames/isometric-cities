@@ -68,6 +68,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 
 ## Idee non ancora provate
 
+- Avvio su telefono (con CPU 6× più lenta: 14-25 s). Voci maggiori nel profilo: `WebGLRenderer.setSize` e primo uso degli shader (3,6 s insieme, attesa della GPU dopo l'upload della texture di suolo dell'intera città), `makeGroundMap` del livello lontano (1,4 s), mondo di guida e pedoni costruiti prima della prima immagine (circa 1,2 s), validazione dei JSON. Candidati: costruire guida e pedoni dopo l'apertura, texture di suolo lontana più piccola, validazione nel worker.
 - Budget di dettaglio espresso anche in triangoli, non solo in byte: i settori densi pesano sulla GPU più di quanto dica la loro dimensione.
 - Impronte delle zone caricate tenute per la guida anche a guida spenta; strade, superfici e copertura dell'intera città sempre residenti.
 - Per trovare cosa occupa l'heap: istantanea con `HeapProfiler.takeHeapSnapshot` via CDP, somma di `self_size` per tipo e nome di nodo. `JSArrayBufferData` sono i buffer, `(object elements)` e `Array` sono le coordinate dei JSON.

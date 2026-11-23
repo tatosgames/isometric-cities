@@ -191,7 +191,7 @@ try {
     Object.defineProperty(document,'hidden',{get:() => window.bootHidden});
     const schedule = window.setTimeout;
     window.setTimeout = function (callback,delay,...args) {
-      if (delay >= 24000 && delay <= 25000) window.bootWatchdogs.push(delay);
+      if (delay >= 44000 && delay <= 45000) window.bootWatchdogs.push(delay);
       return schedule(callback,delay,...args);
     };
   });
@@ -203,7 +203,8 @@ try {
     window.bootHidden = false;
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  assert.equal(await background.evaluate(() => window.bootWatchdogs.length),1);
+  // Each step of progress arms the stall limit again: once the tab is visible there is at least one.
+  assert.ok(await background.evaluate(() => window.bootWatchdogs.length) >= 1);
   heldCore.release();
   await ready(background);
   await background.close();

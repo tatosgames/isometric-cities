@@ -102,6 +102,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AA · Anello sud ed El Secadero.** Casablanca I, Pedro Hidalgo, Tres Palmas, Hoya de La Plata ed El Secadero. Città a 36,22 km², 28.748 parti di edificio, 75 zone e 805 settori; LiDAR su 49 tessere, 90,2 % entro 5 m. L'anello allunga la città invece di squadrarla (63 % dell'inviluppo a sud di La Isleta). [Dettagli, misure e limiti](docs/QA.md#anello-sud-ed-el-secadero-23-novembre-2026). Aperto: heap dopo la raccolta a 106,5 MB; tempi da rimisurare a macchina libera.
 
+**AB · Apertura su telefono.** Il limite di 25 s sull'apertura è diventato un limite di 45 s senza progresso, e una nota davanti alle attribuzioni dice quale fase è in corso e da quanto. [Dettagli e limiti](docs/QA.md#apertura-fallita-su-telefono-limite-di-tempo-e-fase-a-schermo-23-novembre-2026). Aperto: l'apertura resta lenta e blocca la pagina; non verificato su telefono fisico.
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
