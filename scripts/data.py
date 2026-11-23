@@ -71,13 +71,14 @@ def mapped_area(relation):
     return unary_union(list(polygonize(unary_union([LineString(ways[m.get('ref')][1]) for m in relation.findall('member') if m.get('type')=='way']))))
 
 # Barrios that OpenStreetMap does not map as boundaries come from the municipal layer, by its NUCL_CO_ID
-# inside the entity of the city proper (ENTS_CO_ID 24).
-MUNICIPAL='https://services-eu1.arcgis.com/eV9RayDSwR2BokOl/ArcGIS/rest/services/Barrios/FeatureServer/0/query?'+urlencode(dict(where='ENTS_CO_ID=24',outFields='NUCL_CO_ID,NUCL_DS_NO',outSR=4326,f='geojson'))
+# inside an entity: the city proper (ENTS_CO_ID 24) unless the zone names another with `entity`.
+MUNICIPAL='https://services-eu1.arcgis.com/eV9RayDSwR2BokOl/ArcGIS/rest/services/Barrios/FeatureServer/0/query?'+urlencode(dict(where='1=1',outFields='ENTS_CO_ID,NUCL_CO_ID,NUCL_DS_NO',outSR=4326,f='geojson'))
 municipal={}
-def municipal_area(code):
+def municipal_area(zone):
+    code=(zone.get('entity',24),zone['municipal'])
     if not municipal:
         for f in json.loads(fetch('barrios-municipal.geojson',MUNICIPAL).read_bytes())['features']:
-            municipal[f['properties']['NUCL_CO_ID']]=make_valid(transform(project,shape(f['geometry'])))
+            municipal[(f['properties']['ENTS_CO_ID'],f['properties']['NUCL_CO_ID'])]=make_valid(transform(project,shape(f['geometry'])))
     return unary_union([g for g in getattr(municipal[code],'geoms',[municipal[code]]) if g.geom_type in ('Polygon','MultiPolygon')])
 
 def save_barrios():
@@ -86,7 +87,7 @@ def save_barrios():
         if 'municipal' in zone:
             # A scattered remainder between barrios has no name of its own: it is covered, not labelled.
             if 'name' not in zone: continue
-            area=municipal_area(zone['municipal']).simplify(.25, preserve_topology=True)
+            area=municipal_area(zone).simplify(.25, preserve_topology=True)
             barrios.append(dict(name=zone['name'],polygons=[
                 [[[round(x,1),round(y,1)] for x,y in ring.coords] for ring in [p.exterior,*p.interiors]]
                 for p in getattr(area,'geoms',[area])]))
@@ -117,7 +118,7 @@ def zone_shape(z):
         assert area.area>0, 'Open boundary: '+z['id']
         return area.buffer(1)
     # The municipal outlines do not share vertices with the OSM ones: ten metres close the seam between them.
-    if 'municipal' in z: return municipal_area(z['municipal']).buffer(10)
+    if 'municipal' in z: return municipal_area(z).buffer(10)
     return Polygon([project(*p) for p in z['polygon']])
 zones=[zone_shape(z) for z in coverage['zones']]
 assert len({z['id'] for z in coverage['zones']})==len(zones), 'Duplicate zone ID'
@@ -150,7 +151,8 @@ if stage in ('city','sea'):
                 sea_coast.append(LineString([extra_nodes[n.get('ref')] for n in way.findall('nd')]))
     # Allow for a square viewport at maximum zoom-out, including during rotation.
     west,south,east,north=aoi.bounds
-    sea_window=box(west-2800,south-2800,east+2800,north+2800)
+    # To the south the coast runs on past the model: the sea stops where the acquired coastline does.
+    sea_window=box(west-2800,max(south-2800,window.bounds[1]),east+2800,north+2800)
     sea_partitions=list(polygonize(unary_union([sea_window.boundary,*sea_coast])))
     sea_land=next(p for p in sea_partitions if p.contains(focus_point))
     _,_,east,north=sea_window.bounds

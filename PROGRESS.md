@@ -100,6 +100,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Z · Vuoto centrale riempito.** Dodici barrios comunali tra Ciudad Alta, Triana-Vegueta e San Cristóbal (riscos di San Juan, San Roque, San Nicolás già presente, barranco, Miller, La Paterna, Zárate, El Lasso). Città a 33,86 km², 27.086 parti di edificio, 66 zone e 747 settori; a sud di La Isleta riempie il 67 % del proprio inviluppo (era il 51 %). LiDAR su 44 tessere, 90,4 % entro 5 m. [Dettagli, misure e limiti](docs/QA.md#vuoto-centrale-riempito-riscos-e-barrancos-23-novembre-2026). Aperto: heap dopo la raccolta di nuovo a 103 MB.
 
+**AA · Anello sud ed El Secadero.** Casablanca I, Pedro Hidalgo, Tres Palmas, Hoya de La Plata ed El Secadero. Città a 36,22 km², 28.748 parti di edificio, 75 zone e 805 settori; LiDAR su 49 tessere, 90,2 % entro 5 m. L'anello allunga la città invece di squadrarla (63 % dell'inviluppo a sud di La Isleta). [Dettagli, misure e limiti](docs/QA.md#anello-sud-ed-el-secadero-23-novembre-2026). Aperto: heap dopo la raccolta a 106,5 MB; tempi da rimisurare a macchina libera.
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).

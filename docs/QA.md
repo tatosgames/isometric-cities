@@ -607,6 +607,31 @@ Telefono emulato, `frame-profile.mjs` (mediana / p90, triangoli): San Juan - San
 
 Limiti. **La memoria è risalita**: heap dopo la raccolta 102,6 MB nel benchmark (79,4 prima di questo passo), 106,7 MB alla vista più ampia su Schamann (88,5), 98,2 MB alla vista più ampia sul centro, 78,5 MB da vicino a San Juan. Il guadagno del passo precedente è quasi tutto speso: le viste ampie sul centro ora caricano zone piene dove prima erano vuote. El Secadero e Lomo Verdejo (0,21 km²) restano fuori perché non toccano l'area coperta. Il bordo sud segue i perimetri comunali ed è frastagliato, con alcune punte sottili. Mancano le tessere LiDAR 454-3112, 455-3107 e 457-3106 (24 edifici in tutto). Nessun luogo nel menu e nessun modello dedicato nei barrios nuovi. Nessuna prova su telefono fisico; guida nei barrios nuovi non provata a mano.
 
+## Anello sud ed El Secadero (23 novembre 2026)
+
+Aggiunti Casablanca I, Pedro Hidalgo, Tres Palmas e Hoya de La Plata a sud di Zárate e San Cristóbal, più El Secadero, che ora tocca l'area coperta. El Secadero appartiene a un'altra entità del servizio comunale (Tafira, `ENTS_CO_ID` 50): una zona `municipal` può indicare `entity`. Lomo Verdejo (0,03 km²) resta fuori perché dista 80 m dall'area coperta. La finestra di acquisizione scende a 28,02° N per avere la linea di costa oltre il nuovo bordo sud; il mare si ferma dove finisce la costa acquisita.
+
+| | Prima | Dopo |
+|---|---|---|
+| Area | 33,86 km² | 36,22 km² |
+| Parti di edificio | 27.086 | 28.748 |
+| Strade | 8.391 | 8.702 |
+| Alberi | 45.420 | 45.511 |
+| Zone / settori | 66 / 747 | 75 / 805 |
+| Griglia del terreno | 1.259 × 2.478 | 1.259 × 2.868 |
+
+Dei 27.086 edifici precedenti, 27.078 sono identici. Gru e ciminiere invariate.
+
+**LiDAR.** Cinque tessere nuove (49 in cache, tutte lette fino in fondo). Misurati 27.118 edifici su 28.748: scarto mediano +0,53 m, 65,7 % entro 2 m, 90,2 % entro 5 m. Esportate 37 altezze dove manca il dato comunale, 5 parti basse e 3 alte. In città 887 parti hanno altezza dal LiDAR e 143 restano stimate a 9 m.
+
+**Forma.** L'anello sud non rende la città più quadrata: la allunga. A sud di La Isleta l'area riempie circa il 63 % del proprio inviluppo convesso (67 % dopo il solo vuoto centrale, 51 % prima). Tra El Secadero e Pedro Hidalgo resta un'insenatura: lì c'è il «Diseminado de Tafira» (6,6 km², campagna).
+
+**Verifiche** su una copia pulita: `typecheck`, `build`, `check-data.mjs` e `npm.cmd test` per intero verdi. `qa-sectors.mjs`: quattro esecuzioni verdi su cinque; quella fallita è avvenuta a macchina molto occupata e non ne ho conservato il registro, le tre successive sono verdi.
+
+Telefono emulato (mediana / p90, triangoli): Pedro Hidalgo (-1250, -4150) da vicino 18,0 / 18,1 ms, 56.019 e alla distanza massima 18,0 / 18,1 ms, 89.598. Heap: 62,5 MB da vicino a Pedro Hidalgo, 110,4 MB alla vista più ampia su Schamann (106,7 prima). `benchmark.mjs` a macchina occupata, in alternanza con il commit precedente: heap dopo la raccolta 106,5 MB contro 102,5; apertura 8,7-10,3 s contro 11,0-12,4; fotogramma peggiore dopo il ripristino 107 ms contro 106-125. I tempi non distinguono i due commit e non valgono come misura assoluta.
+
+Limiti. La memoria continua a salire con l'area: 106,5 MB dopo la raccolta nel benchmark. I tempi di questo passo sono stati presi con la macchina molto occupata (anche la build ha impiegato il triplo): vanno rimisurati. Mancano le tessere LiDAR 454-3112, 455-3107 e 459-3104 (11 edifici). Bordo sud frastagliato, con la striscia costiera di Hoya de La Plata che sporge. Nessun luogo nel menu nei barrios nuovi. Nessuna prova su telefono fisico; guida nei barrios nuovi non provata a mano.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.

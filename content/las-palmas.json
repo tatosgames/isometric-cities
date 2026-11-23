@@ -205,7 +205,7 @@
   "coverage": {
     "bounds": [
       -15.47,
-      28.07,
+      28.02,
       -15.39,
       28.19
     ],
@@ -445,6 +445,32 @@
       {
         "id": "diseminado-las-palmas",
         "municipal": 99
+      },
+      {
+        "id": "casablanca-i",
+        "municipal": 11,
+        "name": "Casablanca I"
+      },
+      {
+        "id": "pedro-hidalgo",
+        "municipal": 14,
+        "name": "Pedro Hidalgo"
+      },
+      {
+        "id": "tres-palmas",
+        "municipal": 16,
+        "name": "Tres Palmas"
+      },
+      {
+        "id": "hoya-de-la-plata",
+        "municipal": 12,
+        "name": "Hoya de La Plata"
+      },
+      {
+        "id": "el-secadero",
+        "municipal": 9,
+        "entity": 50,
+        "name": "El Secadero"
       }
     ],
     "minimumLandM2": 5000000

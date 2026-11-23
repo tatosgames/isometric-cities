@@ -42,3 +42,5 @@ Fonti valutate ma non ancora in produzione (ortofoto 20 cm SITCAN, altri dataset
 **Estensione Ciudad Alta (23 novembre 2026).** Perimetri di 17 barrios dal servizio «Barrios» del Ayuntamiento de Las Palmas de Gran Canaria (`services-eu1.arcgis.com/eV9RayDSwR2BokOl/.../Barrios/FeatureServer/0`, lo stesso portale degli edifici; solo geometria, `NUCL_CO_ID` e nome, nessun dato demografico). Area 27.829.029 m². Edifici comunali, strade e alberi OSM, ortofoto PNOA e LiDAR come per i quartieri precedenti.
 
 **Vuoto centrale (23 novembre 2026).** Altri 12 perimetri dal servizio «Barrios» del Ayuntamiento de Las Palmas de Gran Canaria, tra cui il «Diseminado Las Palmas de GC». Area 33.864.962 m². Stesse fonti e attribuzioni dei passi precedenti.
+
+**Anello sud (23 novembre 2026).** Altri 5 perimetri dal servizio «Barrios» del Ayuntamiento de Las Palmas de Gran Canaria, uno dell'entità di Tafira. Finestra OSM estesa a [-15.47, 28.02, -15.39, 28.19] per la linea di costa. Area 36.218.876 m². Stesse fonti e attribuzioni dei passi precedenti.

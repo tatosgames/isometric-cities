@@ -23,7 +23,7 @@ Lo script legge una way poligonale oppure una relazione con un’unica way ester
 
 ### Barrio senza confine in OpenStreetMap
 
-Se OSM ha solo un nodo `place=suburb`, usa il perimetro del servizio «Barrios» del Comune: una zona `{"id": "...", "municipal": <NUCL_CO_ID>, "name": "<nome in spagnolo>"}`. `data.py` scarica il layer una volta (`ENTS_CO_ID=24`), allarga il perimetro di 10 m per chiudere la giunzione con i confini OSM e riempie i buchi sotto 2.000 m². Il nome va scritto a mano con gli accenti: il servizio lo dà in maiuscole senza accenti. Controlla prima che l'unione con l'area già coperta resti un solo poligono. Una zona `municipal` senza `name` viene coperta ma non etichettata (i «Diseminado» tra un barrio e l'altro). I buchi riempiti arrivano a 5.000 m².
+Se OSM ha solo un nodo `place=suburb`, usa il perimetro del servizio «Barrios» del Comune: una zona `{"id": "...", "municipal": <NUCL_CO_ID>, "name": "<nome in spagnolo>"}`. `data.py` scarica il layer una volta (`ENTS_CO_ID=24`), allarga il perimetro di 10 m per chiudere la giunzione con i confini OSM e riempie i buchi sotto 2.000 m². Il nome va scritto a mano con gli accenti: il servizio lo dà in maiuscole senza accenti. Controlla prima che l'unione con l'area già coperta resti un solo poligono. Un barrio di un'altra entità del servizio (per esempio Tafira, 50) si indica con `"entity": 50`; senza, vale la città (24). Se l'area supera la finestra `coverage.bounds`, allargala: verso sud deve contenere la linea di costa oltre il bordo del modello, altrimenti il mare non si chiude. Una zona `municipal` senza `name` viene coperta ma non etichettata (i «Diseminado» tra un barrio e l'altro). I buchi riempiti arrivano a 5.000 m².
 
 ## Generazione riproducibile
 
