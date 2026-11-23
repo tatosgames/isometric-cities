@@ -146,6 +146,87 @@
         "city"
       ],
       "markerHeight": 2
+    },
+    {
+      "id": "parque-la-ballena",
+      "name": "Parque de La Ballena",
+      "osm": "way/583818223",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "parque-las-rehoyas",
+      "name": "Parque de Las Rehoyas",
+      "osm": "way/787583937",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "mercado-de-altavista",
+      "name": "Mercado de Altavista",
+      "osm": "way/204791336",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "castillo-de-san-francisco",
+      "name": "Castillo de San Francisco",
+      "osm": "way/251520472",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "cementerio-ingles",
+      "name": "Cementerio Inglés",
+      "osm": "way/251568732",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "parque-gloria-fuertes",
+      "name": "Parque Gloria Fuertes",
+      "osm": "way/582922523",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "iglesia-san-francisco-javier",
+      "name": "Iglesia San Francisco Javier",
+      "osm": "way/845103711",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "parque-antiguo-estadio-insular",
+      "name": "Parque Antiguo Estadio Insular",
+      "osm": "way/583766587",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "real-club-nautico",
+      "name": "Real Club Náutico",
+      "osm": "way/265775327",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
     }
   ],
   "buildings": {
@@ -210,7 +291,12 @@
       28.19
     ],
     "lattice": 0.01,
-    "seaCoastBounds": [-15.49, 28.13, -15.48, 28.14],
+    "seaCoastBounds": [
+      -15.49,
+      28.13,
+      -15.48,
+      28.14
+    ],
     "zones": [
       {
         "id": "vegueta-triana",

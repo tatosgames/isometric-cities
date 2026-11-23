@@ -132,9 +132,11 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Conducir · Goccia della destinazione.** Al posto del numero del luogo, una goccia turchese con la punta verso la meta e la distanza in linea d'aria (km, poi metri sotto i 995 m); a ogni nuova meta vola dall'auto. Fascio di luce dello stesso colore, distinto dal giallo delle monete. [Verifica](docs/QA.md#goccia-della-destinazione-con-la-distanza-23-novembre-2026).
 
+**AE · Luoghi nei quartieri nuovi.** Da 16 a 25 luoghi, almeno due per area che ne era priva: Ciudad Alta (Parque de La Ballena, Parque de Las Rehoyas, Mercado de Altavista), riscos (Castillo de San Francisco, Cementerio Inglés), anello sud (Parque Gloria Fuertes, Iglesia San Francisco Javier), Alcaravaneras (Parque Antiguo Estadio Insular, Real Club Náutico). Diventano anche mete di Conducir. Scartati Estadio de Gran Canaria e Castillo de Mata: la mappa lì non ha costruzioni. [Verifica](docs/QA.md#luoghi-nei-quartieri-nuovi-23-novembre-2026). Da fare: rigenerare `poi.geojson` con `data.py city` sulla macchina con la cache.
+
 ## Stato al 23 novembre 2026
 
-Città a 36,22 km², 28.748 parti di edificio, 16 luoghi, 75 zone e 805 settori.
+Città a 36,22 km², 28.748 parti di edificio, 25 luoghi, 75 zone e 805 settori.
 
 **Prova su dispositivo reale: superata.** Luca ha provato la mappa e Conducir su telefono fisico, con esito positivo (comunicato a voce il 23 novembre 2026; non c'è un rapporto di misure). Chiude le voci «da fare: prova su telefono fisico» delle sezioni D, F, G, J, K, L e AB. Restano da misurare, perché la prova a mano non le copre: consumo e calore, apertura lenta con tempi in secondi, giudizio su densità dei pedoni.
 

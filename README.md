@@ -13,7 +13,7 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5197
 
 Aprire http://127.0.0.1:5197/ . Trascinare per spostarsi, usare rotella o pinch per ingrandire. L’indice e i marker aprono la scheda del luogo. Con il focus sulla mappa, usare frecce, +, − e Home. Il mirino ripristina la panoramica.
 
-La pagina iniziale apre un dettaglio di Triana a tutto schermo. Il menu in alto a sinistra raccoglie dieci luoghi da Vegueta al Parque Doramas e al Club de Natación Metropole. Il mirino in alto a destra mostra l’intera area. Usare `/?area=pilot` per il quadrato di Santa Ana e aggiungere `&neutral` per il confronto a camera identica. Con `?nopolice` la modalità «Conducir» parte senza pattuglie: niente cattura, la corsa dura finché si esce.
+La pagina iniziale apre un dettaglio di Triana a tutto schermo. Il menu in alto a sinistra raccoglie 25 luoghi, da Vegueta e Triana fino a La Isleta, Ciudad Alta, i riscos e l'anello sud. Il mirino in alto a destra mostra l’intera area. Usare `/?area=pilot` per il quadrato di Santa Ana e aggiungere `&neutral` per il confronto a camera identica. Con `?nopolice` la modalità «Conducir» parte senza pattuglie: niente cattura, la corsa dura finché si esce.
 
 ## Editor del pilota
 

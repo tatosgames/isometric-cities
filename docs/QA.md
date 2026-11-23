@@ -751,3 +751,23 @@ Su richiesta di Luca, che sul telefono non li notava, tutti i fermi durano il do
 Segnalato da Luca su telefono: la ficha gialla «01» con la freccetta non si capiva. Ora è una goccia turchese (`#3cc9b8`, condiviso solo con il fascio di luce) la cui punta indica il luogo, verso il basso quando è inquadrato. Dentro c'è la distanza in linea d'aria: «4.3km», sotto i 995 m «850m» a passi di 10 m. A ogni nuova meta durante la corsa la goccia vola dall'auto al suo posto in 0,45 s; all'ingresso in guida no, perché la camera sta ancora planando dalla mappa e il volo partiva da fuori schermo. Margini allargati: la goccia, più grande, toccava la zona tattile destra e la punta sfiorava il pulsante di uscita.
 
 In Chromium (390 × 780, touch, `?nopolice`): distanza che scende in modo regolare (90 → 70 → 50 → 30 m) e passaggio a km sopra i 995 m; volo registrato fotogramma per fotogramma (scala 0,5 → 1) e assente all'ingresso; nessuna sovrapposizione con statistiche, uscita e zone tattili; nessun errore in pagina. Una distanza lungo le strade è stata provata e scartata: saltava da 1,1 a 2,7 km in un secondo e mezzo. Il volo all'arrivo non è stato catturato a schermo: guidando a caso non si raggiunge una meta. Typecheck e build superati.
+
+## Luoghi nei quartieri nuovi (23 novembre 2026)
+
+Ciudad Alta, riscos e barrancos, anello sud e Alcaravaneras non avevano luoghi: la scia di Conducir non ci portava mai. Uno scan dei poligoni OSM con nome (parchi, chiese, mercati, impianti, piazze, monumenti) sui barrios scoperti ha dato i candidati; scelti luoghi riconoscibili, scuole escluse. Ogni way è stata riletta per intero dall'API OSM: poligono valido, nome OSM identico a quello del catalogo, punto interno nel barrio atteso e dentro `city-aoi.geojson`.
+
+| # | Luogo | OSM | Barrio |
+|---|---|---|---|
+| 17 | Parque de La Ballena | way/583818223 | Escaleritas |
+| 18 | Parque de Las Rehoyas | way/787583937 | Las Rehoyas |
+| 19 | Mercado de Altavista | way/204791336 | Altavista |
+| 20 | Castillo de San Francisco | way/251520472 | San Francisco - San Nicolás |
+| 21 | Cementerio Inglés | way/251568732 | San Juan - San José |
+| 22 | Parque Gloria Fuertes | way/582922523 | Casablanca III |
+| 23 | Iglesia San Francisco Javier | way/845103711 | Pedro Hidalgo |
+| 24 | Parque Antiguo Estadio Insular | way/583766587 | Alcaravaneras |
+| 25 | Real Club Náutico | way/265775327 | Alcaravaneras |
+
+Scartati dopo la cattura: Estadio de Gran Canaria (San Lázaro) e Castillo de Mata, perché lì la mappa mostra solo terreno; servirebbe un modello dedicato. Tres Palmas, Hoya de La Plata ed El Secadero non hanno poligoni con nome utili in OSM.
+
+`poi.geojson` è stato aggiornato qui riproducendo il calcolo di `data.py` (punto interno del poligono, stessa origine e proiezione) sui dati OSM correnti, perché la sessione non ha la cache della pipeline: i primi 16 luoghi sono identici byte per byte. Al prossimo `python scripts/data.py city` i punti verranno dall'estratto in cache e possono spostarsi di poco. In Chromium: menu e segnaposto contano 25 voci, la mappa vola su ogni luogo nuovo e la scheda mostra il nome, nessun errore in pagina. `check:data`, typecheck, build e `qa-drive-route` superati.
