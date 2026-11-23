@@ -714,3 +714,22 @@ Con Chrome a 1440×900 e in emulazione mobile a 390×844 e 844×390, confronto a
 Nella finestra quadrata da 1000×1000 con il bersaglio al limite ovest e allo zoom minimo, il margine di 2.800 m elimina anche il triangolo residuo nell’angolo in basso a sinistra. Il campione di quell’angolo passa da 146 pixel beige con il margine di 2.350 m a zero, anche dopo la rotazione.
 
 `npm.cmd run typecheck`, `npm.cmd run build` e `npm.cmd test` passati sulla versione finale. Il primo giro della suite si era fermato dopo 120 secondi in attesa della seconda cattura nella guida mobile. I due giri successivi sono passati.
+
+## Refactor senza cambi di resa (23 novembre 2026)
+
+Tre commit (`bb68754`, `1345f97`, `52e544b`) riorganizzano il codice senza toccare comportamento, dati o taratura.
+
+- **`drive.ts` da 735 a 602 righe.** Estratti `drive-tune.ts` (`TUNE`, `CAPTURE`, costanti dei pool), `drive-types.ts`, `drive-effects.ts` (sgommate, polvere, fumo, sbuffi, scintille) e `drive-crowd.ts` (disegno dei pedoni). `drive.ts` riesporta `TUNE`.
+- **`main.ts` da 498 a 427 righe.** Estratti `boot.ts` (fase, progresso, errore e nota di avvio) e `map/framing.ts` (orientamento, adattamento al contorno, zoom minimo e di apertura).
+- **Funzioni condivise.** `src/geometry.ts` sostituisce quattro copie del calcolo dell'angolo in ±π e due del punto dentro un poligono. La versione di `pilot-edits` non chiudeva l'anello; gli anelli dell'editor sono già verificati chiusi, quindi l'esito non cambia. `scripts/geo.py` porta l'origine della mappa e i convertitori EPSG:32628/4083 dei cinque script Python. `scripts/qa-browser.mjs` raccoglie avvio del browser e server della build dei 12 script browser; `CHROME_PATH` permette di usare un Chromium diverso da Chrome.
+- **`src/editor/main.ts` non toccato.** Selezione, trascinamento e annulla condividono stato in un'unica funzione: estrarre l'input richiede prima un oggetto di stato.
+
+**Verifiche (Linux, Chromium di Playwright, WebGL software).**
+
+- Typecheck e build superati.
+- `qa-drive-pose`, `qa-drive-camera`, `qa-drive-route`, `qa-pedestrians`: valori identici a prima (60 km/h a 1,442 s, 90 a 5,442 s / 96,5 m, frenata 0,933 s / 11,5 m, pedone più vicino 5,14 m). `qa-drive-location` non stampa nulla, come prima.
+- Origine calcolata con `geo.py` identica a quella precedente in EPSG:32628 e 4083. Gli script Python compilano ma non sono stati rieseguiti sui dati: qui mancano `.cache` e le dipendenze geografiche.
+- Prova manuale nel browser, prima e dopo: rotazione (0° → 90°), zoom (3,11 → 4,00) e reset (0,33) danno gli stessi valori; Conducir parte con 40 pedoni e nessun errore in console.
+- Con `CHROME_PATH`: `qa-boot` e `qa-recovery` superati.
+- `qa-main-lod` fallisce qui sia con lo script nuovo sia con quello precedente, in punti diversi da un giro all'altro: dipende dai tempi del WebGL software, non dal refactor. Da ripetere con Chrome su Windows.
+- `npm test` completo non eseguito.
