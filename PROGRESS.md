@@ -121,3 +121,11 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 **Conducir · Planata di ritorno.** All’uscita, la camera torna in 1,5 s al centro, allo zoom e all’orientamento della vista salvata prima di Play. [Verifiche](docs/QA.md#planata-di-ritorno-alla-mappa).
 
 **Mare aperto.** L’oceano prosegue oltre l’inquadratura del plastico nei profili verificati. La costa OpenStreetMap guida ancora il disegno della schiuma e il terreno determina la vista generale. [Verifiche](docs/QA.md#mare-aperto).
+
+## Stato al 23 novembre 2026
+
+Città a 36,22 km², 28.748 parti di edificio, 16 luoghi, 75 zone e 805 settori.
+
+**Prova su dispositivo reale: superata.** Luca ha provato la mappa e Conducir su telefono fisico, con esito positivo (comunicato a voce il 23 novembre 2026; non c'è un rapporto di misure). Chiude le voci «da fare: prova su telefono fisico» delle sezioni D, F, G, J, K, L e AB. Restano da misurare, perché la prova a mano non le copre: consumo e calore, apertura lenta con tempi in secondi, giudizio su densità dei pedoni.
+
+Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diagnosticata); heap dopo la raccolta a ~106 MB; 103 edifici con tetto LiDAR oltre 10 m sopra il dato comunale; nessun luogo dedicato in Ciudad Alta; `qa.mjs` da riverificare; tempi da rimisurare a macchina libera. Fase C (ridipintura AI) solo pianificata, non autorizzata.

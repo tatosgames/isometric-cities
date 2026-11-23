@@ -7,8 +7,16 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | Percorso | Ruolo |
 |---|---|
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
+| `editor.html`, `src/editor/` | Editor locale del pilota: trascinamento di edifici, vertici e props (`building-drag`, `pilot-preview`, `props`); prova `scripts/qa-editor.mjs` |
+| `lab.html`, `src/lab/` | Laboratorio visivo (`?test=lod`, `?test=larghezze`, `?test=settori`): carreggiate e transizioni LOD |
 | `src/main.ts` | Camera, input, filtro per area e recupero contesto WebGL |
 | `src/data/` | Contratti e validazione dei geodati e della vista salvata |
+| `src/data/load.ts`, `types.ts`, `sector-index.ts`, `pilot-edits.ts`, `src/required.ts` | Caricamento a tre livelli, tipi condivisi con il worker, indice dei settori, correzioni dell'editor, accesso obbligatorio al DOM |
+| `src/map/dom.ts` | Riferimenti DOM della mappa |
+| `src/drive/drive-route.ts`, `drive-location.ts`, `drive-pose.ts`, `road-grade.ts`, `building-occlusion.ts`, `car-model.ts` | Destinazioni e monete, toponimi, appoggio al terreno, pendenza e ripresa, camera sopra gli edifici, modello dell'auto |
+| `src/render/city-materials.ts`, `ground-surface.ts`, `ground-map.ts`, `building-stencil.ts`, `port-props.ts`, `sectors/lod-transition.ts`, `sectors/protocol.ts` | Materiali condivisi, suolo e carreggiate, retino edifici, gru e oggetti del porto, transizioni LOD da 250 ms, protocollo worker |
+| `scripts/check-data.mjs`, `audit-city.py`, `osm_extract.py`, `carriageways.py`, `road_sections.py`, `source_cache.py`, `requirements.txt` | Controllo dell'indice dati (parte di `build`), audit della città, estratti OSM su reticolo, carreggiate, cache delle fonti |
+| `scripts/qa-*.mjs` (boot, drive-*, pedestrians, recovery, sectors, ground, carriageways, lod, road-lab…) | Prove Playwright mirate; `qa.mjs` è la suite completa |
 | `src/drive/drive-camera.ts` | Calcolo delle pose e transizioni della camera in guida |
 | `tsconfig.json` | Controllo rigoroso del runtime browser e del worker |
 | `src/render/adaptive-resolution.ts` | Politica di risoluzione in base alla cadenza dei frame (mappa in movimento e guida) |
@@ -40,7 +48,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `PROGRESS.md` | Checkpoint corrente (A Santa Ana, B Vegueta–Triana, C studio futuro) |
 | `.github/workflows/pages.yml` | Pubblicazione su GitHub Pages |
 
-## Comandi (Windows, Node 24)
+## Comandi (Windows, Node 24; su Linux/macOS usare `npm` al posto di `npm.cmd`)
 
 ```powershell
 npm.cmd ci
