@@ -1,6 +1,6 @@
 import type { Point } from '../data/types.ts';
 import type { buildDriveWorld, Segment } from './drive-world.ts';
-import type { TUNE } from './drive.ts';
+import type { TUNE } from './drive-tune.ts';
 import type { makeRoadGrade } from './road-grade.ts';
 import * as T from 'three';
 

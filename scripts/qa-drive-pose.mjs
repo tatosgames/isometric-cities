@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {Euler,Vector3} from 'three';
-import {TUNE} from '../src/drive/drive.ts';
+import {TUNE} from '../src/drive/drive-tune.ts';
 import {makeDrivePhysics} from '../src/drive/drive-physics.ts';
 import {makeDrivePose} from '../src/drive/drive-pose.ts';
 import {makeRoadGrade} from '../src/drive/road-grade.ts';

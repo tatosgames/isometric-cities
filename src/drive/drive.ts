@@ -1,13 +1,11 @@
-import { carGeometry, carShellHeight, carShellParts, carShellPivot, carVisualScale, carWheelParts, tint } from './car-model.ts';
-import type { Altitude, CityData, Place, Point } from '../data/types.ts';
+import { carGeometry, carShellHeight, carShellParts, carShellPivot, carWheelParts, tint } from './car-model.ts';
+import type { Point } from '../data/types.ts';
 import { element as el } from '../map/dom.ts';
 import { required } from '../required.ts';
-import type { Body } from './drive-physics.ts';
-import type { routesFrom } from './road-routing.ts';
 import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
 import {buildDriveWorld} from './drive-world.ts';
-import type {Zoning} from './drive-world.ts';
 import type {ZoneData} from '../data/types.ts';
+export {TUNE};
 import {makeDrivePhysics} from './drive-physics.ts';
 import {makeRoadGrade} from './road-grade.ts';
 import {makeDrivePose} from './drive-pose.ts';
@@ -18,75 +16,14 @@ import { chooseStartNode, type RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
 import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians} from './pedestrians.ts';
-import {breezy} from '../render/wind.ts';
+import {makeDriveEffects} from './drive-effects.ts';
+import {makeCrowdView} from './drive-crowd.ts';
+import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
+import type {DriveOptions,DriveState,Patrol,RouteField,Vehicle} from './drive-types.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-interface DriveOptions {
-  scene: T.Scene;
-  camera: T.OrthographicCamera;
-  renderer: T.WebGLRenderer;
-  host: HTMLElement;
-  data: CityData;
-  locations: Place[];
-  altitude: Altitude;
-  groundAt: Altitude;
-  view: (target: T.Vector3, zoom: number, offset: T.Vector3) => void;
-  mapDirection: T.Vector3;
-  compact: boolean;
-  onExit: () => void;
-  /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
-  zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};
-}
 
-interface Vehicle extends Body {
-  mesh: T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;
-  blob: T.Mesh;
-  hop: number;
-  wreck: number;
-  stuck: number;
-  trail: [number,number,number][] | null;
-  puff: number;
-  node: number;
-}
-
-interface Patrol extends Vehicle {
-  light: T.Mesh<T.BoxGeometry,T.MeshBasicMaterial>;
-}
-
-type DriveState = 'off' | 'ready' | 'playing' | 'caught';
-type RouteField = ReturnType<typeof routesFrom>;
-
-
-// Every gameplay number lives here. Metres, seconds, radians.
-export const TUNE={
-  accel:11.574,accelTaperStart:60/3.6,accelTaperEnd:63/3.6,brake:27,brakeGrip:2.2,turn:2.6,grip:7.5,driftGrip:3.2,
-  player:{maxSpeed:90/3.6,cruiseAccel:1.957,driftDrag:.035,turnStart:.35,turnRamp:.14,releaseGrip:9.5,gripReleaseRate:10},
-  patrol:{maxSpeed:94/3.6,cruiseAccel:2.240,driftDrag:.0525,turn:.8,gripReleaseRate:6},
-  slope:{deadZone:.02,gain:6,limit:.6,response:.18},
-  deflect:4.5,
-  // Juice: visual only, no effect on collisions.
-  roll:.035, tailSwing:.3, hop:.5, playerHop:.9, playerHopGain:.085, dive:.09, skidSpeed:4,
-  poseYaw:T.MathUtils.degToRad(21), poseRoll:T.MathUtils.degToRad(28), poseYawLimit:T.MathUtils.degToRad(45),
-  poseLift:T.MathUtils.degToRad(6), poseDive:T.MathUtils.degToRad(8),
-  poseMinSpeed:2, poseFullSpeed:10, poseAttack:.085, poseRelease:.17, poseReverse:.04,
-  puffSlip:2.5,puffRearm:1.5,puffLife:.22,
-  // Hit-stop: seconds of held simulation per event, the wall impact that earns one and the least gap between two.
-  stopImpact:11, stopWall:.055, stopArrive:.05, stopCaught:.11, stopGap:.6,
-  // Camera kick: launch speed of a full hit (m/s), spring back to rest, hard limit in metres.
-  kick:36, kickStiff:220, kickDamp:22, kickMax:1.2,
-  // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.
-  zoomSpeed:.1, zoomThreat:.08, zoomCaught:.14, zoomRate:1.1, paceRate:.7, leadRate:2.4, followRate:9,
-  radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:carVisualScale,
-  scrapeRatio:.5, scrapeFriction:.12, sparkSpeed:5, sparkGap:.075, sparkLife:.16,
-  catchSpeed:4.5, catchReach:4, grace:2.5,
-  chaserEvery:18, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
-  coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
-  viewSpanCompact:62, viewSpanWide:95
-};
-const SKIDS=600, DUST=48, COINS=220;
-const CAPTURE={speed:.3,coast:1,maxSpeed:6,grade:.85,summary:.3,actions:.6};
-const wrap=(a: number)=>Math.atan2(Math.sin(a),Math.cos(a));
 
 export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
@@ -183,52 +120,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   const dummy=new T.Object3D();
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({...surfaceStencil(),color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
   coinMesh.frustumCulled=false;coinMesh.count=0;group.add(coinMesh);
-  const skidPositions=new Float32Array(SKIDS*18);
-  const skidGeometry=new T.BufferGeometry();skidGeometry.setAttribute('position',new T.BufferAttribute(skidPositions,3));
-  const skidMesh=new T.Mesh(skidGeometry,new T.MeshBasicMaterial({color:'#1d1c1f',transparent:true,opacity:.34,depthWrite:false,side:T.DoubleSide}));
-  skidMesh.frustumCulled=false;group.add(skidMesh);
-  const dustMesh=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),new T.MeshBasicMaterial({transparent:true,opacity:.5,depthWrite:false}),DUST);
-  const dustColours={dust:new T.Color('#d8cdbb'),smoke:new T.Color('#3b3836'),drift:new T.Color('#fff6de'),spark:new T.Color('#ffcc68')};
-  type ParticleKind=keyof typeof dustColours;
-  // Colours exist from the start: adding them at the first puff would build a second shader mid-run.
-  for(let i=0;i<DUST;i++)dustMesh.setColorAt(i,dustColours.dust);
-  dustMesh.frustumCulled=false;group.add(dustMesh);
-  const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,vx:0,vy:0,life:0,kind:'dust' as ParticleKind}));
-  // Pedestrians: legless toy figures that get about by hopping, larger than life like the cars.
-  // A tinted body and a fixed head share one matrix per walker, so the body colour does not tint the skin.
+  const {puff,skid,reset: resetEffects,update: updateEffects}=makeDriveEffects(group,groundAt);
   const WALKERS=compact?26:40;
-  const figure=()=>breezy(new T.MeshStandardMaterial({...surfaceStencil(),flatShading:true,roughness:1}));
-  const torsoMesh=new T.InstancedMesh(new T.CylinderGeometry(.34,.52,1.45,8).translate(0,.725,0),figure(),WALKERS);
-  const limbs=figure();limbs.vertexColors=true;
-  const restMesh=new T.InstancedMesh(tint(new T.IcosahedronGeometry(.4,1).translate(0,1.78,0),'#e0b48e'),limbs,WALKERS);
-  const shirts=['#d9614c','#e8c25a','#5b8fb9','#6aa27a','#f1ebe0','#8d6bb0','#e58f4f'].map(c=>new T.Color(c));
-  for(let i=0;i<WALKERS;i++)torsoMesh.setColorAt(i,shirts[i%shirts.length]);
-  torsoMesh.frustumCulled=restMesh.frustumCulled=false;group.add(torsoMesh,restMesh);
+  const crowd=makeCrowdView(group,altitude,WALKERS);
   let people: ReturnType<typeof makePedestrians> | null=null;
-  const shown=new Float32Array(WALKERS),lifted=new Float32Array(WALKERS),wasAlive=new Uint8Array(WALKERS);
-  let skidAt=0,dustAt=0;
-  function puff(x: number,y: number,kind: ParticleKind='dust',vx=0,vy=0){
-    const p=dust[dustAt];
-    Object.assign(p,{x,y,z:groundAt(x,y)+(kind==='spark'?1.25:1),vx,vy,life:1,kind});
-    dustMesh.setColorAt(dustAt,dustColours[kind]);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
-    dustAt=(dustAt+1)%DUST;
-  }
-  function skid(b: Vehicle,fx: number,fy: number,scale: number){
-    const now: NonNullable<Vehicle["trail"]>=[];
-    for(const side of [-.7,.7]){
-      const x=b.x-(fx*1.1+fy*side)*scale,y=b.y+(-fy*1.1+fx*side)*scale;
-      now.push([x,groundAt(x,y)+.78,-y]);
-    }
-    if(b.trail){
-      for(let k=0;k<2;k++){
-        const [ax,ay,az]=b.trail[k],[bx,by,bz]=now[k],w=.14;
-        skidPositions.set([ax-w,ay,az,ax+w,ay,az,bx+w,by,bz,ax-w,ay,az,bx+w,by,bz,bx-w,by,bz],skidAt*18);
-        skidAt=(skidAt+1)%SKIDS;
-      }
-      skidGeometry.attributes.position.needsUpdate=true;
-    }
-    b.trail=now;
-  }
   function place(b: Vehicle,yaw: number,roll: number,pitch: number){
     const z=groundAt(b.x,b.y);
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
@@ -349,11 +244,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     puffArmed=true;
     sparkCool=0;
     playerPose.reset();
-    skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
-    for(const p of dust)p.life=0;
+    resetEffects();
     Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0,slopeAccel:undefined});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
-    people?.reset(player);shown.fill(0);
+    people?.reset(player);crowd.reset();
     const path=trail();
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
     rig.startHeading(player.h);
@@ -560,39 +454,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       dummy.updateMatrix();coinMesh.setMatrixAt(i,dummy.matrix);
     });
     coinMesh.instanceMatrix.needsUpdate=true;
-    dust.forEach((p,i)=>{
-      const spark=p.kind==='spark',drift=p.kind==='drift';
-      p.life=Math.max(0,p.life-dt*(spark?1/TUNE.sparkLife:drift?1/TUNE.puffLife:1.5));
-      const age=1-p.life;
-      if(spark){
-        const elapsed=age*TUNE.sparkLife,size=.25*p.life;
-        dummy.position.set(p.x+p.vx*elapsed,p.z+.22*Math.sin(age*Math.PI),-p.y-p.vy*elapsed);
-        dummy.rotation.set(0,Math.atan2(p.vy,p.vx),0);dummy.scale.set(size*2.1,size*.6,size*.6);
-      }else{
-        const size=drift?Math.min(1,.72+age*2,p.life*3):p.life?.5+age*1.5:0;
-        dummy.position.set(p.x,p.z+age*(drift?.45:1.6),-p.y);dummy.rotation.set(0,0,0);dummy.scale.setScalar(size);
-      }
-      dummy.updateMatrix();dustMesh.setMatrixAt(i,dummy.matrix);
-    });
-    dustMesh.instanceMatrix.needsUpdate=true;
+    updateEffects(dt);
     // Pedestrians hold with the simulation during a hit-stop, and keep strolling before the start and after a capture.
     let walking=0,clearance=99;
     if(people){
       if(dt && !freeze && !held)people.update(dt,player,[player,...chasers.filter(c=>!c.wreck)]);
-      people.walkers.forEach((w,i)=>{
-        if(w.alive && !wasAlive[i])shown[i]=0;
-        wasAlive[i]=w.alive?1:0;
-        shown[i]+=((w.alive?1:0)-shown[i])*Math.min(1,dt*7);
-        lifted[i]+=((w.air>0?2.7:0)-lifted[i])*Math.min(1,dt*16);
-        const fleeing=w.alarm>0;
-        if(w.alive){walking++;if(!w.air)clearance=Math.min(clearance,Math.hypot(w.x-player.x,w.y-player.y));}
-        // Every step is a hop: stretched on the way up, squashed on landing.
-        const hop=Math.abs(Math.sin(w.phase)),size=shown[i]<.02?0:shown[i]*1.3,tall=.82+.36*hop,wide=1/Math.sqrt(tall);
-        dummy.position.set(w.x,altitude(w.x,w.y)+.75+lifted[i]+hop*(fleeing?.9:.42),-w.y);
-        dummy.rotation.set(0,w.h,fleeing?-.3:-.08);dummy.scale.set(size*wide,size*tall,size*wide);
-        dummy.updateMatrix();torsoMesh.setMatrixAt(i,dummy.matrix);restMesh.setMatrixAt(i,dummy.matrix);
-      });
-      torsoMesh.instanceMatrix.needsUpdate=restMesh.instanceMatrix.needsUpdate=true;
+      ({walking,clearance}=crowd.update(people,dt,player));
     }
     // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
     // the follow itself is tight, which keeps the car steady on screen.

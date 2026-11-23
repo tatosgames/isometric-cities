@@ -1,6 +1,6 @@
 import { MathUtils } from 'three';
 import type { Body } from './drive-physics.ts';
-import type { TUNE } from './drive.ts';
+import type { TUNE } from './drive-tune.ts';
 
 type PoseTuning = Pick<typeof TUNE, 'poseYaw' | 'poseRoll' | 'poseYawLimit' | 'poseAttack' | 'poseRelease' | 'poseReverse' | 'poseMinSpeed' | 'poseFullSpeed' | 'skidSpeed' | 'poseLift' | 'poseDive'>;
 
