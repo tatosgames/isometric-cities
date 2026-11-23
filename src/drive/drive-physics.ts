@@ -1,33 +1,43 @@
 import type { Point } from '../data/types.ts';
 import type { buildDriveWorld, Segment } from './drive-world.ts';
 import type { TUNE } from './drive.ts';
+import type { makeRoadGrade } from './road-grade.ts';
 import * as T from 'three';
 
 export interface Body {
   x: number; y: number; h: number; vx: number; vy: number;
   wayHold: number; dive: number; hold: number; steer: number;
   slip: number; side: number; way: number; hitX: number; hitY: number;
+  slopeAccel?: number;
   scrape?: {x: number;y: number;nx: number;ny: number;vx: number;vy: number;closing: number};
 }
 
 
 type Handling = Pick<typeof TUNE.player, 'maxSpeed' | 'cruiseAccel' | 'gripReleaseRate' | 'driftDrag'> & {releaseGrip?: number};
-type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'accel' | 'accelTaperStart' | 'accelTaperEnd' | 'brake' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction'>;
+type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'accel' | 'accelTaperStart' | 'accelTaperEnd' | 'brake' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction' | 'slope'>;
 
-export function makeDrivePhysics(tune: PhysicsTuning){
+export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof makeRoadGrade>){
   let steerTime=0,steerDirection=0;
 
-  function steerBody(b: Body,steer: number,brake: boolean,dt: number,agility: number,handling: Handling){
-    const speed=Math.hypot(b.vx,b.vy);
+  function slopeAccel(b: Body,speed: number,dt: number){
+    if(!gradeAt)return 0;
+    const dx=speed>=2?b.vx/speed:Math.cos(b.h),dy=speed>=2?b.vy/speed:Math.sin(b.h);
+    const grade=gradeAt(b.x,b.y,dx,dy);
+    if(grade===undefined)return b.slopeAccel=0;
+    const {deadZone,gain,limit,response}=tune.slope;
+    const target=Math.sign(grade)*Math.min(limit,Math.max(0,Math.abs(grade)-deadZone)*gain);
+    return b.slopeAccel=T.MathUtils.lerp(b.slopeAccel??target,target,-Math.expm1(-dt/response));
+  }
+  function steerBody(b: Body,steer: number,brake: boolean,speed: number,dt: number,agility: number,handling: Handling,slope: number){
     b.h+=steer*tune.turn*agility*Math.min(1,.35+speed/8)*dt;
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
     let forward=b.vx*fx+b.vy*fy,side=-b.vx*fy+b.vy*fx;
     const max=handling.maxSpeed;
-    if(brake)forward=Math.max(0,forward-tune.brake*dt);
-    else if(forward>max)forward=Math.max(max,forward-tune.brake*dt);
+    if(brake)forward=Math.max(0,forward-(tune.brake+slope)*dt);
+    else if(forward>max)forward=Math.max(max,forward-(tune.brake+slope)*dt);
     else{
       const taper=T.MathUtils.smoothstep(forward,tune.accelTaperStart,tune.accelTaperEnd);
-      forward=Math.min(max,forward+T.MathUtils.lerp(tune.accel,handling.cruiseAccel,taper)*dt);
+      forward=Math.min(max,forward+(T.MathUtils.lerp(tune.accel,handling.cruiseAccel,taper)-slope)*dt);
     }
     b.wayHold-=dt;b.dive+=((brake?1:0)-b.dive)*Math.min(1,dt*8);
     b.hold=steer?Math.min(1,b.hold+dt*2.2):Math.max(0,b.hold-dt*handling.gripReleaseRate);
@@ -39,20 +49,21 @@ export function makeDrivePhysics(tune: PhysicsTuning){
     b.slip=Math.abs(side);b.side=side;
     b.vx=fx*forward-fy*side;b.vy=fy*forward+fx*side;
     b.x+=b.vx*dt;b.y+=b.vy*dt;
-    return speed;
   }
   function steerPlayer(b: Body,steer: number,brake: boolean,dt: number){
     if(steer!==steerDirection){steerTime=0;steerDirection=steer;}
     const handling=tune.player;
     if(steer)steerTime=Math.min(handling.turnRamp,steerTime+dt);
     const agility=T.MathUtils.lerp(handling.turnStart,1,steerTime/handling.turnRamp);
-    const before=steerBody(b,steer,brake,dt,agility,handling);
+    const before=Math.hypot(b.vx,b.vy);
+    steerBody(b,steer,brake,before,dt,agility,handling,slopeAccel(b,before,dt));
     const change=Math.hypot(b.vx,b.vy)-before;
     return T.MathUtils.clamp(change/((change>=0?tune.accel:tune.brake)*dt),-1,1);
   }
   function steerPatrol(b: Body,steer: number,world: Pick<ReturnType<typeof buildDriveWorld>,'near'>,dt: number){
     const speed=Math.hypot(b.vx,b.vy);
-    const lookAhead=Math.max(4,speed*speed/(2*tune.brake)+tune.radius);
+    const slope=slopeAccel(b,speed,dt);
+    const lookAhead=Math.max(4,speed*speed/(2*(tune.brake+slope))+tune.radius);
     const samples=Math.ceil((lookAhead-4)/1.8);
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
     let brake=false;
@@ -60,7 +71,7 @@ export function makeDrivePhysics(tune: PhysicsTuning){
       const distance=4+(lookAhead-4)*i/Math.max(1,samples);
       if(world.near(b.x+fx*distance,b.y+fy*distance,1.1)){brake=true;break;}
     }
-    steerBody(b,steer,brake,dt,tune.patrol.turn,tune.patrol);
+    steerBody(b,steer,brake,speed,dt,tune.patrol.turn,tune.patrol,slope);
   }
   function push(b: Body,px: number,py: number,r: number,facade: boolean){
     let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);

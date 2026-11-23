@@ -5,7 +5,7 @@ import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // The terrain reaches 0 m along the quays, so the water sits just below it and the quay wall stays visible.
-const LEVEL=-.9, FLOOR=-5, REACH=90, STEPS=24;
+const LEVEL=-.9, REACH=90, STEPS=24;
 
 // Distance to the mapped coastline, painted once: nested strokes from wide and dark to thin and bright,
 // so the red channel reads 1 on the coast and 0 at REACH metres. Foam and shallows follow it in the shader.
@@ -36,8 +36,9 @@ function shoreMap(shore: Point[][],box: T.Box2){
 
 export function makeSea(sea: Sea){
   const box=new T.Box2();
-  for(const polygon of sea.water)for(const [x,y] of polygon[0])box.expandByPoint(new T.Vector2(x,y));
-  box.expandByScalar(4);
+  for(const line of sea.shore)for(const [x,y] of line)box.expandByPoint(new T.Vector2(x,y));
+  // A black texture border keeps the clamped samples in open water clear of foam.
+  box.expandByScalar(REACH+4);
   const size=box.getSize(new T.Vector2());
   const surface=mergeGeometries(sea.water.map(polygon=>{
     const [outer,...holes]=polygon.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
@@ -68,18 +69,5 @@ export function makeSea(sea: Sea){
       foam=max(foam,1.-smoothstep(1.2,4.+ragged*3.,seaDist));
       diffuseColor.rgb*=mix(seaTone,seaFoam,clamp(foam,0.,1.)*.9);`);
   };
-  const group=new T.Group();
-  group.add(new T.Mesh(surface,breezy(water)));
-  // The cut side of the slab, down to the base of the model. The coast side is the land's own wall.
-  const wall: number[]=[];
-  for(const l of sea.edge)for(let i=1;i<l.length;i++){
-    const [a,b]=l[i-1],[c,d]=l[i];
-    wall.push(a,LEVEL,-b,c,LEVEL,-d,a,FLOOR,-b,c,LEVEL,-d,c,FLOOR,-d,a,FLOOR,-b);
-  }
-  if(wall.length){
-    const side=new T.BufferGeometry();
-    side.setAttribute('position',new T.Float32BufferAttribute(wall,3));side.computeVertexNormals();
-    group.add(new T.Mesh(side,breezy(new T.MeshStandardMaterial({...surfaceStencil(),color:'#2a6877',flatShading:true,side:T.DoubleSide,roughness:1}))));
-  }
-  return group;
+  return new T.Mesh(surface,breezy(water));
 }

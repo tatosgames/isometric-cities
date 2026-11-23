@@ -9,6 +9,7 @@ import {buildDriveWorld} from './drive-world.ts';
 import type {Zoning} from './drive-world.ts';
 import type {ZoneData} from '../data/types.ts';
 import {makeDrivePhysics} from './drive-physics.ts';
+import {makeRoadGrade} from './road-grade.ts';
 import {makeDrivePose} from './drive-pose.ts';
 import {driveLookAhead,makeDriveCamera} from './drive-camera.ts';
 import {makeDriveRoute} from './drive-route.ts';
@@ -62,10 +63,11 @@ export const TUNE={
   accel:11.574,accelTaperStart:60/3.6,accelTaperEnd:63/3.6,brake:27,brakeGrip:2.2,turn:2.6,grip:7.5,driftGrip:3.2,
   player:{maxSpeed:90/3.6,cruiseAccel:1.957,driftDrag:.035,turnStart:.35,turnRamp:.14,releaseGrip:9.5,gripReleaseRate:10},
   patrol:{maxSpeed:94/3.6,cruiseAccel:2.240,driftDrag:.0525,turn:.8,gripReleaseRate:6},
+  slope:{deadZone:.02,gain:6,limit:.6,response:.18},
   deflect:4.5,
   // Juice: visual only, no effect on collisions.
-  roll:.035, tailSwing:.3, hop:.5, dive:.09, skidSpeed:4,
-  poseYaw:T.MathUtils.degToRad(21), poseRoll:T.MathUtils.degToRad(17), poseYawLimit:T.MathUtils.degToRad(45),
+  roll:.035, tailSwing:.3, hop:.5, playerHop:.9, playerHopGain:.085, dive:.09, skidSpeed:4,
+  poseYaw:T.MathUtils.degToRad(21), poseRoll:T.MathUtils.degToRad(28), poseYawLimit:T.MathUtils.degToRad(45),
   poseLift:T.MathUtils.degToRad(6), poseDive:T.MathUtils.degToRad(8),
   poseMinSpeed:2, poseFullSpeed:10, poseAttack:.085, poseRelease:.17, poseReverse:.04,
   puffSlip:2.5,puffRearm:1.5,puffLife:.22,
@@ -91,7 +93,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
-  const {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE);
+  const {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads));
   const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -329,7 +331,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const pool=ahead.length && Math.random()<.5?ahead:ring.length?ring:all;
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
     const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
-    Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,slip:0,side:0,puff:0});
+    Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,slip:0,side:0,puff:0,slopeAccel:undefined});
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function nextStart(){
@@ -349,7 +351,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     playerPose.reset();
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
-    Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0});
+    Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0,slopeAccel:undefined});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     people?.reset(player);shown.fill(0);
     const path=trail();
@@ -422,7 +424,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       }
       sparkCool=TUNE.sparkGap;
     }
-    if(knock>3)player.hop=Math.min(TUNE.hop,knock*.05);
+    if(knock>3)player.hop=Math.max(player.hop,Math.min(TUNE.playerHop,knock*TUNE.playerHopGain));
     if(knock>6){kick(player.hitX,player.hitY,Math.min(1,knock/14));buzz(18);}
     // Only a hard, nearly head-on hit stops time, and not twice in a row: scraping along a street never does.
     if(knock>TUNE.stopImpact && !stopCool){stop(TUNE.stopWall);stopCool=TUNE.stopGap;}

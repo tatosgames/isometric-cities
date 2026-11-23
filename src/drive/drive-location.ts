@@ -68,10 +68,10 @@ export function makeDriveLocation(roads: Road[],street: HTMLElement,barrio: HTML
     barrio.textContent=name;
     animation=barrio.animate([
       {opacity:0,easing:'ease-out'},
-      {opacity:1,offset:.14},
-      {opacity:1,offset:.72,easing:'ease-in'},
+      {opacity:1,offset:.08},
+      {opacity:1,offset:.84,easing:'ease-in'},
       {opacity:0}
-    ],{duration:2800});
+    ],{duration:5000});
     animation.onfinish=clearTitle;
   }
   return {

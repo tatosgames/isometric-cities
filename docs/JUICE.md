@@ -20,7 +20,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 |---|---|---|---|---|---|
 | Moneta raccolta | – | – | La moneta è attirata entro 6 m | «+1» che sale dal punto, pillola delle monete che pulsa | 8 ms |
 | Accelerazione | 60 km/h in 1,44 s, poi 90 km/h in altri 4 s | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
-| Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 17° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
+| Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 28° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
 | Frenata | 27 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
 | Strisciata laterale contro una facciata | La velocità lungo il muro perde il 12% della velocità in entrata | – | Fino a tre scintille brevi dal contatto del giocatore | – | – |
 | Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
@@ -37,11 +37,14 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 - L'accelerazione in rettilineo è 11,574 m/s² fino a 60 km/h, poi scende gradualmente tra 60 e 63 km/h. Sopra i 63 la spinta è 1,957 m/s² per il giocatore e 2,240 m/s² per le pattuglie. I limiti di velocità in avanti sono 90 e 94 km/h. La prima ondata ha già la stessa punta delle successive.
 - Le pattuglie hanno un coefficiente di perdita longitudinale da slittamento di 0,0525, contro 0,035 del giocatore. Frenano anche prima dei muri, con un controllo da 4 m fino alla distanza di arresto più il raggio dell'auto, circa 13,8 m a 94 km/h.
 - Per la cattura vale la soglia di 4,5 m/s. Per le monete il raggio di richiamo è 6 m e la trazione è 25 m/s.
+- La pendenza lungo la marcia frena la ripresa in salita e la aiuta in discesa. È neutra fino al 2%, poi applica 0,06 m/s² per ogni punto percentuale aggiuntivo fino a 0,6 m/s². La stessa correzione aiuta il freno in salita e lo riduce in discesa. I limiti in avanti restano 90 e 94 km/h.
 - A ogni cambio di lato la rampa ricomincia dal 35%. Al rilascio il peso della derapata cala di 10 al secondo e il coefficiente di aderenza laterale tende a 9,5 s⁻¹. La frenata usa il proprio coefficiente di 2,2 s⁻¹.
-- La posa si aggiorna a 120 Hz. La risposta allo sterzo cresce tra 2 e 10 m/s. A pieno sterzo la rotazione aggiuntiva va da 10,5° a 21° e il rollio da 8,5° a 17°, secondo lo slittamento. Quando amplifica lo slittamento, la rotazione aggiuntiva porta il muso fino a 45° dalla direzione di marcia.
+- La posa si aggiorna a 120 Hz. La risposta allo sterzo cresce tra 2 e 10 m/s. A pieno sterzo la rotazione aggiuntiva va da 10,5° a 21° e il rollio da 14° a 28°, secondo lo slittamento. Quando amplifica lo slittamento, la rotazione aggiuntiva porta il muso fino a 45° dalla direzione di marcia.
 - Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa.
 - Tre particelle bianco caldo compaiono dietro le ruote per 220 ms quando lo slittamento laterale supera 2,5 m/s durante una manovra senza contatti. Il puff si riarma sotto 1,5 m/s. Le due tracce partono da 4 m/s. Sagoma, freccia, tracce e puff seguono l'orientamento visivo. Camera e collisioni usano la simulazione.
 - L'ombra di contatto delle auto è un rettangolo di 4,15 × 2,5 m con opacità 0,38. Ruota con l'auto e resta a terra durante rollio e saltelli.
+
+Il campionamento della pendenza usa la griglia del terreno a 6 m dietro e a 6 m davanti. Segue la velocità di marcia e usa il muso sotto 2 m/s. Il filtro ha costante di tempo di 180 ms. Entro 11 m dai tracciati OSM marcati come ponte o a un altro livello, la correzione torna a zero perché la quota del suolo può differire da quella della carreggiata. Le pattuglie usano la stessa correzione per calcolare da quanto lontano iniziare la frenata.
 
 ## Strisciata contro una facciata
 
@@ -51,6 +54,8 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 ## Hit-stop
 
 Per alcuni fotogrammi la simulazione non avanza: auto, pattuglie, monete e cronometro restano fermi. Polvere, saltello, camera e interfaccia continuano, così lo schermo non sembra bloccato.
+
+Il saltello del giocatore arriva fino a 0,9 m e rientra in circa 0,41 s alla massima altezza. Un secondo urto più debole lascia finire il saltello in corso. L'ombra resta a terra.
 
 - **Eventi:** urto forte contro un muro o un albero, arrivo a destinazione, cattura. Lo schianto di una pattuglia non lo usa (scelta di Luca, 22 novembre 2026).
 - **Durate:** `stopWall` 0,055 s, `stopArrive` 0,05 s, `stopCaught` 0,11 s. A 60 fotogrammi al secondo sono circa 3, 3 e 7 fotogrammi.

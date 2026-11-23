@@ -357,14 +357,20 @@ try{
       await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('playing'));
       await ext.dispose();
     }
-    if(mobile){
-      await waitForCapture();
-      await page.locator('#leave').tap();
-    }else await page.locator('#drive-exit').click();
+    if(mobile)await waitForCapture();
+    const exit=page.locator(mobile?'#leave':'#drive-exit');
+    await exit.evaluate(button=>button.addEventListener('click',()=>{
+      button.dataset.exitMotion=document.querySelector('#scene').dataset.moving;
+    },{once:true}));
+    if(mobile)await exit.tap();else await exit.click();
+    assert.equal(await exit.getAttribute('data-exit-motion'),'true','Leaving driving starts a camera flight');
     assert.equal(await host.getAttribute('data-drive'),null);
     assert.equal(await host.evaluate(node=>node.style.filter),'');
     assert.equal(await page.locator('#plus').isVisible(),true);
-    await page.waitForFunction(v=>document.querySelector('#scene').dataset.view===v,before);
+    await page.waitForFunction(v=>{
+      const {view,moving}=document.querySelector('#scene').dataset;
+      return view===v && moving==='false';
+    },before);
     assert.equal(await angle(),entryAngle);
   }
   if(!mobile && !process.argv.includes('pilot')){

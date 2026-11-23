@@ -70,7 +70,7 @@ export function isCity(v: unknown): v is CityData {
 
 const line = (v: unknown): v is Point[] => list(v, point) && v.length >= 2;
 export const isSea = (v: unknown): v is Sea =>
-  record(v) && list(v.water, rings) && list(v.shore, line) && list(v.edge, line);
+  record(v) && list(v.water, rings) && v.water.length > 0 && list(v.shore, line) && v.shore.length > 0;
 
 const sector = (v: unknown): v is Sector =>
   record(v) && string(v.id) && bounds(v.bounds) && point(v.vertical) && string(v.file);

@@ -20,6 +20,7 @@ interface Flight {
   from: T.Vector3; to: T.Vector3;
   z0: number; z1: number;
   turn0: number; turn1: number;
+  driveOrbit: T.Spherical | undefined;
 }
 
 const turnDuration=300;
@@ -112,6 +113,7 @@ async function start(){
   controls.enableRotate=false;controls.screenSpacePanning=false;controls.enableDamping=false;
   controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.touches.ONE=T.TOUCH.PAN;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=new T.Vector3(-.82,1.15,.68).normalize();
+  const mapInclination=Math.acos(direction.y);
   const mapOffset=new T.Vector3();
   let frame=0,lost=false,painted=0,mapTurn=0;
   let flight: Flight | null=null;
@@ -121,7 +123,7 @@ async function start(){
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point)=>{
-    if(lost)return false;
+    if(lost || flight?.driveOrbit)return false;
     fly(point,Math.max(fitAt(flight?.turn1??mapTurn),Math.min(host.clientWidth,host.clientHeight)/245),320);
     return true;
   });
@@ -135,10 +137,8 @@ async function start(){
     draw();
   }
   const border=data.boundary.map(([x,y])=>new T.Vector3(x,altitude(x,y),-y));
-  // The opening view frames land and sea together; panning stays limited to the land.
-  const framed=sea?[...border,...sea.water.flatMap(p=>p[0].map(([x,y])=>new T.Vector3(x,0,-y)))]:border;
   const bounds=new T.Box3().setFromPoints(border);
-  const center=new T.Box3().setFromPoints(framed).getCenter(new T.Vector3()).clamp(bounds.min,bounds.max);
+  const center=bounds.getCenter(new T.Vector3());
   function fitAt(turn: number){
     const offset=mapDirection(turn);
     const right=new T.Vector3().crossVectors(upAxis,offset).normalize();
@@ -146,7 +146,7 @@ async function start(){
     const point=new T.Vector3();
     let halfWidth=0,halfHeight=0;
     // Measure from the actual orbit center so an asymmetric coastline still fits.
-    for(const vertex of framed){
+    for(const vertex of border){
       point.copy(vertex).sub(center);
       halfWidth=Math.max(halfWidth,Math.abs(point.dot(right)));
       halfHeight=Math.max(halfHeight,Math.abs(point.dot(up)));
@@ -172,11 +172,11 @@ async function start(){
     const zoom=fitAt(flight?.turn1??mapTurn);
     fly(zoom===farthest()?home():center,zoom,300);
   }
-  function fly(target: T.Vector3,zoom: number,duration: number,turn1=flight?.turn1??mapTurn){
-    if(lost)return;
+  function fly(target: T.Vector3,zoom: number,duration: number,turn1=flight?.turn1??mapTurn,driveOrbit?: T.Spherical){
+    if(lost || flight?.driveOrbit)return;
     host.dataset.moving='true';
     flight={start:performance.now(),duration:Math.max(duration,Math.abs(turn1-mapTurn)*turnDuration),
-      from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom,turn0:mapTurn,turn1};
+      from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom,turn0:mapTurn,turn1,driveOrbit};
     draw();
   }
   function rotate(step: -1|1){
@@ -265,7 +265,7 @@ async function start(){
   window.addEventListener('pagehide',remember);
   document.addEventListener('visibilitychange',()=>{
     drive?.visibilityChanged();
-    if(document.hidden){flight=null;stopGesture();remember();}
+    if(document.hidden){if(!flight?.driveOrbit)flight=null;stopGesture();remember();}
     else if(!lost)syncSize();
   });
   function paint(time: number){
@@ -290,11 +290,22 @@ async function start(){
   function drawFrame(time: number){
     sampleCadence(time);
     if(flight){
-      const t=Math.min(1,(time-flight.start)/flight.duration),ease=t*t*(3-2*t);
+      const t=T.MathUtils.clamp((time-flight.start)/flight.duration,0,1),ease=t*t*(3-2*t);
       mapTurn=t>=1?normalizeTurn(flight.turn1):T.MathUtils.lerp(flight.turn0,flight.turn1,ease);
       const zoom=flight.z0===flight.z1?flight.z0:Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease));
-      view(flight.from.clone().lerp(flight.to,ease),zoom);
-      if(t>=1){flight=null;settle();}
+      let offset=mapDirection(mapTurn);
+      const orbit=flight.driveOrbit;
+      if(orbit && t<1){
+        const yaw=Math.atan2(offset.x,offset.z)-orbit.theta;
+        offset.setFromSphericalCoords(1,T.MathUtils.lerp(orbit.phi,mapInclination,ease),
+          orbit.theta+Math.atan2(Math.sin(yaw),Math.cos(yaw))*ease);
+      }
+      view(flight.from.clone().lerp(flight.to,ease),zoom,offset);
+      if(t>=1){
+        flight=null;
+        if(orbit)controls.enabled=true;
+        settle();
+      }
     }
     const constrained=controls.target.clone().clamp(bounds.min,bounds.max);
     camera.position.add(constrained.clone().sub(controls.target));controls.target.copy(constrained);
@@ -316,7 +327,7 @@ async function start(){
       playRequestedAt=0;
     }
     status.hidden=true;
-    if(!drive?.active){
+    if(!drive?.active && !flight?.driveOrbit){
       lastView={target:controls.target.toArray(),zoom:camera.zoom,turn:normalizeTurn(mapTurn),selected:places.selected};
       host.dataset.mapAngle=(lastView.turn*90).toFixed(2);
     }
@@ -358,7 +369,7 @@ async function start(){
   el('plus').onclick=()=>zoom(1.4);el('minus').onclick=()=>zoom(1/1.4);el('reset').onclick=reset;
   el('rotate-left').onclick=()=>rotate(-1);el('rotate-right').onclick=()=>rotate(1);
   host.onkeydown=e=>{
-    if(lost || drive?.active)return;
+    if(lost || drive?.active || flight?.driveOrbit)return;
     if(e.key.startsWith('Arrow'))flight=null;
     if(e.key==='Home')reset();else if(['+','='].includes(e.key))zoom(1.4);else if(e.key==='-')zoom(1/1.4);
     else if(e.key.startsWith('Arrow')){
@@ -372,8 +383,11 @@ async function start(){
   };
   function leaveDrive(){
     if(!drive?.active)return;
-    drive.exit();setDesaturation(0);map.classList.remove('driving');controls.enabled=!lost;stopGesture();sizeCamera();
-    if(beforeDrive && !lost)view(beforeDrive.target,beforeDrive.zoom);
+    const orbit=new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+    drive.exit();setDesaturation(0);map.classList.remove('driving');sizeCamera();
+    if(beforeDrive && !lost)fly(beforeDrive.target,beforeDrive.zoom,1500,mapTurn,orbit);
+    controls.enabled=!lost && !flight?.driveOrbit;
+    stopGesture();
     el('drive').focus({preventScroll:true});
   }
   drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,onExit:leaveDrive,
@@ -397,7 +411,7 @@ async function start(){
     controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');
   }
   play.onclick=()=>{
-    if(lost || !drive || drive.active || awaitingZone || map.dataset.boot!=='ready' || play.getAttribute('aria-disabled')==='true')return;
+    if(lost || !drive || drive.active || flight?.driveOrbit || awaitingZone || map.dataset.boot!=='ready' || play.getAttribute('aria-disabled')==='true')return;
     playRequestedAt=performance.now();
     // The run starts on streets whose walls are loaded: wait for the zone under the view.
     if(streamed && !streamed.demand(controls.target.x,-controls.target.z)){

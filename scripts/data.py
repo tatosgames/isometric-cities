@@ -49,6 +49,16 @@ def place_polygon(reference):
 
 def feature(g,p):
     return dict(type='Feature',geometry=mapping(transform(inverse,g)),properties=p)
+
+def parts(g,kind):
+    if g.is_empty: return []
+    if g.geom_type==kind: return [g]
+    return [p for child in getattr(g,'geoms',[]) for p in parts(child,kind)]
+def coords(seq):
+    return [[round(x,1),round(y,1)] for x,y in seq]
+def rings(p):
+    return [coords(r.coords) for r in [p.exterior,*p.interiors]]
+
 places=catalog['places']
 polygons={p['id']:place_polygon(p['osm']) for p in places}
 assert len(polygons)==len(places), 'Duplicate POI ID'
@@ -94,7 +104,7 @@ def save_barrios():
 stage=sys.argv[1] if len(sys.argv)>1 else 'city'
 if stage in ('city','barrios'): save_barrios()
 if stage=='barrios': sys.exit()
-save('poi.geojson',dict(type='FeatureCollection',features=features))
+if stage!='sea': save('poi.geojson',dict(type='FeatureCollection',features=features))
 # Each zone is an envelope of places, a buffered corridor, a mapped OSM boundary or an explicit lon/lat polygon.
 def zone_shape(z):
     if 'places' in z: return MultiPoint([v for key in z['places'] for v in polygons[key].exterior.coords]).convex_hull.buffer(z['margin'],quad_segs=2)
@@ -114,19 +124,46 @@ covered=unary_union(zones)
 covered=unary_union([Polygon(p.exterior,[r for r in p.interiors if Polygon(r).area>2000]) for p in getattr(covered,'geoms',[covered])])
 # Classify the coast partitions inside the acquisition window using the known inland plaza.
 window=transform(project,box(*coverage['bounds']))
-coast=[LineString(v).intersection(window) for t,v in ways.values() if t.get('natural')=='coastline']
 # Cross the window edge with the whole coastline: clipped ends can miss the edge by a rounding error.
 shorelines=[LineString(v) for t,v in ways.values() if t.get('natural')=='coastline' and len(v)>1]
 partitions=[p for p in polygonize(unary_union([window.boundary,*shorelines])) if window.buffer(1).contains(p)]
-land=next(p for p in partitions if p.contains(polygons[catalog['pilotFocus']].representative_point()))
+focus_point=polygons[catalog['pilotFocus']].representative_point()
+land=next(p for p in partitions if p.contains(focus_point))
 assert len(partitions)>1 and land.area<window.area*.99, 'Coastline failed to split the acquisition window'
 aoi=covered.intersection(land)
 assert aoi.geom_type=='Polygon' and aoi.area>=coverage['minimumLandM2'], aoi.area
 assert all(aoi.covers(poly.representative_point()) for poly in polygons.values())
 print('Land area',round(aoi.area),'m2',flush=True)
-a=polygons[catalog['pilotFocus']].representative_point()
-pilot=box(a.x-325,a.y-325,a.x+325,a.y+325)
+pilot=box(focus_point.x-325,focus_point.y-325,focus_point.x+325,focus_point.y+325)
 area=pilot if stage=='pilot' else aoi
+if stage in ('city','sea'):
+    # The full coastal ways in the supplementary cell close the wider window to the west.
+    sea_coast=shorelines.copy()
+    if 'seaCoastBounds' in coverage:
+        supplement=acquire(dict(bounds=coverage['seaCoastBounds'],lattice=coverage['lattice']))
+        extra_nodes={e.get('id'):project(float(e.get('lon')),float(e.get('lat'))) for e in supplement.findall('node')}
+        extra_nodes.update(nodes)
+        for way in supplement.findall('way'):
+            if way.get('id') not in ways and tags(way).get('natural')=='coastline':
+                sea_coast.append(LineString([extra_nodes[n.get('ref')] for n in way.findall('nd')]))
+    # Allow for a square viewport at maximum zoom-out, including during rotation.
+    west,south,east,north=aoi.bounds
+    sea_window=box(west-2800,south-2800,east+2800,north+2800)
+    sea_partitions=list(polygonize(unary_union([sea_window.boundary,*sea_coast])))
+    sea_land=next(p for p in sea_partitions if p.contains(focus_point))
+    _,_,east,north=sea_window.bounds
+    ocean=next(p for p in sea_partitions if p.contains(Point(east-1,north-1)))
+    assert ocean is not sea_land and sea_window.covers(ocean), 'Coastline must split the extended sea window'
+    assert ocean.intersection(land).area<1, 'Extended sea overlaps mapped land'
+    # Keep the other coastline partitions previously drawn beside the model, such as enclosed basins.
+    near=aoi.buffer(260,quad_segs=4)
+    near=unary_union([Polygon(p.exterior) for p in parts(near,'Polygon')])
+    water=[ocean]+[p for part in sea_partitions if part is not ocean and part is not sea_land
+                   for p in parts(part.intersection(near),'Polygon') if p.area>400]
+    shore=parts(unary_union(sea_coast).intersection(sea_window),'LineString')
+    save('sea.json',dict(water=[rings(p) for p in water],shore=[coords(l.coords) for l in shore]))
+    print('Sea',round(ocean.area),'m2, shore',round(sum(l.length for l in shore)),'m',flush=True)
+    if stage=='sea': sys.exit()
 save(stage+'-aoi.geojson',feature(area,{'stage':stage}))
 extent=transform(inverse,area).bounds
 query='https://services-eu1.arcgis.com/eV9RayDSwR2BokOl/ArcGIS/rest/services/Building/FeatureServer/0/query?'
@@ -142,27 +179,6 @@ assert len({f['properties']['OBJECTID'] for f in features})==len(features)==coun
 empty=[f['properties']['OBJECTID'] for f in features if not f['geometry']]
 if empty: print('Municipal records without geometry:',empty,flush=True)
 features=[f for f in features if f['geometry']]
-def parts(g,kind):
-    if g.is_empty: return []
-    if g.geom_type==kind: return [g]
-    return [p for child in getattr(g,'geoms',[]) for p in parts(child,kind)]
-def coords(seq):
-    return [[round(x,1),round(y,1)] for x,y in seq]
-def rings(p):
-    return [coords(r.coords) for r in [p.exterior,*p.interiors]]
-if stage=='city':
-    # The sea beside the model is the coast partition that is not land, kept within 260 m of the area.
-    # `shore` is the mapped coastline (foam follows it); `edge` is the cut side, where the slab of water ends.
-    near=area.buffer(260,quad_segs=4)
-    # A harbour basin wider than that is still enclosed by land and piers: no hole in its water.
-    near=unary_union([Polygon(p.exterior) for p in parts(near,'Polygon')])
-    shoreline=unary_union(coast)
-    water=[p for part in partitions if part is not land for p in parts(part.intersection(near),'Polygon') if p.area>400]
-    assert water, 'No sea next to the area'
-    edge=[l for p in water for l in parts(p.exterior.difference(shoreline.buffer(.6)),'LineString')]
-    shore=parts(shoreline.intersection(near.buffer(100)),'LineString')
-    save('sea.json',dict(water=[rings(p) for p in water],shore=[coords(l.coords) for l in shore],edge=[coords(l.coords) for l in edge]))
-    print('Sea',round(sum(p.area for p in water)),'m2, shore',round(sum(l.length for l in shore)),'m',flush=True)
 buildings=[]; roads=[]; surfaces=[]; trees=[]
 # Altezze misurate dal LiDAR PNOA solo per gli edifici senza altezza comunale valida (vedi scripts/lidar-check.py --export).
 lidar_file=Path('content/lidar-heights.json')

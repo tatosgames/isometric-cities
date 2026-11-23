@@ -3,6 +3,7 @@ import {Euler,Vector3} from 'three';
 import {TUNE} from '../src/drive/drive.ts';
 import {makeDrivePhysics} from '../src/drive/drive-physics.ts';
 import {makeDrivePose} from '../src/drive/drive-pose.ts';
+import {makeRoadGrade} from '../src/drive/road-grade.ts';
 import {carShellHeight,carShellParts,carShellPivot} from '../src/drive/car-model.ts';
 
 const dt = 1/120;
@@ -40,12 +41,48 @@ assert.equal(speed(braking),0);
 assert.ok(Math.abs(brakeSteps*dt-.93)<=2*dt);
 assert.ok(Math.abs(braking.x-11.6)<.2);
 
+for(const [grade,seconds,stopDistance] of [[-.08,3.39,11.73],[.01,4,11.57],[.08,4.88,11.42]]){
+  const physics=makeDrivePhysics(TUNE,makeRoadGrade(x=>x*grade,[]));
+  const launch=body(60/3.6),stop=body(25);
+  let steps=0;
+  for(;speed(launch)<25 && steps<720;steps++)physics.steerPlayer(launch,0,false,dt);
+  assert.equal(speed(launch),25);
+  assert.ok(Math.abs(steps*dt-seconds)<.02);
+  for(let i=0;i<180;i++)physics.steerPlayer(stop,0,true,dt);
+  assert.equal(speed(stop),0);
+  assert.ok(Math.abs(stop.x-stopDistance)<.12);
+}
+const steep=makeDrivePhysics(TUNE,makeRoadGrade(x=>x*.3,[])),reverse=body(-20);
+reverse.h=Math.PI;
+steep.steerPlayer(reverse,0,false,dt);
+assert.equal(reverse.slopeAccel,-.6);
+const level={kind:'primary',layer:'1',line:[[0,-50],[0,50]]};
+const bridge={kind:'primary',bridge:'yes',line:[[40,-50],[40,50]]};
+const groundGrade=makeRoadGrade(x=>x*.08,[level,bridge]);
+assert.equal(groundGrade(5,0,1,0),undefined);
+assert.equal(groundGrade(40,2,1,0),undefined);
+assert.ok(Math.abs(groundGrade(20,0,-1,0)+.08)<1e-9);
+let grade=.08;
+const transition=makeDrivePhysics(TUNE,()=>grade),crossing=body(20);
+transition.steerPlayer(crossing,0,false,dt);
+assert.ok(crossing.slopeAccel>.35);
+grade=-.08;
+transition.steerPlayer(crossing,0,false,dt);
+assert.ok(crossing.slopeAccel>.3 && crossing.slopeAccel<.36);
+grade=undefined;
+transition.steerPlayer(crossing,0,false,dt);
+assert.equal(crossing.slopeAccel,0);
+
 const patrolTop=94/3.6;
 const sampleCar=body(patrolTop),probes=[];
 steerPatrol(sampleCar,0,{near:(x)=>{probes.push(x);return false;}},dt);
 assert.equal(probes[0],4);
 assert.ok(Math.abs(probes.at(-1)-13.8)<.05);
 assert.ok(probes.slice(1).every((x,i)=>x-probes[i]<=1.8));
+const downhill=makeDrivePhysics(TUNE,()=>-.08),downhillPatrol=body(patrolTop),downhillProbes=[];
+downhill.steerPatrol(downhillPatrol,0,{near:x=>{downhillProbes.push(x);return false;}},dt);
+assert.equal(downhillPatrol.vx,patrolTop,'The downhill bonus must respect the patrol speed cap');
+assert.ok(downhillProbes.at(-1)>probes.at(-1),'Patrols look farther before braking downhill');
 for(const obstacle of [4,8,13.8]){
   const approaching=body(patrolTop);
   steerPatrol(approaching,0,{near:(x,_y,r)=>Math.abs(x-obstacle)<r},dt);
@@ -80,7 +117,7 @@ const earlyHeading=heading(car);
 assert.ok(Math.abs(earlyHeading-2.6)<.2,`Expected about 2.6° of travel correction, got ${earlyHeading}°`);
 assert.ok(degrees(pose.roll)<-8,'The body should bank into the turn');
 advance(1,36);
-assert.ok(degrees(pose.roll)<-16);
+assert.ok(degrees(pose.roll)<-27,'The shell should clearly lean in a sustained turn');
 const settling={...car};
 const {steerPlayer:releaseSteering}=makeDrivePhysics(TUNE);
 let releaseSteps=0;

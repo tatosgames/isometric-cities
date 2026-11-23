@@ -1,5 +1,17 @@
 # Verifica locale · 21 novembre 2026
 
+## Pendenza e ripresa
+
+A 120 Hz la ripresa da 60 a 90 km/h richiede **3,39 s** su una discesa costante all'8%, **4,00 s** sul piano e **4,88 s** su una salita all'8%. La regressione controlla frenata, limite della correzione su pendenze forti, inversione di marcia, transizione fra salita e discesa, neutralità vicino a ponti e strade a livelli diversi, e anticipo della frenata delle pattuglie in discesa.
+
+In Chrome con touch emulato, partendo da 20 m/s per 150 ms sullo stesso tratto di Calle Párroco Villar Reina, l'auto ha raggiunto 20,36 m/s in discesa e 20,23 m/s in salita. Sul tratto piano di Avenida Marítima ha raggiunto 20,29 m/s in entrambi i sensi.
+
+Typecheck, build e suite `npm.cmd test` superati.
+
+## Rollio e saltello più leggibili
+
+La regressione a 120 Hz misura oltre 27° di rollio in curva sostenuta e controlla che la scocca resti sopra il piano delle ruote anche al massimo rollio con beccheggio. In Chrome con touch emulato, un urto frontale a 15 m/s ha prodotto un saltello di 0,9 m. L'ombra è rimasta a terra e l'auto è tornata alla quota di marcia. Typecheck, build e suite `npm.cmd test` superati.
+
 ## Strisciata nei vicoli
 
 Con un contatto di 4 m/s verso una facciata e 18 m/s lungo la facciata, la simulazione annulla la velocità verso il muro e conserva 17,52 m/s lungo il muro. Nel corridoio di prova largo 2,6 m, un secondo di sterzo continuo verso la facciata mantiene l'auto dentro il corridoio e sopra 12 m/s in entrambi i sensi. La regressione controlla anche il rimbalzo negli urti frontali, sul bordo della mappa e contro un albero.
@@ -507,27 +519,9 @@ Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (mediana / p90, 
 
 Limiti. Nel nucleo di La Isleta un fotogramma su dieci dura ancora 36 ms. La collisione con le gru è verificata solo nel calcolo delle posizioni delle gambe, non guidandoci contro. Il picco heap resta sopra 100 MB: 13 MB vengono dai JSON residenti e 7 MB dall'indice dei muri della guida. Tempi misurati con un altro processo attivo sulla macchina. Nessuna prova su telefono fisico.
 
-## Edifici fusi nei settori densi e parapetto a una faccia (23 novembre 2026)
+## Planata di ritorno alla mappa
 
-Due interventi sul solo profilo compatto (telefono). Su desktop non cambia nulla.
-
-- **Fusione dei vicini simili** (`fused()` in `scripts/sectors.py`). Nei settori da 240 edifici in su (9 a La Isleta e 1 nel sud della città) il file di settore porta, accanto alla lista completa, una lista `fused`: gruppi di al massimo 4 edifici adiacenti (almeno 2 m di muro in comune) con tetti entro 1,5 m, suolo entro 1,5 m e tinta del tetto entro 60 su 255 per canale. Il gruppo prende la quota media dei tetti pesata sull'area e colore e tinta dell'edificio più grande. Restano fuori gli edifici con stile di catalogo. Nei 10 settori: da 3.148 a 2.207 edifici. Zone, collisioni della guida e vista intermedia usano sempre la lista completa.
-- **Parapetto a una faccia** (`parapet()` e `RIM` in `scene.ts`). Il muro sale di 0,56 m fino alla quota del parapetto e il parapetto è solo la striscia chiara in cima: 2 triangoli per lato invece di 4, in tutta la città.
-
-Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (triangoli; mediana / p90):
-
-| Vista | Prima | Dopo |
-|---|---|---|
-| Nucleo di La Isleta (-1200, 5000) da vicino | 257.828 | 207.727; 18,0 / 18,1-36 ms su tre misure |
-| Santa Catalina (-2040, 3480) da vicino | 232.517 | 208.228; 18,0 / 18,1 ms |
-| Santa Ana | 178.001 | 159.580; 18,0 / 18,1 ms |
-| La Isleta alla distanza massima | 330.338 | 330.338 (vista intermedia, invariata) |
-
-`benchmark.mjs` con la macchina occupata non distingue i due commit: fotogramma peggiore dopo il ripristino 54 e 107 ms sul commit precedente, 89 e 72 ms su questo, misurati in alternanza; vista ravvicinata p95 18,2 ms; heap dopo la raccolta 95,7 MB contro 97,4.
-
-`typecheck`, `build`, `npm.cmd test` per intero e due esecuzioni di `qa-sectors.mjs`: verdi su una copia pulita del commit. Confronto a camera identica sul nucleo di La Isleta: alla vista di un luogo (zoom 1,59) il quartiere si legge uguale; a zoom 4 i gruppi fusi mostrano un tetto unico e una facciata di un solo colore dove prima ce n'erano fino a quattro, e la fascia di 0,56 m sotto il bordo del tetto ha il colore del muro.
-
-Limiti. La fusione livella i tetti di un gruppo fino a 1,5 m e ne toglie le differenze di tinta: è una semplificazione, non un dato. Le liste fuse aggiungono 0,83 MB ai 10 file di settore, che quindi occupano più budget di dettaglio. Una prima misura sul nucleo di La Isleta ha dato 35,9 ms di mediana con la macchina occupata; le tre ripetizioni 18,0. Nessuna prova su telefono fisico.
+Verifica Chrome da Seguimiento, Aérea e Isométrica a 1100×700, 390×844 e 844×390. Uscendo con il pulsante o con Esc, la camera passa per pose intermedie e torna al centro, allo zoom e all’angolo salvati prima di Play. La suite di guida verifica l’avvio del volo e il ripristino in uscita da una partita e dopo la cattura.
 
 ## Quartiere 5: Ciudad Alta e San Francisco - San Nicolás (23 novembre 2026)
 
@@ -578,7 +572,7 @@ Limiti. Il picco campionato all'apertura resta a 105-107 MB: non l'ho analizzato
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.
 
-L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.
+L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato per 5 s, dissolvenze incluse. L’attribuzione resta visibile in guida.
 
 Il controllo gira ogni 140 ms. Il nome della via richiede 400 ms di conferma, il quartiere 700 ms. Agli incroci contano distanza e allineamento con la marcia. I test verificano l’incrocio fra una via con nome e una senza nome, una corrispondenza ambigua, i POI reali di Vegueta e Triana e un attraversamento del confine annullato prima della conferma. Il dataset locale copre i 12 confini OSM presenti nel catalogo.
 
@@ -617,3 +611,13 @@ Un HTTP 503 isolato viene recuperato con un secondo tentativo dopo 200 ms. Due f
 Un solo anello. Ruota mentre il progresso è ignoto e interpola i traguardi reali quando iniziano ad arrivare. Le attribuzioni restano visibili durante il caricamento e sulla prima vista. Il test verifica che il primo comando sposti i crediti in «Licencias de datos» e che la barra resti assente in guida e al ritorno sulla mappa.
 
 Con touch emulato in Chrome, il test verifica che gli eventi di selezione e menu contestuale siano annullati, che un gesto in guida lasci fermo lo scroll della pagina e che il menu dei luoghi continui a scorrere. Trascinamento e pinch muovono la mappa con la pagina ferma alla scala iniziale.
+
+## Mare aperto
+
+`python scripts/data.py sea` rigenera `sea.json` dagli estratti OpenStreetMap. Due generazioni hanno prodotto lo stesso file. La superficie di mare aperto copre 128,12 km². Il confronto geometrico con il file precedente ritrova gli 11 bacini e tutta la superficie già disegnata entro 0,04 m² di arrotondamento. La generazione verifica che l’oceano non invada la terra classificata nella finestra di acquisizione.
+
+Con Chrome a 1440×900 e in emulazione mobile a 390×844 e 844×390, confronto a parità di posa a La Isleta, Las Canteras e San Cristóbal allo zoom minimo. Il taglio in mare aperto scompare in tutte e quattro le rotazioni provate per ciascuna inquadratura. Nei quattro campioni al largo di La Isleta e Las Canteras, i pixel beige del fondo scendono a zero. Schiuma e fondali restano visibili lungo la costa cartografata. La prova mobile è in emulazione.
+
+Nella finestra quadrata da 1000×1000 con il bersaglio al limite ovest e allo zoom minimo, il margine di 2.800 m elimina anche il triangolo residuo nell’angolo in basso a sinistra. Il campione di quell’angolo passa da 146 pixel beige con il margine di 2.350 m a zero, anche dopo la rotazione.
+
+`npm.cmd run typecheck`, `npm.cmd run build` e `npm.cmd test` passati sulla versione finale. Il primo giro della suite si era fermato dopo 120 secondi in attesa della seconda cattura nella guida mobile. I due giri successivi sono passati.

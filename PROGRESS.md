@@ -36,6 +36,10 @@ Le coperture usano una tinta uniforme per impronta, ricavata dai mezzitoni dell�
 
 Le auto scorrono lungo gli edifici nei contatti radenti. Il giocatore vede brevi scintille nel punto di contatto. [Taratura](docs/JUICE.md#strisciata-contro-una-facciata) e [verifica](docs/QA.md#strisciata-nei-vicoli).
 
+Il rollio del giocatore arriva a 28° e il saltello visivo da urto a 0,9 m per distinguere meglio la risposta dell'auto alla scala del telefono.
+
+Salita e discesa cambiano la ripresa e la frenata fino a ±0,6 m/s² per giocatore e pattuglie. L'effetto usa la quota stabile del terreno ed è neutro presso ponti e tracciati OSM su livelli diversi. [Verifica](docs/QA.md#pendenza-e-ripresa).
+
 **J · Vento e nuvole.** Un solo vento, l'aliseo da nord-est, muove insieme ombre di nuvole, chiome e fronde delle palme (`src/render/wind.ts`). Le ombre sono una texture di rumore che scorre nello shader di suolo, tetti e alberi: nessuna draw call in più, attive anche su telefono. Per questo la mappa ferma ora ridisegna a circa 30 fotogrammi al secondo invece di restare immobile. Da fare: misura di consumo e calore su telefono fisico; nastri di vento, pedoni e mare restano proposte. [Verifica](docs/QA.md#vento-e-ombre-di-nuvole--22-novembre-2026).
 
 **K · Mare e ombra di contatto.** Il mare accanto al plastico viene dalla linea di costa OSM già usata per ritagliare la terra: `scripts/data.py city` scrive `public/data/sea.json` (1,16 km² entro 260 m dal perimetro, 7,8 km di costa). `src/render/sea.ts` lo disegna con fondali più chiari a riva, onde lunghe che seguono il vento e creste di schiuma che rotolano verso la costa. La texture del suolo ora scurisce il terreno a ridosso dei muri, senza costo a runtime. Da fare: i moli fuori dal perimetro restano vuoti dentro l'acqua; giudizio su telefono fisico. [Verifica](docs/QA.md#mare-e-ombra-di-contatto--22-novembre-2026).
@@ -103,3 +107,7 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 **Preloader · Fluidità e recupero.** Core e terreno partono dall’HTML mentre si scarica il modulo principale. L’anello avanza con i completamenti dei dati e il settore iniziale viene renderizzato al livello finale sotto la schermata di avvio. Gli errori transitori dei dati ricevono un tentativo automatico e il limite di avvio si sospende in background. [Verifiche](docs/QA.md#fluidità-e-recupero).
 
 **Preloader · Revisione anti-slop.** Un solo indicatore per l’attesa e il progresso. Attribuzioni visibili fino al primo comando e poi consultabili da «Licencias de datos» nel menu. [Verifiche](docs/QA.md#revisione-anti-slop-del-preloader).
+
+**Conducir · Planata di ritorno.** All’uscita, la camera torna in 1,5 s al centro, allo zoom e all’orientamento della vista salvata prima di Play. [Verifiche](docs/QA.md#planata-di-ritorno-alla-mappa).
+
+**Mare aperto.** L’oceano prosegue oltre l’inquadratura del plastico nei profili verificati. La costa OpenStreetMap guida ancora il disegno della schiuma e il terreno determina la vista generale. [Verifiche](docs/QA.md#mare-aperto).
