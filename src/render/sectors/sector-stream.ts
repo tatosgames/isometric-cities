@@ -115,13 +115,15 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     new T.Vector3(bounds[0],vertical[0],-bounds[3]),new T.Vector3(bounds[2],vertical[1],-bounds[1]));
   const zones: ResidentZone[]=data.zones.map(z=>{
     const far=new T.Group(),level=required(data.far[z.id],'far level of zone '+z.id);
-    const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround);
-    far.add(overviewBlocks(level.blocks,base.altitude,neutral,overviewMaterials),surface);
+    const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround,!compact);
+    far.add(overviewBlocks(level.blocks,base.altitude,neutral,overviewMaterials,!compact),surface);
     base.group.add(far);
     const bounds=box(z.bounds,z.vertical);
     return {id:z.id,file:z.file,far,farGroundAt:groundSampler(()=>[surface.geometry]),bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
       sectors:[],assets:null,group:null,map:null,wanted:-Infinity,used:0,failed:0,retry:0};
   });
+  // The far level is geometry now: its outlines would otherwise stay resident for the whole session.
+  for(const level of Object.values(data.far)){level.ground=[];level.blocks=[];}
   const zoneById=new Map(zones.map(z=>[z.id,z]));
   const sectors: ResidentSector[]=data.sectors.map(s=>{
     const zone=required(zoneById.get(zoneOfSector(s.id,data)),'zone of sector '+s.id);
@@ -185,7 +187,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     pendingZone={z,controller};
     try{
       const source=required(data.zones.find(zone=>zone.id===z.id),'zone '+z.id);
-      const content=await (loadZone?loadZone(source,controller.signal):loadData(stage+'-zones/'+z.file,isZone,controller.signal));
+      let content: ZoneData | null=await (loadZone?loadZone(source,controller.signal):loadData(stage+'-zones/'+z.file,isZone,controller.signal));
       if(controller.signal.aborted || !requestedZones.includes(z))return;
       const [west,south,east,north]=source.bounds;
       // The zone paints its own ground, so its sharpness does not depend on the size of the city.
@@ -194,16 +196,17 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const material=ground(map?.texture??null),group=new T.Group();
       const batches=new Map(z.sectors.map(s=>[s.id,{buildings:[] as Building[],trees:[] as Point[],props:[] as Prop[],ground:[] as Ring[]}]));
       const batch=(id: string)=>required(batches.get(id),'sector '+id+' of zone '+z.id);
-      content.buildings.forEach((b,i)=>batch(content.owners[i]).buildings.push(b));
+      const owners=content.owners;
+      content.buildings.forEach((b,i)=>batch(owners[i]).buildings.push(b));
       for(const tree of content.trees)batch(owner(...tree)).trees.push(tree);
       for(const prop of content.props??[])batch(owner(prop[1],prop[2])).props.push(prop);
       for(const ring of content.ground)batch(owner(...ringCenter(ring))).ground.push(ring);
       for(const s of z.sectors){
         const b=batch(s.id);
-        const surface=overviewGround(b.ground,base.altitude,map,material);
+        const surface=overviewGround(b.ground,base.altitude,map,material,!compact);
         s.low=new T.Group();
         s.groundAt=groundSampler(()=>[surface.geometry]);
-        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials,b.props),surface);
+        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials,b.props,!compact),surface);
         group.add(s.low);
       }
       // The building materials belong to every zone and to the far level: release only what the zone owns.
@@ -213,7 +216,12 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         material.dispose();map?.texture.dispose();
       }};
       z.assets=assets;z.group=group;z.map=map;z.failed=0;zoneBytes+=assets.bytes;base.group.add(group);z.far.visible=false;
-      onZone?.(z.id,content);
+      // The ground tiles and the street coverage are drawn by now: only footprints, trees and objects stay, for the
+      // drive. `dispose` above shares this scope, so what is left here would live as long as the zone.
+      const kept: ZoneData={...content,ground:[]};
+      delete kept.coverage;
+      content=null;batches.clear();
+      onZone?.(z.id,kept);
     }catch(error){
       if(!controller.signal.aborted){
         z.failed++;z.retry=performance.now()+Math.min(30000,1000*2**Math.min(z.failed,5));

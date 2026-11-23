@@ -52,6 +52,9 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Una richiesta resta valida 600 ms dopo l'uscita dalla vista, come lo stato «in vista» | `sector-stream.ts` | Fine del carica-e-scarta al bordo dello schermo: p95 da oltre 100 ms a 17-35 ms |
 | Settori dello stesso tipo non si espellono a vicenda; un settore di dimensione nota si scarica solo se c'è posto | `sector-stream.ts` | Vedi sopra |
 | Vista più ampia limitata a 3.000 m (desktop) e 2.400 m (compatto) | `farthest()` in `main.ts` | Ogni edificio è sempre disegnato; gli isolati fusi compaiono solo durante un caricamento |
+| Una zona caricata tiene solo impronte, alberi e oggetti: piastrelle di suolo e copertura stradale si rilasciano dopo il disegno. Attenzione alle funzioni di rilascio che condividono l'ambito con i dati scaricati: li tengono vivi quanto la zona | `loadZoneLevel()` in `sector-stream.ts` | Con le due righe sotto: heap da 145 a 104 MB alla vista più ampia su Schamann, da 128 a 101 MB nel benchmark |
+| Niente normali per vertice nella vista intermedia e lontana del profilo compatto: materiali a ombreggiatura piatta e nessuna shadow map | `overview.ts` | 12 byte su 27 per vertice; buffer di geometria da 66 a 41 MB alla vista più ampia |
+| Contorni del livello lontano rilasciati dopo averne fatto la geometria | `streamCity()` | Circa 4 MB |
 | Guida: grafo stradale globale, muri e alberi per zona; una zona non caricata vale come piena | `drive-world.ts` | L'indice degli ostacoli non cresce con la città |
 | Confine della città indicizzato per fasce di 25 m: un punto incontra solo i lati della propria fascia | `ringIndex()` in `drive-world.ts` | −2,7 s all'apertura con la costa di La Isleta (2.451 lati) |
 
@@ -65,7 +68,9 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 ## Idee non ancora provate
 
 - Budget di dettaglio espresso anche in triangoli, non solo in byte: i settori densi pesano sulla GPU più di quanto dica la loro dimensione.
-- Livello sempre residente ancora più leggero: il picco heap è a 101 MB. Restano 13 MB di JSON residenti (strade, superfici e isolati di tutta la città) e 7 MB dell'indice dei muri della guida.
+- Copia su CPU dei buffer di geometria (41 MB alla vista più ampia): si può liberare dopo il caricamento sulla GPU, ma al ripristino del contesto WebGL zone e settori vanno ricostruiti.
+- Impronte delle zone caricate tenute per la guida anche a guida spenta; strade, superfici e copertura dell'intera città sempre residenti.
+- Per trovare cosa occupa l'heap: istantanea con `HeapProfiler.takeHeapSnapshot` via CDP, somma di `self_size` per tipo e nome di nodo. `JSArrayBufferData` sono i buffer, `(object elements)` e `Array` sono le coordinate dei JSON.
 - Un oggetto dato a ogni zona non deve contenere la città intera: controlla cosa viene ridisegnato o ricopiato a ogni caricamento prima di cercare altrove uno scatto.
 
 - Muri interamente sepolti tra due edifici adiacenti (2 triangoli per lato).

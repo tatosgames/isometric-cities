@@ -555,6 +555,25 @@ Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (mediana / p90, 
 
 Limiti. La memoria è salita: heap dopo la raccolta 128,7 MB nel benchmark (era 95,7), con 65,6 MB di zone residenti nella vista ampia del centro (erano 48,7). È sopra la soglia che ci eravamo dati per i telefoni e non è corretto. La tessera LiDAR 454-3109 è arrivata troncata ed è stata scartata (20 edifici); mancano anche 454-3112 e 458-3106 (2 edifici ciascuna). Il bordo sud di San Lázaro ha una punta sottile che viene dal perimetro comunale. Nessun luogo nuovo nel menu e nessun modello dedicato a Ciudad Alta. Una prima esecuzione di `npm.cmd test` si è fermata sul controllo a tempo della schermata di fine guida con la macchina occupata; ripetuta a macchina libera è verde. Nessuna prova su telefono fisico; guida nei quartieri nuovi non provata a mano.
 
+## Memoria residente dopo Ciudad Alta (23 novembre 2026)
+
+Con Ciudad Alta l'heap dopo la raccolta era salito a 128 MB. Un'istantanea dell'heap sul telefono emulato, alla vista più ampia sopra Schamann (14 zone caricate), dava 144,8 MB: 66 MB di buffer di geometria e 61 MB di array e numeri JavaScript. Tre correzioni in `sector-stream.ts` e `overview.ts`:
+
+- **Zone senza piastrelle e copertura.** Ogni zona caricata teneva vive le proprie piastrelle di suolo da 15 m (636.706 coppie di coordinate in tutta la città) e la copertura stradale, perché la funzione che la rilascia condivideva l'ambito con i dati scaricati. Ora restano solo impronte, alberi e oggetti, che servono alla guida.
+- **Niente normali per vertice nella vista intermedia e lontana del profilo compatto.** I materiali sono a ombreggiatura piatta e il profilo compatto non ha shadow map: la normale per vertice non veniva letta. Erano 12 byte su 27 per vertice.
+- **Contorni del livello lontano rilasciati** dopo averne fatto la geometria.
+
+| Misura (telefono emulato) | Prima | Dopo |
+|---|---|---|
+| Heap, vista più ampia su Schamann (-2250, 300) | 144,8 MB | 103,5 MB |
+| Heap, vista da vicino in Vegueta (-80, -560) | 88,5 MB | 74,2 MB |
+| `benchmark.mjs`, heap dopo la raccolta | 128,0 MB | 101,4 MB |
+| `benchmark.mjs`, zone residenti | 65,6 MB | 52,1 MB |
+
+Confronto a camera identica alla vista più ampia: differenza massima 2 su 255 per canale, media 0,03. `typecheck`, `build`, `npm.cmd test` per intero e due esecuzioni di `qa-sectors.mjs`: verdi su una copia pulita.
+
+Limiti. Il picco campionato all'apertura resta a 105-107 MB: non l'ho analizzato. Restano residenti le impronte delle zone caricate (per la guida) e strade, superfici e copertura dell'intera città. I buffer di geometria (41 MB alla vista più ampia) hanno ancora una copia su CPU: liberarla dopo il caricamento sulla GPU richiede di ricostruire le zone al ripristino del contesto WebGL, e non l'ho fatto. Fotogramma peggiore dopo il ripristino nel benchmark 33-50 ms su tre misure a macchina occupata (17-34 prima). `qa-main-lod.mjs`, che non fa parte di `npm.cmd test`, fallisce alla riga 45 allo stesso modo sul commit precedente. Nessuna prova su telefono fisico.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.

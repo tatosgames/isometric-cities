@@ -90,6 +90,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **W · Quartiere 5: Ciudad Alta.** Tutto il distrito 4 (16 barrios) più San Francisco - San Nicolás, con i perimetri del servizio «Barrios» del Comune perché OpenStreetMap non li mappa. Città a 27,83 km², 21.326 parti di edificio, 61 zone e 639 settori. LiDAR su 40 tessere: 20.174 edifici misurati, 90,6 % entro 5 m. [Dettagli, misure e limiti](docs/QA.md#quartiere-5-ciudad-alta-e-san-francisco---san-nicolás-23-novembre-2026). Aperto: heap dopo la raccolta a 129 MB; nessun luogo o modello dedicato in Ciudad Alta.
 
+**X · Memoria residente.** Le zone caricate non tengono più piastrelle di suolo e copertura stradale, la vista intermedia e lontana del telefono non ha normali per vertice e i contorni del livello lontano si rilasciano dopo l'uso. Heap dopo la raccolta da 128 a 101 MB nel benchmark, da 145 a 104 MB alla vista più ampia su Schamann, resa identica. [Misure e limiti](docs/QA.md#memoria-residente-dopo-ciudad-alta-23-novembre-2026).
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).

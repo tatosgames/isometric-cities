@@ -5,7 +5,9 @@ import { groundPatch } from './ground-surface.ts';
 import * as T from 'three';
 
 // Build only the silhouette and roof of each footprint. Keep buildings and trees in separate draw groups.
-export function overviewBuildings(buildings: Building[],trees: Point[],altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[],props: Prop[]=[]){
+// The overview materials are flat shaded: the fragment shader finds the face normal by itself. A normal per vertex
+// is only read by the shadow map of the desktop profile, so `normals` is false where there is none.
+export function overviewBuildings(buildings: Building[],trees: Point[],altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[],props: Prop[]=[],normals=true){
   const positions: number[]=[],colours: number[]=[],color=new T.Color();
   const point=(p: Point,h: number)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
   function tint(value: string){color.set(neutral?'#e4dfd3':value);}
@@ -38,14 +40,14 @@ export function overviewBuildings(buildings: Building[],trees: Point[],altitude:
   const g=new T.BufferGeometry();
   g.setAttribute('position',new T.Float32BufferAttribute(positions,3));
   g.setAttribute('color',new T.Uint8BufferAttribute(colours,3,true));
-  g.computeVertexNormals();
+  if(normals)g.computeVertexNormals();
   if(buildingVertices)g.addGroup(0,buildingVertices,0);
   const treeVertices=positions.length/3-buildingVertices;
   if(treeVertices)g.addGroup(buildingVertices,treeVertices,1);
   return new T.Mesh(g,materials);
 }
 
-export function overviewGround(rings: Ring[],altitude: Altitude,map: GroundMap | null,material: T.Material){
+export function overviewGround(rings: Ring[],altitude: Altitude,map: GroundMap | null,material: T.Material,normals=true){
   const xyz=[],uv=[];
   for(const ring of rings){
     const {faces,positions}=groundPatch(ring,altitude);
@@ -58,12 +60,12 @@ export function overviewGround(rings: Ring[],altitude: Altitude,map: GroundMap |
   const g=new T.BufferGeometry();
   g.setAttribute('position',new T.Float32BufferAttribute(xyz,3));
   if(map)g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));
-  g.computeVertexNormals();
+  if(normals)g.computeVertexNormals();
   const mesh=new T.Mesh(g,material);mesh.receiveShadow=true;return mesh;
 }
 
 // Far level: one prism per city block. The roof sits at the mean ground height of its outline.
-export function overviewBlocks(blocks: FarBlock[],altitude: Altitude,neutral: boolean,materials: T.Material[]){
+export function overviewBlocks(blocks: FarBlock[],altitude: Altitude,neutral: boolean,materials: T.Material[],normals=true){
   const positions: number[]=[],colours: number[]=[],color=new T.Color();
   const point=(p: Point,h: number)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
   for(const b of blocks){
@@ -81,7 +83,7 @@ export function overviewBlocks(blocks: FarBlock[],altitude: Altitude,neutral: bo
   const g=new T.BufferGeometry();
   g.setAttribute('position',new T.Float32BufferAttribute(positions,3));
   g.setAttribute('color',new T.Uint8BufferAttribute(colours,3,true));
-  g.computeVertexNormals();
+  if(normals)g.computeVertexNormals();
   if(positions.length)g.addGroup(0,positions.length/3,0);
   return new T.Mesh(g,materials);
 }
