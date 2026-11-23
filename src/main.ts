@@ -234,7 +234,7 @@ async function start(){
   },{once:true});
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
-    event.preventDefault();lost=true;streamed?.suspend();losses++;flight=null;drive?.suspend();
+    event.preventDefault();lost=true;streamed?.forget();losses++;flight=null;drive?.suspend();
     cancelAnimationFrame(frame);frame=0;gesture=false;adaptive.reset();delete host.dataset.scale;
     controls.enabled=false;controls.disconnect();
     remember();

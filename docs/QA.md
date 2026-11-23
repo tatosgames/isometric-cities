@@ -568,6 +568,21 @@ Confronto a camera identica alla vista più ampia: differenza massima 2 su 255 p
 
 Limiti. Il picco campionato all'apertura resta a 105-107 MB: non l'ho analizzato. Restano residenti le impronte delle zone caricate (per la guida) e strade, superfici e copertura dell'intera città. I buffer di geometria (41 MB alla vista più ampia) hanno ancora una copia su CPU: liberarla dopo il caricamento sulla GPU richiede di ricostruire le zone al ripristino del contesto WebGL, e non l'ho fatto. Fotogramma peggiore dopo il ripristino nel benchmark 33-50 ms su tre misure a macchina occupata (17-34 prima). `qa-main-lod.mjs`, che non fa parte di `npm.cmd test`, fallisce alla riga 45 allo stesso modo sul commit precedente. Nessuna prova su telefono fisico.
 
+## Geometrie solo sulla GPU (23 novembre 2026)
+
+Le geometrie di zone e settori tenevano una copia in memoria dopo il caricamento sulla GPU. Ora la copia si libera all'upload (`gpuOnly()` in `sector-stream.ts`); restano in memoria solo il livello lontano e le superfici di suolo, che il campionatore delle quote legge ancora. Alla perdita del contesto WebGL zone e settori vengono rilasciati (`forget()`) e ricaricati dai loro file al ripristino; la guida conserva le impronte nel frattempo. Il contatore dei byte di un settore teneva vivo l'insieme dei suoi array: corretto.
+
+| Misura (telefono emulato) | Prima | Dopo |
+|---|---|---|
+| Heap, vista più ampia su Schamann (-2250, 300) | 103,5 MB | 88,5 MB |
+| Heap, vista da vicino in Vegueta (-80, -560) | 74,2 MB | 65,6 MB |
+| Heap, vista da vicino su Schamann | non misurato | 76,9 MB |
+| `benchmark.mjs`, heap dopo la raccolta | 101,4 MB | 79,4 MB |
+
+Prova di perdita e ripristino del contesto (`WEBGL_lose_context`) a vista ravvicinata con 19 settori: tutti rilasciati e ricaricati, nessun errore in console, immagine dopo il ripristino uguale a quella di prima salvo lo 0,66 % dei pixel (chiome mosse dal vento). `qa-boot.mjs` (tre scenari di perdita del contesto), `qa-sectors.mjs`, `typecheck` e `build` verdi. `npm.cmd test`: una esecuzione fermata sul controllo a tempo della schermata di fine guida, poi due verdi di fila.
+
+Limiti. Il picco campionato all'apertura resta a 108 MB. Dopo una perdita di contesto la città torna prima come livello lontano e poi si ricarica: un secondo o due senza dettaglio, non misurato su telefono. Perdita di contesto durante una partita di guida non provata. Nessuna prova su telefono fisico.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.

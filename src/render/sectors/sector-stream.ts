@@ -85,8 +85,11 @@ function resources(group: T.Object3D): Assets {
       if(a)arrays.add(a.array);
     }
   });
+  // `dispose` shares this scope: a set of arrays left here would keep every buffer in memory after its upload.
+  const bytes=[...arrays].reduce((n,a)=>n+a.byteLength,0);
+  arrays.clear();
   return {
-    bytes:[...arrays].reduce((n,a)=>n+a.byteLength,0),
+    bytes,
     dispose(){
       group.removeFromParent();
       group.traverse(mesh=>{if(mesh instanceof T.InstancedMesh)mesh.dispose();});
@@ -94,6 +97,20 @@ function resources(group: T.Object3D): Assets {
       for(const material of materials)material.dispose();
     }
   };
+}
+
+// Once the GPU holds a buffer, its copy in memory would only serve a restored graphics context. Zones and sectors
+// are rebuilt from their files instead (see `forget`), so the copy goes as soon as it is uploaded. Geometry that is
+// still read afterwards, such as the ground a sampler walks, is left out by the caller.
+function release(this: T.BufferAttribute){(this as unknown as {array: null}).array=null;}
+function gpuOnly(root: T.Object3D){
+  root.traverse(mesh=>{
+    if(!(mesh instanceof T.Mesh))return;
+    const geometry=mesh.geometry;
+    // Culling needs the bounds, and they are computed from the positions about to go.
+    if(!geometry.boundingSphere)geometry.computeBoundingSphere();
+    for(const a of [...Object.values(geometry.attributes),geometry.index])if(a instanceof T.BufferAttribute)a.onUpload(release);
+  });
 }
 
 // Three levels. Far: merged blocks of every zone, always resident. Zone: one silhouette per building, on demand.
@@ -176,11 +193,11 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;
     if(s.low)s.low.visible=true;
   }
-  function releaseZone(z: ResidentZone){
+  function releaseZone(z: ResidentZone,keepFootprints=false){
     if(!z.assets)return;
     for(const s of z.sectors){release(s);s.low=null;s.groundAt=null;}
     z.assets.dispose();zoneBytes-=z.assets.bytes;z.assets=null;z.group=null;z.map=null;z.far.visible=true;
-    onZone?.(z.id,null);
+    if(!keepFootprints)onZone?.(z.id,null);
   }
   async function loadZoneLevel(z: ResidentZone){
     const controller=new AbortController();
@@ -206,11 +223,14 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         const surface=overviewGround(b.ground,base.altitude,map,material,!compact);
         s.low=new T.Group();
         s.groundAt=groundSampler(()=>[surface.geometry]);
-        s.low.add(overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials,b.props,!compact),surface);
+        const silhouettes=overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials,b.props,!compact);
+        s.low.add(silhouettes,surface);
         group.add(s.low);
       }
       // The building materials belong to every zone and to the far level: release only what the zone owns.
-      const assets: Assets={bytes:resources(group).bytes+(map?textureBytes(map.texture):0),dispose(){
+      const zoneBytesNow=resources(group).bytes;
+      for(const s of z.sectors)if(s.low)gpuOnly(s.low.children[0]);
+      const assets: Assets={bytes:zoneBytesNow+(map?textureBytes(map.texture):0),dispose(){
         group.removeFromParent();
         group.traverse(mesh=>{if(mesh instanceof T.Mesh)mesh.geometry.dispose();});
         material.dispose();map?.texture.dispose();
@@ -253,6 +273,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       if(!local || !s.low)return;
       const detail=local.group;
       const assets=resources(detail);
+      gpuOnly(detail);
       const texture=local.groundMap?.texture;
       if(texture){
         assets.bytes+=textureBytes(texture);
@@ -281,6 +302,12 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   }
   function suspend(){
     requested=[];requestedZones=[];demanded=undefined;for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
+  }
+  // The graphics context was lost: buffers without a copy in memory cannot be sent again. Zones and sectors are
+  // dropped and the next update loads them anew, over the far level. The drive keeps its footprints meanwhile.
+  function forget(){
+    suspend();
+    for(const z of zones)releaseZone(z,true);
   }
   function zoneAt(x: number,y: number){return zoneById.get(sectorOwner(x,y,data.zoneSize));}
   /** Ask for the zone under a point whatever the camera shows. True once its footprints are resident. */
@@ -383,5 +410,5 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       detailReady:!openingSector || (!!openingSector.detail?.visible && !openingFading)
     };
   }
-  return {...base,groundAt,update,suspend,demand,undemand(){demanded=undefined;}};
+  return {...base,groundAt,update,suspend,forget,demand,undemand(){demanded=undefined;}};
 }
