@@ -381,12 +381,13 @@ async function start(){
         performance.mark('atlas:startup-base-frame');
         openingDeadline=now+4000;
         openingTimer=window.setTimeout(draw,4000);
-        if(!drive?.prepare())disablePlay();
         bootProgress(84);
         bootPhase('Cargando el barrio');
       }
-      if(level?.zoneReady && bootPercent<92){bootProgress(92);bootPhase('Cargando los edificios');}
-      const streamReady=!level || (level.zoneReady && level.detailReady);
+      if(level?.zoneReady)bootProgress(92);
+      // The map opens on the silhouettes of the quarter: the detail of the first sector fades in over them a moment
+      // later, as it does everywhere else, instead of holding the start.
+      const streamReady=!level || level.zoneReady;
       if(streamReady || now>=openingDeadline){
         clearTimeout(openingTimer);
         performance.mark(streamReady?'atlas:startup-stream-ready':'atlas:startup-stream-fallback');
@@ -469,6 +470,10 @@ async function start(){
     controls.enabled=!lost;
     performance.mark('atlas:startup-interactive');
     draw();
+    // The driving world and its pedestrians take about a second on a phone and are not needed to see the map:
+    // they are built in the first quiet moment after it opens. Play builds them itself if it is pressed first.
+    const warm=()=>{if(!signal.aborted && !drive?.prepare())disablePlay();};
+    if('requestIdleCallback' in window)requestIdleCallback(warm,{timeout:4000});else setTimeout(warm,1500);
   },{once:true});
   let firstView=true;
   new ResizeObserver(()=>{

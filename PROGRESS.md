@@ -104,6 +104,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AB · Apertura su telefono.** Il limite di 25 s sull'apertura è diventato un limite di 45 s senza progresso, e una nota davanti alle attribuzioni dice quale fase è in corso e da quanto. [Dettagli e limiti](docs/QA.md#apertura-fallita-su-telefono-limite-di-tempo-e-fase-a-schermo-23-novembre-2026). Aperto: l'apertura resta lenta e blocca la pagina; non verificato su telefono fisico.
 
+**AC · Avvio più rapido.** Guida e pedoni si costruiscono dopo l'apertura e la mappa si apre con il quartiere pronto, senza aspettare il dettaglio del primo settore: con CPU 6× più lenta da 13,4 a 10,6 s in media. [Misure e limiti](docs/QA.md#avvio-più-rapido-23-novembre-2026).
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).

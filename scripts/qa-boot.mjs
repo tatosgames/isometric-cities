@@ -74,10 +74,11 @@ try {
     assert.equal(await page.locator('#map').getAttribute('data-boot'),'loading');
     zone.release();
     await detail.requested;
-    assert.equal(await page.locator('#map').getAttribute('data-boot'),'loading');
-    await page.waitForFunction(() => document.querySelector('#boot-progress').getAttribute('aria-valuenow') === '92');
-    detail.release();
+    // The map opens on the quarter's silhouettes: the first sector's detail may still be on its way.
     await ready(page);
+    assert.equal(await page.evaluate(() => JSON.parse(document.querySelector('#scene').dataset.sectors).loaded),0);
+    detail.release();
+    await page.waitForFunction(() => JSON.parse(document.querySelector('#scene').dataset.sectors).loaded > 0);
     assert.equal(await page.getByRole('progressbar').isVisible(),false);
     assert.equal(await page.locator('#boot-progress').getAttribute('aria-valuenow'),'100');
     assert.equal(await page.locator('#map-content').evaluate(content => content.inert),false);

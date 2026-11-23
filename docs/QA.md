@@ -645,6 +645,22 @@ Tempi delle fasi con CPU 6× più lenta (telefono emulato, rete locale): dati 2,
 
 Limiti. Non ho riprodotto l'errore su un telefono vero: la causa è dedotta dal limite di 25 s e dai tempi con CPU rallentata. Se sul telefono compare «Error en: …», la causa è un'altra e la nota dice in quale fase. L'apertura non è più veloce di prima: durante «Preparando la ciudad» e «Preparando la vista» la pagina resta occupata e non risponde. Il lavoro da spostare fuori dall'avvio è elencato in PERFORMANCE.md.
 
+## Avvio più rapido (23 novembre 2026)
+
+Due cambi in `main.ts`, misurati su telefono emulato con CPU 6× più lenta, tre aperture per versione in alternanza:
+
+- **Guida e pedoni dopo l'apertura.** Il mondo di guida e i pedoni non si costruiscono più prima della prima immagine ma nel primo momento libero dopo l'apertura (`requestIdleCallback`, al più tardi dopo 4 s). Se si preme Play prima, li costruisce Play.
+- **La mappa si apre con il quartiere pronto.** Prima aspettava anche il dettaglio del primo settore; ora quel dettaglio entra in dissolvenza subito dopo, come nel resto della città.
+
+| | Prima | Dopo |
+|---|---|---|
+| Mappa aperta e utilizzabile | 13,2 - 13,9 s | 9,8 - 11,2 s |
+| Dettaglio completo a schermo | 22,5 - 22,8 s | 21,7 - 23,3 s |
+
+`typecheck`, `build`, `npm.cmd test`, `qa-sectors.mjs` e `qa-boot.mjs` (tre esecuzioni) verdi su una copia pulita. `qa-boot.mjs` aggiornato: la mappa può aprirsi mentre il dettaglio del primo settore è ancora in arrivo.
+
+Limiti. Il tempo fino al dettaglio completo non cambia. La costruzione di guida e pedoni dopo l'apertura occupa la pagina per circa un secondo con CPU 6× più lenta: un gesto in quel momento può scattare. Restano prima dell'apertura la texture di suolo dell'intera città (1,3 s), l'attesa della GPU (circa 2 s) e la lettura dei JSON. Tempi da CPU rallentata su desktop, non da un telefono vero.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.
