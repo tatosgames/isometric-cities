@@ -60,6 +60,8 @@ export type Prop = [kind: string, x: number, y: number, angle: number, size: num
 export interface Layers {
   carriageway?:Carriageway;
   buildings: Building[];
+  // Dense sectors only: the same buildings with similar neighbours joined, drawn by the small-screen profile.
+  fused?: Building[];
   trees: Point[];
   props?: Prop[];
   ground: Ring[];

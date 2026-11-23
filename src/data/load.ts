@@ -46,7 +46,8 @@ const prop = (v: unknown): v is Prop => Array.isArray(v) && v.length === 5 && st
 const props = (v: unknown): boolean => v === undefined || list(v, prop);
 
 export function isLayers(v: unknown): v is Layers {
-  return record(v) && list(v.buildings, building) && list(v.trees, point) && props(v.props)
+  return record(v) && list(v.buildings, building) && (v.fused === undefined || list(v.fused, building))
+    && list(v.trees, point) && props(v.props)
     && list(v.ground, ring) && list(v.roads, road) && list(v.surfaces, surface)
     && (v.carriageway===undefined||validCarriageway(v.carriageway,v.textureBounds))
     && (v.textureBounds === undefined || bounds(v.textureBounds));

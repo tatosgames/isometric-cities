@@ -137,15 +137,14 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     g.dispose();
     return out;
   }
-  // A parapet is seen from above and from the sides. On small screens, where it is one or two pixels tall, it is
-  // its top and the face on `outer` (+1 or -1 along z): the face over the building's own roof is left out.
-  function parapet(length: number,height: number,depth: number,outer: number): T.BufferGeometry{
+  // On small screens a parapet is one or two pixels tall: the wall itself rises to its height (see `RIM`) and
+  // the parapet is only the light strip on top. Its outer face is the wall, the inner one is never missed.
+  const RIM=compact?.56:0;
+  function parapet(length: number,height: number,depth: number): T.BufferGeometry{
     if(!compact)return new T.BoxGeometry(length,height,depth);
-    const x=length/2,y=height/2,d=depth/2,z=d*outer,g=new T.BufferGeometry();
-    g.setAttribute('position',new T.Float32BufferAttribute([
-      ...(outer>0?[-x,-y,z, x,-y,z, x,y,z, x,y,z, -x,y,z, -x,-y,z]:[x,-y,z, -x,-y,z, -x,y,z, -x,y,z, x,y,z, x,-y,z]),
-      -x,y,d, x,y,d, x,y,-d, x,y,-d, -x,y,-d, -x,y,d],3));
-    g.setAttribute('normal',new T.Float32BufferAttribute([...Array(6).fill([0,0,outer]),...Array(6).fill([0,1,0])].flat(),3));
+    const x=length/2,y=height/2,d=depth/2,g=new T.BufferGeometry();
+    g.setAttribute('position',new T.Float32BufferAttribute([-x,y,d, x,y,d, x,y,-d, x,y,-d, -x,y,-d, -x,y,d],3));
+    g.setAttribute('normal',new T.Float32BufferAttribute(Array(6).fill([0,1,0]).flat(),3));
     return g;
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
@@ -179,7 +178,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     editableBuilding=b;
     const [x,y]=b.rings[0][0], s=shape(b.rings);
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
-    const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
+    const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2+RIM,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
     addBuilding(g,b.wallColor??walls[b.id%walls.length],x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
     addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[b.id%roofs.length],x,y,4);
@@ -235,7 +234,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
         }
       }
-      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28,winding>0?1:-1).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
+      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
     }
     if(windows.length){
       const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][b.id%3],x,y);

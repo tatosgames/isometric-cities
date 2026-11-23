@@ -238,6 +238,8 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     try{
       const layers=await (loadLayers?loadLayers(s,controller.signal):loadData(stage+'-sectors/'+s.file,isLayers,controller.signal));
       if(legacyRoads||neutral)delete layers.carriageway;
+      if(compact&&layers.fused)layers.buildings=layers.fused;
+      delete layers.fused;
       if(controller.signal.aborted || !requested.includes(s))return;
       const local=await build(layers,controller.signal);
       if(!local || !s.low)return;

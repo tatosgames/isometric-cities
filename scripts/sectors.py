@@ -125,6 +125,70 @@ def lighter(building):
     return {**building, "rings": out}
 
 
+DENSE = 240   # buildings in a 240 m sector from which neighbours are fused
+FUSE_TOP, FUSE_BASE, FUSE_TONE, FUSE_MOST = 1.5, 1.5, 60, 4
+
+
+def fused(buildings, altitude, tones):
+    """For small screens in a dense sector, join neighbours that read as one volume: roofs within half a storey,
+    the same ground, a close roof tone. The group takes the mean roof level of its members, weighted by area.
+
+    The party walls, the parapets between two such roofs and the extra rooftop cabins of a row cost triangles
+    and show almost nothing on a phone. A group holds at most FUSE_MOST buildings, so a street keeps changing
+    colour, and every member is compared with the first one, so a slope cannot drift into a single slab."""
+    plain = {"id", "rings", "height", "source"}
+    shapes, facts = [], []
+    for b in buildings:
+        shape = Polygon(b["rings"][0], b["rings"][1:])
+        base = altitude(*b["rings"][0][0])
+        tone = tones.get(str(b["id"]), "#d4c8b6")
+        shapes.append(shape)
+        facts.append((base, base + b["height"], [int(tone[i:i + 2], 16) for i in (1, 3, 5)],
+                      set(b) <= plain and shape.is_valid and shape.area > 4))
+    tree = STRtree(shapes)
+    taken, out = set(), []
+
+    def like(seed, i):
+        (b0, t0, c0, _), (b1, t1, c1, ok) = facts[seed], facts[i]
+        return ok and abs(t1 - t0) <= FUSE_TOP and abs(b1 - b0) <= FUSE_BASE and max(abs(p - q) for p, q in zip(c0, c1)) <= FUSE_TONE
+
+    for seed in sorted(range(len(buildings)), key=lambda i: -shapes[i].area):
+        if seed in taken:
+            continue
+        taken.add(seed)
+        group = [seed]
+        if facts[seed][3]:
+            queue = [seed]
+            while queue and len(group) < FUSE_MOST:
+                at = queue.pop(0)
+                reach = shapes[at].exterior.buffer(0.15)
+                for i in sorted(tree.query(reach), key=lambda i: -shapes[i].area):
+                    i = int(i)
+                    if len(group) == FUSE_MOST:
+                        break
+                    if i in taken or not like(seed, i) or reach.intersection(shapes[i].exterior).length < 2:
+                        continue
+                    taken.add(i)
+                    group.append(i)
+                    queue.append(i)
+        b = buildings[seed]
+        if len(group) > 1:
+            joined = unary_union([shapes[i].buffer(0.06, join_style="mitre") for i in group]).buffer(-0.06, join_style="mitre").simplify(0.1)
+            if joined.geom_type == "Polygon" and joined.is_valid:
+                rings = [[[round(x, 1), round(y, 1)] for x, y in ring.coords]
+                         for ring in (joined.exterior, *(r for r in joined.interiors if Polygon(r).area > 1))]
+                # The first vertex anchors the building to the terrain: stay on the seed's, or the nearest left.
+                first = b["rings"][0][0]
+                at = min(range(len(rings[0]) - 1), key=lambda k: (rings[0][k][0] - first[0]) ** 2 + (rings[0][k][1] - first[1]) ** 2)
+                rings[0] = rings[0][at:-1] + rings[0][:at] + [rings[0][at]]
+                top = sum(facts[i][1] * shapes[i].area for i in group) / sum(shapes[i].area for i in group)
+                out.append({**b, "rings": rings, "height": round(top - altitude(*rings[0][0]), 2)})
+                continue
+            taken.difference_update(group[1:])
+        out.append(b)
+    return out
+
+
 def partition(stage, road_cells=None):
     data = json.loads((ROOT / f"{stage}.json").read_bytes())
     directory = ROOT / f"{stage}-sectors"
@@ -143,6 +207,19 @@ def partition(stage, road_cells=None):
         key = cell(*center)
         owners.append(f"{key[0]}_{key[1]}")
         tiles[key]["buildings"].append(lighter(building))
+    # The same bilinear reading of the terrain as the viewer, to compare roof and ground levels.
+    relief = data["terrain"]
+    def altitude(x, y):
+        col = min(max((x - relief["origin"][0]) / relief["step"], 0), relief["w"] - 1.001)
+        row = min(max((relief["origin"][1] - y) / (relief.get("stepY") or relief["step"]), 0), relief["h"] - 1.001)
+        i, u, t, v, w = floor(row) * relief["w"] + floor(col), col % 1, row % 1, relief["values"], relief["w"]
+        return (v[i] * (1 - u) + v[i + 1] * u) * (1 - t) + (v[i + w] * (1 - u) + v[i + w + 1] * u) * t
+    roof_tones = json.loads((ROOT / "roof-tones.json").read_bytes())["tones"]
+    # The fused list rides beside the full one: the small-screen profile draws it, the zones and the desktop do not.
+    for name, detail in tiles.items():
+        if len(detail["buildings"]) >= DENSE:
+            detail["fused"] = fused(detail["buildings"], altitude, roof_tones)
+            print("dense sector", name, len(detail["buildings"]), "buildings,", len(detail["fused"]), "fused")
     for point in data["trees"]:
         tiles[cell(*point)]["trees"].append(point)
     # Port objects mapped in OpenStreetMap: kind, easting, northing, heading and size.
