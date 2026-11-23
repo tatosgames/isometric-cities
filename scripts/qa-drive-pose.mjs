@@ -119,11 +119,51 @@ const wall = body(13);
 wall.vy = 4;
 for(let i=0;i<24;i++)pose.update(wall,-1,dt,0);
 const hit = collide(wall,{
-  visitObstacles(b,r,contact) { return contact(b,[1,-5,1,5],r); }
+  visitObstacles(b,r,contact) { return contact(b,[1,-5,1,5,true],r); }
 });
 assert.equal(hit,13);
 pose.update(wall,-1,dt,0);
 assert.equal(pose.yaw,0,'A rebound past the yaw limit should clear exaggeration towards the wall');
 pose.reset();
 assert.equal(pose.roll,0);
+
+const scrapeWall={visitObstacles(b,r,contact){return contact(b,[-50,0,50,0,true],r);}};
+for(const direction of [-1,1]){
+  const scrape={
+    ...body(direction*18),y:TUNE.radius-.03,h:Math.atan2(-4,direction*18),vy:-4,
+    scrape:{x:0,y:0,nx:0,ny:0,vx:0,vy:0,closing:0}
+  };
+  const inward=Math.abs(Math.sin(scrape.h));
+  assert.equal(collide(scrape,scrapeWall),0,'A side scrape is not a hard impact');
+  assert.equal(scrape.vy,0,'Remove only the inward velocity, without bouncing');
+  assert.equal(scrape.y,TUNE.radius,'Keep the vehicle outside the wall');
+  assert.ok(Math.abs(scrape.vx-direction*17.52)<1e-9,'Remove 0.48 m/s from the tangent');
+  assert.ok(Math.abs(Math.sin(scrape.h))<inward,'Turn the nose towards the tangent in both directions');
+  assert.equal(scrape.scrape.closing,4);
+  assert.equal(scrape.scrape.y,0);
+  assert.equal(scrape.scrape.ny,1);
+  assert.equal(scrape.hitY,0);
+  const corridor={visitObstacles(b,r,contact){
+    return Math.max(contact(b,[-50,0,50,0,true],r),contact(b,[-50,2.6,50,2.6,true],r));
+  }};
+  const {steerPlayer:steerAlongWall}=makeDrivePhysics(TUNE);
+  for(let i=0;i<120;i++){
+    steerAlongWall(scrape,-direction,false,dt);
+    assert.equal(collide(scrape,corridor),0);
+    assert.ok(scrape.y>=TUNE.radius-1e-9 && scrape.y<=2.6-TUNE.radius+1e-9,'Stay inside the alley');
+    assert.ok(direction*scrape.vx>12,'Maintain momentum while holding steer towards the wall');
+  }
+  scrape.y=2.6/2;
+  collide(scrape,corridor);
+  assert.equal(scrape.scrape.closing,0,'No fresh scrape after clearing the wall');
+}
+const headOn={...body(),y:1,vy:-15,h:-Math.PI/2};
+assert.equal(collide(headOn,scrapeWall),15);
+assert.ok(headOn.vy>0,'A head-on hit still bounces');
+const boundary={...body(18),y:1,vy:-4};
+assert.equal(collide(boundary,{visitObstacles(b,r,contact){return contact(b,[-50,0,50,0,false],r);}}),4);
+assert.ok(boundary.vy>0,'The map boundary keeps the usual impact response');
+const tree={...body(18),y:1,vy:-4};
+assert.equal(collide(tree,{visitObstacles(b,r,_wall,contact){return contact(b,[0,0],r);}}),4);
+assert.ok(tree.vy>0,'Trees keep the usual impact response');
 console.log(`Drive QA passed (60 km/h at ${playerRun.launch.toFixed(3)} s, 90 at ${playerRun.top.toFixed(3)} s / ${playerRun.distance.toFixed(1)} m, patrol 94 at ${patrolRun.top.toFixed(3)} s, brake ${(brakeSteps*dt).toFixed(3)} s / ${braking.x.toFixed(1)} m, grip recovery ${(releaseSteps*dt).toFixed(3)} s, short turn ${earlyHeading.toFixed(2)}°)`);

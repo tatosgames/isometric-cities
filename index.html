@@ -83,6 +83,9 @@
     const content = document.getElementById('map-content');
     const error = document.getElementById('boot-error');
     const retry = error.querySelector('button');
+    for (const type of ['contextmenu', 'selectstart', 'dragstart']) {
+      map.addEventListener(type, event => event.preventDefault());
+    }
     let remaining = 25000, started = 0, timer = 0, revealTimer = 0;
     function stop() {
       if (!timer) return;

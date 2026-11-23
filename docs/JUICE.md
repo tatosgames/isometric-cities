@@ -22,6 +22,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 | Accelerazione | 60 km/h in 1,44 s, poi 90 km/h in altri 4 s | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
 | Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 17° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
 | Frenata | 27 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
+| Strisciata laterale contro una facciata | La velocità lungo il muro perde il 12% della velocità in entrata | – | Fino a tre scintille brevi dal contatto del giocatore | – | – |
 | Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
 | Urto medio (oltre 6 m/s) | – | Spinta verso il muro, in proporzione | Saltello | – | 18 ms |
 | Urto forte (oltre 11 m/s) | Fermo di 55 ms | Spinta verso il muro | Saltello | – | 18 ms |
@@ -41,6 +42,11 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 - Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa.
 - Tre particelle bianco caldo compaiono dietro le ruote per 220 ms quando lo slittamento laterale supera 2,5 m/s durante una manovra senza contatti. Il puff si riarma sotto 1,5 m/s. Le due tracce partono da 4 m/s. Sagoma, freccia, tracce e puff seguono l'orientamento visivo. Camera e collisioni usano la simulazione.
 - L'ombra di contatto delle auto è un rettangolo di 4,15 × 2,5 m con opacità 0,38. Ruota con l'auto e resta a terra durante rollio e saltelli.
+
+## Strisciata contro una facciata
+
+- Quando la componente verso il muro vale al massimo metà della componente lungo il muro, il contatto annulla la prima e riduce la seconda del 12% di quanto è stato annullato. Il muso si riallinea verso la tangente e il veicolo può continuare lungo la facciata.
+- Da 5 m/s lungo il muro, il contatto del giocatore può produrre tre scintille di 160 ms, con almeno 75 ms fra emissioni separate. La strisciata esclude saltello, vibrazione, colpo di camera e hit-stop. Per gli urti più diretti, il bordo della mappa, gli alberi e le altre auto si usa la risposta d'urto abituale.
 
 ## Hit-stop
 

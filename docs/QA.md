@@ -1,5 +1,13 @@
 # Verifica locale · 21 novembre 2026
 
+## Strisciata nei vicoli
+
+Con un contatto di 4 m/s verso una facciata e 18 m/s lungo la facciata, la simulazione annulla la velocità verso il muro e conserva 17,52 m/s lungo il muro. Nel corridoio di prova largo 2,6 m, un secondo di sterzo continuo verso la facciata mantiene l'auto dentro il corridoio e sopra 12 m/s in entrambi i sensi. La regressione controlla anche il rimbalzo negli urti frontali, sul bordo della mappa e contro un albero.
+
+In Chrome desktop e touch emulato, una prova strumentata su una facciata della mappa ha verificato tre scintille che si spengono entro 160 ms di animazione, la conservazione della velocità lungo il muro e l'assenza di rimbalzo nei contatti radenti. L'urto frontale sulla stessa facciata produce ancora rimbalzo, saltello e hit-stop.
+
+Typecheck, build e suite `npm.cmd test` superati.
+
 ## Velocità e frenata · 23 novembre 2026
 
 La regressione a 120 Hz misura 60 km/h a **1,442 s** e la punta a **5,442 s**, pari a 90 km/h per il giocatore e 94 km/h per le pattuglie. Il giocatore percorre **96,5 m** da fermo prima di arrivare a 90 e si ferma da quella velocità in **0,933 s** e **11,5 m**. A parità di slittamento la pattuglia perde il 50% in più per effetto del coefficiente di derapata. Il controllo ostacoli trova ostacoli a 4, 8 e 13,8 m. La prova camera verifica 0 m da fermo, 5 m a 10 km/h e 12 m da 90 km/h.
@@ -501,6 +509,8 @@ Limiti. Nel nucleo di La Isleta un fotogramma su dieci dura ancora 36 ms. La col
 
 ## Toponimi in Conducir
 
+Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.
+
 L’audit della HUD ha verificato l’occupazione del margine alto da parte di statistiche e controlli e l’attribuzione OSM nascosta durante la partita. La via usa il centro su desktop e una riga sotto i controlli su schermi stretti. Il nome del barrio compare in una regione di stato e resta visibile per una dissolvenza di 2,8 s. L’attribuzione resta visibile in guida.
 
 Il controllo gira ogni 140 ms. Il nome della via richiede 400 ms di conferma, il quartiere 700 ms. Agli incroci contano distanza e allineamento con la marcia. I test verificano l’incrocio fra una via con nome e una senza nome, una corrispondenza ambigua, i POI reali di Vegueta e Triana e un attraversamento del confine annullato prima della conferma. Il dataset locale copre i 12 confini OSM presenti nel catalogo.
@@ -538,3 +548,5 @@ Un HTTP 503 isolato viene recuperato con un secondo tentativo dopo 200 ms. Due f
 ### Revisione anti-slop del preloader
 
 Un solo anello. Ruota mentre il progresso è ignoto e interpola i traguardi reali quando iniziano ad arrivare. Le attribuzioni restano visibili durante il caricamento e sulla prima vista. Il test verifica che il primo comando sposti i crediti in «Licencias de datos» e che la barra resti assente in guida e al ritorno sulla mappa.
+
+Con touch emulato in Chrome, il test verifica che gli eventi di selezione e menu contestuale siano annullati, che un gesto in guida lasci fermo lo scroll della pagina e che il menu dei luoghi continui a scorrere. Trascinamento e pinch muovono la mappa con la pagina ferma alla scala iniziale.

@@ -24,6 +24,17 @@ function ready(page) {
   return page.waitForSelector('#map[data-boot="ready"] #scene[data-view]', {timeout:25000});
 }
 
+async function swipe(page,x,fromY,toY) {
+  const session = await page.context().newCDPSession(page);
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y:fromY}]});
+  for(let step=1;step<=6;step++){
+    const y = fromY+(toY-fromY)*step/6;
+    await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y}]});
+  }
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await session.detach();
+}
+
 async function timings(page) {
   return page.evaluate(() => Object.fromEntries(
     performance.getEntriesByType('mark').filter(entry => entry.name.startsWith('atlas:'))
@@ -87,10 +98,27 @@ try {
     assert.equal(await page.locator('footer').isVisible(),false);
     const play = await page.evaluate(() => performance.getEntriesByName('atlas:play-first-frame').at(-1)?.duration);
     assert.ok(play > 0);
+    if(mobile){
+      assert.ok(await page.locator('#hud-time').evaluate(node =>
+        getComputedStyle(node).userSelect === 'none' &&
+        ['contextmenu','selectstart','dragstart'].every(type =>
+          !node.dispatchEvent(new Event(type,{bubbles:true,cancelable:true}))
+        )
+      ));
+      await swipe(page,250,120,360);
+      await page.waitForSelector('#scene[data-drive^="playing"]');
+      assert.equal(await page.evaluate(() => window.scrollY),0);
+    }
     await page.locator('#drive-exit').click();
     assert.equal(await page.locator('#map > footer').count(),0);
+    if(mobile)await page.setViewportSize({width:390,height:360});
     await page.locator('#index-toggle').click();
     assert.equal(await page.locator('footer').isVisible(),false);
+    if(mobile){
+      await swipe(page,55,240,100);
+      await page.waitForFunction(() => document.querySelector('nav').scrollTop > 0);
+      assert.equal(await page.evaluate(() => window.scrollY),0);
+    }
     await page.getByText('Licencias de datos',{exact:true}).click();
     assert.equal(await page.getByRole('link',{name:'OpenStreetMap contributors'}).isVisible(),true);
     await page.locator('#index-toggle').click();

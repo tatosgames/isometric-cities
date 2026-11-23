@@ -80,3 +80,7 @@
 #data-licences{border-top:1px solid #c5c6b6;margin-top:4px;font:12px/1.5 system-ui}
 #data-licences summary{cursor:pointer;align-content:center;min-height:40px;padding:0 12px}
 #data-licences footer{max-width:230px;padding:0 12px 8px}
+html,body{overflow:hidden;overscroll-behavior:none}
+#map{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#boot,#map.driving{touch-action:none}
+#map nav{touch-action:pan-y;overscroll-behavior:none}

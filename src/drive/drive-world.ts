@@ -5,7 +5,7 @@ import {blocksCamera} from './building-occlusion.ts';
 import { routesFrom, indexRoadNodes } from './road-routing.ts';
 import * as T from 'three';
 
-export type Segment = [ax: number,ay: number,bx: number,by: number];
+export type Segment = [ax: number,ay: number,bx: number,by: number,facade: boolean];
 interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[]}
 
 
@@ -61,16 +61,16 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
       if(!entry){entry={segs:[],trees:[],blocks:[]};grid.set(k,entry);}
       return entry;
     };
-    function wall(ring: Ring){
+    function wall(ring: Ring,facade: boolean){
       for(let i=1;i<ring.length;i++){
         const [ax,ay]=ring[i-1],[bx,by]=ring[i];
         if(ax===bx && ay===by)continue;
-        const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by];
+        const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by,facade];
         for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).segs.push(seg);
       }
     }
     for(const b of buildings){
-      for(const ring of b.rings)wall(ring);
+      for(const ring of b.rings)wall(ring,true);
       const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
       const [x0,x1]=span(Math.min(...xs),Math.max(...xs)),[y0,y1]=span(Math.min(...ys),Math.max(...ys));
       const base=altitude(...b.rings[0][0]);
@@ -78,7 +78,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
       highestRoof=Math.max(highestRoof,block.top);
       for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
     }
-    if(boundary)wall(boundary);
+    if(boundary)wall(boundary,false);
     // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
     // Judged against the walls of the same layer, so the result does not depend on arrival order.
     stack=[grid];

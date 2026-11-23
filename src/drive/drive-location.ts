@@ -1,6 +1,6 @@
 import { isBarrios, loadData } from '../data/load.ts';
 import roadStyle from '../data/road-style.json' with {type:'json'};
-import type { Barrio, Road } from '../data/types.ts';
+import type { Barrio, Point, Road } from '../data/types.ts';
 import { inRing } from './drive-world.ts';
 
 export function indexStreets(roads: Road[]){
@@ -55,7 +55,8 @@ export function makeDriveLocation(roads: Road[],street: HTMLElement,barrio: HTML
   void loadData('barrios.json',isBarrios).then(value=>{barrios=value;})
     .catch(error=>console.warn('Barrios:',error));
   let nextSample=0,streetName=confirmedName('',400);
-  let barrioName: ReturnType<typeof confirmedName> | undefined;
+  let barrioName=confirmedName('',700);
+  let start: Point | undefined;
   let animation: Animation | undefined;
   let lastAnnounced='';
   function clearTitle(){
@@ -74,9 +75,9 @@ export function makeDriveLocation(roads: Road[],street: HTMLElement,barrio: HTML
     animation.onfinish=clearTitle;
   }
   return {
-    reset(){
+    reset(origin?: Point){
       nextSample=0;streetName=confirmedName('',400);
-      barrioName=undefined;lastAnnounced='';
+      start=origin;lastAnnounced='';
       street.textContent='';clearTitle();
     },
     clearTitle,
@@ -86,8 +87,13 @@ export function makeDriveLocation(roads: Road[],street: HTMLElement,barrio: HTML
       const knownStreet=streetName(streetAt(x,y,h),now);
       if(knownStreet!==undefined)street.textContent=knownStreet;
       if(!barrios)return;
+      if(start){
+        lastAnnounced=barrioAt(barrios,...start);
+        barrioName=confirmedName(lastAnnounced,700);
+        start=undefined;
+        if(lastAnnounced)showTitle(lastAnnounced);
+      }
       const name=barrioAt(barrios,x,y);
-      if(!barrioName){barrioName=confirmedName(name,700);lastAnnounced=name;return;}
       const entered=barrioName(name,now);
       // Crossing an unmapped sliver and returning to the same barrio is silent.
       if(entered && entered!==lastAnnounced){lastAnnounced=entered;showTitle(entered);}

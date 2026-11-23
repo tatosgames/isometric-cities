@@ -7,11 +7,12 @@ export interface Body {
   x: number; y: number; h: number; vx: number; vy: number;
   wayHold: number; dive: number; hold: number; steer: number;
   slip: number; side: number; way: number; hitX: number; hitY: number;
+  scrape?: {x: number;y: number;nx: number;ny: number;vx: number;vy: number;closing: number};
 }
 
 
 type Handling = Pick<typeof TUNE.player, 'maxSpeed' | 'cruiseAccel' | 'gripReleaseRate' | 'driftDrag'> & {releaseGrip?: number};
-type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'accel' | 'accelTaperStart' | 'accelTaperEnd' | 'brake' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss'>;
+type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'accel' | 'accelTaperStart' | 'accelTaperEnd' | 'brake' | 'turn' | 'brakeGrip' | 'grip' | 'driftGrip' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction'>;
 
 export function makeDrivePhysics(tune: PhysicsTuning){
   let steerTime=0,steerDirection=0;
@@ -61,19 +62,29 @@ export function makeDrivePhysics(tune: PhysicsTuning){
     }
     steerBody(b,steer,brake,dt,tune.patrol.turn,tune.patrol);
   }
-  function push(b: Body,px: number,py: number,r: number){
+  function push(b: Body,px: number,py: number,r: number,facade: boolean){
     let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);
     if(d>=r || d<1e-5)return 0;
     nx/=d;ny/=d;b.x=px+nx*r;b.y=py+ny*r;
-    // Glance off: a nose pointing into the obstacle swings towards the wall line, so cars keep rolling.
+    const vn=b.vx*nx+b.vy*ny;
+    const tangent=Math.abs(b.vx*ny-b.vy*nx);
     const fx=Math.cos(b.h),fy=Math.sin(b.h),into=fx*nx+fy*ny;
+    if(facade && vn<=0 && tangent>0 && -vn<=tangent*tune.scrapeRatio){
+      // Cancel the inward motion. Friction removes only a fraction of the normal impulse from the slide.
+      const vx=b.vx-vn*nx,vy=b.vy-vn*ny;
+      const retain=1+tune.scrapeFriction*vn/tangent;
+      b.vx=vx*retain;b.vy=vy*retain;
+      if(into<0)b.h+=Math.sign(fx*ny-fy*nx)*Math.min(tune.deflect/120,Math.asin(Math.min(1,-into)));
+      const scrape=b.scrape;
+      if(scrape && -vn>scrape.closing)Object.assign(scrape,{x:px,y:py,nx,ny,vx,vy,closing:-vn});
+      return 0;
+    }
     if(into<0){
       const cross=fx*ny-fy*nx;
       if(b.wayHold<=0)b.way=Math.abs(cross)>.08?-Math.sign(cross):(b.steer<0?-1:1);
       b.wayHold=.5;const way=b.way;
       b.h+=way*Math.min(tune.deflect/120,Math.acos(Math.max(-1,into))-Math.PI/2+.02);
     }
-    const vn=b.vx*nx+b.vy*ny;
     if(vn>=0)return 0;
     // Sum of the impacts, pointing into the obstacle: the camera kick reads it.
     b.hitX+=vn*nx;b.hitY+=vn*ny;
@@ -81,15 +92,16 @@ export function makeDrivePhysics(tune: PhysicsTuning){
     return -vn;
   }
   function wallContact(b: Body,segment: Segment,r: number){
-    const [ax,ay,bx,by]=segment,dx=bx-ax,dy=by-ay;
+    const [ax,ay,bx,by,facade]=segment,dx=bx-ax,dy=by-ay;
     const t=T.MathUtils.clamp(((b.x-ax)*dx+(b.y-ay)*dy)/(dx*dx+dy*dy),0,1);
-    return push(b,ax+dx*t,ay+dy*t,r);
+    return push(b,ax+dx*t,ay+dy*t,r,facade);
   }
   function treeContact(b: Body,tree: Point,r: number){
-    return push(b,tree[0],tree[1],r+tune.treeRadius);
+    return push(b,tree[0],tree[1],r+tune.treeRadius,false);
   }
   function collide(b: Body,world: Pick<ReturnType<typeof buildDriveWorld>, "visitObstacles">){
     b.hitX=b.hitY=0;
+    if(b.scrape)b.scrape.closing=0;
     const hit=world.visitObstacles(b,tune.radius,wallContact,treeContact);
     if(hit){const k=1-tune.wallLoss*Math.min(1,hit/8);b.vx*=k;b.vy*=k;}
     return hit;

@@ -76,6 +76,7 @@ export const TUNE={
   // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.
   zoomSpeed:.1, zoomThreat:.08, zoomCaught:.14, zoomRate:1.1, paceRate:.7, leadRate:2.4, followRate:9,
   radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:carVisualScale,
+  scrapeRatio:.5, scrapeFriction:.12, sparkSpeed:5, sparkGap:.075, sparkLife:.16,
   catchSpeed:4.5, catchReach:4, grace:2.5,
   chaserEvery:18, chaserSight:45, chaserLost:170, wreckImpact:11.5, wreckTime:3, stuckTime:2,
   coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
@@ -141,7 +142,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     c.mesh.add(light);
     return Object.assign(c,{light});
   }
-  const player=vehicle(required(mergeGeometries(carWheelParts()),'player wheels'));
+  const player=Object.assign(vehicle(required(mergeGeometries(carWheelParts()),'player wheels')),
+    {scrape:{x:0,y:0,nx:0,ny:0,vx:0,vy:0,closing:0}});
   const shellGeometry=required(mergeGeometries(carShellParts('#d8452f','#f4ead7')),'player shell').translate(0,-carShellPivot,0);
   const shell=new T.Mesh(shellGeometry,paint);
   player.mesh.add(shell);
@@ -184,11 +186,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   const skidMesh=new T.Mesh(skidGeometry,new T.MeshBasicMaterial({color:'#1d1c1f',transparent:true,opacity:.34,depthWrite:false,side:T.DoubleSide}));
   skidMesh.frustumCulled=false;group.add(skidMesh);
   const dustMesh=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),new T.MeshBasicMaterial({transparent:true,opacity:.5,depthWrite:false}),DUST);
-  const dustColours={dust:new T.Color('#d8cdbb'),smoke:new T.Color('#3b3836'),drift:new T.Color('#fff6de')};
+  const dustColours={dust:new T.Color('#d8cdbb'),smoke:new T.Color('#3b3836'),drift:new T.Color('#fff6de'),spark:new T.Color('#ffcc68')};
+  type ParticleKind=keyof typeof dustColours;
   // Colours exist from the start: adding them at the first puff would build a second shader mid-run.
   for(let i=0;i<DUST;i++)dustMesh.setColorAt(i,dustColours.dust);
   dustMesh.frustumCulled=false;group.add(dustMesh);
-  const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,life:0,drift:false}));
+  const dust=Array.from({length:DUST},()=>({x:0,y:0,z:0,vx:0,vy:0,life:0,kind:'dust' as ParticleKind}));
   // Pedestrians: legless toy figures that get about by hopping, larger than life like the cars.
   // A tinted body and a fixed head share one matrix per walker, so the body colour does not tint the skin.
   const WALKERS=compact?26:40;
@@ -202,9 +205,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let people: ReturnType<typeof makePedestrians> | null=null;
   const shown=new Float32Array(WALKERS),lifted=new Float32Array(WALKERS),wasAlive=new Uint8Array(WALKERS);
   let skidAt=0,dustAt=0;
-  function puff(x: number,y: number,kind: keyof typeof dustColours='dust'){
+  function puff(x: number,y: number,kind: ParticleKind='dust',vx=0,vy=0){
     const p=dust[dustAt];
-    Object.assign(p,{x,y,z:groundAt(x,y)+1,life:1,drift:kind==='drift'});
+    Object.assign(p,{x,y,z:groundAt(x,y)+(kind==='spark'?1.25:1),vx,vy,life:1,kind});
     dustMesh.setColorAt(dustAt,dustColours[kind]);if(dustMesh.instanceColor)dustMesh.instanceColor.needsUpdate=true;
     dustAt=(dustAt+1)%DUST;
   }
@@ -237,7 +240,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let state: DriveState='off';
   let score=0,time=0,record=0,raf=0,last=0,acc=0,grace=0,spin=0,routeAge=1,held=false,warmed=false,lastStart: number | undefined;
   let capture: {patrol: Patrol;elapsed: number;motionElapsed: number;started: number} | null=null;
-  let puffArmed=true;
+  let puffArmed=true,sparkCool=0;
   let chasers: Patrol[]=[];
   let field: RouteField | null=null;
   let zoomNow=1,paceEase=0,threat=0;
@@ -337,11 +340,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     return world.nodes[index];
   }
   function restart(n: RoadNode){
-    location?.reset();
+    location?.reset([n.x,n.y]);
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
     resetPlayerSteering();
     puffArmed=true;
+    sparkCool=0;
     playerPose.reset();
     skidPositions.fill(0);skidGeometry.attributes.position.needsUpdate=true;
     for(const p of dust)p.life=0;
@@ -409,6 +413,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const beforeContactX=player.x,beforeContactY=player.y;
     const knock=collide(player,world);
     let playerContact=knock>0 || player.x!==beforeContactX || player.y!==beforeContactY;
+    sparkCool=Math.max(0,sparkCool-dt);
+    const scrape=player.scrape;
+    if(!knock && !sparkCool && scrape.closing>.15 && Math.hypot(scrape.vx,scrape.vy)>=TUNE.sparkSpeed){
+      const x=scrape.x+scrape.nx*.22,y=scrape.y+scrape.ny*.22;
+      for(const spread of [.8,2.3,4]){
+        puff(x,y,'spark',scrape.nx*spread-scrape.vx*.28,scrape.ny*spread-scrape.vy*.28);
+      }
+      sparkCool=TUNE.sparkGap;
+    }
     if(knock>3)player.hop=Math.min(TUNE.hop,knock*.05);
     if(knock>6){kick(player.hitX,player.hitY,Math.min(1,knock/14));buzz(18);}
     // Only a hard, nearly head-on hit stops time, and not twice in a row: scraping along a street never does.
@@ -546,10 +559,17 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     });
     coinMesh.instanceMatrix.needsUpdate=true;
     dust.forEach((p,i)=>{
-      p.life=Math.max(0,p.life-dt*(p.drift?1/TUNE.puffLife:1.5));
+      const spark=p.kind==='spark',drift=p.kind==='drift';
+      p.life=Math.max(0,p.life-dt*(spark?1/TUNE.sparkLife:drift?1/TUNE.puffLife:1.5));
       const age=1-p.life;
-      const size=p.drift?Math.min(1,.72+age*2,p.life*3):p.life?.5+age*1.5:0;
-      dummy.position.set(p.x,p.z+age*(p.drift?.45:1.6),-p.y);dummy.rotation.set(0,0,0);dummy.scale.setScalar(size);
+      if(spark){
+        const elapsed=age*TUNE.sparkLife,size=.25*p.life;
+        dummy.position.set(p.x+p.vx*elapsed,p.z+.22*Math.sin(age*Math.PI),-p.y-p.vy*elapsed);
+        dummy.rotation.set(0,Math.atan2(p.vy,p.vx),0);dummy.scale.set(size*2.1,size*.6,size*.6);
+      }else{
+        const size=drift?Math.min(1,.72+age*2,p.life*3):p.life?.5+age*1.5:0;
+        dummy.position.set(p.x,p.z+age*(drift?.45:1.6),-p.y);dummy.rotation.set(0,0,0);dummy.scale.setScalar(size);
+      }
       dummy.updateMatrix();dustMesh.setMatrixAt(i,dummy.matrix);
     });
     dustMesh.instanceMatrix.needsUpdate=true;
