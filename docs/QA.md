@@ -745,3 +745,9 @@ Segnalato da Luca su telefono: le monete sembravano ruotare male. Ogni moneta er
 ## Hit-stop raddoppiati (23 novembre 2026)
 
 Su richiesta di Luca, che sul telefono non li notava, tutti i fermi durano il doppio: urto forte 110 ms (`stopWall`), arrivo a destinazione 100 ms (`stopArrive`), cattura 220 ms (`stopCaught`). Le monete singole restano senza fermo, come da `docs/JUICE.md`. Intervallo minimo fra due fermi da urto invariato a 0,6 s. In Chromium con frenata tenuta la cattura arriva dopo 19 s e registra il fermo, senza errori in pagina. Typecheck, build, `qa-drive-pose` e `qa-drive-camera` superati.
+
+## Goccia della destinazione con la distanza (23 novembre 2026)
+
+Segnalato da Luca su telefono: la ficha gialla «01» con la freccetta non si capiva. Ora è una goccia turchese (`#3cc9b8`, condiviso solo con il fascio di luce) la cui punta indica il luogo, verso il basso quando è inquadrato. Dentro c'è la distanza in linea d'aria: «4.3km», sotto i 995 m «850m» a passi di 10 m. A ogni nuova meta durante la corsa la goccia vola dall'auto al suo posto in 0,45 s; all'ingresso in guida no, perché la camera sta ancora planando dalla mappa e il volo partiva da fuori schermo. Margini allargati: la goccia, più grande, toccava la zona tattile destra e la punta sfiorava il pulsante di uscita.
+
+In Chromium (390 × 780, touch, `?nopolice`): distanza che scende in modo regolare (90 → 70 → 50 → 30 m) e passaggio a km sopra i 995 m; volo registrato fotogramma per fotogramma (scala 0,5 → 1) e assente all'ingresso; nessuna sovrapposizione con statistiche, uscita e zone tattili; nessun errore in pagina. Una distanza lungo le strade è stata provata e scartata: saltava da 1,1 a 2,7 km in un secondo e mezzo. Il volo all'arrivo non è stato catturato a schermo: guidando a caso non si raggiunge una meta. Typecheck e build superati.

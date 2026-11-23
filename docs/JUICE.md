@@ -29,7 +29,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 | Spinta di una pattuglia (oltre 6 m/s) | – | Spinta verso la pattuglia, al 70% | – | – | – |
 | Schianto di una pattuglia | – | Spinta verso il rottame entro 40 m, più debole da lontano | Rottame scuro che gira, fumo per 3 s | «+2» con icona dell'urto | – |
 | Pedone vicino a un veicolo in arrivo | – | – | Il pedone scatta di lato a 6,2 m/s per 0,9 s, saltellando; se un muro non lascia spazio salta sopra l'auto | – | – |
-| Arrivo a destinazione | Fermo di 100 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande, nuova ficha | 40 ms |
+| Arrivo a destinazione | Fermo di 100 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande; la goccia della nuova meta vola dall'auto al suo posto in 0,45 s | 40 ms |
 | Cattura | Fermo di 220 ms, poi fine partita | Spinta piena verso la pattuglia; dopo il fermo, avvicinamento lento del 14% | Polvere al rilascio | Pannello dopo altri 420 ms, record che pulsa se battuto | 140 ms |
 
 ## Sterzata e derapata

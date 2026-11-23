@@ -40,7 +40,7 @@ Il pulsante camera e il tasto C alternano Isométrica, Aérea (65°) e Seguimien
 - La parte nascosta dell’auto si legge come sagoma sulla facciata o sul tetto. La freccia segue il muso quando il centro della cabina è coperto.
 - Le prossime monete della scia lungo la direzione di marcia.
 - Una pattuglia che si avvicina, prima che arrivi a contatto: è la ragione dell'allargamento del punto 4.
-- La destinazione: sulla scena con il fascio di luce, o sul bordo dello schermo con la ficha numerata quando è fuori campo.
+- La destinazione: sulla scena con il fascio di luce, o sul bordo dello schermo con la goccia turchese della distanza quando è fuori campo.
 - L'attribuzione in basso.
 
 L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita in alto a destra, zone tattili negli angoli in basso. La ficha della destinazione non entra nella fascia delle statistiche né in quella delle zone tattili.

@@ -34,6 +34,10 @@ La prima versione mostrava «12 monedas · 23.4 s · Récord 30», «→ Teatro 
 
 Al loro posto: pillole con icona e numero; due zone tattili che pulsano e si accendono al tocco; il numero del luogo su una ficha che punta al traguardo; i punti che saltano fuori dove si guadagnano. I nomi vanno alla regione per i lettori di schermo.
 
+### Guida: numero del luogo sulla ficha (Luca, 23 novembre 2026)
+
+La ficha della destinazione era un cerchio giallo con il numero del luogo nel menu («01») e una freccetta staccata. Non si capiva: il numero richiede di ricordare il menu, il cerchio sembrava un pulsante e il giallo era quello delle monete. Ora è una goccia turchese, colore usato solo da lei e dal fascio di luce, la cui punta indica il luogo (verso il basso, sul fascio, quando è inquadrato). Dentro c'è la distanza in linea d'aria, «4.3km» e sotto i 995 m «850m» a passi di 10 m. Una distanza lungo le strade è stata provata e scartata: saltava di oltre un chilometro quando l'auto si avvicinava a un'altra strada. A ogni nuova meta la goccia parte dall'auto e vola al suo posto.
+
 ### Guida: schermata di cattura
 
 «ATRAPADO» è l'unica scritta dell'esito. Le tre icone con i valori di monete, tempo e record stanno in una riga sotto il titolo, mentre l'HUD di guida sparisce. I pulsanti a icona per riprovare e tornare alla mappa stanno sotto l'auto. Titolo e comandi sono appoggiati direttamente sulla scena, che resta visibile al rallentatore e in bianco e nero.

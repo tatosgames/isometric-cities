@@ -19,6 +19,9 @@ import {makePedestrians} from './pedestrians.ts';
 import {makeDriveEffects} from './drive-effects.ts';
 import {makeCrowdView} from './drive-crowd.ts';
 import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
+
+/** Destination colour: marker and beam. Kept apart from the coins' yellow so the two never read as one thing. */
+const DESTINATION='#3cc9b8';
 import type {DriveOptions,DriveState,Patrol,RouteField,Vehicle} from './drive-types.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -98,7 +101,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     silhouette.renderOrder=-1;
     mesh.add(silhouette);
   }
-  const beacon=new T.Mesh(new T.CylinderGeometry(3.2,3.2,26,20,1,true).translate(0,13,0),new T.MeshBasicMaterial({color:'#ffd84a',transparent:true,opacity:.22,depthWrite:false,side:T.DoubleSide}));
+  const beacon=new T.Mesh(new T.CylinderGeometry(3.2,3.2,26,20,1,true).translate(0,13,0),new T.MeshBasicMaterial({color:DESTINATION,transparent:true,opacity:.26,depthWrite:false,side:T.DoubleSide}));
   group.add(beacon);
   // Drawn through buildings so the car stays readable in narrow streets.
   const nose=new T.Shape();
@@ -145,6 +148,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   let freeze=0,stopCool=0,stops=0,kickX=0,kickY=0,kickVX=0,kickVY=0;
   let release: (() => void) | null=null;
   const lead=new T.Vector3(),screen=new T.Vector3();
+  const goalLabel=required(el('goal').querySelector('b'),'goal label');
+  let goalFlight=1,goalText='';
   const focus=new T.Vector3();
   const pois=locations.map((f,i)=>({name:f.properties.name,number:String(i+1).padStart(2,'0'),x:f.properties.xy[0],y:f.properties.xy[1]}));
   const route=makeDriveRoute(pois,altitude,TUNE,COINS);
@@ -200,7 +205,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const {target,path}=next;
     const end=world.nodes[target.node];
     beacon.position.set(end.x,altitude(end.x,end.y),-end.y);
-    required(el('goal').querySelector('b'),'goal label').textContent=target.poi.number;
+    // The marker flies out of the car to its place, so a new destination is seen being handed over.
+    goalFlight=0;
     el('hud-live').textContent='Destino: '+target.poi.name;
     return path;
   }
@@ -250,6 +256,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     people?.reset(player);crowd.reset();
     const path=trail();
+    // The first destination is there when the run starts: the camera is still gliding in, so nothing flies.
+    goalFlight=1;
     if(path?.[1])player.h=Math.atan2(path[1].y-n.y,path[1].x-n.x);
     rig.startHeading(player.h);
     focus.set(player.x,groundAt(player.x,player.y),-player.y);
@@ -504,17 +512,29 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     zones.right.classList.toggle('on',state==='playing' && (steer<0 || brake));
     const target=route.target,goal=el('goal');goal.hidden=!target || state==='caught';
     if(target){
-      // The destination chip sits over the place, or slides along the screen edge and points at it.
-      const end=activeWorld().nodes[target.node],[gx,gy]=project(end.x,end.y,14);
-      const w=host.clientWidth,h=host.clientHeight,pad=34,bottom=h-150;
+      // The destination marker sits over the place, or slides along the screen edge with its tip towards it.
+      const world=activeWorld(),end=world.nodes[target.node],[gx,gy]=project(end.x,end.y,14);
+      const w=host.clientWidth,h=host.clientHeight,pad=42,bottom=h-178;
       const nearLabels=Math.abs(gx-w/2)<Math.min(180,w/2);
-      let top=88;
-      if(nearLabels && w<=620 && street.textContent)top=112;
-      if(nearLabels && barrio.textContent)top=w<=620?142:112;
-      const px=T.MathUtils.clamp(gx,pad,w-pad),py=T.MathUtils.clamp(gy,top,bottom),off=px!==gx || py!==gy;
-      goal.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
-      goal.classList.toggle('near',!off);
-      goal.style.setProperty('--turn',(Math.atan2(gy-py,gx-px)+Math.PI/2).toFixed(2)+'rad');
+      let top=104;
+      if(nearLabels && w<=620 && street.textContent)top=124;
+      if(nearLabels && barrio.textContent)top=w<=620?154:124;
+      let px=T.MathUtils.clamp(gx,pad,w-pad),py=T.MathUtils.clamp(gy,top,bottom);
+      const off=px!==gx || py!==gy;
+      // On screen the tip points down at the beam; off screen it points at the place.
+      goal.style.setProperty('--turn',(off?Math.atan2(gy-py,gx-px)+Math.PI/2:Math.PI).toFixed(2)+'rad');
+      goalFlight=Math.min(1,goalFlight+dt/.45);
+      let scale=1;
+      if(goalFlight<1){
+        const [carX,carY]=project(player.x,player.y,2),ease=1-(1-goalFlight)**3;
+        const cx=T.MathUtils.clamp(carX,0,w),cy=T.MathUtils.clamp(carY,0,h);
+        px=cx+(px-cx)*ease;py=cy+(py-cy)*ease;scale=.5+.5*ease;
+      }
+      goal.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px) scale('+scale.toFixed(3)+')';
+      // Straight-line distance, like the tip: a road distance jumps whenever the nearest road changes.
+      const metres=Math.hypot(end.x-player.x,end.y-player.y);
+      const text=metres>=995?(metres/1000).toFixed(1)+'km':Math.round(metres/10)*10+'m';
+      if(text!==goalText){goalText=text;goalLabel.textContent=text;}
     }
     host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0,stops,Math.hypot(kickX,kickY).toFixed(2),walking,clearance.toFixed(1)].join(',');
   }

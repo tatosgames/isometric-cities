@@ -78,7 +78,7 @@ El botón 🚗 de las herramientas abre una persecución arcade sobre la maqueta
 - Las monedas marcan la ruta por las calles hasta uno de los lugares; al llegar hay un bono y aparece otra ruta.
 - Las patrullas aumentan cada 18 s. Te atrapan si te alcanzan cuando vas despacio; a plena velocidad solo empujan. El récord se guarda en el navegador.
 
-La interfaz del juego no usa texto: iconos para monedas y tiempo durante la partida, y el récord en el resumen final; dos zonas táctiles animadas enseñan a girar y, tras unos segundos, a frenar con ambas; una ficha amarilla con el número del lugar señala el destino desde el borde de la pantalla; un haz de luz lo marca en la maqueta. Una flecha dentro del círculo del coche señala el morro solo cuando un edificio tapa la cabina. Los nombres se anuncian solo a lectores de pantalla.
+La interfaz del juego no usa texto: iconos para monedas y tiempo durante la partida, y el récord en el resumen final; dos zonas táctiles animadas enseñan a girar y, tras unos segundos, a frenar con ambas; una gota turquesa con la distancia en línea recta (4.3km, luego 850m) apunta al destino desde el borde de la pantalla y sale volando del coche cada vez que cambia; un haz de luz del mismo color lo marca en la maqueta. Una flecha dentro del círculo del coche señala el morro solo cuando un edificio tapa la cabina. Los nombres se anuncian solo a lectores de pantalla.
 
 Toda la física y el ritmo se ajustan en el objeto `TUNE` al inicio de `src/drive/drive.ts`.
 

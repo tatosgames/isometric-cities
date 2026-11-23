@@ -130,6 +130,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Conducir · Hit-stop più lunghi.** Urto forte, arrivo e cattura fermano la scena il doppio (110, 100 e 220 ms) perché alla metà non si notavano sul telefono. [Verifica](docs/QA.md#hit-stop-raddoppiati-23-novembre-2026).
 
+**Conducir · Goccia della destinazione.** Al posto del numero del luogo, una goccia turchese con la punta verso la meta e la distanza in linea d'aria (km, poi metri sotto i 995 m); a ogni nuova meta vola dall'auto. Fascio di luce dello stesso colore, distinto dal giallo delle monete. [Verifica](docs/QA.md#goccia-della-destinazione-con-la-distanza-23-novembre-2026).
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 16 luoghi, 75 zone e 805 settori.
