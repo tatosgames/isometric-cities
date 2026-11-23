@@ -16,7 +16,7 @@ export const TUNE={
   poseMinSpeed:2, poseFullSpeed:10, poseAttack:.085, poseRelease:.17, poseReverse:.04,
   puffSlip:2.5,puffRearm:1.5,puffLife:.22,
   // Hit-stop: seconds of held simulation per event, the wall impact that earns one and the least gap between two.
-  stopImpact:11, stopWall:.055, stopArrive:.05, stopCaught:.11, stopGap:.6,
+  stopImpact:11, stopWall:.11, stopArrive:.1, stopCaught:.22, stopGap:.6,
   // Camera kick: launch speed of a full hit (m/s), spring back to rest, hard limit in metres.
   kick:36, kickStiff:220, kickDamp:22, kickMax:1.2,
   // Camera: slow, small and never driven by single hits, so it reads as breathing rather than pumping.

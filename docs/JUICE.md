@@ -25,12 +25,12 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 | Strisciata laterale contro una facciata | La velocità lungo il muro perde il 12% della velocità in entrata | – | Fino a tre scintille brevi dal contatto del giocatore | – | – |
 | Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
 | Urto medio (oltre 6 m/s) | – | Spinta verso il muro, in proporzione | Saltello | – | 18 ms |
-| Urto forte (oltre 11 m/s) | Fermo di 55 ms | Spinta verso il muro | Saltello | – | 18 ms |
+| Urto forte (oltre 11 m/s) | Fermo di 110 ms | Spinta verso il muro | Saltello | – | 18 ms |
 | Spinta di una pattuglia (oltre 6 m/s) | – | Spinta verso la pattuglia, al 70% | – | – | – |
 | Schianto di una pattuglia | – | Spinta verso il rottame entro 40 m, più debole da lontano | Rottame scuro che gira, fumo per 3 s | «+2» con icona dell'urto | – |
 | Pedone vicino a un veicolo in arrivo | – | – | Il pedone scatta di lato a 6,2 m/s per 0,9 s, saltellando; se un muro non lascia spazio salta sopra l'auto | – | – |
-| Arrivo a destinazione | Fermo di 50 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande, nuova ficha | 40 ms |
-| Cattura | Fermo di 110 ms, poi fine partita | Spinta piena verso la pattuglia; dopo il fermo, avvicinamento lento del 14% | Polvere al rilascio | Pannello dopo altri 420 ms, record che pulsa se battuto | 140 ms |
+| Arrivo a destinazione | Fermo di 100 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande, nuova ficha | 40 ms |
+| Cattura | Fermo di 220 ms, poi fine partita | Spinta piena verso la pattuglia; dopo il fermo, avvicinamento lento del 14% | Polvere al rilascio | Pannello dopo altri 420 ms, record che pulsa se battuto | 140 ms |
 
 ## Sterzata e derapata
 
@@ -58,7 +58,7 @@ Per alcuni fotogrammi la simulazione non avanza: auto, pattuglie, monete e crono
 Il saltello del giocatore arriva fino a 0,9 m e rientra in circa 0,41 s alla massima altezza. Un secondo urto più debole lascia finire il saltello in corso. L'ombra resta a terra.
 
 - **Eventi:** urto forte contro un muro o un albero, arrivo a destinazione, cattura. Lo schianto di una pattuglia non lo usa (scelta di Luca, 22 novembre 2026).
-- **Durate:** `stopWall` 0,055 s, `stopArrive` 0,05 s, `stopCaught` 0,11 s. A 60 fotogrammi al secondo sono circa 3, 3 e 7 fotogrammi.
+- **Durate:** `stopWall` 0,11 s, `stopArrive` 0,1 s, `stopCaught` 0,22 s. A 60 fotogrammi al secondo sono circa 7, 6 e 13 fotogrammi. Raddoppiate su richiesta di Luca il 23 novembre 2026: alla metà non si notavano sul telefono.
 - **Soglia dell'urto:** `stopImpact` 11 m/s di velocità nella direzione dell'ostacolo. Le strisciate nelle vie strette restano sotto.
 - **Intervallo minimo:** `stopGap` 0,6 s tra due fermi da urto. Arrivo e cattura non hanno intervallo perché non possono ripetersi.
 - **Fermi sovrapposti:** vale il più lungo, non si sommano.

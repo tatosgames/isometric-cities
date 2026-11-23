@@ -741,3 +741,7 @@ Tre commit (`bb68754`, `1345f97`, `52e544b`) riorganizzano il codice senza tocca
 ## Rotazione delle monete (23 novembre 2026)
 
 Segnalato da Luca su telefono: le monete sembravano ruotare male. Ogni moneta era un disco verticale che girava attorno all'asse verticale del mondo; viste dall'alto non mostravano mai la faccia intera (circa due terzi dell'altezza in vista isometrica, meno della metà in vista aerea) e a ogni mezzo giro diventavano una lineetta. Ora girano attorno all'asse verticale dello schermo e a inizio giro guardano la camera: la faccia arriva intera in tutte e tre le viste. Fase sfalsata fra monete e saltello invariati. Catture in Chromium (390 × 700, touch) prima e dopo nelle tre viste; typecheck e build superati.
+
+## Hit-stop raddoppiati (23 novembre 2026)
+
+Su richiesta di Luca, che sul telefono non li notava, tutti i fermi durano il doppio: urto forte 110 ms (`stopWall`), arrivo a destinazione 100 ms (`stopArrive`), cattura 220 ms (`stopCaught`). Le monete singole restano senza fermo, come da `docs/JUICE.md`. Intervallo minimo fra due fermi da urto invariato a 0,6 s. In Chromium con frenata tenuta la cattura arriva dopo 19 s e registra il fermo, senza errori in pagina. Typecheck, build, `qa-drive-pose` e `qa-drive-camera` superati.
