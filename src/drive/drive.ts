@@ -118,6 +118,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     return activeWorld().occluded(player.x,player.y,height,dx,dy);
   }
   const dummy=new T.Object3D();
+  const coinTurn=new T.Quaternion(),screenUp=new T.Vector3(0,1,0);
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({...surfaceStencil(),color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
   coinMesh.frustumCulled=false;coinMesh.count=0;group.add(coinMesh);
   const {puff,skid,reset: resetEffects,update: updateEffects}=makeDriveEffects(group,groundAt);
@@ -448,12 +449,6 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       c.light.visible=!c.wreck;c.light.material=(Math.floor(lightTime/140)+i)%2?lightRed:lightBlue;
     });
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target && !capture;
-    coinMesh.count=coins.length;
-    coins.forEach((c,i)=>{
-      dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);dummy.rotation.set(0,spin+i*.7,0);dummy.scale.setScalar(1);
-      dummy.updateMatrix();coinMesh.setMatrixAt(i,dummy.matrix);
-    });
-    coinMesh.instanceMatrix.needsUpdate=true;
     updateEffects(dt);
     // Pedestrians hold with the simulation during a hit-stop, and keep strolling before the start and after a capture.
     let walking=0,clearance=99;
@@ -490,6 +485,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     targetPoint.x-=Math.cos(pose.yaw)*advance;
     targetPoint.z-=Math.sin(pose.yaw)*advance;
     view(targetPoint,zoom,pose.direction);
+    // Coins spin about the screen's vertical axis, facing the camera at the start of each turn:
+    // seen from above, a coin spinning about the world's vertical never shows its whole face.
+    coinMesh.count=coins.length;
+    coins.forEach((c,i)=>{
+      dummy.position.set(c.x,c.z+Math.sin(spin+i)*.15,-c.y);
+      dummy.quaternion.copy(camera.quaternion).multiply(coinTurn.setFromAxisAngle(screenUp,spin+i*.7));dummy.scale.setScalar(1);
+      dummy.updateMatrix();coinMesh.setMatrixAt(i,dummy.matrix);
+    });
+    coinMesh.instanceMatrix.needsUpdate=true;
     heading.visible=cabinIsHidden(pose.direction.x/pose.direction.y,-pose.direction.z/pose.direction.y);
     // HUD
     if(state!=='caught')location?.update(player.x,player.y,speed>2?Math.atan2(player.vy,player.vx):player.h,now);

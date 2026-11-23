@@ -737,3 +737,7 @@ Tre commit (`bb68754`, `1345f97`, `52e544b`) riorganizzano il codice senza tocca
 ## Conducir senza polizia (23 novembre 2026)
 
 `?nopolice` nella querystring avvia Conducir senza pattuglie: nessuna cattura, la corsa continua finché si esce. Monete, destinazioni e pedoni restano attivi. In Chromium (WebGL software), dopo 4 s di guida: 1 pattuglia senza parametro, 0 con `?nopolice`, nessun errore in pagina. Typecheck e build superati.
+
+## Rotazione delle monete (23 novembre 2026)
+
+Segnalato da Luca su telefono: le monete sembravano ruotare male. Ogni moneta era un disco verticale che girava attorno all'asse verticale del mondo; viste dall'alto non mostravano mai la faccia intera (circa due terzi dell'altezza in vista isometrica, meno della metà in vista aerea) e a ogni mezzo giro diventavano una lineetta. Ora girano attorno all'asse verticale dello schermo e a inizio giro guardano la camera: la faccia arriva intera in tutte e tre le viste. Fase sfalsata fra monete e saltello invariati. Catture in Chromium (390 × 700, touch) prima e dopo nelle tre viste; typecheck e build superati.

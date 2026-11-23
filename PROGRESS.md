@@ -126,6 +126,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Conducir · Senza polizia.** `?nopolice` avvia la guida senza pattuglie e quindi senza cattura. [Verifica](docs/QA.md#conducir-senza-polizia-23-novembre-2026).
 
+**Conducir · Monete.** Girano attorno all'asse verticale dello schermo e mostrano la faccia intera anche nelle viste dall'alto. [Verifica](docs/QA.md#rotazione-delle-monete-23-novembre-2026).
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 16 luoghi, 75 zone e 805 settori.
