@@ -20,6 +20,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Terreno in binario Int16 a decimetri invece che in JSON | `city-terrain.bin` | Niente analisi di una lista di numeri all'apertura |
 | Terreno tenuto in Int16 anche in memoria (`Terrain.scale`), sul thread principale e nel worker | `coreWithTerrain()` in `load.ts` | 6 MB invece di 12 per copia |
 | Copertura stradale ritagliata per zona; nell'indice solo una copia semplificata a 1,5 m per la mappa lontana | `sectors.py`, `sector-stream.ts` | Scatto dopo il ripristino da 176 a 36 ms; indice da 1,74 a 0,48 MB; heap a vista ferma da 98 a 86 MB |
+| Nei settori da 240 edifici in su, lista `fused` per il profilo compatto: vicini con tetti e suolo entro 1,5 m e tinta vicina, fusi in gruppi di al massimo 4. Il desktop, le zone e le collisioni usano la lista completa | `fused()` in `sectors.py`, `sector-stream.ts` | 10 settori da 3.148 a 2.207 edifici; circa −9 % di triangoli nel nucleo di La Isleta oltre al parapetto. Costo: tetti livellati e un colore per gruppo, visibile da molto vicino; +0,83 MB nei file di settore |
 | Tre livelli: nucleo, zone da 960 m, settori da 240 m, con nomi derivati dal contenuto | `sectors.py` | Il viewer non scarica più la città intera; la cache del browser resta valida tra una versione e l'altra |
 
 ## Geometria (viewer)
@@ -27,7 +28,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Trucco | Dove | Effetto misurato |
 |---|---|---|
 | Estrusione senza fondo e coperchio: uno è interrato, l'altro sta sotto il tetto | `wallsOnly()` in `src/render/scene.ts` | Con i parapetti a tre facce: Santa Ana da 359.000 a 264.000 triangoli |
-| Parapetti a due facce (sopra e fuori) invece di una scatola chiusa, nel profilo compatto; niente coperchio delle cabine sul tetto e niente davanzali semplici | `parapet()` e `scene.ts` | Nucleo di La Isleta da 325.000 a 258.000 triangoli e da 36 a 18 ms di mediana; Santa Ana stabile a 18 ms. Costo: bordo dei tetti più sottile sul lato lontano |
+| Parapetto a una faccia nel profilo compatto: il muro sale di 0,56 m (`RIM`) e fa da faccia esterna, il parapetto è solo la striscia in cima. Niente coperchio delle cabine sul tetto e niente davanzali semplici | `parapet()` e `scene.ts` | Con tre facce, poi due, poi una: nucleo di La Isleta da 325.000 a 258.000 a 208.000 triangoli con la fusione; Santa Catalina da 233.000 a 208.000 con il solo parapetto. Costo: bordo dei tetti più sottile sul lato lontano e fascia sotto il bordo del colore del muro |
 | Niente finestre, cornici e parapetti sepolti in un edificio adiacente più alto. Si chiede cosa c'è 0,5 m fuori dal muro e fino a che quota. Disattivato nell'editor, dove gli edifici si spostano. | `buriedTo()` in `scene.ts` | Insieme alle impronte semplificate: da −8 a −21 % di triangoli negli isolati densi |
 | Finestre e davanzali come rettangoli piatti; cornici di piano solo su desktop | `scene.ts` | — |
 | Chiome a icosaedro senza suddivisione e 4 per albero invece di 7; palme a 8 fronde invece di 13, nel profilo compatto | `scene.ts` | — |
@@ -57,6 +58,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 ## Cose provate che non servono
 
 - Togliere i davanzali (−11 % di triangoli) non elimina i fotogrammi doppi a Santa Ana.
+- Fusione con soglie strette (tetti entro 0,6 m, tinta entro 26): nel settore più denso unisce solo 14 edifici su 385, perché i tetti vicini differiscono quasi sempre di più. Senza livellare i tetti la fusione non rende.
 - Alleggerire i settori non riduce in proporzione i triangoli a schermo: il budget si riempie con più settori precaricati. Conta il numero per settore, non solo quello per fotogramma.
 - I fotogrammi doppi (uno su dieci, 35 ms) negli isolati più densi restano con 220.000 come con 300.000 triangoli. Il thread principale è scarico (2-4 ms): il costo è nella GPU integrata e non è diagnosticato.
 

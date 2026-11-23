@@ -507,6 +507,28 @@ Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (mediana / p90, 
 
 Limiti. Nel nucleo di La Isleta un fotogramma su dieci dura ancora 36 ms. La collisione con le gru è verificata solo nel calcolo delle posizioni delle gambe, non guidandoci contro. Il picco heap resta sopra 100 MB: 13 MB vengono dai JSON residenti e 7 MB dall'indice dei muri della guida. Tempi misurati con un altro processo attivo sulla macchina. Nessuna prova su telefono fisico.
 
+## Edifici fusi nei settori densi e parapetto a una faccia (23 novembre 2026)
+
+Due interventi sul solo profilo compatto (telefono). Su desktop non cambia nulla.
+
+- **Fusione dei vicini simili** (`fused()` in `scripts/sectors.py`). Nei settori da 240 edifici in su (9 a La Isleta e 1 nel sud della città) il file di settore porta, accanto alla lista completa, una lista `fused`: gruppi di al massimo 4 edifici adiacenti (almeno 2 m di muro in comune) con tetti entro 1,5 m, suolo entro 1,5 m e tinta del tetto entro 60 su 255 per canale. Il gruppo prende la quota media dei tetti pesata sull'area e colore e tinta dell'edificio più grande. Restano fuori gli edifici con stile di catalogo. Nei 10 settori: da 3.148 a 2.207 edifici. Zone, collisioni della guida e vista intermedia usano sempre la lista completa.
+- **Parapetto a una faccia** (`parapet()` e `RIM` in `scene.ts`). Il muro sale di 0,56 m fino alla quota del parapetto e il parapetto è solo la striscia chiara in cima: 2 triangoli per lato invece di 4, in tutta la città.
+
+Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (triangoli; mediana / p90):
+
+| Vista | Prima | Dopo |
+|---|---|---|
+| Nucleo di La Isleta (-1200, 5000) da vicino | 257.828 | 207.727; 18,0 / 18,1-36 ms su tre misure |
+| Santa Catalina (-2040, 3480) da vicino | 232.517 | 208.228; 18,0 / 18,1 ms |
+| Santa Ana | 178.001 | 159.580; 18,0 / 18,1 ms |
+| La Isleta alla distanza massima | 330.338 | 330.338 (vista intermedia, invariata) |
+
+`benchmark.mjs` con la macchina occupata non distingue i due commit: fotogramma peggiore dopo il ripristino 54 e 107 ms sul commit precedente, 89 e 72 ms su questo, misurati in alternanza; vista ravvicinata p95 18,2 ms; heap dopo la raccolta 95,7 MB contro 97,4.
+
+`typecheck`, `build`, `npm.cmd test` per intero e due esecuzioni di `qa-sectors.mjs`: verdi su una copia pulita del commit. Confronto a camera identica sul nucleo di La Isleta: alla vista di un luogo (zoom 1,59) il quartiere si legge uguale; a zoom 4 i gruppi fusi mostrano un tetto unico e una facciata di un solo colore dove prima ce n'erano fino a quattro, e la fascia di 0,56 m sotto il bordo del tetto ha il colore del muro.
+
+Limiti. La fusione livella i tetti di un gruppo fino a 1,5 m e ne toglie le differenze di tinta: è una semplificazione, non un dato. Le liste fuse aggiungono 0,83 MB ai 10 file di settore, che quindi occupano più budget di dettaglio. Una prima misura sul nucleo di La Isleta ha dato 35,9 ms di mediana con la macchina occupata; le tre ripetizioni 18,0. Nessuna prova su telefono fisico.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.

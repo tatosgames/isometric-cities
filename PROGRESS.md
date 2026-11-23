@@ -86,6 +86,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **U · Quartieri densi, memoria e scatto dopo il ripristino.** Sul telefono il nucleo di La Isleta scende da 325.000 a 258.000 triangoli e torna a 18 ms di mediana; Santa Ana diventa stabile. La copertura stradale è per zona: lo scatto dopo il ripristino passa da 176 a 36 ms. Terreno in Int16, gru come ostacoli. [Misure e limiti](docs/QA.md#quartieri-densi-memoria-residente-e-scatto-dopo-il-ripristino-23-novembre-2026).
 
+**V · Edifici fusi e parapetto a una faccia sul telefono.** Nei 10 settori più densi i vicini simili sono fusi in gruppi di al massimo quattro (da 3.148 a 2.207 edifici) e in tutta la città il parapetto è una sola striscia. Nucleo di La Isleta da 258.000 a 208.000 triangoli. Desktop invariato. [Misure e limiti](docs/QA.md#edifici-fusi-nei-settori-densi-e-parapetto-a-una-faccia-23-novembre-2026).
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).
