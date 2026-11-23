@@ -60,9 +60,25 @@ for p in places:
 def mapped_area(relation):
     return unary_union(list(polygonize(unary_union([LineString(ways[m.get('ref')][1]) for m in relation.findall('member') if m.get('type')=='way']))))
 
+# Barrios that OpenStreetMap does not map as boundaries come from the municipal layer, by its NUCL_CO_ID
+# inside the entity of the city proper (ENTS_CO_ID 24).
+MUNICIPAL='https://services-eu1.arcgis.com/eV9RayDSwR2BokOl/ArcGIS/rest/services/Barrios/FeatureServer/0/query?'+urlencode(dict(where='ENTS_CO_ID=24',outFields='NUCL_CO_ID,NUCL_DS_NO',outSR=4326,f='geojson'))
+municipal={}
+def municipal_area(code):
+    if not municipal:
+        for f in json.loads(fetch('barrios-municipal.geojson',MUNICIPAL).read_bytes())['features']:
+            municipal[f['properties']['NUCL_CO_ID']]=make_valid(transform(project,shape(f['geometry'])))
+    return unary_union([g for g in getattr(municipal[code],'geoms',[municipal[code]]) if g.geom_type in ('Polygon','MultiPolygon')])
+
 def save_barrios():
     barrios=[]
     for zone in coverage['zones']:
+        if 'municipal' in zone:
+            area=municipal_area(zone['municipal']).simplify(.25, preserve_topology=True)
+            barrios.append(dict(name=zone['name'],polygons=[
+                [[[round(x,1),round(y,1)] for x,y in ring.coords] for ring in [p.exterior,*p.interiors]]
+                for p in getattr(area,'geoms',[area])]))
+            continue
         if 'osm' not in zone: continue
         relation=osm.find(f"relation[@id='{zone['osm'].split('/')[1]}']")
         area=mapped_area(relation).simplify(.25, preserve_topology=True)
@@ -88,11 +104,14 @@ def zone_shape(z):
         area=mapped_area(osm.find(f"relation[@id='{z['osm'].split('/')[1]}']"))
         assert area.area>0, 'Open boundary: '+z['id']
         return area.buffer(1)
+    # The municipal outlines do not share vertices with the OSM ones: ten metres close the seam between them.
+    if 'municipal' in z: return municipal_area(z['municipal']).buffer(10)
     return Polygon([project(*p) for p in z['polygon']])
 zones=[zone_shape(z) for z in coverage['zones']]
 assert len({z['id'] for z in coverage['zones']})==len(zones), 'Duplicate zone ID'
-covered=zones[0]
-for z in zones[1:]: covered=covered.union(z)
+covered=unary_union(zones)
+# Slivers left between two sources of boundaries are not courtyards: close the holes smaller than a block.
+covered=unary_union([Polygon(p.exterior,[r for r in p.interiors if Polygon(r).area>2000]) for p in getattr(covered,'geoms',[covered])])
 # Classify the coast partitions inside the acquisition window using the known inland plaza.
 window=transform(project,box(*coverage['bounds']))
 coast=[LineString(v).intersection(window) for t,v in ways.values() if t.get('natural')=='coastline']

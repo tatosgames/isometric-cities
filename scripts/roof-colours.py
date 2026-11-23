@@ -23,7 +23,7 @@ def mosaic():
             w,h=min(1024,width-x),min(1024,height-y)
             bounds=[ox+west+x,oy+south+y,ox+west+x+w,oy+south+y+h]
             params=dict(SERVICE='WMS',VERSION='1.3.0',REQUEST='GetMap',LAYERS='OI.OrthoimageCoverage',
-                STYLES='',CRS='EPSG:4083',FORMAT='image/jpeg',WIDTH=w,HEIGHT=h,BBOX=','.join(map(str,bounds)))
+                STYLES='',CRS='EPSG:4083',FORMAT='image/jpeg',WIDTH=w,HEIGHT=h,BBOX=','.join(f'{v:.3f}' for v in bounds))
             url='https://www.ign.es/wms-inspire/pnoa-ma?'+urlencode(params)
             with Image.open(fetch('roof.jpg',url)) as tile:
                 assert tile.size==(w,h)

@@ -21,6 +21,10 @@ Lo script legge una way poligonale oppure una relazione con un’unica way ester
 5. La pipeline ricava i limiti da pilota e città e scarica riquadri PNOA fino a 1024 px a 1 m/pixel. Il viewer legge le tinte per impronta da `roof-tones.json`. La pipeline genera ancora l’atlante WebP e i ritagli per i settori come asset legacy. Ogni impronta ha un solo proprietario, determinato dal centro del suo rettangolo di ingombro.
 6. Verifica apertura, mirino e limiti del pan. Il centro iniziale della scena cittadina resta in [main.ts](../src/main.ts). Un terzo stage richiede modifiche al generatore e al selettore del viewer, che oggi distinguono pilota e città.
 
+### Barrio senza confine in OpenStreetMap
+
+Se OSM ha solo un nodo `place=suburb`, usa il perimetro del servizio «Barrios» del Comune: una zona `{"id": "...", "municipal": <NUCL_CO_ID>, "name": "<nome in spagnolo>"}`. `data.py` scarica il layer una volta (`ENTS_CO_ID=24`), allarga il perimetro di 10 m per chiudere la giunzione con i confini OSM e riempie i buchi sotto 2.000 m². Il nome va scritto a mano con gli accenti: il servizio lo dà in maiuscole senza accenti. Controlla prima che l'unione con l'area già coperta resti un solo poligono.
+
 ## Generazione riproducibile
 
 Dalla radice del progetto, con Python 3.13 e curl:

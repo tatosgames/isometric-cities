@@ -88,6 +88,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **V · Edifici fusi e parapetto a una faccia sul telefono.** Nei 10 settori più densi i vicini simili sono fusi in gruppi di al massimo quattro (da 3.148 a 2.207 edifici) e in tutta la città il parapetto è una sola striscia. Nucleo di La Isleta da 258.000 a 208.000 triangoli. Desktop invariato. [Misure e limiti](docs/QA.md#edifici-fusi-nei-settori-densi-e-parapetto-a-una-faccia-23-novembre-2026).
 
+**W · Quartiere 5: Ciudad Alta.** Tutto il distrito 4 (16 barrios) più San Francisco - San Nicolás, con i perimetri del servizio «Barrios» del Comune perché OpenStreetMap non li mappa. Città a 27,83 km², 21.326 parti di edificio, 61 zone e 639 settori. LiDAR su 40 tessere: 20.174 edifici misurati, 90,6 % entro 5 m. [Dettagli, misure e limiti](docs/QA.md#quartiere-5-ciudad-alta-e-san-francisco---san-nicolás-23-novembre-2026). Aperto: heap dopo la raccolta a 129 MB; nessun luogo o modello dedicato in Ciudad Alta.
+
 **Conducir · Toponimi.** La via compare in alto quando il tratto è riconoscibile. Al passaggio tra quartieri, il nome entra ed esce in dissolvenza. I confini coprono le 12 relazioni OSM del catalogo. [Verifiche](docs/QA.md#toponimi-in-conducir).
 
 **Conducir · Cattura.** Dopo il colpo, auto e pattuglia si assestano al rallentatore e il plastico passa al bianco e nero. «ATRAPADO» e i tre valori stanno sopra la scena, con due pulsanti a icona più in basso. [Verifiche](docs/QA.md#cattura-in-conducir).

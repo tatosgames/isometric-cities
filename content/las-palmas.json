@@ -300,6 +300,91 @@
       {
         "id": "la-isleta",
         "osm": "relation/16904434"
+      },
+      {
+        "id": "san-francisco-san-nicolas",
+        "municipal": 32,
+        "name": "San Francisco - San Nicolás"
+      },
+      {
+        "id": "schamann",
+        "municipal": 47,
+        "name": "Schamann"
+      },
+      {
+        "id": "las-rehoyas",
+        "municipal": 41,
+        "name": "Las Rehoyas"
+      },
+      {
+        "id": "rehoyas-altas",
+        "municipal": 55,
+        "name": "Rehoyas Altas"
+      },
+      {
+        "id": "san-antonio",
+        "municipal": 46,
+        "name": "San Antonio"
+      },
+      {
+        "id": "altavista",
+        "municipal": 42,
+        "name": "Altavista"
+      },
+      {
+        "id": "don-zoilo",
+        "municipal": 43,
+        "name": "Don Zoilo"
+      },
+      {
+        "id": "escaleritas",
+        "municipal": 44,
+        "name": "Escaleritas"
+      },
+      {
+        "id": "las-chumberas",
+        "municipal": 45,
+        "name": "Las Chumberas"
+      },
+      {
+        "id": "la-minilla",
+        "municipal": 51,
+        "name": "La Minilla"
+      },
+      {
+        "id": "la-feria",
+        "municipal": 50,
+        "name": "La Feria"
+      },
+      {
+        "id": "cuevas-torres",
+        "municipal": 35,
+        "name": "Cuevas Torres"
+      },
+      {
+        "id": "san-lazaro",
+        "municipal": 52,
+        "name": "San Lázaro"
+      },
+      {
+        "id": "las-torres",
+        "municipal": 53,
+        "name": "Las Torres"
+      },
+      {
+        "id": "las-torres-industriales",
+        "municipal": 54,
+        "name": "Las Torres Industriales"
+      },
+      {
+        "id": "el-cardon",
+        "municipal": 48,
+        "name": "El Cardón"
+      },
+      {
+        "id": "diaz-casanova",
+        "municipal": 49,
+        "name": "Díaz Casanova"
       }
     ],
     "minimumLandM2": 5000000

@@ -529,6 +529,32 @@ Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (triangoli; medi
 
 Limiti. La fusione livella i tetti di un gruppo fino a 1,5 m e ne toglie le differenze di tinta: è una semplificazione, non un dato. Le liste fuse aggiungono 0,83 MB ai 10 file di settore, che quindi occupano più budget di dettaglio. Una prima misura sul nucleo di La Isleta ha dato 35,9 ms di mediana con la macchina occupata; le tre ripetizioni 18,0. Nessuna prova su telefono fisico.
 
+## Quartiere 5: Ciudad Alta e San Francisco - San Nicolás (23 novembre 2026)
+
+Tutto il distrito 4 (16 barrios) più il risco di San Francisco - San Nicolás, che chiude il vuoto tra Triana e Schamann. OpenStreetMap non mappa questi barrios come confini: i perimetri vengono dal servizio «Barrios» del Comune (`ENTS_CO_ID` 24, campo `NUCL_CO_ID`), nuova zona di tipo `municipal` in `content/las-palmas.json`. Dieci metri di margine chiudono la giunzione con i confini OSM; i buchi sotto 2.000 m² tra le due fonti vengono riempiti.
+
+Barrios aggiunti: Schamann, Las Rehoyas, Rehoyas Altas, San Antonio, Altavista, Don Zoilo, Escaleritas, Las Chumberas, La Minilla, La Feria, Cuevas Torres, San Lázaro, Las Torres, Las Torres Industriales, El Cardón, Díaz Casanova e San Francisco - San Nicolás.
+
+| | Prima | Dopo |
+|---|---|---|
+| Area | 19,30 km² | 27,83 km² |
+| Parti di edificio | 14.973 | 21.326 |
+| Strade | 4.703 | 7.201 |
+| Alberi | 21.981 | 42.782 |
+| Zone / settori | 50 / 487 | 61 / 639 |
+
+Dei 14.973 edifici precedenti, 14.881 sono identici; i 92 cambiati stavano sul vecchio confine ed erano tagliati.
+
+**LiDAR.** Undici tessere nuove scaricate dal CNIG (40 in cache). Misurati 20.174 edifici su 21.326: scarto mediano +0,58 m, 70,9 % entro 2 m, 90,6 % entro 5 m. L'esportazione ha aggiunto 32 altezze dove manca il dato comunale, 144 parti basse e 7 parti alte. In città ora 551 parti hanno altezza dal LiDAR e 68 restano stimate a 9 m.
+
+**Verifiche** su una copia pulita: `typecheck`, `build`, `npm.cmd test` per intero, `qa-sectors.mjs` (2 verdi su 2 prima delle correzioni LiDAR, 1 su 1 dopo), `check-data.mjs`. Schermate di Schamann, Las Torres, San Lázaro e della vista d'insieme guardate a occhio.
+
+Telefono emulato 390×844 su GPU Intel UHD, `frame-profile.mjs` (mediana / p90, triangoli): Schamann (-2250, 300) da vicino 16,7 / 16,7 ms, 323.314; Schamann (-1800, 600) da vicino 17,4 / 18,2 ms, 313.902 e alla distanza massima 17,3 / 18,2 ms, 379.234; Las Torres (-3300, 1300) 17,3 / 18,2 ms, 97.523; San Lázaro (-3800, -500) 17,3 / 18,2 ms, 205.755; nucleo di La Isleta 16,7 / 16,8 ms, 208.273; Santa Ana 16,7 / 16,8 ms, 159.018. `benchmark.mjs`: apertura 5,1 s, vista ravvicinata p95 16,8 ms, fotogramma peggiore dopo il ripristino 33,2 ms.
+
+**Passaggio di ottimizzazione, esito.** Schamann è ora il punto con più triangoli della città (323.000 da vicino sul telefono, contro 208.000 del nucleo di La Isleta), ma tiene la cadenza piena. Tre settori nuovi superano i 240 edifici e hanno la lista fusa (-10_1, -9_1, -8_2), più -2_-2 con San Nicolás. Nessuna modifica al codice di resa in questo passo.
+
+Limiti. La memoria è salita: heap dopo la raccolta 128,7 MB nel benchmark (era 95,7), con 65,6 MB di zone residenti nella vista ampia del centro (erano 48,7). È sopra la soglia che ci eravamo dati per i telefoni e non è corretto. La tessera LiDAR 454-3109 è arrivata troncata ed è stata scartata (20 edifici); mancano anche 454-3112 e 458-3106 (2 edifici ciascuna). Il bordo sud di San Lázaro ha una punta sottile che viene dal perimetro comunale. Nessun luogo nuovo nel menu e nessun modello dedicato a Ciudad Alta. Una prima esecuzione di `npm.cmd test` si è fermata sul controllo a tempo della schermata di fine guida con la macchina occupata; ripetuta a macchina libera è verde. Nessuna prova su telefono fisico; guida nei quartieri nuovi non provata a mano.
+
 ## Toponimi in Conducir
 
 Il nome del quartiere di partenza compare all’inizio di ogni partita, se il punto di partenza è coperto dai dati. Usa la stessa dissolvenza dei cambi di quartiere.
