@@ -20,11 +20,11 @@ def cells(spec):
             yield west+x*dx, south+y*dy, west+(x+1)*dx, south+(y+1)*dy
 
 
-def acquire(spec):
+def acquire(spec, *, offline=False):
     objects = {}
     for box in cells(spec):
         bbox = ",".join(f"{value:.6f}" for value in box)
-        path = fetch("osm.xml", "https://api.openstreetmap.org/api/0.6/map?bbox="+bbox)
+        path = fetch("osm.xml", "https://api.openstreetmap.org/api/0.6/map?bbox="+bbox, offline=offline)
         for e in ET.parse(path).getroot():
             if e.tag in ("node", "way", "relation"):
                 key = e.tag, e.get("id")
