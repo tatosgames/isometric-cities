@@ -16,6 +16,8 @@ export interface DriveOptions {
   view: (target: T.Vector3, zoom: number, offset: T.Vector3) => void;
   mapDirection: T.Vector3;
   compact: boolean;
+  /** False leaves the streets without patrols: the run has no capture and goes on until the player leaves. */
+  police?: boolean;
   onExit: () => void;
   /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
   zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};

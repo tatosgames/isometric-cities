@@ -25,7 +25,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
@@ -325,7 +325,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const speed=Math.hypot(player.vx,player.vy);
     routeAge+=dt;
     if(routeAge>.6){routeAge=0;field=routes(world.nearestNode(player.x,player.y));}
-    const wanted=Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery));
+    const wanted=police?Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery)):0;
     while(chasers.length<wanted){const c=patrol();chasers.push(c);spawnChaser(c);}
     for(const c of chasers){
       if(c.wreck>0){

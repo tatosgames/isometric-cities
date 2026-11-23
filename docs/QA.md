@@ -733,3 +733,7 @@ Tre commit (`bb68754`, `1345f97`, `52e544b`) riorganizzano il codice senza tocca
 - Con `CHROME_PATH`: `qa-boot` e `qa-recovery` superati.
 - `qa-main-lod` fallisce qui sia con lo script nuovo sia con quello precedente, in punti diversi da un giro all'altro: dipende dai tempi del WebGL software, non dal refactor. Da ripetere con Chrome su Windows.
 - `npm test` completo non eseguito.
+
+## Conducir senza polizia (23 novembre 2026)
+
+`?nopolice` nella querystring avvia Conducir senza pattuglie: nessuna cattura, la corsa continua finché si esce. Monete, destinazioni e pedoni restano attivi. In Chromium (WebGL software), dopo 4 s di guida: 1 pattuglia senza parametro, 0 con `?nopolice`, nessun errore in pagina. Typecheck e build superati.

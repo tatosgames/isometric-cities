@@ -124,6 +124,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AD · Refactor senza cambi di resa.** `drive.ts` diviso in parametri, tipi, effetti e pedoni (da 735 a 602 righe); avvio e inquadratura estratti da `main.ts` (da 498 a 427). Funzioni condivise per angolo e punto dentro un poligono (`src/geometry.ts`), origine della mappa negli script Python (`scripts/geo.py`) e avvio del browser nelle prove (`scripts/qa-browser.mjs`, con `CHROME_PATH`). Valori delle prove di guida identici. [Verifiche](docs/QA.md#refactor-senza-cambi-di-resa-23-novembre-2026). Aperto: `qa-main-lod` e `npm test` da ripetere con Chrome; editor non rifattorizzato.
 
+**Conducir · Senza polizia.** `?nopolice` avvia la guida senza pattuglie e quindi senza cattura. [Verifica](docs/QA.md#conducir-senza-polizia-23-novembre-2026).
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 16 luoghi, 75 zone e 805 settori.
