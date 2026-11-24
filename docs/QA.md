@@ -792,3 +792,5 @@ Scheda con foto, quartiere, nome, testo e link per i luoghi con un blocco `card`
 - **Comportamento.** Muovere la mappa sul telefono piega il foglio nella pillola; un tocco lo riapre. Chiusura con × ed Esc. Un luogo senza `card` (Parque de San Telmo) mostra la pillola di prima. `article h3` contiene ancora il nome intero. Nessun errore in pagina.
 
 Typecheck, build, `qa-drive-pose`, `qa-drive-route` e `qa-pedestrians` superati. Non provato su telefono fisico; trascinamento della foto verso il basso non provato con un dito vero.
+
+`npm test` con `CHROME_PATH` qui non arriva alle schede: dopo le prove di guida, pedoni e suolo (superate) si ferma alla riga 49 di `qa.mjs`, in attesa che i settori iniziali finiscano di caricarsi entro 30 s, prima di toccare un luogo. Due giri, stesso punto. È il caricamento sotto WebGL software; non è stato confrontato con il commit precedente. Da ripetere con Chrome su Windows.
