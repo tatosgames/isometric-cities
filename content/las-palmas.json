@@ -86,7 +86,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 18
+      "markerHeight": 18,
+      "card": {
+        "text": "Sociedad cultural fundada el 1 de marzo de 1844 con el nombre de Gabinete Literario de Fomento y de Recreo de Las Palmas. Su sede ocupa el lugar del antiguo Teatro Cairasco, el primero de la ciudad, levantado sobre parte del solar del convento de las Clarisas. La fachada actual, que da a la plaza de Cairasco, es obra de los arquitectos Fernando Navarro y Rafael Massanet. El gran salón corresponde al patio de butacas del viejo teatro y su techo luce tres lienzos de Manuel González Méndez. El edificio fue declarado Bien de Interés Cultural en 1985.",
+        "link": "https://gabineteliterario.com/",
+        "photo": {
+          "file": "gabinete-literario.webp",
+          "author": "TeodoroSantana",
+          "license": "CC BY-SA 3.0 ES",
+          "source": "https://commons.wikimedia.org/wiki/File:Fachada_del_Gabinete_Literario.JPG"
+        }
+      }
     },
     {
       "id": "san-telmo",
@@ -95,7 +105,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "El parque, diseñado en 1876, se extiende junto a la calle Triana y la Estación de Guaguas, en el lugar donde estuvo la muralla norte de la ciudad y, a comienzos del siglo XIX, su primer muelle. El mar llegaba hasta aquí cuando en el siglo XVI se fundó la ermita de San Telmo, patrón de navegantes, de arquitectura mudéjar con portada gótico-renacentista. Entre sus quioscos destaca el Quiosco Modernista, proyectado por el arquitecto Rafael Massanet en 1923, que hoy funciona como cafetería con terraza. El Quiosco de la Música acoge conciertos de la Banda Municipal.",
+        "link": "https://lpavisit.com/atractivo/parque-de-san-telmo/",
+        "photo": {
+          "file": "san-telmo.webp",
+          "author": "Marc Ryckaert (MJJR)",
+          "license": "CC BY 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:GC_Las_Palmas_Parque_de_San_Telmo_R01.jpg"
+        }
+      }
     },
     {
       "id": "plaza-de-la-feria",
@@ -104,7 +124,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 3
+      "markerHeight": 3,
+      "card": {
+        "text": "Debe su nombre a las ferias de ganado y los festejos que se celebraban aquí en la segunda mitad del siglo XIX, cuando cayó la muralla norte y empezó a edificarse el barrio de Los Arenales. En 1899 acogió las fiestas por la inauguración del alumbrado eléctrico de la ciudad. En el centro se levanta el monumento a Benito Pérez Galdós, obra en bronce de Pablo Serrano, acompañado de un muro con un extracto del discurso de ingreso del escritor en la Real Academia Española. La plaza actual, trazada con el paisajista Leandro Silva, se reinauguró el 4 de enero de 1970.",
+        "link": "https://lpavisit.com/atractivo/plaza-de-la-feria/",
+        "photo": {
+          "file": "plaza-de-la-feria.webp",
+          "author": "Beta15",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:La_plaza_de_la_Feria_02.jpg"
+        }
+      }
     },
     {
       "id": "el-obelisco",
@@ -113,7 +143,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 3
+      "markerHeight": 3,
+      "card": {
+        "text": "La plaza de la Constitución ocupa el cruce del paseo de Tomás Morales con las calles Pérez del Toro y Alfonso XIII. El paseo, cuya apertura proyectó Secundino Zuazo en 1943, no tuvo su plaza hasta que en 1955 el Ayuntamiento decidió ajardinar el cruce y coronar la rotonda central con un gran obelisco de piedra colorada de la isla. Desde entonces se la conoce popularmente como plaza del Obelisco. En las últimas décadas del siglo XX fue escenario de grandes concentraciones ciudadanas, y es el lugar elegido para recordar la Constitución de 1978.",
+        "link": "https://mappingcanarias.com/las-palmas-de-gran-canaria/mapa/plaza-de-la-constitucion-el-obelisco"
+      }
     },
     {
       "id": "parque-doramas",
@@ -122,7 +156,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 3
+      "markerHeight": 3,
+      "card": {
+        "text": "Situado en Ciudad Jardín, junto al Museo Néstor, el Pueblo Canario y el Hotel Santa Catalina, nació como jardín privado creado por los ingleses en torno al hotel. El Ayuntamiento lo compró y encargó su diseño, en la década de 1950, al arquitecto Miguel Martín-Fernández de la Torre, que contó con el paisajista Nicolau Maria Rubió i Tudurí. Sus jardines reúnen palmeras, ficus y dragos, y en la zona central hay un estanque y el Auditorio José Antonio Ramos. Lleva el nombre de Doramas, caudillo aborigen de Gran Canaria y uno de los líderes de la resistencia a la conquista.",
+        "link": "https://lpavisit.com/atractivo/parque-doramas/",
+        "photo": {
+          "file": "parque-doramas.webp",
+          "author": "Bengt Nyman",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Las_Palmas_2016_26.jpg"
+        }
+      }
     },
     {
       "id": "metropole",
@@ -131,7 +175,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 3
+      "markerHeight": 3,
+      "card": {
+        "text": "Club de natación fundado en 1934 por un grupo de aficionados que organizaba travesías en la playa de Las Canteras. Tras la Guerra Civil se instaló en la piscina del Hotel Metropole, que le dio nombre. Cuando el hotel se vendió al Ayuntamiento en 1960, el club tuvo que buscar otra sede. Las instalaciones actuales, en la calle Alonso Quesada, se inauguraron el 18 de abril de 1965 con un encuentro internacional de natación entre España e Italia. Cuenta con piscinas de 50 y 25 metros y foso de saltos, y en 2006 recibió el Premio Canarias de Deportes.",
+        "link": "https://www.cnmetropole.es/"
+      }
     },
     {
       "id": "santo-domingo",
@@ -140,7 +188,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "La parroquia de Santo Domingo de Guzmán preside la plaza del mismo nombre, en Vegueta. Es lo que queda del antiguo monasterio dominico de San Pedro Mártir, cuya fundación la tradición sitúa en el reinado de los Reyes Católicos. El conjunto original fue destruido en 1599 durante el ataque de la armada holandesa de Pieter van der Does, y el edificio actual, de tres naves y dos capillas laterales, data de principios del siglo XVII. En su interior guarda esculturas de Luján Pérez y Fernando Estévez. El convento, desamortizado, fue leprosería y manicomio antes de ser demolido.",
+        "link": "https://es.wikipedia.org/wiki/Parroquia_de_Santo_Domingo_de_Guzm%C3%A1n_(Las_Palmas_de_Gran_Canaria)",
+        "photo": {
+          "file": "santo-domingo.webp",
+          "author": "Tamara k",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Parroquia_de_Santo_Domingo_de_Guzman,_Las_Palmas.jpg"
+        }
+      }
     },
     {
       "id": "parroquia-san-cristobal",
@@ -149,7 +207,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "La parroquia de San Cristóbal fue creada por el obispo Pildain en septiembre de 1941, al separarse de la de Santo Domingo. Su templo original, levantado sobre una ermita de la familia Ruiz de Vergara cedida a la diócesis en 1780, fue derribado a principios de los años sesenta para construir la Avenida Marítima. En compensación, el Cabildo grancanario edificó la iglesia actual en 1963, sobre el solar de una antigua fábrica. Está dedicada a Nuestra Señora del Buen Viaje, cuya imagen adquirieron los feligreses. En 1988 el Cabildo donó el edificio a la Diócesis de Canarias.",
+        "link": "https://lpavisit.com/atractivo/barrio-marinero-de-san-cristobal/"
+      }
     },
     {
       "id": "parque-santa-catalina",
@@ -158,7 +220,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Parque-plaza de 27 500 m² en el distrito Isleta-Puerto-Guanarteme, junto al muelle de cruceros y el intercambiador de guaguas y cerca de la playa de Las Canteras. Se planificó con la construcción del muelle de Santa Catalina en 1883, al comenzar las obras del Puerto de la Luz. En uno de sus extremos están los edificios Elder y Miller, que fueron sede de compañías inglesas, y en el parque se ubica el Museo Elder de la Ciencia y la Tecnología. Aquí se instalan los escenarios principales del Carnaval y del WOMAD, y dos esculturas recuerdan a Lolita Pluma y a los betuneros.",
+        "link": "https://es.wikipedia.org/wiki/Parque_Santa_Catalina",
+        "photo": {
+          "file": "parque-santa-catalina.webp",
+          "author": "Canarina",
+          "license": "CC BY-SA 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Parque_Santa_Catalina_-_panoramio.jpg"
+        }
+      }
     },
     {
       "id": "auditorio-alfredo-kraus",
@@ -167,7 +239,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Obra del arquitecto Óscar Tusquets, el auditorio se construyó entre 1993 y 1997 con la idea de erigir un faro que protegiera la playa de Las Canteras. Su sala sinfónica tiene capacidad para 1656 personas y, tras la orquesta, un ventanal de más de 100 m² deja ver el Atlántico durante los conciertos. Es la sede de la Orquesta Filarmónica de Gran Canaria y escenario habitual del Festival de Música de Canarias y del Festival Internacional de Cine de la ciudad. En el mismo conjunto se halla el Palacio de Congresos de Canarias.",
+        "link": "https://auditorioteatrolaspalmasgc.es/",
+        "photo": {
+          "file": "auditorio-alfredo-kraus.webp",
+          "author": "Pepelopex",
+          "license": "CC BY-SA 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Auditorio_alfredo_kraus_las_palmas_de_gran_canaria.jpg"
+        }
+      }
     },
     {
       "id": "castillo-de-la-luz",
@@ -176,7 +258,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "El Castillo de La Luz, o Fortaleza de las Isletas, se construyó en 1494 por orden del gobernador Alonso Fajardo sobre un fuerte de madera levantado por Juan Rejón en 1478. Estaba sobre un arrecife que quedaba aislado en la pleamar; hoy lo separan del mar más de 150 metros. Fue reconstruido tras el incendio de 1599, causado por la armada holandesa de Pieter van der Does, y en 1941 se declaró Monumento Histórico-Artístico. Remodelado por Nieto y Sobejano, desde 2015 es la sede de la Fundación de Arte y Pensamiento Martín Chirino.",
+        "link": "https://fundacionmartinchirino.org/",
+        "photo": {
+          "file": "castillo-de-la-luz.webp",
+          "author": "Bengt Nyman from Vaxholm, Sweden",
+          "license": "CC BY 2.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Castillo_de_la_Luz_D81_5344_(27910263459).jpg"
+        }
+      }
     },
     {
       "id": "mercado-del-puerto",
@@ -185,7 +277,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Uno de los mercados de abastos de la ciudad, nacido de las necesidades de abasto de la población que crecía en torno al Puerto de La Luz. Se levantó en 1891. El edificio, de hierro y vidrio, ocupa una manzana entera de cerca de 1700 metros cuadrados entre las calles Albareda, López Socas, Tenerife y Rafael Bento Travieso, y sus dos bóvedas se cruzan en una cúpula octogonal. Se remodeló en 1994 y, desde la reforma promovida por el Ayuntamiento en 2012, acoge también negocios de restauración.",
+        "link": "https://mercadodelpuerto.net/",
+        "photo": {
+          "file": "mercado-del-puerto.webp",
+          "author": "Pepelopex",
+          "license": "CC BY-SA 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Mercado_del_Puerto-fachada_poniente-Las_Palmas_de_Gran_Canaria.jpg"
+        }
+      }
     },
     {
       "id": "parque-la-ballena",
@@ -194,7 +296,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Parque deportivo en el cauce del barranco de La Ballena, planteado como un corredor verde entre la rotonda del Hospital Doctor Negrín y la rotonda de La Ballena. El Ayuntamiento lo ha ejecutado por fases desde 2014, con el arquitecto Héctor Martínez Santana. Tiene un palmeral con 300 palmeras de 21 especies, una gran planicie de césped para juegos y un anillo de tierra batida de 1000 metros para la práctica deportiva. En 2019 se añadieron una atalaya-mirador, un graderío, una gran área de juegos infantiles y una cubierta textil que da sombra.",
+        "link": "https://mmft2020.arquitectosgrancanaria.es/proyectos/e002_parque_laballena/"
+      }
     },
     {
       "id": "parque-las-rehoyas",
@@ -203,7 +309,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Parque urbano de Ciudad Alta, situado entre los barrios de El Polvorín, Rehoyas, Miller Residencial y Schamann, con la carretera general del norte como límite sur. Reúne un pabellón deportivo, canchas al aire libre, un parque infantil y zonas para pasear. Un ascensor panorámico salva un desnivel de más de 30 metros entre las calles Agustina de Aragón y Fortunata y comunica Las Rehoyas con Schamann. El complejo deportivo municipal, de 18.000 metros cuadrados, se inauguró remodelado en diciembre de 2015.",
+        "link": "https://lpavisit.com/atractivo/parque-de-las-rehoyas/"
+      }
     },
     {
       "id": "mercado-de-altavista",
@@ -212,7 +322,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "El mercado municipal de Altavista está en la calle Juan Ramón Jiménez, entre los barrios de Schamann y Escaleritas, en el distrito de Ciudad Alta. Se inauguró en enero de 1970 y pasó a ser de titularidad municipal en 1977. El edificio, de 1800 m², dispone en su planta principal de 63 puestos donde se venden pescado, carne, fruta y verdura, además de pan, quesos, charcutería, flores o platos elaborados. En enero de 2020 el Ayuntamiento descubrió una placa conmemorativa por su 50 aniversario.",
+        "link": "https://mercadoaltavista.es/"
+      }
     },
     {
       "id": "castillo-de-san-francisco",
@@ -221,7 +335,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "También llamado Castillo del Rey o del Paso Angosto, corona el Risco de San Francisco, a la espalda del barrio de Triana. Felipe III lo mandó construir tras el ataque holandés de Pieter van der Does en 1599 y la obra, encargada al ingeniero Próspero Casola, se dio por terminada en 1625. Su planta irregular se adapta al terreno y la muralla norte lo unía al Castillo de Mata. Desde 1898 sirvió de prisión militar. Es bien de interés cultural desde 1993 y propiedad municipal desde 1997.",
+        "link": "https://es.wikipedia.org/wiki/Castillo_de_San_Francisco_(Las_Palmas_de_Gran_Canaria)",
+        "photo": {
+          "file": "castillo-de-san-francisco.webp",
+          "author": "Raffaesalva",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Vista_total,_Castillo_de_San_Francisco.jpg"
+        }
+      }
     },
     {
       "id": "cementerio-ingles",
@@ -230,7 +354,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "En la ladera del barrio de San José, el Cementerio Inglés es la institución británica más antigua de Las Palmas. Lo creó en 1834 un grupo de comerciantes ingleses: en 1829 la autoridad eclesiástica había negado sepultura en el cementerio católico a la esposa del comerciante Benjamin Walter Cooper. El primer enterramiento, el del marinero George Williams, se hizo en diciembre de 1835. Aquí están las tumbas de familias como los Miller, los Blandy o los Pilcher. En abril de 2010 fue declarado Bien de Interés Cultural con categoría de Monumento.",
+        "link": "https://mappingcanarias.com/las-palmas-de-gran-canaria/mapa/cementerio-de-los-ingleses",
+        "photo": {
+          "file": "cementerio-ingles.webp",
+          "author": "Retogenes",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Vista_exterior_del_cementerio_inglés_de_Las_Palmas_de_Gran_Canaria.jpg"
+        }
+      }
     },
     {
       "id": "parque-gloria-fuertes",
@@ -239,7 +373,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Parque de barrio de Casablanca III, en el Distrito Centro, situado en la calle Aconcagua, entre los bloques 8 y 10. Su área de juegos infantiles se reabrió en 2012 después de una reforma pedida por los vecinos, en la que se reubicaron los juegos infantiles y deportivos y se renovó el pavimento. En febrero de 2020 el Ayuntamiento abrió aquí un área canina de 550 metros cuadrados con cinco juegos, vallado perimetral y bebedero, un proyecto presentado por los vecinos a través de los presupuestos participativos.",
+        "link": "https://www.laspalmasgc.es/es/ayuntamiento/prensa-y-comunicacion/notas-de-prensa/nota-de-prensa/Casablanca-III-estrena-un-nuevo-area-para-perros-de-mas-de-500-metros-cuadrados/"
+      }
     },
     {
       "id": "iglesia-san-francisco-javier",
@@ -257,7 +395,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Ocupa la parcela del Estadio Insular, inaugurado el 25 de diciembre de 1944 y campo de la Unión Deportiva Las Palmas hasta 2003, cuando el club se trasladó al Estadio de Gran Canaria. Las obras para convertirlo en parque empezaron el 29 de mayo de 2014 con la demolición de parte de la estructura. Tiene 6000 metros cuadrados de césped, una zona arbolada de 2300 con palmeras de 48 especies, canchas, un circuito de 300 metros y un parque infantil. Lonas con imágenes de jugadores y una escultura de acero en forma de balón recuerdan al equipo.",
+        "link": "https://es.wikipedia.org/wiki/Estadio_Insular",
+        "photo": {
+          "file": "parque-antiguo-estadio-insular.webp",
+          "author": "Beta15",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Parque_del_estadio_Insular.jpg"
+        }
+      }
     },
     {
       "id": "real-club-nautico",
@@ -266,7 +414,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Sociedad privada, deportiva, cultural y recreativa fundada en 1908. Su sede está junto a la playa de Las Alcaravaneras y la Base Naval, en un recinto de 45 000 metros cuadrados con una marina de 135 atraques, piscina de 50 metros, gimnasio y canchas. El club ha aportado diecinueve regatistas olímpicos, seis de ellos medallistas de oro, entre ellos Luis Doreste, campeón en Los Ángeles 1984 y Barcelona 1992. Ha organizado campeonatos del mundo de las clases Snipe (1965) y Optimist (2003) y recibió la Medalla de Oro de Canarias en 2000.",
+        "link": "https://rcngc.com/"
+      }
     },
     {
       "id": "playa-de-las-canteras",
@@ -275,7 +427,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Es la principal playa urbana de la ciudad y la más extensa: algo más de tres kilómetros de arena fina y dorada en el lado poniente del istmo de Guanarteme, a partir de las estribaciones de La Isleta. En gran parte de su longitud la resguarda La Barra, una barra natural de arenisca paralela a la orilla que puede alcanzarse a nado. De esa roca se extrajo piedra para construcciones como la Catedral de Canarias, y de aquella cantera viene el nombre actual; antes se la conocía como playa del Arrecife. Un paseo peatonal la recorre entera.",
+        "link": "https://es.wikipedia.org/wiki/Playa_de_Las_Canteras",
+        "photo": {
+          "file": "playa-de-las-canteras.webp",
+          "author": "Pepelopex",
+          "license": "CC BY-SA 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Canteras_Beach-Pe%C3%B1a_La_Vieja_%26_Los_Lisos-Gran_Canaria.jpg"
+        }
+      }
     },
     {
       "id": "las-arenas",
@@ -284,7 +446,11 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Centro comercial inaugurado en noviembre de 1993 en la zona de El Rincón, al sur del barrio de Guanarteme y al final del paseo de Las Canteras. Según su web, abrió con más de 146 000 metros cuadrados y una ampliación lo llevó a los 193 000 actuales. Un estudio de geógrafos de la Universidad de Las Palmas de Gran Canaria lo describía en 2007 sobre una parcela de 50 000 metros cuadrados y con cinco niveles: tres comerciales y dos de aparcamiento subterráneo. Reúne tiendas, restauración, cine e hipermercado, y tiene una terraza con vistas.",
+        "link": "https://cclasarenas.com/el-centro/"
+      }
     },
     {
       "id": "hospital-doctor-negrin",
@@ -293,7 +459,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Inaugurado en 1999, sustituyó al antiguo Hospital Nuestra Señora del Pino, que desde 1964 había sido el principal centro de asistencia especializada de la provincia. Lleva el nombre de Juan Negrín, médico y político grancanario que presidió el Gobierno durante la Segunda República. Atiende al norte, las medianías y el oeste de Gran Canaria y es hospital de referencia para Lanzarote y La Graciosa. Cuenta con 747 camas, 20 quirófanos y 86 locales de consultas externas, y se levanta junto a la autovía GC-23.",
+        "link": "https://es.wikipedia.org/wiki/Hospital_Universitario_de_Gran_Canaria_Doctor_Negr%C3%ADn",
+        "photo": {
+          "file": "hospital-doctor-negrin.webp",
+          "author": "Alavisan",
+          "license": "Dominio público",
+          "source": "https://commons.wikimedia.org/wiki/File:Hospital_Doctor_Negr%C3%ADn.JPG"
+        }
+      }
     },
     {
       "id": "hospital-insular",
@@ -302,7 +478,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "El Cabildo de Gran Canaria aprobó su construcción en 1968; la primera piedra se colocó el 24 de febrero de 1969 y el hospital se inauguró el 13 de febrero de 1971. El primer paciente ingresó el 20 de septiembre de ese año. Con el Hospital Universitario Materno Infantil forma un complejo que atiende al sur y al este de Gran Canaria y sirve de referencia para Fuerteventura. Está al borde de la Avenida Marítima, cerca de la entrada sur de la ciudad, tiene 718 camas y lo gestiona el Servicio Canario de Salud. Es universitario desde 1997.",
+        "link": "https://es.wikipedia.org/wiki/Hospital_Universitario_Insular_de_Gran_Canaria",
+        "photo": {
+          "file": "hospital-insular.webp",
+          "author": "Pepelopex",
+          "license": "CC BY-SA 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Hospital_Universitario_Insular_de_Gran_Canaria.jpg"
+        }
+      }
     },
     {
       "id": "estadio-de-gran-canaria",
@@ -311,7 +497,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "Campo de la Unión Deportiva Las Palmas en el barrio de Siete Palmas, propiedad del Cabildo de Gran Canaria. Se inauguró el 8 de mayo de 2003, en sustitución del Estadio Insular, con un partido ante el Anderlecht belga (2-1); el primer gol fue de Rubén Castro. La reforma iniciada en 2014 eliminó la pista de atletismo, acercó las gradas al césped y dejó el aforo en 32 392 espectadores. Es el recinto deportivo de mayor capacidad de Canarias y una de las sedes elegidas para el Mundial de 2030, lo que obliga a una segunda reforma.",
+        "link": "https://es.wikipedia.org/wiki/Estadio_de_Gran_Canaria",
+        "photo": {
+          "file": "estadio-de-gran-canaria.webp",
+          "author": "Josef Gradinger",
+          "license": "CC0 1.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Blick_ins_Estadio_de_Gran_Canaria.jpg"
+        }
+      }
     },
     {
       "id": "castillo-de-mata",
@@ -320,7 +516,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "El primer Castillo de Mata fue un torreón redondo situado al final de la muralla de la ciudad, obra del ingeniero Juan Alonso Rubián en 1577. Dañado en 1599 por la armada holandesa de Pieter van der Does, lo reedificó Francisco de la Rúa en forma de casamata, de donde le viene el nombre. Alojó a artilleros del ejército hasta 1976 y a la Legión hasta 1997. En 2002 una intervención arqueológica descubrió el cubelo original y el 18 de marzo de 2015 abrió como museo dedicado a la historia del castillo y a la relación de la ciudad con el mar.",
+        "link": "https://es.wikipedia.org/wiki/Castillo_de_Mata",
+        "photo": {
+          "file": "castillo-de-mata.webp",
+          "author": "Beta15",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Castillo_de_Mata_3.jpg"
+        }
+      }
     }
   ],
   "buildings": {

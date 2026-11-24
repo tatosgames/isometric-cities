@@ -55,3 +55,22 @@ Fonti valutate ma non ancora in produzione (ortofoto 20 cm SITCAN, altri dataset
 | `casa-de-colon.webp` | Carlos Teixidor Cadenas | CC BY-SA 4.0 | [Casa de Colón, Museo](https://commons.wikimedia.org/wiki/File:Casa_de_Col%C3%B3n,_Museo,_Las_Palmas_de_Gran_Canaria,_Espa%C3%B1a.jpg) |
 | `teatro-perez-galdos.webp` | Felix König | CC BY 3.0 (anche GFDL) | [Teatro Pérez Galdós 2010](https://commons.wikimedia.org/wiki/File:Teatro_P%C3%A9rez_Gald%C3%B3s_2010.jpg) |
 | `mercado-de-vegueta.webp` | Odynny | Pubblico dominio | [Mercado de Vegueta](https://commons.wikimedia.org/wiki/File:Mercado_de_Vegueta.jpg) |
+| `gabinete-literario.webp` | TeodoroSantana | CC BY-SA 3.0 ES | [Fachada del Gabinete Literario](https://commons.wikimedia.org/wiki/File:Fachada_del_Gabinete_Literario.JPG) |
+| `san-telmo.webp` | Marc Ryckaert (MJJR) | CC BY 3.0 | [GC Las Palmas Parque de San Telmo R01](https://commons.wikimedia.org/wiki/File:GC_Las_Palmas_Parque_de_San_Telmo_R01.jpg) |
+| `plaza-de-la-feria.webp` | Beta15 | CC BY-SA 4.0 | [La plaza de la Feria 02](https://commons.wikimedia.org/wiki/File:La_plaza_de_la_Feria_02.jpg) |
+| `parque-doramas.webp` | Bengt Nyman | CC BY-SA 4.0 | [Las Palmas 2016 26](https://commons.wikimedia.org/wiki/File:Las_Palmas_2016_26.jpg) |
+| `santo-domingo.webp` | Tamara k | CC BY-SA 4.0 | [Parroquia de Santo Domingo de Guzman, Las Palmas](https://commons.wikimedia.org/wiki/File:Parroquia_de_Santo_Domingo_de_Guzman,_Las_Palmas.jpg) |
+| `parque-santa-catalina.webp` | Canarina | CC BY-SA 3.0 | [Parque Santa Catalina - panoramio](https://commons.wikimedia.org/wiki/File:Parque_Santa_Catalina_-_panoramio.jpg) |
+| `auditorio-alfredo-kraus.webp` | Pepelopex | CC BY-SA 3.0 | [Auditorio alfredo kraus las palmas de gran canaria](https://commons.wikimedia.org/wiki/File:Auditorio_alfredo_kraus_las_palmas_de_gran_canaria.jpg) |
+| `castillo-de-la-luz.webp` | Bengt Nyman from Vaxholm, Sweden | CC BY 2.0 | [Castillo de la Luz D81 5344 (27910263459)](https://commons.wikimedia.org/wiki/File:Castillo_de_la_Luz_D81_5344_(27910263459).jpg) |
+| `mercado-del-puerto.webp` | Pepelopex | CC BY-SA 3.0 | [Mercado del Puerto-fachada poniente-Las Palmas de Gran Canaria](https://commons.wikimedia.org/wiki/File:Mercado_del_Puerto-fachada_poniente-Las_Palmas_de_Gran_Canaria.jpg) |
+| `castillo-de-san-francisco.webp` | Raffaesalva | CC BY-SA 4.0 | [Vista total, Castillo de San Francisco](https://commons.wikimedia.org/wiki/File:Vista_total,_Castillo_de_San_Francisco.jpg) |
+| `cementerio-ingles.webp` | Retogenes | CC BY-SA 4.0 | [Vista exterior del cementerio inglés de Las Palmas de Gran Canaria](https://commons.wikimedia.org/wiki/File:Vista_exterior_del_cementerio_inglés_de_Las_Palmas_de_Gran_Canaria.jpg) |
+| `parque-antiguo-estadio-insular.webp` | Beta15 | CC BY-SA 4.0 | [Parque del estadio Insular](https://commons.wikimedia.org/wiki/File:Parque_del_estadio_Insular.jpg) |
+| `playa-de-las-canteras.webp` | Pepelopex | CC BY-SA 3.0 | [Canteras Beach-Peña La Vieja & Los Lisos-Gran Canaria](https://commons.wikimedia.org/wiki/File:Canteras_Beach-Pe%C3%B1a_La_Vieja_%26_Los_Lisos-Gran_Canaria.jpg) |
+| `hospital-doctor-negrin.webp` | Alavisan | Dominio público | [Hospital Doctor Negrín](https://commons.wikimedia.org/wiki/File:Hospital_Doctor_Negr%C3%ADn.JPG) |
+| `hospital-insular.webp` | Pepelopex | CC BY-SA 3.0 | [Hospital Universitario Insular de Gran Canaria](https://commons.wikimedia.org/wiki/File:Hospital_Universitario_Insular_de_Gran_Canaria.jpg) |
+| `estadio-de-gran-canaria.webp` | Josef Gradinger | CC0 1.0 | [Blick ins Estadio de Gran Canaria](https://commons.wikimedia.org/wiki/File:Blick_ins_Estadio_de_Gran_Canaria.jpg) |
+| `castillo-de-mata.webp` | Beta15 | CC BY-SA 4.0 | [Castillo de Mata 3](https://commons.wikimedia.org/wiki/File:Castillo_de_Mata_3.jpg) |
+
+**Schede dei luoghi, secondo gruppo (24 novembre 2026).** Altre 26 schede. Testi scritti per il progetto da Wikipedia in spagnolo, dalla web turistica del Ayuntamiento (lpavisit.com), da note di stampa di laspalmasgc.es, da Mapping Canarias, dai siti delle istituzioni e, per singoli luoghi, da La Provincia, dal Colegio de Arquitectos de Gran Canaria e da un articolo della rivista Vegueta (ULPGC); consultati il 24 novembre 2026. Le foto sono nella tabella qui sopra. Senza foto libera adatta su Wikimedia Commons: El Obelisco, Club de Natación Metropole, Parroquia de San Cristóbal, Parque de La Ballena, Parque de Las Rehoyas, Mercado de Altavista, Parque Gloria Fuertes, Real Club Náutico, Centro Comercial Las Arenas.

@@ -830,3 +830,15 @@ Richiesti da Luca dopo la spiaggia. I tre complessi sono nel dato comunale, cias
 - **Catture** in Chromium prima e dopo sui tre complessi, su Vegueta e Triana, e un dettaglio ravvicinato dei balconi. Nessun errore in pagina. `check:data`, typecheck, build, `qa-drive-route`, `qa-pedestrians` e `qa-ground` superati.
 
 Limiti: le volumetrie restano quelle del dato comunale. Corpi bassi e torri si possono distinguere solo con `lidar-check.py` e l'ortofoto, che richiedono la cache. Triangoli e cadenza su telefono nei settori di Vegueta non rimisurati dopo i balconi nuovi.
+
+## Schede di tutti i luoghi (24 novembre 2026)
+
+Aggiunte 26 schede: 30 luoghi su 31 del catalogo hanno ora testo e link, 21 anche la foto. Ricerca divisa fra tre agenti, con una regola: ogni fatto del testo accompagnato dalla frase letterale della fonte e dal suo indirizzo, autore e licenza di ogni foto letti dalla pagina del file su Wikimedia Commons. Testi fra 487 e 578 caratteri.
+
+- **Corretto in rilettura.** Mercado del Puerto: tolta l'attribuzione ai tecnici della compagnia Eiffel, sostenuta solo da Wikipedia senza citazione. Castillo de San Francisco: tolto «hoy está en estado de abandono», senza data. Parque de Las Rehoyas: tolta la superficie, ricavata in automatico da un PDF. Date in conflitto tra le fonti lasciate fuori (apertura del Parque del Estadio Insular, ricostruzione del Castillo de Mata, inizio dei lavori del Castillo de San Francisco).
+- **Foto scartate a vista.** Real Club Náutico (scattata da un'auto, mostra un cartellone) e Parque de La Ballena (mostra il viadotto e un campo di calcio, non il parco).
+- **Senza foto libera adatta:** El Obelisco, Club de Natación Metropole, Parroquia de San Cristóbal, Parque de La Ballena, Parque de Las Rehoyas, Mercado de Altavista, Parque Gloria Fuertes, Real Club Náutico, Centro Comercial Las Arenas. La scheda si apre senza riquadro.
+- **Senza scheda:** Iglesia San Francisco Javier. Solo dati da elenchi diocesani, e tutte le fonti collocano la parrocchia a Hoya de la Plata, non a Pedro Hidalgo: da controllare a quale edificio punta il marker.
+- **Fonte unica, da rileggere:** El Obelisco (Mapping Canarias), Parroquia de San Cristóbal (un articolo di La Provincia; il tempio risulta dedicato a Nuestra Señora del Buen Viaje), Parque de La Ballena (scheda del progetto al Colegio de Arquitectos, stato al 2019). I numeri di letti e posti degli ospedali e dei mercati vengono da fonti senza data.
+
+`check:data` e build superati. In Chromium, a 1280 × 800, le schede si aprono con testo, foto dove prevista e dominio del link corretto; al momento del commit controllate le prime 13 del menu, le altre in corso. Nessuna prova su telefono fisico. I testi non sono stati riletti da una persona del posto.

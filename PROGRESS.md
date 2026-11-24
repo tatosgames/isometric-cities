@@ -144,6 +144,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AJ · Las Arenas, ospedali e balconi di legno.** Tre luoghi nuovi nel menu (29): Centro Comercial Las Arenas, Hospital Doctor Negrín, Hospital Insular. Il centro commerciale perde le finestre da palazzina, gli ospedali hanno muri bianchi e finestre senza balconi (`balconies: false`). Le case fino a 15 m di Vegueta e Triana hanno il balcone chiuso di legno con tettuccio. [Verifica](docs/QA.md#las-arenas-ospedali-e-balconi-di-legno-24-novembre-2026). Aperto: le volumetrie vere dei tre complessi (oggi un blocco all'altezza massima) richiedono LiDAR e ortofoto sulla macchina con la cache.
 
+**AK · Schede di tutti i luoghi.** 30 luoghi su 31 hanno la scheda con testo e link; 21 anche la foto. Senza foto libera adatta: El Obelisco, Club de Natación Metropole, Parroquia de San Cristóbal, Parque de La Ballena, Parque de Las Rehoyas, Mercado de Altavista, Parque Gloria Fuertes, Real Club Náutico, Centro Comercial Las Arenas. La Iglesia San Francisco Javier resta con la sola pillola: fatti insufficienti, e le fonti la collocano a Hoya de la Plata. [Verifica](docs/QA.md#schede-di-tutti-i-luoghi-24-novembre-2026). Da fare: rilettura dei testi da parte di Luca; foto proprie per i nove luoghi senza.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.
