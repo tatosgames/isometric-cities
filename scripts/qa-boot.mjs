@@ -64,8 +64,9 @@ try {
     await page.waitForLoadState('domcontentloaded');
     assert.equal(await page.getByRole('progressbar').isVisible(),true);
     assert.equal(await page.locator('footer').isVisible(),true);
-    await page.keyboard.press('Tab');
-    assert.equal(await page.locator('footer a').first().evaluate(link => link === document.activeElement),true);
+    // While the map opens the footer carries only the step note: the credits wait until it is open.
+    assert.equal(await page.locator('footer a').first().isVisible(),false);
+    assert.match(await page.locator('#boot-step').textContent(),/ — $/);
     await page.waitForFunction(() => Number(document.querySelector('#boot-progress').getAttribute('aria-valuenow')) > 12);
     core.release();
     await zone.requested;
@@ -83,7 +84,7 @@ try {
     const credits = await page.locator('footer').boundingBox();
     const playButton = await page.getByRole('button',{name:'Play',exact:true}).boundingBox();
     assert.ok(credits && playButton && credits.x + credits.width < playButton.x);
-    assert.equal(await page.locator('footer a').first().evaluate(link => link === document.activeElement),true);
+    assert.equal(await page.locator('footer a').first().isVisible(),true);
     assert.equal(dataRequests.length,2,'Core and terrain must use the preloaded responses');
     const startup = await timings(page);
     assert.ok(startup.interactive > startup['ready-frame']);

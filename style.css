@@ -70,7 +70,7 @@
 #map[data-boot="revealing"] #boot{opacity:0;transition:opacity 260ms ease-out}
 #map:is([data-boot="picker"],[data-boot="ready"]) #boot,
 #map[data-boot="failed"] #boot-progress{display:none}
-#map:not([data-boot="ready"])>footer{z-index:3}
+#map:not([data-boot="ready"])>footer{z-index:3}#map:not([data-boot="ready"]) #credits-text{display:none}
 #boot-error{text-align:center;padding:20px}
 #boot-error p{margin:0 0 14px}
 #boot-error button{min-height:44px;padding:0 18px;border:1px solid #fffcef;border-radius:8px;background:#31584c;color:#fffcef;font:600 15px system-ui}
