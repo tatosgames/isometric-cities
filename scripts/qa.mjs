@@ -5,6 +5,7 @@ import './qa-drive-pose.mjs';
 import './qa-drive-location.mjs';
 import './qa-pedestrians.mjs';
 import './qa-ground.mjs';
+import './qa-map-camera.mjs';
 const browser=await launchBrowser();
 const {server,origin:served}=await serveMap();
 const origin=served.replace(/\/$/,'');

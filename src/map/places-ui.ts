@@ -10,9 +10,13 @@ interface PlaceControl {details: Place['properties']; number: string; point: T.V
 // Numeric selections were written by the first viewer, in this fixed order.
 const legacyIds=['santa-ana','casa-de-colon','mercado-de-vegueta','teatro-perez-galdos','gabinete-literario','san-telmo'];
 
-/** `frame` is where the place should sit on screen once its card is open, in pixels from the centre of the map. */
-export function createPlacesUI(features: Place[], altitude: Altitude, onSelect: (id: string,point: T.Vector3,frame: {x: number;y: number}) => boolean){
-  const card=createPlaceCard();
+/**
+ * `frame` is where the place should sit on screen once its card is open, in pixels from the centre of the map.
+ * `onRelease` runs when the card stops claiming part of the view: closed, or folded to its name on a phone.
+ */
+export function createPlacesUI(features: Place[], altitude: Altitude, onSelect: (id: string,point: T.Vector3,frame: {x: number;y: number}) => boolean,
+  onRelease: () => void){
+  const card=createPlaceCard(onRelease);
   const nav=required(document.querySelector('nav'),'places navigation');
   const licences=required(nav.querySelector('details'),'data licences');
   const toggle=element('index-toggle');

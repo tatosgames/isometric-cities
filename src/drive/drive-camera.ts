@@ -1,5 +1,5 @@
 import {MathUtils,Vector3} from 'three';
-import { wrapAngle as shortest } from '../geometry.ts';
+import { approach, wrapAngle as shortest } from '../geometry.ts';
 
 const radians=MathUtils.degToRad;
 const modes=[
@@ -41,7 +41,7 @@ export function makeDriveCamera(mapDirection: Vector3){
       if(Math.hypot(car.vx,car.vy)>=2){
         const error=shortest(Math.atan2(car.vy,-car.vx)-travelYaw);
         const limit=radians(100)*dt;
-        travelYaw=shortest(travelYaw+MathUtils.clamp(error*(-Math.expm1(-3*dt)),-limit,limit));
+        travelYaw=shortest(travelYaw+MathUtils.clamp(error*approach(3,dt),-limit,limit));
       }
       const previous=blend*blend*(3-2*blend);
       blend=Math.min(1,blend+2*dt);
@@ -60,7 +60,7 @@ export function makeDriveCamera(mapDirection: Vector3){
       if(wanted>basePitch)clearTime=0;else clearTime+=dt;
       const needed=wanted-basePitch;
       if(needed>=lift || clearTime>=.5){
-        lift+=(needed-lift)*(-Math.expm1(-(needed>lift?18:3)*dt));
+        lift+=(needed-lift)*approach(needed>lift?18:3,dt);
       }
       pose.pitch=MathUtils.lerp(from.pitch,basePitch+(index?lift:0),t);
       pose.zoom=MathUtils.lerp(from.zoom,mode.zoom,t);

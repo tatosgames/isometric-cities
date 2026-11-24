@@ -16,7 +16,7 @@ const SIDE='(min-width:700px) and (min-height:481px), (max-height:480px) and (mi
  * one without keeps the small name pill. On a phone the panel is a sheet that folds back to the pill when
  * dragged down or when the map is moved, and unfolds on a tap.
  */
-export function createPlaceCard(){
+export function createPlaceCard(released: () => void){
   const card=required(document.querySelector<HTMLElement>('article'),'place card');
   const part=<E extends HTMLElement>(selector: string)=>required(card.querySelector<E>(selector),selector);
   const figure=part('.card-photo'),image=part<HTMLImageElement>('.card-photo img'),credit=part<HTMLAnchorElement>('.card-photo a');
@@ -111,6 +111,7 @@ export function createPlaceCard(){
     for(const animation of running)animation.cancel();
     running=[];
     shown=null;
+    released();
     const out=card.animate(side.matches || card.dataset.kind==='pill'
       ? [{opacity:1},{opacity:0,transform:'translateY(8px)'}]
       : [{transform:'none'},{transform:'translateY(100%)'}],{duration:220,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});
@@ -124,6 +125,7 @@ export function createPlaceCard(){
   function fold(){
     if(!shown?.card || folded || side.matches || card.hidden || leaving)return;
     settle();folded=true;
+    released();
     present(false,true);
   }
   function unfold(){
