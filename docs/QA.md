@@ -806,3 +806,5 @@ Typecheck, build, `qa-drive-pose`, `qa-drive-route` e `qa-pedestrians` superati.
 - **Catture**: marker del Teatro Pérez Galdós centrato sopra il foglio sul telefono; inquadratura di guida invariata.
 
 Non provati su telefono fisico: scivolata dopo il trascinamento e pizzico verso il punto indicato.
+
+**Seguito: pedoni.** Rotazione verso la direzione di marcia o di fuga (`pedestrians.ts`), comparsa e salto nella vista (`drive-crowd.ts`) usano `approach` al posto di `min(1, dt·k)`: erano gli unici smorzamenti legati al `dt` del fotogramma. Sterzo, beccheggio in frenata e presa di auto e pattuglie restano come sono, perché `drive-physics.ts` gira già a passo fisso di 1/120 s. `qa-pedestrians` (più vicino a terra 5,14 m, margine 2,3 m), `qa-drive-pose` (stesse misure: 60 km/h a 1,442 s, frenata 0,933 s / 11,5 m), `qa-drive-camera`, `qa-drive-location`, typecheck e build superati.

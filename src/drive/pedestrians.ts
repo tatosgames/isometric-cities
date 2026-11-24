@@ -1,5 +1,5 @@
 import type { Road, Surface } from '../data/types.ts';
-import { pointInRing as inside, wrapAngle } from '../geometry.ts';
+import { approach, pointInRing as inside, wrapAngle } from '../geometry.ts';
 
 // Ambient pedestrians for the driving mode. Pure logic: positions in map metres, no rendering.
 // They stroll along road edges, footways and squares near the car and jump aside when a vehicle
@@ -162,7 +162,7 @@ export function makePedestrians(roads: Road[],surfaces: Surface[],world: {free(x
       }
       if(moved){
         const turn=wrapAngle(Math.atan2(dy,dx)-w.h);
-        w.h+=turn*Math.min(1,dt*(w.alarm>0?18:6));
+        w.h+=turn*approach(w.alarm>0?18:6,dt);
       }
       resolve(w,threats);
     }
