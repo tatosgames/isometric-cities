@@ -795,6 +795,20 @@ Typecheck, build, `qa-drive-pose`, `qa-drive-route` e `qa-pedestrians` superati.
 
 `npm test` con `CHROME_PATH` qui non arriva alle schede: dopo le prove di guida, pedoni e suolo (superate) si ferma alla riga 49 di `qa.mjs`, in attesa che i settori iniziali finiscano di caricarsi entro 30 s, prima di toccare un luogo. Due giri, stesso punto. È il caricamento sotto WebGL software; non è stato confrontato con il commit precedente. Da ripetere con Chrome su Windows.
 
+## Camera della mappa condivisa, zoom verso il cursore, scivolata e offset della scheda (24 novembre 2026)
+
+`MapControls` al posto di `OrbitControls` configurato a mano; camera ortografica, bordi in pixel, distanza e angolo comuni a mappa, guida, editor e laboratori (`src/render/map-camera.ts`); la scheda del luogo sposta l'immagine con `setViewOffset` invece di spostare il bersaglio; smorzamenti della camera di guida esponenziali al secondo. Contratto aggiornato in [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
+
+- **`qa-map-camera.mjs` (nuova, inclusa in `npm test`).** Geometria dell'offset: il bersaglio cade esattamente allo spostamento chiesto e il punto ricalcolato al centro dello schermo cade al centro (errore < 1e-6 px). Smorzamento identico dopo 1 s a 30, 60 e 144 fps. Nel browser, 1440 × 900: la rotellina tiene fermo il punto sotto il puntatore (scarto < 3 px), la mappa scivola dopo il rilascio e poi si ferma, Plaza de Santa Ana finisce al centro della parte lasciata libera dal pannello (< 3 px) e ci resta dopo una rotazione e dopo `+`, la chiusura della scheda non muove l'immagine (< 1,5 px) e `data-view` resta uguale. Superata.
+- **`qa-drive-camera`, `qa-editor`, `qa-drive-pose`, `qa-drive-location`, `qa-pedestrians`, `qa-ground`:** superate.
+- **`qa.mjs`, desktop**, in Chromium con WebGL software e attese allungate: superata tutta la parte mappa (vento a mappa ferma, quattro scatti con centro e zoom invariati, panoramica, trascinamento, rotellina, scheda di San Telmo con rotazione e cambio di orientamento senza cambiare `data-view`, tre perdite di contesto, ricarica con Santa Ana). Nella guida si ferma a due attese legate al tempo reale: la cattura entro 120 s e il riepilogo `#over` non ancora visibile subito dopo la perdita del contesto. Tempo di cattura misurato due volte per build: 224 e 71 s sul commit precedente, 53 e 183 s su questo; il limite si supera su entrambe.
+- **`qa.mjs`, telefono 390 × 844**: superata fino in fondo (mappa, scheda, pizzico, perdita del contesto, ricarica, guida, cattura, ritorno) dopo due interventi. Il primo è nel codice: `#status` sta sopra la scheda (`z-index: 5`), perché il foglio copriva «Recargar». Il secondo solo nella copia locale della prova: chiudere la scheda ripristinata prima di Play, che il foglio copre. Il secondo punto resta aperto, vedi `PROGRESS.md`.
+- **Catture**: marker del Teatro Pérez Galdós centrato sopra il foglio sul telefono; inquadratura di guida invariata.
+
+Non provati su telefono fisico: scivolata dopo il trascinamento e pizzico verso il punto indicato.
+
+**Seguito: pedoni.** Rotazione verso la direzione di marcia o di fuga (`pedestrians.ts`), comparsa e salto nella vista (`drive-crowd.ts`) usano `approach` al posto di `min(1, dt·k)`: erano gli unici smorzamenti legati al `dt` del fotogramma. Sterzo, beccheggio in frenata e presa di auto e pattuglie restano come sono, perché `drive-physics.ts` gira già a passo fisso di 1/120 s. `qa-pedestrians` (più vicino a terra 5,14 m, margine 2,3 m), `qa-drive-pose` (stesse misure: 60 km/h a 1,442 s, frenata 0,933 s / 11,5 m), `qa-drive-camera`, `qa-drive-location`, typecheck e build superati.
+
 ## Spiagge e Paseo de Las Canteras (24 novembre 2026)
 
 Segnalato da Luca con due fotografie: a Las Canteras non si capiva che c'è una spiaggia né il lungomare. La mappa colorava il suolo solo per parchi, piazze e strade; la sabbia aveva il beige del terreno e il paseo era una linea pedonale di 2,2 m quasi dello stesso colore.

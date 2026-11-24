@@ -20,7 +20,8 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `scripts/qa-browser.mjs` | Avvio condiviso delle prove browser: scelta del browser (`CHROME_PATH`) e server della build (`MAP_URL` per una mappa già in esecuzione) |
 | `scripts/osm_buildings.py` | Monumenti assenti nello strato comunale (`osmBuildings` nel catalogo): impronta OSM, altezza stimata, id negativi |
 | `scripts/geo.py` | Origine della mappa e conversioni EPSG:32628/4083 condivise dagli script Python |
-| `src/geometry.ts` | Angolo nell'intervallo ±π e punto dentro un poligono, condivisi da mappa, guida e dati |
+| `src/geometry.ts` | Angolo nell'intervallo ±π, punto dentro un poligono e smorzamento esponenziale (`approach`), condivisi da mappa, guida e dati |
+| `src/render/map-camera.ts`, `scripts/qa-map-camera.mjs` | Camera ortografica condivisa da mappa, guida, editor e laboratori: bordi in pixel, distanza, angolo isometrico, offset della vista accanto alla scheda; prova dedicata |
 | `scripts/qa-*.mjs` (boot, drive-*, pedestrians, recovery, sectors, ground, carriageways, lod, road-lab…) | Prove Playwright mirate; `qa.mjs` è la suite completa |
 | `src/drive/drive-camera.ts` | Calcolo delle pose e transizioni della camera in guida |
 | `tsconfig.json` | Controllo rigoroso del runtime browser e del worker |

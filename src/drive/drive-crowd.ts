@@ -1,5 +1,6 @@
 import * as T from 'three';
 import type { Altitude } from '../data/types.ts';
+import { approach } from '../geometry.ts';
 import { surfaceStencil } from '../render/building-stencil.ts';
 import { breezy } from '../render/wind.ts';
 import { tint } from './car-model.ts';
@@ -29,8 +30,8 @@ export function makeCrowdView(group: T.Group,altitude: Altitude,count: number){
       people.walkers.forEach((w,i)=>{
         if(w.alive && !wasAlive[i])shown[i]=0;
         wasAlive[i]=w.alive?1:0;
-        shown[i]+=((w.alive?1:0)-shown[i])*Math.min(1,dt*7);
-        lifted[i]+=((w.air>0?2.7:0)-lifted[i])*Math.min(1,dt*16);
+        shown[i]+=((w.alive?1:0)-shown[i])*approach(7,dt);
+        lifted[i]+=((w.air>0?2.7:0)-lifted[i])*approach(16,dt);
         const fleeing=w.alarm>0;
         if(w.alive){walking++;if(!w.air)clearance=Math.min(clearance,Math.hypot(w.x-player.x,w.y-player.y));}
         // Every step is a hop: stretched on the way up, squashed on landing.

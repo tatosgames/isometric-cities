@@ -5,6 +5,7 @@ import {zonesFromCity} from '../data/sector-index.ts';
 import {streamCity} from '../render/sectors/sector-stream.ts';
 import {carGeometry,carVisualScale} from '../drive/car-model.ts';
 import {lodTransition} from '../render/sectors/lod-transition.ts';
+import {CAMERA_DISTANCE,fitPixels,makeMapCamera,mapViewDirection} from '../render/map-camera.ts';
 import type {Point} from '../data/types.ts';
 
 export async function sectorRoadLab(){
@@ -30,7 +31,7 @@ export async function sectorRoadLab(){
   renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.75));renderer.setClearColor(0xe7e5d5);
   renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
   host.prepend(renderer.domElement);
-  const scene=new T.Scene(),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
+  const scene=new T.Scene(),camera=makeMapCamera(),toCamera=mapViewDirection();
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
@@ -122,9 +123,9 @@ export async function sectorRoadLab(){
     car.visible=ui.drive;
     const w=host.clientWidth,h=host.clientHeight;
     if(renderer.domElement.clientWidth!==w||renderer.domElement.width!==Math.floor(w*renderer.getPixelRatio())||renderer.domElement.height!==Math.floor(h*renderer.getPixelRatio()))renderer.setSize(w,h,false);
-    Object.assign(camera,{left:-w/2,right:w/2,top:h/2,bottom:-h/2,zoom:Math.min(w,h)/(ui.drive?(compact?62:95):(lod?options.span:185))});
-    camera.position.copy(car.position).addScaledVector(new T.Vector3(-.82,1.15,.68).normalize(),1500);
-    camera.lookAt(car.position);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    camera.zoom=Math.min(w,h)/(ui.drive?(compact?62:95):(lod?options.span:185));fitPixels(camera,w,h);
+    camera.position.copy(car.position).addScaledVector(toCamera,CAMERA_DISTANCE);
+    camera.lookAt(car.position);camera.updateMatrixWorld();
     const changesBefore=changes;
     stream.update(camera,car.position,ui.drive);renderer.render(scene,camera);
     if(lod){

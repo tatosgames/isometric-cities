@@ -4,6 +4,7 @@ import { loadData,isCity,isRoofPalette } from '../data/load.ts';
 import type { Bounds,CityData,Point,Ring,Road } from '../data/types.ts';
 import { carGeometry,carVisualScale } from '../drive/car-model.ts';
 import { makeCity } from '../render/scene.ts';
+import { CAMERA_DISTANCE, fitPixels, makeMapCamera } from '../render/map-camera.ts';
 import { makeGroundMap } from '../render/ground-map.ts';
 import { cityMaterials } from '../render/city-materials.ts';
 import { breezy } from '../render/wind.ts';
@@ -67,7 +68,7 @@ export async function roadLab(){
   const renderer=new T.WebGLRenderer({antialias:!compact,stencil:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.75));renderer.setClearColor(0xe7e5d5);
   renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;host.prepend(renderer.domElement);
-  const scene=new T.Scene(),camera=new T.OrthographicCamera(-1,1,1,-1,1,5000);
+  const scene=new T.Scene(),camera=makeMapCamera();
   scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   const sun=new T.DirectionalLight(0xfff6ea,2.12);
   sun.target.position.set(sample.center[0],0,-sample.center[1]);sun.position.copy(sun.target.position).add(new T.Vector3(-550,690,-370));
@@ -107,7 +108,7 @@ export async function roadLab(){
   function draw(){
     const t=ui.distance/100,p=route.at(t),heading=route.at(t+.004).sub(route.at(t-.004));
     car.position.set(p.x,original.altitude(p.x,p.y)+.08,-p.y);car.rotation.y=Math.atan2(heading.y,heading.x);
-    camera.position.copy(car.position).addScaledVector(direction,1500);camera.lookAt(car.position);
+    camera.position.copy(car.position).addScaledVector(direction,CAMERA_DISTANCE);camera.lookAt(car.position);
     split.hidden=divider.hidden=!compare();
     if(compare()){
       const width=host.clientWidth,height=host.clientHeight,left=Math.round(width*Number(split.value)/100);
@@ -127,8 +128,7 @@ export async function roadLab(){
   divider.onpointermove=e=>{if(divider.hasPointerCapture(e.pointerId))drag(e);};
   function size(){
     const w=host.clientWidth,h=host.clientHeight;
-    Object.assign(camera,{left:-w/2,right:w/2,top:h/2,bottom:-h/2,zoom:Math.min(w,h)/(compact?62:95)});
-    camera.updateProjectionMatrix();renderer.setSize(w,h,false);draw();
+    camera.zoom=Math.min(w,h)/(compact?62:95);fitPixels(camera,w,h);renderer.setSize(w,h,false);draw();
   }
   function pause(){playing=false;cancelAnimationFrame(animation);play.name('Avvia percorso');}
   function tick(now:number){

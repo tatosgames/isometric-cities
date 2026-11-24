@@ -1,5 +1,5 @@
 import * as T from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { MapControls } from 'three/addons/controls/MapControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { applyPilotEdits, inPilot, isFixedBuilding, loadPilotBase, propKinds, readPilotEdits, readPilotFile } from '../data/pilot-edits.ts';
 import type { MapProp, PilotEdits, PropKind } from '../data/pilot-edits.ts';
@@ -9,6 +9,7 @@ import type { Point, Ring } from '../data/types.ts';
 import { required } from '../required.ts';
 import { GROUND_SURFACE } from '../render/ground-surface.ts';
 import { makeCity } from '../render/scene.ts';
+import { CAMERA_DISTANCE, fitPixels, makeMapCamera } from '../render/map-camera.ts';
 import type { BuildingRange } from '../render/scene.ts';
 import type { Building } from '../data/types.ts';
 import { previewBuilding } from './building-drag.ts';
@@ -36,22 +37,23 @@ async function start() {
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   host.append(renderer.domElement);
   const canvas = renderer.domElement;
-  const scene = new T.Scene(), camera = new T.OrthographicCamera(-1,1,1,-1,1,3000);
+  const scene = new T.Scene(), camera = makeMapCamera();
   scene.background = new T.Color('#e5e3d2');
   const sun = new T.DirectionalLight(0xfff6ea,2.12);
   sun.position.set(-550,690,-370);
   scene.add(sun,new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
-  const controls = new OrbitControls(camera,canvas);
+  // The map's controls: left and middle drag pan with the ground under the pointer, right drag orbits,
+  // the wheel zooms towards the pointer.
+  const controls = new MapControls(camera,canvas);
   controls.maxPolarAngle = Math.PI/2.6;
-  controls.mouseButtons.LEFT = T.MOUSE.PAN;
   controls.mouseButtons.MIDDLE = T.MOUSE.PAN;
-  controls.mouseButtons.RIGHT = T.MOUSE.ROTATE;
-  controls.touches.ONE = T.TOUCH.PAN;
+  controls.touches.TWO = T.TOUCH.DOLLY_PAN;
+  controls.zoomToCursor = true;
   controls.minZoom = .25;
   controls.maxZoom = 80;
   const [centerEast,centerNorth] = ringCenter(data.boundary);
   const overviewTarget = new T.Vector3(centerEast,0,-centerNorth);
-  const overviewOffset = new T.Vector3(-490,690,410);
+  const overviewOffset = new T.Vector3(-490,690,410).setLength(CAMERA_DISTANCE);
   controls.target.copy(overviewTarget);
   camera.position.copy(overviewTarget).add(overviewOffset);
   controls.update();
@@ -72,6 +74,10 @@ async function start() {
   function draw() {
     if (!frame) frame = requestAnimationFrame(() => {
       frame = 0;
+      // Zooming to the cursor slides the camera across its plane: an orthographic view looks the same from any
+      // distance, so it goes back to the standard one.
+      camera.position.sub(controls.target).setLength(CAMERA_DISTANCE).add(controls.target);
+      camera.updateMatrixWorld();
       for (const handle of handles) handle.scale.setScalar(4/camera.zoom);
       renderer.render(scene,camera);
     });
@@ -82,8 +88,7 @@ async function start() {
     const w = host.clientWidth, h = host.clientHeight;
     if (!w || !h) return;
     if (!fitted) { camera.zoom = overviewZoom(); fitted = true; }
-    camera.left = -w/2; camera.right = w/2; camera.top = h/2; camera.bottom = -h/2;
-    camera.updateProjectionMatrix();
+    fitPixels(camera,w,h);
     renderer.setSize(w,h);
     draw();
   }).observe(host);
@@ -467,7 +472,7 @@ async function start() {
 
   function showView(target: T.Vector3,offset: T.Vector3,zoom: number) {
     controls.target.copy(target);
-    camera.position.copy(target).add(offset);
+    camera.position.copy(target).addScaledVector(offset.clone().normalize(),CAMERA_DISTANCE);
     camera.zoom = T.MathUtils.clamp(zoom,controls.minZoom,controls.maxZoom);
     camera.updateProjectionMatrix();
     controls.update();

@@ -19,6 +19,8 @@ import {makePedestrians} from './pedestrians.ts';
 import {makeDriveEffects} from './drive-effects.ts';
 import {makeCrowdView} from './drive-crowd.ts';
 import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
+import { approach } from '../geometry.ts';
+import { CAMERA_DISTANCE, screenOffsetOnGround } from '../render/map-camera.ts';
 
 /** Destination colour: marker and beam. Kept apart from the coins' yellow so the two never read as one thing. */
 const DESTINATION='#3cc9b8';
@@ -150,7 +152,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   const lead=new T.Vector3(),screen=new T.Vector3();
   const goalLabel=required(el('goal').querySelector('b'),'goal label');
   let goalFlight=1,goalText='';
-  const focus=new T.Vector3();
+  const focus=new T.Vector3(),chase=new T.Vector3(),targetPoint=new T.Vector3();
   const pois=locations.map((f,i)=>({name:f.properties.name,number:String(i+1).padStart(2,'0'),x:f.properties.xy[0],y:f.properties.xy[1]}));
   const route=makeDriveRoute(pois,altitude,TUNE,COINS);
   const {coins}=route;
@@ -468,9 +470,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     // the follow itself is tight, which keeps the car steady on screen.
     const speed=Math.hypot(player.vx,player.vy);
     const leadScale=speed?driveLookAhead(speed,TUNE.player.maxSpeed)/speed:0;
-    lead.lerp(new T.Vector3(player.vx*leadScale,0,-player.vy*leadScale),Math.min(1,dt*TUNE.leadRate));
+    lead.lerp(chase.set(player.vx*leadScale,0,-player.vy*leadScale),approach(TUNE.leadRate,dt));
     const cx=player.x+lead.x,cy=player.y-lead.z;
-    focus.lerp(new T.Vector3(cx,playerGround,-cy),Math.min(1,dt*TUNE.followRate));
+    focus.lerp(chase.set(cx,playerGround,-cy),approach(TUNE.followRate,dt));
     // Kick: a damped spring back to rest, in small steps so a long frame cannot blow it up.
     for(let n=Math.max(1,Math.ceil(dt*240)),h=dt/n;n>0;n--){
       kickVX-=(TUNE.kickStiff*kickX+TUNE.kickDamp*kickVX)*h;kickVY-=(TUNE.kickStiff*kickY+TUNE.kickDamp*kickVY)*h;
@@ -479,20 +481,17 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const reach=Math.hypot(kickX,kickY);
     if(reach>TUNE.kickMax){kickX*=TUNE.kickMax/reach;kickY*=TUNE.kickMax/reach;}
     const nearest=Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y)));
-    paceEase+=(Math.min(1,speed/TUNE.player.maxSpeed)-paceEase)*Math.min(1,dt*TUNE.paceRate);
-    threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*Math.min(1,dt*TUNE.paceRate);
+    paceEase+=(Math.min(1,speed/TUNE.player.maxSpeed)-paceEase)*approach(TUNE.paceRate,dt);
+    threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*approach(TUNE.paceRate,dt);
     // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
     const wantZoom=state==='caught'?(freeze?zoomNow:1+TUNE.zoomCaught):1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
-    zoomNow+=(wantZoom-zoomNow)*Math.min(1,dt*TUNE.zoomRate);
+    zoomNow+=(wantZoom-zoomNow)*approach(TUNE.zoomRate,dt);
     const base=Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide);
     const pose=rig.update(dt,player,cabinIsHidden);
     const zoom=base*zoomNow*pose.zoom;
-    const targetPoint=focus.clone().add(new T.Vector3(kickX,0,-kickY));
-    // Shift in the camera's vertical screen axis, expressed as horizontal ground metres.
-    const advance=host.clientHeight*pose.framing/(zoom*pose.direction.y);
-    targetPoint.x-=Math.cos(pose.yaw)*advance;
-    targetPoint.z-=Math.sin(pose.yaw)*advance;
-    view(targetPoint,zoom,pose.direction);
+    // Aim at the ground point the camera shows above the car, so the car sits lower on screen by `framing`.
+    targetPoint.set(focus.x+kickX,focus.y,focus.z-kickY);
+    view(screenOffsetOnGround(targetPoint,targetPoint,0,-host.clientHeight*pose.framing,zoom,pose.direction),zoom,pose.direction);
     // Coins spin about the screen's vertical axis, facing the camera at the start of each turn:
     // seen from above, a coin spinning about the world's vertical never shows its whole face.
     coinMesh.count=coins.length;
@@ -585,7 +584,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       warm();
       // Glide in from the map zoom instead of cutting to the play zoom.
       zoomNow=T.MathUtils.clamp(camera.zoom/(Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide)),.35,1.6);
-      focus.copy(camera.position).addScaledVector(mapOffset,-1500);
+      focus.copy(camera.position).addScaledVector(mapOffset,-CAMERA_DISTANCE);
       last=0;raf=requestAnimationFrame(frame);
       return 'started';
     },
