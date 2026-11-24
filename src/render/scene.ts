@@ -5,6 +5,10 @@ import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
 import { GROUND_SURFACE, groundPatch, groundSampler } from './ground-surface.ts';
 import { addLandmarks } from './landmarks.ts';
+import { pointInRing } from '../geometry.ts';
+import quarters from '../data/historic-quarters.json';
+
+const oldQuarters=quarters.rings as [number,number][][];
 import { propParts } from './port-props.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -196,7 +200,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     }
     // Low parapets trace the actual perimeter and distinguish adjoining roofs.
     const r=b.rings[0];
-    const windows=[],sills=[];
+    const windows: number[]=[],sills: number[]=[],woodwork: number[]=[];
+    // Low houses of the old quarters carry the closed wooden balcony of the islands, with its small roof.
+    const old=h<=15 && b.balconies!==false && oldQuarters.some(ring=>pointInRing(ring,x,y));
     const winding=Math.sign(r.slice(1).reduce((sum,p,j)=>sum+r[j][0]*p[1]-p[0]*r[j][1],0));
     for(let j=1;j<r.length;j++){
       const [a,c]=r[j-1],[e,f]=r[j],len=Math.hypot(e-a,f-c);
@@ -217,14 +223,23 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
             const right=[cx+ux*.74,z+floor,-cy-uy*.74];
             const tl=[left[0],left[1]+1.95,left[2]],tr=[right[0],right[1]+1.95,right[2]];
             windows.push(...left,...right,...tl,...tl,...right,...tr);
-            const projection=(n%4===0 && bay%2===0)?.65:.22;
+            const balcony=b.balconies!==false && bay%2===0 && n%(old?2:4)===0;
+            const projection=balcony?(old?.8:.65):.22;
             const lipLeft=[left[0]+nx*projection,left[1],left[2]-ny*projection];
             const lipRight=[right[0]+nx*projection,right[1],right[2]-ny*projection];
             // A plain sill is a 22 cm lip: on a phone only the balconies are worth their triangles.
-            if(!compact || projection>.4)sills.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
-            if(projection>.4){
-              const railLeft=[lipLeft[0],lipLeft[1]+.62,lipLeft[2]],railRight=[lipRight[0],lipRight[1]+.62,lipRight[2]];
-              sills.push(...lipLeft,...lipRight,...railLeft,...railLeft,...lipRight,...railRight);
+            const trim=balcony && old?woodwork:sills;
+            if(!compact || balcony)trim.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
+            if(balcony){
+              const rail=old?.95:.62;
+              const railLeft=[lipLeft[0],lipLeft[1]+rail,lipLeft[2]],railRight=[lipRight[0],lipRight[1]+rail,lipRight[2]];
+              trim.push(...lipLeft,...lipRight,...railLeft,...railLeft,...lipRight,...railRight);
+              if(old){
+                // The roof of the balcony: from the wall above the window down to the line of the rail.
+                const wallLeft=[left[0],left[1]+2.45,left[2]],wallRight=[right[0],right[1]+2.45,right[2]];
+                const eaveLeft=[lipLeft[0]+nx*.12,lipLeft[1]+2.15,lipLeft[2]-ny*.12],eaveRight=[lipRight[0]+nx*.12,lipRight[1]+2.15,lipRight[2]-ny*.12];
+                woodwork.push(...wallLeft,...eaveLeft,...wallRight,...wallRight,...eaveLeft,...eaveRight);
+              }
             }
           }
         }
@@ -241,8 +256,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     if(windows.length){
       const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][n%3],x,y);
     }
-    if(sills.length){
-      const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(sills,3));trim.computeVertexNormals();addBuilding(trim,'#ede8dc',x,y);
+    for(const [corners,colour] of [[sills,'#ede8dc'],[woodwork,'#6f4b33']] as const){
+      if(!corners.length)continue;
+      const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(corners,3));trim.computeVertexNormals();addBuilding(trim,colour,x,y);
     }
   }
   editableBuilding=undefined;

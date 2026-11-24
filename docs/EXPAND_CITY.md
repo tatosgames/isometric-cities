@@ -56,6 +56,11 @@ python scripts/sectors.py
 
 Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson` condiviso e i due file dei tetti. Entrambi gli stage riscrivono i POI condivisi. L’atlante usa entrambe le scene già generate. Confronta i confini prima/dopo e le coordinate dei luoghi preesistenti. Per un’estensione verifica su ogni nuovo bordo la continuità di strade, suolo, edifici e colori.
 
+## Edifici pubblici e case dei quartieri storici
+
+- **Edificio pubblico grande:** in `catalog.buildings`, `"balconies": false` toglie i balconi sporgenti e lascia le finestre (ospedali); `"windows": false` toglie anche quelle (centri commerciali, capannoni).
+- **Balcone canario:** le case fino a 15 m dentro i perimetri di `src/data/historic-quarters.json` (oggi Vegueta e Triana, copiati da `barrios.json`) hanno il balcone chiuso di legno con tettuccio. Per aggiungere un quartiere storico, aggiungi il suo anello a quel file.
+
 ## Spiagge e lungomare
 
 - **Sabbia:** `data.py` scrive come superficie `beach` ogni area OSM `natural=beach` di sabbia; `ground-map.ts` la dipinge con `color.beach` di `src/data/road-style.json` e lo shader del suolo le dà increspature invece dei giunti del selciato.

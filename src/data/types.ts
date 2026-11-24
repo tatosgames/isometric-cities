@@ -14,6 +14,8 @@ export interface Building {
   toneSuffix?: string;
   roofFurniture?: boolean;
   windows?: boolean;
+  /** False for large public buildings: windows without the projecting balconies of housing. */
+  balconies?: boolean;
   landmark?: string;
 }
 

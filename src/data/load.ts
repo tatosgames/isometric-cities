@@ -22,7 +22,7 @@ function building(v: unknown): v is Building {
     && (v.toneSuffix === undefined || string(v.toneSuffix))
     && (v.landmark === undefined || string(v.landmark))
     && (v.roofFurniture === undefined || boolean(v.roofFurniture))
-    && (v.windows === undefined || boolean(v.windows));
+    && (v.windows === undefined || boolean(v.windows)) && (v.balconies === undefined || boolean(v.balconies));
 }
 const road = (v: unknown): v is Road => record(v) && (v.id===undefined||string(v.id)) && string(v.kind) && list(v.line, point)
   && (v.name == null || string(v.name)) && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer));

@@ -278,6 +278,33 @@
       "markerHeight": 2
     },
     {
+      "id": "las-arenas",
+      "name": "Centro Comercial Las Arenas",
+      "osm": "way/33127705",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "hospital-doctor-negrin",
+      "name": "Hospital Universitario de Gran Canaria Doctor Negrín",
+      "osm": "way/237094321",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
+      "id": "hospital-insular",
+      "name": "Hospital Universitario Insular de Gran Canaria",
+      "osm": "relation/11551897",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
       "id": "estadio-de-gran-canaria",
       "name": "Estadio de Gran Canaria",
       "osm": "way/838353907",
@@ -342,6 +369,26 @@
       "roofSurface": 3
     },
     "41435": {
+      "roofFurniture": false
+    },
+    "15839": {
+      "wallColor": "#ece7dc",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "15840": {
+      "wallColor": "#ece7dc",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "16440": {
+      "wallColor": "#f1efe9",
+      "balconies": false,
+      "roofFurniture": false
+    },
+    "39612:-315:-2492": {
+      "wallColor": "#f1efe9",
+      "balconies": false,
       "roofFurniture": false
     }
   },

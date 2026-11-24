@@ -805,3 +805,14 @@ Segnalato da Luca con due fotografie: a Las Canteras non si capiva che c'è una 
 - **Catture** in Chromium: vista ampia a 1280 × 800, dettaglio a 390 × 844 sul paseo, Alcaravaneras. Nessun errore in pagina. `check:data`, typecheck, build, `qa-drive-route`, `qa-pedestrians` e `qa-drive-pose` superati.
 
 Limiti: ombrelloni, palme del paseo e lampioni delle fotografie non ci sono, perché OSM non li mappa come oggetti; i pedoni d'atmosfera possono camminare sulla sabbia, come nelle piazze. Non provato su telefono fisico.
+
+## Las Arenas, ospedali e balconi di legno (24 novembre 2026)
+
+Richiesti da Luca dopo la spiaggia. I tre complessi sono nel dato comunale, ciascuno come un blocco unico con l'altezza massima su tutta l'impronta e le finestre e i balconi di una palazzina: Las Arenas 38.925 m² a 25,9 m (OBJECTID 15839 e 15840), Hospital Doctor Negrín 37.328 m² a 28,7 m (16440), Hospital Insular 13.778 m² a 45,9 m (39612).
+
+- **Luoghi.** Centro Comercial Las Arenas (way/33127705), Hospital Universitario de Gran Canaria Doctor Negrín (way/237094321), Hospital Universitario Insular de Gran Canaria (relation/11551897): 29 luoghi nel menu, senza scheda per ora.
+- **Aspetto.** Las Arenas senza finestre; ospedali con muri bianchi e finestre senza balconi (nuovo `balconies: false`). Gli stili sono nel catalogo e, come farebbe `data.py`, in `city.json`; `sectors.py` rieseguito senza atlante dei tetti.
+- **Balconi di legno.** Case fino a 15 m di Vegueta e Triana: balcone chiuso marrone con tettuccio su una casa su due, al posto del balcone chiaro su una su quattro. È un dettaglio illustrativo, non un rilievo delle facciate reali.
+- **Catture** in Chromium prima e dopo sui tre complessi, su Vegueta e Triana, e un dettaglio ravvicinato dei balconi. Nessun errore in pagina. `check:data`, typecheck, build, `qa-drive-route`, `qa-pedestrians` e `qa-ground` superati.
+
+Limiti: le volumetrie restano quelle del dato comunale. Corpi bassi e torri si possono distinguere solo con `lidar-check.py` e l'ortofoto, che richiedono la cache. Triangoli e cadenza su telefono nei settori di Vegueta non rimisurati dopo i balconi nuovi.

@@ -140,9 +140,11 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AH · Spiagge e paseo.** La sabbia è un tipo di suolo: Las Canteras, Alcaravaneras e due spiagge minori da OpenStreetMap, dorate e con increspature al posto dei giunti del selciato. Il Paseo Las Canteras è largo 9 m, in terracotta con la fascia chiara al centro. Nuovo luogo «Playa de Las Canteras» (26 in mappa). `sectors.py` gira anche senza l'atlante dei tetti quando gli edifici non cambiano: dati pubblicati rigenerati qui, 56 settori su 805. [Verifica](docs/QA.md#spiagge-e-paseo-de-las-canteras-24-novembre-2026).
 
+**AI · Las Arenas, ospedali e balconi di legno.** Tre luoghi nuovi nel menu (29): Centro Comercial Las Arenas, Hospital Doctor Negrín, Hospital Insular. Il centro commerciale perde le finestre da palazzina, gli ospedali hanno muri bianchi e finestre senza balconi (`balconies: false`). Le case fino a 15 m di Vegueta e Triana hanno il balcone chiuso di legno con tettuccio. [Verifica](docs/QA.md#las-arenas-ospedali-e-balconi-di-legno-24-novembre-2026). Aperto: le volumetrie vere dei tre complessi (oggi un blocco all'altezza massima) richiedono LiDAR e ortofoto sulla macchina con la cache.
+
 ## Stato al 23 novembre 2026
 
-Città a 36,22 km², 28.748 parti di edificio, 26 luoghi, 75 zone e 805 settori.
+Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.
 
 **Prova su dispositivo reale: superata.** Luca ha provato la mappa e Conducir su telefono fisico, con esito positivo (comunicato a voce il 23 novembre 2026; non c'è un rapporto di misure). Chiude le voci «da fare: prova su telefono fisico» delle sezioni D, F, G, J, K, L e AB. Restano da misurare, perché la prova a mano non le copre: consumo e calore, apertura lenta con tempi in secondi, giudizio su densità dei pedoni.
 
