@@ -12,6 +12,23 @@ Aggiungi la voce a `places`. Il nome è quello locale, l’ID è univoco e persi
 
 Lo script legge una way poligonale oppure una relazione con un’unica way esterna e una way per ogni anello interno. Tutti i membri e i nodi devono essere presenti nell’XML. Per un POI puntuale, un bordo suddiviso in più way o una relazione con più esterni, estendi prima il lettore e verifica la geometria risultante. Il marker usa un punto rappresentativo interno. Casa de Colón è il caso di controllo per i tre cortili. Menu, scheda e pin leggono lo stesso GeoJSON tramite [places-ui.ts](../src/map/places-ui.ts) e il filtro per area del viewer.
 
+### Scheda del luogo
+
+Aggiungi alla voce del luogo un blocco `card`:
+
+```json
+"card": {
+  "text": "Testo in spagnolo, da 400 a 600 caratteri.",
+  "link": "https://sito-ufficiale-o-wikipedia",
+  "photo": {"file": "id-del-luogo.webp", "author": "Autore", "license": "CC BY-SA 4.0", "source": "https://commons.wikimedia.org/wiki/File:..."}
+}
+```
+
+- **Testo:** fatti verificati su una fonte citabile, senza toni da guida turistica. `npm run check:data` (parte di `build`) rifiuta testi fuori da 400–600 caratteri.
+- **Foto:** solo licenze libere (Wikimedia Commons: CC BY, CC BY-SA, pubblico dominio), mai generate. Ritaglio 16:9 a 960 × 540, WebP in `public/photos/`, registrata in [DATA_SOURCES.md](DATA_SOURCES.md). La build fallisce se il file manca. `photo` è facoltativa: senza, la scheda non mostra il riquadro.
+- **Link:** sito ufficiale del luogo quando esiste, altrimenti Wikipedia in spagnolo.
+- `data.py` copia il blocco in `poi.geojson`; il quartiere mostrato viene da `barrios.json`.
+
 ## Ampliare un quartiere
 
 1. Modifica `coverage.zones` nel catalogo. Ogni zona ha un `id` univoco e una sola forma: `places` con `margin` (inviluppo dei luoghi elencati, in metri), `axis` con `radius` (corridoio di coppie longitudine/latitudine) `osm` (relazione di confine in OpenStreetMap, ad esempio un barrio: `relation/16905756`) oppure `polygon` (anello longitudine/latitudine). L’area è l’unione delle zone, ritagliata sulla terraferma usando la costa OSM e Santa Ana come punto interno. Verifica che il risultato sia un poligono continuo, includa tutti i luoghi e raggiunga `minimumLandM2`. Il pilota rimane un quadrato di 650 m attorno a `pilotFocus`.

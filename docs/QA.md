@@ -780,3 +780,15 @@ Nessuno dei due è nello strato edifici del Comune: per questo lì la mappa most
 - **Castillo de Mata** (way/182801321, recinto `historic=castle`, 7 m, merli come il Castillo de la Luz con la stessa funzione) e il corpo interno (way/251520474, 10 m).
 
 Altezze stimate, da misurare con `lidar-check.py`. Anteprima in Chromium su una copia locale: `city.json` con i tre edifici aggiunti dalla stessa funzione di `data.py`, `sectors.py` con un atlante dei tetti neutro al posto dell'ortofoto (2 min 10 s, 28.751 parti), catture da due distanze e due orientamenti, nessun errore. Copia e atlante scartati: i dati pubblicati non sono rigenerati. I due luoghi restano nel catalogo ma fuori da `poi.geojson` finché non si rigenera, per non puntare a terreno vuoto. Typecheck, build, `check:data`, `qa-drive-route`, `qa-drive-pose` e `qa-pedestrians` superati.
+
+## Schede dei luoghi (24 novembre 2026)
+
+Scheda con foto, quartiere, nome, testo e link per i luoghi con un blocco `card` nel catalogo; proposta approvata da Luca con queste scelte: pannello a sinistra, testi di 400–600 caratteri, link al sito ufficiale quando esiste e altrimenti a Wikipedia in spagnolo, prima quattro luoghi completi. Animazioni con `element.animate`, senza GSAP né altre dipendenze.
+
+- **Contenuto.** Plaza de Santa Ana (498 caratteri), Casa de Colón (556), Teatro Pérez Galdós (531), Mercado de Vegueta (478). Fatti riletti sulle voci di Wikipedia in spagnolo: la bozza della proposta diceva che i perri della plaza sono di bronzo, sono di ghisa dipinta di verde, collocati nel 1895. Per il mercato resta la sola data di inaugurazione (1858): l'anno di costruzione differisce tra le fonti. Foto da Wikimedia Commons, da 57 a 111 KB, crediti in `DATA_SOURCES.md`.
+- **Build.** `check:data` rifiuta testi fuori da 400–600 caratteri e foto mancanti.
+- **Disposizione**, in Chromium con WebGL software. 1280 × 800: pannello di 376 px a sinistra, marker a x = 835, cioè al centro della parte libera. 390 × 844: foglio fino al 70 % dell'altezza, testo che scorre con il link sempre in vista, marker sopra il foglio. 844 × 390: foto accanto al testo. In tutti e tre il quartiere («Vegueta», «Triana») arriva da `barrios.json`.
+- **Movimento.** Animazioni fermate a 120, 380 e 700 ms: la foto si scopre dall'alto, il nome sale parola per parola, testo e link seguono.
+- **Comportamento.** Muovere la mappa sul telefono piega il foglio nella pillola; un tocco lo riapre. Chiusura con × ed Esc. Un luogo senza `card` (Parque de San Telmo) mostra la pillola di prima. `article h3` contiene ancora il nome intero. Nessun errore in pagina.
+
+Typecheck, build, `qa-drive-pose`, `qa-drive-route` e `qa-pedestrians` superati. Non provato su telefono fisico; trascinamento della foto verso il basso non provato con un dito vero.

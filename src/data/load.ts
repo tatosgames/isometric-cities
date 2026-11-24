@@ -1,4 +1,4 @@
-import type { Barrio, Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, Point, Prop, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
+import type { Barrio, Bounds, Building, CityCore, CityData, FarBlock, FarZone, Layers, Place, PlaceCard, Point, Prop, Ring, Road, RoofTones, Sea, Sector, SectorIndex, Surface, Terrain, ViewState, Zone, ZoneData } from './types.ts';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -123,10 +123,14 @@ export function isSectorIndex(v: unknown): v is SectorIndex {
     && (v.carriageways===undefined||boolean(v.carriageways)) && (v.roadCoverage===undefined||list(v.roadCoverage,rings)) && (v.roadFallback===undefined||list(v.roadFallback,rings)) && (v.roadExceptions===undefined||list(v.roadExceptions,string));
 }
 
+const placeCard = (v: unknown): v is PlaceCard => record(v) && string(v.text) && string(v.link) && URL.canParse(v.link)
+  && (v.photo === undefined || record(v.photo) && [v.photo.file,v.photo.author,v.photo.license,v.photo.source].every(string));
+
 const place = (v: unknown): v is Place => record(v) && record(v.properties)
   && string(v.properties.id) && string(v.properties.name) && point(v.properties.xy)
   && number(v.properties.markerHeight) && Array.isArray(v.properties.areas)
-  && v.properties.areas.every(area => area === 'city' || area === 'pilot');
+  && v.properties.areas.every(area => area === 'city' || area === 'pilot')
+  && (v.properties.card === undefined || placeCard(v.properties.card));
 
 export const isPlaces = (v: unknown): v is {features: Place[]} =>
   record(v) && list(v.features, place);

@@ -9,7 +9,17 @@
         "city",
         "pilot"
       ],
-      "markerHeight": 2
+      "markerHeight": 2,
+      "card": {
+        "text": "La plaza Mayor de Santa Ana es el centro de Vegueta, el barrio donde nació la ciudad. A su alrededor se levantaron los edificios del poder: la Catedral de Canarias en un extremo, las Casas Consistoriales en el otro y, entre ambos, el Palacio Episcopal y la Casa Regental, residencia del presidente de la Audiencia. Ocho perros de hierro fundido, pintados de verde para que parezcan de bronce, miran hacia la fachada de la catedral desde 1895. Nadie sabe con certeza quién los hizo ni en qué taller.",
+        "link": "https://es.wikipedia.org/wiki/Plaza_Mayor_de_Santa_Ana",
+        "photo": {
+          "file": "santa-ana.webp",
+          "author": "Jl FilpoC",
+          "license": "CC BY 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Fachada_principal_de_la_Catedral-Bas%C3%ADlica_de_Santa_Ana,_Las_Palmas_de_Gran_Canaria.jpg"
+        }
+      }
     },
     {
       "id": "casa-de-colon",
@@ -19,7 +29,17 @@
         "city",
         "pilot"
       ],
-      "markerHeight": 18
+      "markerHeight": 18,
+      "card": {
+        "text": "La Casa de Colón reúne varias viviendas antiguas de Vegueta, con zonas que se remontan al siglo XVI. Una de ellas formaba parte de la que se tiene por antigua Casa del Gobernador, donde se cree que Cristóbal Colón estuvo en 1492, durante su primer viaje, para pedir ayuda con la reparación de La Pinta. Abierta en 1951 y gestionada por el Cabildo de Gran Canaria, dedica sus trece salas y dos patios a los viajes colombinos y a la relación de Canarias con América: cartas náuticas, instrumentos de navegación y la reconstrucción de la cámara del Almirante.",
+        "link": "https://www.casadecolon.com/",
+        "photo": {
+          "file": "casa-de-colon.webp",
+          "author": "Carlos Teixidor Cadenas",
+          "license": "CC BY-SA 4.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Casa_de_Col%C3%B3n,_Museo,_Las_Palmas_de_Gran_Canaria,_Espa%C3%B1a.jpg"
+        }
+      }
     },
     {
       "id": "mercado-de-vegueta",
@@ -28,7 +48,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 18
+      "markerHeight": 18,
+      "card": {
+        "text": "El Mercado de Vegueta es el primer mercado que se construyó en Canarias. Ocupa el borde del casco histórico, junto a la desembocadura del barranco Guiniguada y frente al Teatro Pérez Galdós, en la zona donde la ciudad reunió por primera vez a sus mercaderes en 1787. Se inauguró oficialmente en 1858, durante el reinado de Isabel II, y sigue funcionando como mercado de abastos. En 2008, al cumplir 150 años, recibió la Medalla de Oro de la ciudad de Las Palmas de Gran Canaria.",
+        "link": "https://es.wikipedia.org/wiki/Mercado_de_Vegueta",
+        "photo": {
+          "file": "mercado-de-vegueta.webp",
+          "author": "Odynny",
+          "license": "Dominio público",
+          "source": "https://commons.wikimedia.org/wiki/File:Mercado_de_Vegueta.jpg"
+        }
+      }
     },
     {
       "id": "teatro-perez-galdos",
@@ -37,7 +67,17 @@
       "areas": [
         "city"
       ],
-      "markerHeight": 18
+      "markerHeight": 18,
+      "card": {
+        "text": "El Teatro Pérez Galdós es el principal escenario de la ciudad y la sede del Festival de Ópera Alfredo Kraus. Se alza al borde de Triana, junto a la desembocadura del barranco Guiniguada. Levantó el telón por primera vez en 1890, con La Traviata, y un incendio lo destruyó casi por completo en 1918. Lo reconstruyó Miguel Martín Fernández de la Torre, y su hermano, el pintor Néstor, decoró el interior: lienzos, vitrales y telón. Reabrió en 1928 con Aida y, tras una rehabilitación integral, de nuevo en 2007, con 1085 localidades.",
+        "link": "https://auditorioteatrolaspalmasgc.es/",
+        "photo": {
+          "file": "teatro-perez-galdos.webp",
+          "author": "Felix König",
+          "license": "CC BY 3.0",
+          "source": "https://commons.wikimedia.org/wiki/File:Teatro_P%C3%A9rez_Gald%C3%B3s_2010.jpg"
+        }
+      }
     },
     {
       "id": "gabinete-literario",

@@ -19,7 +19,7 @@ I valori citati sono quelli del codice al 23 novembre 2026. Se cambiano nel codi
 - **Pulsanti zoom:** `+`, `−` e panoramica interpolano bersaglio e zoom in 300 ms; nuovi input sostituiscono il volo in corso partendo dalla vista corrente.
 - **Pulsanti di rotazione:** ±90° attorno al bersaglio, a zoom e inclinazione costanti. Uno scatto dura 300 ms. I clic ravvicinati si sommano e ripartono dalla posa visibile.
 - **Limiti di zoom interattivo:** minimo di 0,8 × il minore dei livelli di panoramica, massimo di 12 × il maggiore con un minimo di 4 px/m e spazio per lo zoom di apertura.
-- **Luogo selezionato:** volo di 320 ms verso il punto del marker, con zoom tale che il lato corto copra circa 245 m.
+- **Luogo selezionato:** volo di 320 ms con zoom tale che il lato corto copra circa 245 m. Il marker finisce al centro della parte di vista che la scheda lascia libera: a destra del pannello sugli schermi larghi, sopra il foglio sul telefono in verticale (`frame()` in `src/map/place-card.ts`). Con la sola pillola il marker va al centro.
 - **Rotazione dello schermo e ridimensionamento:** bersaglio, zoom e orientamento restano invariati.
 - **Marker:** proiettati a ogni frame, nascosti quando escono dallo schermo.
 

@@ -143,7 +143,16 @@ export interface Place {
     areas: Area[];
     xy: Point;
     markerHeight: number;
+    card?: PlaceCard;
   };
+}
+
+/** What the place card shows beyond the name. The photo is a file in `public/photos`. */
+export interface PlaceCard {
+  /** Spanish, 400 to 600 characters: `check-data` enforces it. */
+  text: string;
+  link: string;
+  photo?: {file: string; author: string; license: string; source: string};
 }
 
 export interface ViewState {

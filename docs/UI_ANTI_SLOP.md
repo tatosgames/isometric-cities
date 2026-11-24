@@ -20,6 +20,14 @@ La causa comune dei pattern scartati è sempre la stessa: abitudini da dashboard
 
 ## Catalogo
 
+### Mappa: scheda del luogo (Luca, 24 novembre 2026)
+
+La pillola con il solo nome diventa una scheda per i luoghi che hanno un blocco `card` nel catalogo: foto, numero e quartiere, nome, testo in spagnolo di 400–600 caratteri, un link esterno con il dominio scritto accanto. Pannello a sinistra su schermi larghi e sul telefono in orizzontale (dove apre già il menu), foglio dal basso sul telefono in verticale. I luoghi senza `card` tengono la pillola.
+
+Regole fissate con Luca: curata e animata, ma senza elementi superflui. Per questo niente icone decorative, etichette, pulsanti pieni o ombre multiple: una superficie avorio, una foto, un titolo in Georgia come i nomi dei quartieri, un filo sopra il link. Il lavoro è nel movimento, in un solo gesto coordinato: il pannello entra, la foto si scopre dall'alto mentre rientra dallo zoom, il nome sale parola per parola da dietro una maschera, testo e link seguono. Una sola curva per tutto. Niente GSAP: bastano le animazioni native del browser (`element.animate`), senza dipendenze.
+
+Sul telefono il foglio si piega nella pillola quando si trascina la foto verso il basso o si muove la mappa, e si riapre con un tocco. La scheda non compare in Conducir. Il credito della foto (autore e licenza, con link alla pagina di origine) è sempre sulla foto.
+
 ### Guida: cambio di vista
 
 Il pulsante usa un occhio per indicare il cambio di punto di vista. La fotocamera faceva pensare a uno scatto.
@@ -74,4 +82,4 @@ La parte dell’auto coperta da un edificio appare in giallo sulla sua superfici
 
 ## Non deciso
 
-- **Schede dei luoghi sulla mappa.** Oggi mostrano il solo nome. Un pannello ancorato al marker con icone e messa a fuoco di elementi reali, sul modello del Context Panel di Soso Mart, è una proposta, non una decisione.
+- Nessuna voce aperta.

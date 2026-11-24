@@ -46,3 +46,12 @@ Fonti valutate ma non ancora in produzione (ortofoto 20 cm SITCAN, altri dataset
 **Vuoto centrale (23 novembre 2026).** Altri 12 perimetri dal servizio «Barrios» del Ayuntamiento de Las Palmas de Gran Canaria, tra cui il «Diseminado Las Palmas de GC». Area 33.864.962 m². Stesse fonti e attribuzioni dei passi precedenti.
 
 **Anello sud (23 novembre 2026).** Altri 5 perimetri dal servizio «Barrios» del Ayuntamiento de Las Palmas de Gran Canaria, uno dell'entità di Tafira. Finestra OSM estesa a [-15.47, 28.02, -15.39, 28.19] per la linea di costa. Area 36.218.876 m². Stesse fonti e attribuzioni dei passi precedenti.
+
+**Schede dei luoghi (24 novembre 2026).** Testi scritti per il progetto a partire dalle voci di Wikipedia in spagnolo (Plaza Mayor de Santa Ana, Casa de Colón, Teatro Pérez Galdós, Mercado de Vegueta), consultate il 24 novembre 2026. Foto da Wikimedia Commons, ritagliate a 16:9 e ridotte a 960 × 540 in `public/photos/`:
+
+| File | Autore | Licenza | Origine |
+|---|---|---|---|
+| `santa-ana.webp` | Jl FilpoC | CC BY 4.0 | [Fachada principal de la Catedral-Basílica de Santa Ana](https://commons.wikimedia.org/wiki/File:Fachada_principal_de_la_Catedral-Bas%C3%ADlica_de_Santa_Ana,_Las_Palmas_de_Gran_Canaria.jpg) |
+| `casa-de-colon.webp` | Carlos Teixidor Cadenas | CC BY-SA 4.0 | [Casa de Colón, Museo](https://commons.wikimedia.org/wiki/File:Casa_de_Col%C3%B3n,_Museo,_Las_Palmas_de_Gran_Canaria,_Espa%C3%B1a.jpg) |
+| `teatro-perez-galdos.webp` | Felix König | CC BY 3.0 (anche GFDL) | [Teatro Pérez Galdós 2010](https://commons.wikimedia.org/wiki/File:Teatro_P%C3%A9rez_Gald%C3%B3s_2010.jpg) |
+| `mercado-de-vegueta.webp` | Odynny | Pubblico dominio | [Mercado de Vegueta](https://commons.wikimedia.org/wiki/File:Mercado_de_Vegueta.jpg) |

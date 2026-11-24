@@ -114,9 +114,13 @@ async function start(){
   let openingDeadline=0,openingTimer=0,playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
-  const places=createPlacesUI(locations,altitude,(_id,point)=>{
+  const places=createPlacesUI(locations,altitude,(_id,point,frame)=>{
     if(lost || flight?.driveOrbit)return false;
-    fly(point,Math.max(fitAt(flight?.turn1??mapTurn),Math.min(host.clientWidth,host.clientHeight)/245),320);
+    const turn=flight?.turn1??mapTurn,zoom=Math.max(fitAt(turn),Math.min(host.clientWidth,host.clientHeight)/245);
+    // Aim beside the place so it lands in the part of the view its card leaves free.
+    const offset=mapDirection(turn).clone(),right=new T.Vector3(offset.z,0,-offset.x).normalize();
+    const away=new T.Vector3(-offset.x,0,-offset.z).normalize();
+    fly(point.clone().addScaledVector(right,-frame.x/zoom).addScaledVector(away,frame.y/(zoom*offset.y)),zoom,320);
     return true;
   });
   function view(target: T.Vector3,zoom: number,offset=mapDirection(mapTurn)){
@@ -175,7 +179,7 @@ async function start(){
   el('map-content').addEventListener('click',event=>{
     if(event.target instanceof Element && event.target.closest('button:not(:disabled):not([aria-disabled="true"])'))dismissCredits();
   },{capture:true});
-  controls.addEventListener('start',()=>{dismissCredits();flight=null;gesture=true;});
+  controls.addEventListener('start',()=>{dismissCredits();flight=null;gesture=true;places.fold();});
   controls.addEventListener('end',stopGesture);
   function sampleCadence(time: number){
     if(!moving()){adaptive.suspend();return;}

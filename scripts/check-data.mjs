@@ -8,7 +8,7 @@ async function load(file, valid) {
   return data;
 }
 
-const [core, index] = await Promise.all([
+const [core, index, , places] = await Promise.all([
   load('city-core.json', isCoreFile),
   load('city-index.json', isSectorIndex),
   load('pilot.json', isCity),
@@ -18,6 +18,13 @@ const [core, index] = await Promise.all([
   load('barrios.json', isBarrios)
 ]);
 validateSectorIndex(index);
+// Place cards: a text that fits the sheet on a phone, and a photo that is really there.
+for (const {properties: {id, card}} of places.features) {
+  if (!card) continue;
+  const length = [...card.text].length;
+  if (length < 400 || length > 600) throw new Error('Card text of ' + id + ' has ' + length + ' characters: keep it between 400 and 600');
+  if (card.photo) await readFile(new URL('../public/photos/' + card.photo.file, import.meta.url));
+}
 if (core.terrain.file !== 'city-terrain.bin') throw new Error('Core must point to city-terrain.bin');
 const heights = await readFile(new URL('../public/data/' + core.terrain.file, import.meta.url));
 coreWithTerrain(core, heights.buffer.slice(heights.byteOffset, heights.byteOffset + heights.byteLength));

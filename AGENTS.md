@@ -39,6 +39,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/render/scene.ts` | Costruzione scena: edifici, strade, superfici, alberi, mesh ottimizzate |
 | `content/las-palmas.json` | Catalogo dei luoghi, centro del pilota e stili per edificio |
 | `src/map/places-ui.ts`, `src/render/landmarks.ts` | Menu e marker con ID persistenti, modelli procedurali dedicati |
+| `src/map/place-card.ts`, `public/photos/` | Scheda del luogo (foto, quartiere, nome, testo, link) con le sue animazioni; pannello a sinistra o foglio dal basso. Foto con licenza libera, crediti in `docs/DATA_SOURCES.md` |
 | [Guida per ampliare la mappa](docs/EXPAND_CITY.md) | POI, quartieri, nuove città, cache e verifiche |
 | `public/data/` | `city.json`, `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp`, `sea.json` (mare e costa, da `data.py city`) |
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |

@@ -136,6 +136,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AF · Monumenti fuori dallo strato comunale.** Estadio de Gran Canaria (gradinate e campo) e Castillo de Mata (recinto con merli e corpo interno) da impronte OSM con altezza stimata, tramite la nuova voce `osmBuildings`. [Verifica](docs/QA.md#modelli-dedicati-estadio-de-gran-canaria-e-castillo-de-mata-23-novembre-2026). Da fare sulla macchina con la cache: `python scripts/data.py city`, `python scripts/sectors.py`, poi `lidar-check.py` per le altezze; solo allora i due luoghi entrano in `poi.geojson`.
 
+**AG · Schede dei luoghi.** Il marker apre una scheda con foto, quartiere, nome, testo di 400–600 caratteri e link esterno: pannello a sinistra su schermi larghi, foglio dal basso sul telefono, animata con le sole API del browser. Complete le prime quattro (Plaza de Santa Ana, Casa de Colón, Mercado de Vegueta, Teatro Pérez Galdós); gli altri luoghi tengono la pillola con il nome. [Verifica](docs/QA.md#schede-dei-luoghi-24-novembre-2026) · [Regole](docs/UI_ANTI_SLOP.md) · [Come aggiungerne una](docs/EXPAND_CITY.md#scheda-del-luogo). Da fare: testi e foto degli altri 21 luoghi; prova su telefono fisico.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 25 luoghi, 75 zone e 805 settori.
