@@ -243,7 +243,15 @@ def partition(stage, road_cells=None):
     published = stage == "city"
     palette = json.loads((ROOT/"roof-tones.json").read_bytes())
     west,south,width,height=palette["bounds"]
-    roof=Image.open(".cache/roof-atlas.png") if published else None
+    atlas=Path(".cache/roof-atlas.png")
+    roof=Image.open(atlas) if published and atlas.exists() else None
+    # Without the orthophoto atlas (a checkout with no cache) each sector keeps its published roof tile.
+    # That holds only while its buildings, and so the tile bounds, are unchanged.
+    kept={}
+    if published and roof is None:
+        for path in (ROOT/"city-sectors").glob("*.json"):
+            old=json.loads(path.read_bytes())
+            kept[path.name.rsplit("-",1)[0]]=(old.get("roofBounds"),old.get("roofFile"))
     carriageways = Carriageways(data)
     sample_cells=set()
     if published:
@@ -279,6 +287,12 @@ def partition(stage, road_cells=None):
             roof_file=f"{name}-{sha256(payload).hexdigest()[:12]}.webp"
             (directory/roof_file).write_bytes(payload)
             detail["roofBounds"]=[left,bottom,right-left,top-bottom]
+            detail["roofFile"]=roof_file
+        elif published:
+            bounds_then,roof_file=kept.get(name,(None,None))
+            if bounds_then!=[left,bottom,right-left,top-bottom] or not (directory/roof_file).exists():
+                raise SystemExit(f"Sector {name} needs a new roof tile: run roof-colours.py to build .cache/roof-atlas.png")
+            detail["roofBounds"]=bounds_then
             detail["roofFile"]=roof_file
         file = write_versioned(directory, name, detail)
         # Elevation samples cover every object in the ownership bounds, including overhang.

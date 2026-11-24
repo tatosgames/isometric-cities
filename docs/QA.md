@@ -794,3 +794,14 @@ Scheda con foto, quartiere, nome, testo e link per i luoghi con un blocco `card`
 Typecheck, build, `qa-drive-pose`, `qa-drive-route` e `qa-pedestrians` superati. Non provato su telefono fisico; trascinamento della foto verso il basso non provato con un dito vero.
 
 `npm test` con `CHROME_PATH` qui non arriva alle schede: dopo le prove di guida, pedoni e suolo (superate) si ferma alla riga 49 di `qa.mjs`, in attesa che i settori iniziali finiscano di caricarsi entro 30 s, prima di toccare un luogo. Due giri, stesso punto. È il caricamento sotto WebGL software; non è stato confrontato con il commit precedente. Da ripetere con Chrome su Windows.
+
+## Spiagge e Paseo de Las Canteras (24 novembre 2026)
+
+Segnalato da Luca con due fotografie: a Las Canteras non si capiva che c'è una spiaggia né il lungomare. La mappa colorava il suolo solo per parchi, piazze e strade; la sabbia aveva il beige del terreno e il paseo era una linea pedonale di 2,2 m quasi dello stesso colore.
+
+- **Dati.** Quattro aree OSM `natural=beach`: Playa de Las Canteras (way/30598416, 172.087 m² sulla terraferma), Playa de Las Alcaravaneras (way/30663319, 34.707 m²) e due minori presso El Rincón (way/585702774 e 585702820). `data.py` ora le scrive come superfici `beach`. Qui, senza cache della pipeline, sono state aggiunte a `city.json` con la stessa regola a partire dall'OSM di oggi, e `sectors.py` è stato rieseguito con le piastrelle dei tetti pubblicate: cambiano `city-core.json`, `city-index.json` e 56 settori su 805, nessun file dei tetti né delle zone.
+- **Resa.** Sabbia `#e4cf9d` con increspature; Paseo Las Canteras (2 km in OSM, già nei dati con il suo nome) largo 9 m in terracotta `#b9755c` con fascia chiara, dalle fotografie di riferimento. La Barra era già disegnata dal mare.
+- **Luogo.** «Playa de Las Canteras» nel catalogo e in `poi.geojson` (26 luoghi), senza scheda per ora: le fotografie inviate non hanno una licenza nota.
+- **Catture** in Chromium: vista ampia a 1280 × 800, dettaglio a 390 × 844 sul paseo, Alcaravaneras. Nessun errore in pagina. `check:data`, typecheck, build, `qa-drive-route`, `qa-pedestrians` e `qa-drive-pose` superati.
+
+Limiti: ombrelloni, palme del paseo e lampioni delle fotografie non ci sono, perché OSM non li mappa come oggetti; i pedoni d'atmosfera possono camminare sulla sabbia, come nelle piazze. Non provato su telefono fisico.

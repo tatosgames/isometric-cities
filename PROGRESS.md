@@ -138,9 +138,11 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AG · Schede dei luoghi.** Il marker apre una scheda con foto, quartiere, nome, testo di 400–600 caratteri e link esterno: pannello a sinistra su schermi larghi, foglio dal basso sul telefono, animata con le sole API del browser. Complete le prime quattro (Plaza de Santa Ana, Casa de Colón, Mercado de Vegueta, Teatro Pérez Galdós); gli altri luoghi tengono la pillola con il nome. [Verifica](docs/QA.md#schede-dei-luoghi-24-novembre-2026) · [Regole](docs/UI_ANTI_SLOP.md) · [Come aggiungerne una](docs/EXPAND_CITY.md#scheda-del-luogo). Da fare: testi e foto degli altri 21 luoghi; prova su telefono fisico.
 
+**AH · Spiagge e paseo.** La sabbia è un tipo di suolo: Las Canteras, Alcaravaneras e due spiagge minori da OpenStreetMap, dorate e con increspature al posto dei giunti del selciato. Il Paseo Las Canteras è largo 9 m, in terracotta con la fascia chiara al centro. Nuovo luogo «Playa de Las Canteras» (26 in mappa). `sectors.py` gira anche senza l'atlante dei tetti quando gli edifici non cambiano: dati pubblicati rigenerati qui, 56 settori su 805. [Verifica](docs/QA.md#spiagge-e-paseo-de-las-canteras-24-novembre-2026).
+
 ## Stato al 23 novembre 2026
 
-Città a 36,22 km², 28.748 parti di edificio, 25 luoghi, 75 zone e 805 settori.
+Città a 36,22 km², 28.748 parti di edificio, 26 luoghi, 75 zone e 805 settori.
 
 **Prova su dispositivo reale: superata.** Luca ha provato la mappa e Conducir su telefono fisico, con esito positivo (comunicato a voce il 23 novembre 2026; non c'è un rapporto di misure). Chiude le voci «da fare: prova su telefono fisico» delle sezioni D, F, G, J, K, L e AB. Restano da misurare, perché la prova a mano non le copre: consumo e calore, apertura lenta con tempi in secondi, giudizio su densità dei pedoni.
 

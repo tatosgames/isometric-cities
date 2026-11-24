@@ -225,7 +225,12 @@ for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')
     green=t.get('leisure') in ('garden','park') or t.get('landuse') in ('grass','village_green')
-    if vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road):
+    # A sand beach mapped as an area is ground of its own: the viewer paints it as sand.
+    beach=t.get('natural')=='beach' and t.get('surface','sand')=='sand'
+    if vs[0]==vs[-1] and len(vs)>3 and beach:
+        for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
+            if p.area>50: surfaces.append(dict(id=i,kind='beach',rings=rings(p)))
+    elif vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road):
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
             surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p)))
     elif road and road not in ('construction','proposed','elevator') and not t.get('tunnel'):

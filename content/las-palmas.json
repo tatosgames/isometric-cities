@@ -269,6 +269,15 @@
       "markerHeight": 2
     },
     {
+      "id": "playa-de-las-canteras",
+      "name": "Playa de Las Canteras",
+      "osm": "way/30598416",
+      "areas": [
+        "city"
+      ],
+      "markerHeight": 2
+    },
+    {
       "id": "estadio-de-gran-canaria",
       "name": "Estadio de Gran Canaria",
       "osm": "way/838353907",

@@ -56,6 +56,12 @@ python scripts/sectors.py
 
 Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson` condiviso e i due file dei tetti. Entrambi gli stage riscrivono i POI condivisi. L’atlante usa entrambe le scene già generate. Confronta i confini prima/dopo e le coordinate dei luoghi preesistenti. Per un’estensione verifica su ogni nuovo bordo la continuità di strade, suolo, edifici e colori.
 
+## Spiagge e lungomare
+
+- **Sabbia:** `data.py` scrive come superficie `beach` ogni area OSM `natural=beach` di sabbia; `ground-map.ts` la dipinge con `color.beach` di `src/data/road-style.json` e lo shader del suolo le dà increspature invece dei giunti del selciato.
+- **Paseo:** una via pedonale il cui nome è in `promenade.names` di `road-style.json` viene disegnata alla larghezza e nel colore indicati lì, con la fascia chiara al centro. Larghezza e colori vengono da fotografie di riferimento; il tracciato resta quello di OSM.
+- **Settori senza atlante dei tetti:** se `.cache/roof-atlas.png` manca, `sectors.py` conserva la piastrella dei tetti pubblicata di ogni settore e si ferma con un errore se un settore ha cambiato edifici. Basta per rigenerare dopo modifiche a superfici e strade.
+
 ## Oggetti e modelli dedicati
 
 - **Oggetti puntuali** (gru, ciminiere): `data.py` li legge da OpenStreetMap e li scrive in `city.json` come `props`, cioè `[tipo, x, y, orientamento, dimensione]`. `sectors.py` li distribuisce in settori e zone. Un tipo nuovo richiede una voce in `data.py` e un disegno in `src/render/port-props.ts`, con la versione semplificata per la vista intermedia. Non disegnare oggetti che OSM non mappa e non dare una dimensione a quelli mappati come solo punto.

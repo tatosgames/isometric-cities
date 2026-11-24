@@ -39,7 +39,7 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
       trace(ring);
       ctx.closePath();
     }
-    ctx.fillStyle = s.kind === 'park' && !s.paved ? '#728157' :
+    ctx.fillStyle = s.kind === 'beach' ? style.color.beach : s.kind === 'park' && !s.paved ? '#728157' :
       s.id === '30801430' ? '#96948f' : '#c0b9af';
     ctx.fill('evenodd');
   }
@@ -71,6 +71,15 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
       ctx.stroke();
     }
     ctx.restore();
+  }
+  // A named seafront promenade reads as one: its real width in terracotta paving, with the pale band down the middle.
+  const promenades = new Set(style.promenade.names);
+  for (const [width,colour] of [[style.promenade.width,style.promenade.color],[1.1,style.promenade.band]] as const) {
+    ctx.lineWidth = width;
+    ctx.strokeStyle = colour;
+    ctx.beginPath();
+    for (const road of data.roads) if (road.name && promenades.has(road.name) && road.line.length > 1) trace(road.line);
+    ctx.stroke();
   }
 
   let contactAt:GroundMap['contactAt'];

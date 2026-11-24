@@ -21,6 +21,8 @@ export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
         vec3 ground=texture2D(groundColours,uv).rgb;
         diffuseColor.rgb*=ground;
         if(ground.g>ground.r && ground.g>ground.b){grain+=.1*sin(p.x*.73)*sin(p.y*.61);}
+        // Sand: warm and pale. Long soft ripples instead of paving joints.
+        else if(ground.r-ground.b>.14 && ground.r-ground.g<.12){grain=(speck-.5)*.05+.035*sin(p.x*.21+p.y*.34+1.7*sin(p.y*.09));}
         else if(ground.r>=ground.b){
           vec2 paving=p*vec2(.85,1.65);paving.x+=mod(floor(paving.y),2.)*.5;
           vec2 edge=min(fract(paving),1.-fract(paving));
