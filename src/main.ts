@@ -7,7 +7,6 @@ import { lodTransition } from './render/sectors/lod-transition.ts';
 import { streamCity } from './render/sectors/sector-stream.ts';
 import { createPlacesUI } from './map/places-ui.ts';
 import * as T from 'three';
-import { MapControls } from 'three/addons/controls/MapControls.js';
 import { makeCity } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
 import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
@@ -16,7 +15,7 @@ import { makeSea } from './render/sea.ts';
 import { propObstacles } from './render/port-props.ts';
 import { makeMapFraming, normalizeTurn } from './map/framing.ts';
 import { approach, wrapAngle } from './geometry.ts';
-import { CAMERA_DISTANCE, fitPixels, makeMapCamera, mapViewDirection, screenOffsetOnGround } from './render/map-camera.ts';
+import { CAMERA_DISTANCE, GroundControls, fitPixels, makeMapCamera, mapViewDirection, screenOffsetOnGround } from './render/map-camera.ts';
 import { bootError, bootEvent, bootPaint, bootPhase, bootProgress, booting, startup } from './boot.ts';
 
 interface Flight {
@@ -30,8 +29,8 @@ interface Flight {
 }
 
 const turnDuration=300;
-// After a drag the map glides on and slows by this rate per second.
-const coastRate=6;
+// After a drag the map glides on at the speed of the last 100 ms of the gesture and slows by this rate per second.
+const coastRate=6,coastWindow=100;
 const map=el('map');
 
 async function start(){
@@ -109,15 +108,17 @@ async function start(){
   sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);
   // Map controls: the ground stays under the pointer, the wheel and the pinch zoom towards where they point.
   // Rotation goes by the buttons in quarter turns, so the two-finger gesture pans and zooms only.
-  const controls=new MapControls(camera,renderer.domElement);
+  // No damping: three.js damping applies a share of each move per update, so the map trails the finger.
+  // The glide after the release is the map's own (`coast`).
+  const controls=new GroundControls(camera,renderer.domElement);
   controls.enableRotate=false;controls.zoomToCursor=true;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
-  controls.enableDamping=true;controls.dampingFactor=approach(coastRate,1/60);
   const direction=mapViewDirection();
   const {mapInclination,mapDirection,bounds,center,fitAt,farthest,openingZoom}=makeMapFraming({host,compact,data,altitude,direction});
   let frame=0,lost=false,painted=0,mapTurn=0;
   let flight: Flight | null=null;
-  // `coasting`: the glide after a drag is running. `residual`: the controls may still hold some of it.
-  let coasting=false,residual=false,coastTime=0;
+  // The glide after a drag: ground velocity in metres per second, and where the gesture went lately.
+  let coasting=false,coastTime=0;
+  const coastVelocity=new T.Vector3(),trail: {t: number;x: number;z: number;zoom: number}[]=[];
   const shift=new T.Vector2(),toCamera=new T.Vector3(),centre=new T.Vector3();
   let lastView: ViewState | null=null;
   let drive: ReturnType<typeof makeDrive> | null=null,awaitingZone=false;
@@ -155,14 +156,32 @@ async function start(){
       fly(landing,end.z1,Math.max(0,end.start+end.duration-performance.now()),end.turn1);
     }
   }
-  /** Settle what the controls still hold of a glide, so a programmatic pose starts from what is on screen. */
-  function flush(){
-    if(!residual)return;
-    residual=coasting=false;
-    controls.enableDamping=false;controls.update();controls.enableDamping=true;
+  /**
+   * Remember where a drag has been, to launch the glide at the speed the finger had when it let go. Times are
+   * those of the pointer events, when the finger moved, not when a busy main thread got round to them.
+   */
+  let inputTime=0;
+  for(const type of ['pointerdown','pointermove','pointerup'])host.addEventListener(type,event=>{inputTime=event.timeStamp;},{capture:true});
+  function trace(){
+    const t=inputTime;
+    trail.push({t,x:controls.target.x,z:controls.target.z,zoom:camera.zoom});
+    while(trail.length>2 && t-trail[1].t>coastWindow)trail.shift();
+  }
+  function launch(){
+    const now=inputTime,last=trail.at(-1);
+    // The moves of the last 100 ms, or the last two when a long frame left only one in that window.
+    let first=trail.find(p=>now-p.t<=coastWindow && p.zoom===last?.zoom);
+    const previous=trail.at(-2);
+    if(first===last && previous && previous.zoom===last?.zoom && last.t-previous.t<=3*coastWindow)first=previous;
+    trail.length=0;
+    // A finger that rested before lifting, or a pinch, leaves the map where it is.
+    if(!last || !first || last===first || now-last.t>80)return;
+    coastVelocity.set(last.x-first.x,0,last.z-first.z).divideScalar((last.t-first.t)/1000);
+    if(coastVelocity.length()*camera.zoom<60)return;
+    coasting=true;coastTime=0;draw();
   }
   function view(target: T.Vector3,zoom: number,offset=mapDirection(mapTurn)){
-    flush();
+    coasting=false;
     controls.target.copy(target);
     camera.position.copy(target).addScaledVector(offset,CAMERA_DISTANCE);
     controls.update();
@@ -185,7 +204,7 @@ async function start(){
   }
   function fly(target: T.Vector3,zoom: number,duration: number,turn1=flight?.turn1??mapTurn,driveOrbit?: T.Spherical,s1=flight?.s1??shift){
     if(lost || flight?.driveOrbit)return;
-    flush();
+    coasting=false;
     host.dataset.moving='true';
     flight={start:performance.now(),duration:Math.max(duration,Math.abs(turn1-mapTurn)*turnDuration),
       from:controls.target.clone(),to:target.clone(),z0:camera.zoom,z1:zoom,turn0:mapTurn,turn1,driveOrbit,
@@ -218,8 +237,9 @@ async function start(){
   el('map-content').addEventListener('click',event=>{
     if(event.target instanceof Element && event.target.closest('button:not(:disabled):not([aria-disabled="true"])'))dismissCredits();
   },{capture:true});
-  controls.addEventListener('start',()=>{dismissCredits();flight=null;places.fold();gesture=residual=true;coasting=false;});
-  controls.addEventListener('end',()=>{gesture=false;coasting=residual=true;coastTime=0;draw();});
+  controls.addEventListener('start',()=>{dismissCredits();flight=null;places.fold();gesture=true;coasting=false;trail.length=0;trace();});
+  controls.addEventListener('change',()=>{if(gesture)trace();});
+  controls.addEventListener('end',()=>{gesture=false;launch();settle();});
   function sampleCadence(time: number){
     if(!moving()){adaptive.suspend();return;}
     const scale=adaptive.sample(time);
@@ -304,10 +324,13 @@ async function start(){
   function drawFrame(time: number){
     sampleCadence(time);
     if(coasting){
-      // The glide decays at the same rate per second whatever the frame cadence.
-      controls.dampingFactor=approach(coastRate,coastTime?Math.min(.1,(time-coastTime)/1000):1/60);
+      // Exponential decay, integrated exactly over the frame: the same glide at any frame cadence.
+      const dt=coastTime?Math.min(.1,(time-coastTime)/1000):1/60;
       coastTime=time;
-      if(!controls.update()){coasting=false;settle();}
+      const step=approach(coastRate,dt)/coastRate;
+      controls.target.addScaledVector(coastVelocity,step);camera.position.addScaledVector(coastVelocity,step);
+      coastVelocity.multiplyScalar(1-approach(coastRate,dt));
+      if(coastVelocity.length()*camera.zoom<8){coasting=false;settle();}else draw();
     }
     if(flight){
       const t=T.MathUtils.clamp((time-flight.start)/flight.duration,0,1),ease=t*t*(3-2*t);
@@ -430,7 +453,7 @@ async function start(){
   function beginDrive(){
     if(lost || !drive || drive.active || map.dataset.boot!=='ready')return;
     // The drive aims the camera itself and has no place card beside it.
-    rebase();flush();
+    rebase();coasting=false;
     awaitingZone=false;streamed?.undemand();
     play.removeAttribute('aria-busy');play.setAttribute('aria-label','Play');
     if(drive.enter()==='unavailable'){

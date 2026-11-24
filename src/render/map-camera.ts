@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { MapControls } from 'three/addons/controls/MapControls.js';
 
 /**
  * The orthographic camera shared by the map, the drive, the editor and the labs. Its frustum is in CSS pixels,
@@ -33,4 +34,20 @@ export function screenOffsetOnGround(out: T.Vector3,point: T.Vector3,dx: number,
   const flat=Math.hypot(toCamera.x,toCamera.z) || 1;
   const across=dx/(zoom*flat),toward=dy/(zoom*toCamera.y*flat);
   return out.set(point.x+toCamera.z*across+toCamera.x*toward,point.y,point.z-toCamera.x*across+toCamera.z*toward);
+}
+
+const basePan=(MapControls.prototype as unknown as {_pan(deltaX: number,deltaY: number): void})._pan;
+const toEye=new T.Vector3();
+
+/**
+ * Map controls whose ground stays under the finger too. MapControls already grabs the ground under the mouse;
+ * a touch pan goes through `_pan`, which moves the target by as many metres as the finger moved pixels, and seen
+ * at an angle a ground step towards the camera looks shorter by the sine of the elevation. The vertical part is
+ * stretched back by that sine. `_pan` is internal to three.js: if it disappears, touch pans as three.js does.
+ */
+export class GroundControls extends MapControls {
+  _pan(deltaX: number,deltaY: number){
+    const sine=this.screenSpacePanning?1:toEye.subVectors(this.object.position,this.target).normalize().y;
+    basePan.call(this,deltaX,deltaY/Math.max(.2,sine));
+  }
 }

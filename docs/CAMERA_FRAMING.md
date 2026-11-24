@@ -16,7 +16,7 @@ I valori citati sono quelli del codice al 24 novembre 2026. Se cambiano nel codi
 
 - **Apertura:** dettaglio sul luogo indicato da `data.focus`, non la panoramica.
 - **Panoramica** (mirino o tasto Inizio): mantiene l'orientamento e inquadra tutto il perimetro con un margine (`fitAt`).
-- **Trascinamento:** il terreno resta sotto il puntatore (`MapControls`). Al rilascio la mappa scivola ancora e rallenta (`coastRate` 6 al secondo); un nuovo tocco, un pulsante o Play la fermano.
+- **Trascinamento:** il terreno resta sotto il puntatore, uno a uno, col mouse e col dito, anche in verticale (`GroundControls` in `src/render/map-camera.ts`). Nessuno smorzamento durante il gesto. Al rilascio la mappa prosegue alla velocità degli ultimi 100 ms del gesto, misurata sui tempi degli eventi del puntatore, e rallenta di `coastRate` 6 al secondo. Un dito fermo per più di 80 ms prima di sollevarsi e un pizzico non fanno scivolare. Un nuovo tocco, un pulsante o Play fermano la scivolata.
 - **Rotellina e pizzico:** lo zoom va verso il punto indicato, non verso il centro.
 - **Pulsanti zoom:** `+`, `−` e panoramica interpolano bersaglio e zoom in 300 ms; nuovi input sostituiscono il volo in corso partendo dalla vista corrente.
 - **Pulsanti di rotazione:** ±90° attorno al bersaglio, a zoom e inclinazione costanti. Uno scatto dura 300 ms. I clic ravvicinati si sommano e ripartono dalla posa visibile.

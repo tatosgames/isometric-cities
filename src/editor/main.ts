@@ -1,5 +1,4 @@
 import * as T from 'three';
-import { MapControls } from 'three/addons/controls/MapControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { applyPilotEdits, inPilot, isFixedBuilding, loadPilotBase, propKinds, readPilotEdits, readPilotFile } from '../data/pilot-edits.ts';
 import type { MapProp, PilotEdits, PropKind } from '../data/pilot-edits.ts';
@@ -9,7 +8,7 @@ import type { Point, Ring } from '../data/types.ts';
 import { required } from '../required.ts';
 import { GROUND_SURFACE } from '../render/ground-surface.ts';
 import { makeCity } from '../render/scene.ts';
-import { CAMERA_DISTANCE, fitPixels, makeMapCamera } from '../render/map-camera.ts';
+import { CAMERA_DISTANCE, GroundControls, fitPixels, makeMapCamera } from '../render/map-camera.ts';
 import type { BuildingRange } from '../render/scene.ts';
 import type { Building } from '../data/types.ts';
 import { previewBuilding } from './building-drag.ts';
@@ -44,7 +43,7 @@ async function start() {
   scene.add(sun,new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
   // The map's controls: left and middle drag pan with the ground under the pointer, right drag orbits,
   // the wheel zooms towards the pointer.
-  const controls = new MapControls(camera,canvas);
+  const controls = new GroundControls(camera,canvas);
   controls.maxPolarAngle = Math.PI/2.6;
   controls.mouseButtons.MIDDLE = T.MOUSE.PAN;
   controls.touches.TWO = T.TOUCH.DOLLY_PAN;
