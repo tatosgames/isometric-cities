@@ -577,6 +577,44 @@
     "41435": {
       "roofFurniture": false
     },
+    "29223": {
+      "wallColor": "#e6e4de",
+      "windows": false,
+      "roofFurniture": false,
+      "split": {
+        "polygon": [[-1140, 4044], [-1153.5, 4044.0], [-1155.2, 4056.6], [-1160.0, 4068.2], [-1167.7, 4078.3], [-1177.8, 4086.0], [-1189.4, 4090.8], [-1202.0, 4092.5], [-1214.6, 4090.8], [-1226.2, 4086.0], [-1236.3, 4078.3], [-1244.0, 4068.2], [-1248.8, 4056.6], [-1250.5, 4044.0], [-1251, 4026], [-1238, 4026], [-1238, 3985], [-1140, 3985], [-1140, 4044]],
+        "inside": {
+          "landmark": "el-muelle",
+          "heightOverride": 6,
+          "wallColor": "#e6e4de",
+          "windows": false,
+          "roofFurniture": false,
+          "toneSuffix": "-atrio"
+        }
+      }
+    },
+    "26981": {
+      "heightOverride": 11,
+      "wallColor": "#3c9c8e",
+      "balconies": false,
+      "roofFurniture": false,
+      "split": {
+        "polygon": [[-1475, 4003], [-1405, 4003], [-1405, 4050], [-1475, 4050], [-1475, 4003]],
+        "inside": {
+          "wallColor": "#28344a",
+          "windows": false,
+          "roofFurniture": false,
+          "toneSuffix": "-vidrio"
+        }
+      }
+    },
+    "26979": {
+      "landmark": "edificio-miller",
+      "heightOverride": 9,
+      "wallColor": "#efeee8",
+      "windows": false,
+      "roofFurniture": false
+    },
     "15839": {
       "wallColor": "#ece7dc",
       "windows": false,
@@ -625,6 +663,16 @@
       "windows": false,
       "roofFurniture": false,
       "note": "Corpo del Castillo de Mata dentro il recinto. Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/1261817818",
+      "landmark": "carpa-santa-catalina",
+      "height": 13,
+      "heightOverride": 0.2,
+      "wallColor": "#f4f3ef",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Tenda bianca sopra la stazione delle guaguas di Santa Catalina (building=roof): membrana disegnata da landmarks.ts. Punte a 13 m stimate dall'ortofoto, da misurare con il LiDAR."
     }
   ],
   "pavedParks": [

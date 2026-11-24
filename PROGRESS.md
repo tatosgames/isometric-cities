@@ -146,6 +146,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AK · Schede di tutti i luoghi.** 30 luoghi su 31 hanno la scheda con testo e link; 21 anche la foto. Senza foto libera adatta: El Obelisco, Club de Natación Metropole, Parroquia de San Cristóbal, Parque de La Ballena, Parque de Las Rehoyas, Mercado de Altavista, Parque Gloria Fuertes, Real Club Náutico, Centro Comercial Las Arenas. La Iglesia San Francisco Javier resta con la sola pillola: fatti insufficienti, e le fonti la collocano a Hoya de la Plata. [Verifica](docs/QA.md#schede-di-tutti-i-luoghi-24-novembre-2026). Da fare: rilettura dei testi da parte di Luca; foto proprie per i nove luoghi senza.
 
+**AL · Porto di Santa Catalina: El Muelle, Elder, Miller, tenda e strade sotto terra.** Le corsie della stazione sotterranea delle guaguas (`level=-1` senza `tunnel`) non si disegnano più in superficie; 177 strade che entrano in galleria finiscono con un taglio netto invece del tappo tondo. El Muelle è diviso in stecca, atrio semicircolare con volta di vetro e piazzale con pergola; Edificio Elder in corpo storico verde acqua e cubo di vetro; Edificio Miller con muri bianchi e due falde rosse; la tenda bianca sopra la stazione arriva da OSM. Piante dall'ortofoto 20 cm, facciate da foto di Wikimedia Commons usate come riferimento. [Verifica](docs/QA.md#porto-di-santa-catalina-24-novembre-2026). Aperto: le altezze non comunali (atrio, pergola, corpo storico dell'Elder, muri del Miller, tenda) sono stime; su questa macchina non c'è LiDAR per misurarle.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.

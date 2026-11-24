@@ -24,6 +24,8 @@ export interface Road {
   name?: string | null;
   bridge?: string;
   layer?: string;
+  /** One end goes under ground: the street ends square, as a tunnel mouth, not on a round cap. */
+  portal?: boolean;
   kind: string;
   line: Point[];
 }

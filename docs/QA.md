@@ -842,3 +842,24 @@ Aggiunte 26 schede: 30 luoghi su 31 del catalogo hanno ora testo e link, 21 anch
 - **Fonte unica, da rileggere:** El Obelisco (Mapping Canarias), Parroquia de San Cristóbal (un articolo di La Provincia; il tempio risulta dedicato a Nuestra Señora del Buen Viaje), Parque de La Ballena (scheda del progetto al Colegio de Arquitectos, stato al 2019). I numeri di letti e posti degli ospedali e dei mercati vengono da fonti senza data.
 
 `check:data` e build superati. In Chromium, a 1280 × 800, tutte le 29 voci del menu aperte una per una: 28 schede con testo, foto dove prevista e dominio del link corretto, una pillola (Iglesia San Francisco Javier), nessun errore in pagina né richiesta fallita. A 390 × 844 controllate una scheda senza foto e una con foto. Nessuna prova su telefono fisico. I testi non sono stati riletti da una persona del posto.
+
+## Porto di Santa Catalina (24 novembre 2026)
+
+Richiesto da Luca da una cattura sul telefono: El Muelle come blocco unico a 38 m con finestre da palazzina, Elder e Miller come condomini, barre d'asfalto radiali sul piazzale della stazione, strade che finivano in un tappo tondo. Riferimenti: ortofoto PNOA 1 m e SITCAN 20 cm (letta a finestra da remoto) sovrapposte a impronte e strade del modello; foto di Wikimedia Commons («Buildings of Elder ^ Miller - panoramio», «Museo Elder de la Ciencia y la Tecnología», «ELDER - panoramio») usate solo come riferimento, non riprodotte.
+
+- **Strade sotto terra.** Le 20 corsie della Estación de Guaguas Santa Catalina hanno in OSM `level=-1` ma non `tunnel`: `data.py` scarta ora ogni `highway` con tutti i `level` negativi (21 way in città, 20 corsie e un marciapiede). Le strade di superficie che proseguono in un tratto sotterraneo hanno `portal: true` (177 in città) e finiscono con un taglio netto in `carriageways.py` e nel suolo raster: Avenida Marítima all'imbocco sotto il piazzale, rampe degli autobus. La rampa in trincea dentro l'isola della rotatoria è reale (way 1263512785, `cutting=yes`) e resta.
+- **El Muelle (29223).** `split.polygon` (nuovo: anello in metri locali) separa dalla stecca l'atrio semicircolare e il piazzale. Stecca all'altezza comunale (38,1 m), muri chiari senza finestre. Atrio e piazzale estrusi a 6 m; `landmarks.ts` disegna la volta di vetro sul semianello (raggi 29 e 48,5 m, da 22 a 30 m), la facciata vetrata sul lato dritto e la pergola bianca a reticolo a 13 m. La torretta cilindrica resta un corpo a parte all'altezza comunale.
+- **Edificio Elder (26981).** Cubo di vetro scuro a nord all'altezza comunale (19,7 m); corpo storico verde acqua con finestre e senza balconi a 11 m.
+- **Edificio Miller (26979).** Muri bianchi a 9 m senza finestre; due falde rosse parallele fino al colmo comunale (13,5 m), dalla pianta dell'ortofoto.
+- **Tenda della stazione.** `osmBuildings` con la way 1261817818 (`building=roof`): membrana bianca con le punte alte sugli angoli, alberi alle punte.
+
+Stime dichiarate, da misurare con il LiDAR (su questa macchina `.cache/lidar` è vuota): piano di atrio e piazzale, volta e pergola di El Muelle, corpo storico dell'Elder, muri del Miller, punte della tenda (13 m).
+
+**Verifiche.** `typecheck`, `build` con `check:data` verdi. Confronto di `city.json` prima e dopo: cambiano solo le 21 way sotterranee, le 177 con `portal` e i tre edifici; `roof-tones.json` cambia solo per 29223, 29223-atrio, 26981, 26981-vidrio e la tenda. Catture a camera identica (1440 × 900 a zoom 0,9 e 3,2, telefono a 1,59) prima e dopo, viste a occhio. `frame-profile.mjs` a (-1250, 4000) sul telefono emulato, commit di partenza contro questo:
+
+| Vista | Draw call | Triangoli | Mediana / p90 |
+|---|---|---|---|
+| Da vicino (1,59) | 88 → 94,5 | 83.848 → 81.219 | 16,7 / 16,8 ms, invariata |
+| Più ampia (0,352) | 306,5 → 308,4 | 277.592 → 279.536 | 16,7 / 16,8 ms, invariata |
+
+`npm.cmd test`: guida, pedoni, suolo e camera della mappa superati; `qa.mjs` si ferma alla riga 180 (pinch sul telefono, `data-view` invariato entro 30 s). `qa-sectors.mjs`: il circuito dei settori passa, poi il clic su Play è intercettato dal link della scheda di Santa Ana. Entrambi gli arresti avvengono identici su una copia pulita del commit di partenza `4de5a3e`: non dipendono da questo passo.

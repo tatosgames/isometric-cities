@@ -202,7 +202,8 @@ for f in features:
     split=style.pop('split',None)
     sections=[(clipped,style)]
     if split:
-        mask=Polygon(ways[split['osmWay']][1])
+        # The dividing outline is an OSM way, or a ring in local metres traced on the 20 cm orthophoto.
+        mask=Polygon(ways[split['osmWay']][1] if 'osmWay' in split else split['polygon'])
         sections=[(clipped.intersection(mask),split['inside']),(clipped.difference(mask),style)]
     for section,style in sections:
       for p in parts(section,'Polygon'):
@@ -221,6 +222,14 @@ for f in features:
         buildings.append(dict(id=f['properties']['OBJECTID'],**look,rings=outline,height=height,source=origin))
 # Monuments the municipal layer leaves out: OSM footprint, catalogue height (see scripts/osm_buildings.py).
 buildings+=osm_buildings(catalog,place_polygon,area,parts,rings)
+def underground(t):
+    """A way below the street: a tunnel, or a level wholly below ground (the bays of the Santa Catalina bus station)."""
+    levels=[v.strip() for v in t.get('level','').split(';') if v.strip()]
+    try: below=bool(levels) and all(float(v)<0 for v in levels)
+    except ValueError: below=False
+    return bool(t.get('tunnel')) or below
+# Where a street goes under ground it ends square, as a portal, instead of on a round cap.
+portals={tuple(v) for t,vs in ways.values() if t.get('highway') and underground(t) for v in (vs[0],vs[-1]) if vs}
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')
@@ -233,9 +242,10 @@ for i,(t,vs) in ways.items():
     elif vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road):
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
             surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p)))
-    elif road and road not in ('construction','proposed','elevator') and not t.get('tunnel'):
+    elif road and road not in ('construction','proposed','elevator') and not underground(t):
         for l in parts(LineString(vs).intersection(area),'LineString'):
             grade={key:t[key] for key in ('bridge','layer') if key in t}
+            if any(tuple(l.coords[k]) in portals for k in (0,-1)): grade['portal']=True
             roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords),**grade))
 for e in osm.findall('node'):
     if tags(e).get('natural')=='tree' and area.contains(Point(nodes[e.get('id')])):

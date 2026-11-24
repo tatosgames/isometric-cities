@@ -66,6 +66,7 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
       if (footways.has(road.kind) !== pedestrian || road.line.length < 2) continue;
       ctx.lineWidth = pedestrian ? style.width.pedestrian : mainRoads.has(road.kind) ? style.width.main : style.width.street;
       ctx.strokeStyle = pedestrian ? style.color.pedestrian : style.color.street;
+      ctx.lineCap = road.portal ? 'butt' : 'round';
       ctx.beginPath();
       trace(road.line);
       ctx.stroke();

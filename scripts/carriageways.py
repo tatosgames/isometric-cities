@@ -41,8 +41,11 @@ class Carriageways:
                 obstacles.append(line.buffer(STYLE["width"]["pedestrian"]/2))
             else:
                 key="main" if road["kind"] in STYLE["main"] else "street"
-                old.append(line.buffer(STYLE["width"][key]/2,quad_segs=8))
-                shapes.append(line.buffer(STYLE["targetWidth"][key]/2,quad_segs=8))
+                # A street that goes under ground ends square at the tunnel mouth; its other end meets
+                # streets whose round caps already cover the joint.
+                cap="flat" if road.get("portal") else "round"
+                old.append(line.buffer(STYLE["width"][key]/2,quad_segs=8,cap_style=cap))
+                shapes.append(line.buffer(STYLE["targetWidth"][key]/2,quad_segs=8,cap_style=cap))
         self.protected=union_all(protected)
         self.obstacles=union_all([*obstacles,self.protected])
         self.land=make_valid(Polygon(data["boundary"]))

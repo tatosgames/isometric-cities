@@ -25,7 +25,8 @@ function building(v: unknown): v is Building {
     && (v.windows === undefined || boolean(v.windows)) && (v.balconies === undefined || boolean(v.balconies));
 }
 const road = (v: unknown): v is Road => record(v) && (v.id===undefined||string(v.id)) && string(v.kind) && list(v.line, point)
-  && (v.name == null || string(v.name)) && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer));
+  && (v.name == null || string(v.name)) && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer))
+  && (v.portal===undefined||boolean(v.portal));
 const barrio = (v: unknown): v is Barrio =>
   record(v) && string(v.name) && v.name.trim().length > 0 && list(v.polygons, rings) && v.polygons.length > 0;
 export const isBarrios = (v: unknown): v is Barrio[] => list(v, barrio);

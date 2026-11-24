@@ -233,9 +233,77 @@ function estadioDeGranCanaria(add: AddBuilding,altitude: Altitude,stands: Buildi
   facade(add,cx,cy,dx,dy,altitude(cx,cy))(new T.BoxGeometry(Math.max(10,along*2-14),.12,Math.max(10,across*2-14)),0,.15,0,'#5f8f4e');
 }
 
+// A gabled prism along x, `width` across z, rising `rise` to the ridge; its eaves lie on y = 0.
+function gable(length: number,width: number,rise: number){
+  const a=length/2,b=width/2,v: number[]=[];
+  v.push(-a,0,-b, a,0,-b, a,rise,0, -a,0,-b, a,rise,0, -a,rise,0);
+  v.push(a,0,b, -a,0,b, -a,rise,0, a,0,b, -a,rise,0, a,rise,0);
+  v.push(-a,0,b, -a,0,-b, -a,rise,0, a,0,-b, a,0,b, a,rise,0);
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();
+  return g;
+}
+
+// Iron warehouse of 1904 on the Parque Santa Catalina: white walls under two red gabled roofs side by side, their
+// ridges along the long side, after the 2024 orthophoto. The municipal height is the ridge; the walls are lower
+// (`heightOverride`, an estimate from street photographs).
+function edificioMiller(add: AddBuilding,altitude: Altitude,miller: Building){
+  const {cx,cy,dx,dy,along,across}=frame(miller),[x0,y0]=miller.rings[0][0];
+  const place=facade(add,cx,cy,dx,dy,altitude(x0,y0)),wall=miller.heightOverride??9,rise=Math.max(1.5,miller.height-wall);
+  for(const side of [-1,1])place(gable(along*2,across,rise),0,wall,side*across/2,'#b0634a');
+}
+
+// El Muelle shopping centre. The municipal record extrudes the whole complex to its highest roof; the catalogue
+// splits off the glazed half-round atrium and the forecourt, and this model draws over them what the 2024
+// orthophoto shows: the glass vault on its half ring, the glazed front along its straight side and the white steel
+// pergola falling towards the street. Places from the orthophoto; the heights are estimates until the LiDAR is read.
+function elMuelle(add: AddBuilding,altitude: Altitude){
+  const cx=-1202,cy=4044,inner=29,outer=48.5,base=altitude(cx,cy),glass='#8fb2c0',steel='#f1f1ee';
+  const low=base+22,high=base+30,steps=18,v: number[]=[];
+  const at=(r: number,a: number,z: number)=>[cx+r*Math.cos(a),z,-(cy+r*Math.sin(a))];
+  for(let k=0;k<steps;k++){
+    const a0=Math.PI*k/steps,a1=Math.PI*(k+1)/steps;
+    const p=at(outer,a0,high),q=at(outer,a1,high),r=at(inner,a1,low),s=at(inner,a0,low);
+    v.push(...p,...q,...r,...p,...r,...s);
+    // The outer wall of the vault, glazed down to the forecourt level.
+    const pb=at(outer,a0,base+6),qb=at(outer,a1,base+6);
+    v.push(...pb,...q,...p,...pb,...qb,...q);
+  }
+  const vault=new T.BufferGeometry();vault.setAttribute('position',new T.Float32BufferAttribute(v,3));vault.computeVertexNormals();
+  add(vault,glass,cx,cy);
+  // Glazed front along the straight side, from the forecourt up under the vault.
+  add(new T.BoxGeometry(outer*2,low-base-6,.4).translate(cx,base+6+(low-base-6)/2,-cy),glass,cx,cy);
+  // Pergola: a level grid of thin white beams over the forecourt, on posts along its edge.
+  const west=-1236,east=-1146,south=3999,north=cy-1,top=base+13,step=6.5;
+  for(let x=west;x<=east+.1;x+=(east-west)/Math.round((east-west)/step))
+    add(new T.BoxGeometry(.35,.35,north-south).translate(x,top,-(north+south)/2),steel,x,(north+south)/2);
+  for(let y=south;y<=north+.1;y+=(north-south)/Math.round((north-south)/step))
+    add(new T.BoxGeometry(east-west,.35,.35).translate((west+east)/2,top,-y),steel,(west+east)/2,y);
+  for(let x=west;x<=east+.1;x+=(east-west)/Math.round((east-west)/13))
+    for(const y of [south,north])add(new T.BoxGeometry(.45,top-base-6,.45).translate(x,base+6+(top-base-6)/2,-y),steel,x,y);
+}
+
+// White membrane over the Santa Catalina bus station, on its OpenStreetMap outline (building=roof): the corners
+// furthest from the middle are the high points held by masts, the edges between them sag. The extruded footprint
+// is only a sliver (`heightOverride`); the heights are estimates from the 2024 orthophoto.
+function carpaSantaCatalina(add: AddBuilding,altitude: Altitude,tent: Building){
+  const ring=tent.rings[0].slice(0,-1),{cx,cy}=frame(tent),base=altitude(cx,cy),peak=tent.height;
+  const reach=ring.map(([x,y])=>Math.hypot(x-cx,y-cy)),far=Math.max(...reach);
+  const z=(i: number)=>base+3.5+(peak-3.5)*(reach[i]/far)**3,middle=base+peak*.62,v: number[]=[];
+  ring.forEach(([x,y],i)=>{
+    const k=(i+1)%ring.length,[nx,ny]=ring[k];
+    v.push(cx,middle,-cy,x,z(i),-y,nx,z(k),-ny);
+  });
+  const membrane=new T.BufferGeometry();membrane.setAttribute('position',new T.Float32BufferAttribute(v,3));membrane.computeVertexNormals();
+  add(membrane,'#f4f3ef',cx,cy);
+  ring.forEach(([x,y],i)=>{
+    if(reach[i]>far*.9)add(new T.CylinderGeometry(.25,.3,z(i)-base+1.5,6).translate(x,base+(z(i)-base+1.5)/2,-y),'#cfd0cc',x,y);
+  });
+}
+
 const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario,'castillo-de-la-luz':castilloDeLaLuz,
   'mercado-del-puerto':mercadoDelPuerto,'auditorio-alfredo-kraus':auditorioAlfredoKraus,
-  'castillo-de-mata':castilloDeMata,'estadio-de-gran-canaria':estadioDeGranCanaria};
+  'castillo-de-mata':castilloDeMata,'estadio-de-gran-canaria':estadioDeGranCanaria,
+  'edificio-miller':edificioMiller,'el-muelle':elMuelle,'carpa-santa-catalina':carpaSantaCatalina};
 
 export function addLandmarks(buildings: Building[],add: AddBuilding,altitude: Altitude){
   const built=new Set();
