@@ -1235,3 +1235,63 @@ Entrano per intero quattro entità del servizio comunale «Barrios»: La Montañ
 Limiti. Mancano tre tessere LiDAR marginali (455-3103, 456-3105, 459-3104) e quelle a ovest di x = 455 km per Tafira Alta e Los Hoyos: in tutta la città 975 edifici senza dato comunale né misura restano a 9 m stimati. Il bordo sud segue il confine comunale, con il dito di Montequemado e la rientranza verso Telde. Le zone rurali hanno suolo e strade ma poca vegetazione. Nessun luogo o scheda nei quartieri nuovi. `heap-profile.mjs` e il passaggio di `PERFORMANCE.md` sui settori più pesanti non sono stati rifatti; nessuna prova su telefono fisico.
 
 `qa-sectors.mjs`: il giro tra i luoghi passa (memoria di dettaglio entro il budget, 58–60 MiB); il controllo sul punto di partenza della guida fallisce allo stesso modo anche sullo stato precedente all'espansione, quindi viene dalle modifiche alla guida già presenti su `main` e resta da sistemare.
+
+## Blocco nord-ovest · tutto il comune · 25 novembre 2026
+
+Entrano per intero Almatriche (1), Los Giles (12), San Lorenzo (30), Tamaraceite (36) e Tenoya (37): 40 barrios con nome più i cinque «Diseminado» di raccordo. Con il blocco sud il plastico copre ora tutto il comune; restano fuori 0,16 km² di scarti tra i perimetri comunali. L'area resta un solo anello senza buchi. La finestra passa a −15,53 / 28,00 / −15,38 / 28,19. Oltre Los Giles il bordo nord-ovest è il confine con Arucas, cioè terraferma: lì il mare non c'è per scelta. L'estratto supplementare della costa (`seaCoastBounds`) va fino a −15,58 perché la finestra del mare, larga 2,8 km oltre la città, sia chiusa dalla costa di Arucas.
+
+| | Blocco sud | Tutto il comune |
+|---|---:|---:|
+| Area | 62,67 km² | 103,88 km² |
+| Parti di edificio | 36.321 | 48.308 |
+| Zone / settori | 110 / 1.290 | 164 / 2.041 |
+| Barrios con nome | 72 | 112 |
+| `city-core.json` + `city-terrain.bin` | 6,8 + 6,7 MB | 9,4 + 10,4 MB |
+| Heap dopo la raccolta (`benchmark.mjs`, telefono emulato) | 62,5 MB | 77,1 MB |
+
+- Terreno: 1.268 riquadri su 2.255 del rettangolo (2.611 × 3.490 celle). Come griglia unica sarebbero 18,2 MB per copia.
+- LiDAR: 20 tessere sul nord-ovest, 5.775 edifici misurati, scarto mediano LiDAR meno comunale +0,12 m, 90 % entro 5 m; 209 edifici senza altezza comunale prendono quella misurata, 77 parti di complessi corrette.
+- L'atlante dei tetti supera ora i 178 milioni di pixel che PIL tratta come immagine sospetta: `sectors.py` alza il limite, perché l'atlante è un mosaico nostro.
+- Rete delle guaguas: 10.098 tratti in 579 celle, 117 schemi.
+- `typecheck`, `build` (con `check-data`), `node scripts/qa.mjs`: verdi. `benchmark.mjs`: p95 16,9 ms da vicino e 17,4 ms da lontano.
+- Cinque catture desktop (Tamaraceite, San Lorenzo, Tenoya, Los Giles, Almatriche): raccordi continui con l'area precedente, nessun buco.
+
+Limiti. `public/data/city.json` pesava 94,5 MB, vicino al limite di 100 MB di GitHub: ora si pubblica come `city.json.gz` (14,1 MB, vedi sotto). In tutto il comune 3.176 edifici senza dato comunale né misura restano a 9 m stimati: mancano le tessere LiDAR a ovest di x = 451 km. Le zone rurali hanno suolo e strade ma poca vegetazione. Nessun luogo o scheda nei quartieri nuovi; `qa-sectors.mjs` resta da sistemare (vedi sopra); `heap-profile.mjs` e il passaggio di `PERFORMANCE.md` non rifatti; nessuna prova su telefono fisico.
+
+## Passaggio di ottimizzazione sul comune intero · 25 novembre 2026
+
+Settori più pesanti: restano quelli di La Isleta (fino a 316 KB). I quartieri nuovi sono più leggeri: settore mediano 8 KB contro 19 della città storica, il più pesante (centro di Tamaraceite) 216 KB.
+
+`frame-profile.mjs`, telefono emulato:
+
+| Vista | Triangoli | Draw call | Mediana / p95 |
+|---|---:|---:|---:|
+| Tamaraceite da vicino (1.59) | 106.867 | 106 | 16,7 / 16,9 ms |
+| Tamaraceite alla vista più ampia (0.352) | 204.732 | 195 | 16,7 / 16,8 ms |
+| La Isleta da vicino | 170.706 | 133 | 16,7 / 16,8 ms |
+| La Isleta alla vista più ampia | 296.832 | 213 | 16,7 / 16,8 ms |
+
+Il disegno non è il limite: nessuna vista esce dai 60 fps. È cresciuta la memoria a riposo (da 52,0 a 77,1 MB con l'espansione). `heap-profile.mjs` mostra 14,4 MB di buffer di geometria trattenuti in JavaScript dal livello lontano, che non passava da `gpuOnly()`: le silhouette di 164 zone (posizioni e colori, circa 10 MB) e il suolo lontano (posizioni e coordinate di texture).
+
+Modifica: le silhouette lontane lasciano la copia dopo l'upload; i contorni degli isolati restano in array tipizzati (1,6 MB) e `forget()` ridisegna le silhouette alla perdita del contesto WebGL. Il suolo lontano resta: il campionatore delle quote ne legge i triangoli.
+
+- `benchmark.mjs`: heap dopo la raccolta da 77,1 a 67,5 MB, p95 16,8 ms da vicino e 17 ms da lontano.
+- `heap-profile.mjs` su Schamann: buffer trattenuti da 29,1 a 21,5 MB da vicino e da 32,6 a 24,1 MB alla vista più ampia.
+- Catture a camera identica, due per versione: differenze tra prima e dopo dello 0–0,13 % dei pixel, quanto tra due catture della stessa versione.
+- Perdita e ripristino del contesto alla vista desktop con solo il livello lontano a schermo: silhouette ridisegnate, nessun errore in console, stessa differenza prima/dopo la perdita della versione precedente (1,5 %, vento e nuvole).
+- `typecheck`, `build`, `node scripts/qa.mjs`, `qa-recovery`, `qa-boot`: verdi.
+
+Restano in memoria, in ordine: terreno 9,9 MB, strade e superfici del nucleo circa 8 MB, impronte delle zone caricate circa 4 MB, suolo lontano circa 4 MB. Il terreno serve a ogni quota; strade e superfici sono tra le idee non provate di `PERFORMANCE.md`.
+
+## Strati della città in gzip · 25 novembre 2026
+
+`public/data/city.json` (94,5 MB: suolo 41, griglia del terreno come testo 29, edifici 19) diventa `city.json.gz` (14,1 MB). `scripts/city_layers.py` è l'unico punto che decide il formato: `write_layers()` in `data.py`, `read_layers()` in `sectors.py`, `lidar-check.py`, `roof-colours.py`, `roof-compare-20cm.py`, `guaguas.py`, `guagua_network.py`, `lab-carriageway.py`, `qa-carriageway-data.py` e `audit-city.py`. Il pilota resta `pilot.json` in chiaro. Il laboratorio delle strade legge il gzip con `DecompressionStream`; se il server lo ha già decodificato (`Content-Encoding: gzip`, come fa il server di sviluppo di Vite) lo riconosce dai primi due byte.
+
+- Il gzip decompresso è identico byte per byte al JSON di prima; gzip senza data, quindi due scritture degli stessi dati danno lo stesso file.
+- `sectors.py` e la rete delle guaguas rigenerati dal gzip: nessun file pubblicato cambia.
+- `qa-road-lab.mjs` verde sulla build e sul server di sviluppo; `typecheck` e `build` verdi.
+- I due commit locali sono stati riscritti prima del push, così la versione da 94,5 MB non entra nella storia del repository.
+
+### Suolo a quadrati più veloce
+
+`data.py` taglia la terraferma in un milione di quadrati da 15 m. Prima ogni quadrato veniva ritagliato contro il contorno intero del comune (11.366 vertici): circa 20 minuti. Ora un test preparato (`shapely.contains`/`intersects`, a colonne) scarta i quadrati fuori e restituisce così come sono quelli tutti dentro, con i vertici nell'ordine che GEOS darebbe; si ritagliano solo quelli sul bordo. `data.py city` intero passa da 6–20 minuti a 184 s, con `city.json.gz` identico byte per byte (i quadrati interni restano scritti come decimali, `-1500.0`).

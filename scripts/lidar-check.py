@@ -2,7 +2,7 @@
 
 Uso:  python scripts/lidar-check.py [--export] [cartella_o_file ...]   (default: .cache/lidar)
 --export aggiorna content/lidar-heights.json, letto da data.py per gli edifici senza altezza comunale.
-Legge public/data/city.json, misura per ogni edificio coperto dai tile
+Legge public/data/city.json.gz, misura per ogni edificio coperto dai tile
 l'altezza del tetto (classe 6) sul terreno (classe 2 in un anello attorno) e
 confronta con l'altezza comunale. Scrive solo in .cache/lidar-control/.
 Dipendenza solo locale: laspy[lazrs] in .cache/pylib (non in requirements.txt).
@@ -19,6 +19,7 @@ from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from geo import origin
+from city_layers import read_layers
 
 OUT = Path('.cache/lidar-control')
 GROUND, BUILDING = 2, 6
@@ -56,7 +57,7 @@ def main():
     order = np.argsort(x, kind='stable')
     x, y, z, c = x[order], y[order], z[order], c[order]
     del order
-    city = json.loads(Path('public/data/city.json').read_text(encoding='utf8'))
+    city = read_layers('city')
     poi = json.loads(Path('public/data/poi.geojson').read_text(encoding='utf8'))['features']
     poi_xy = {f['properties']['id']: Point(f['properties']['xy'][0]+ORIGIN[0], f['properties']['xy'][1]+ORIGIN[1]) for f in poi}
     polys = []

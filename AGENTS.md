@@ -44,7 +44,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/map/places-ui.ts`, `src/render/landmarks.ts` | Menu e marker con ID persistenti, modelli procedurali dedicati |
 | `src/map/place-card.ts`, `public/photos/` | Scheda del luogo (foto, quartiere, nome, testo, link) con le sue animazioni; pannello a sinistra o foglio dal basso. Foto con licenza libera, crediti in `docs/DATA_SOURCES.md` |
 | [Guida per ampliare la mappa](docs/EXPAND_CITY.md) | POI, quartieri, nuove città, cache e verifiche |
-| `public/data/` | `city.json`, `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp`, `sea.json` (mare e costa, da `data.py city`) |
+| `public/data/` | `city.json.gz` (strati della città, gzip senza data: si legge e scrive con `scripts/city_layers.py`), `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp`, `sea.json` (mare e costa, da `data.py city`) |
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |
 | `scripts/roof-colours.py` | Palette tetti |
 | `scripts/qa.mjs`, `scripts/benchmark.mjs`, `scripts/frame-profile.mjs`, `scripts/heap-profile.mjs`, `scripts/shot.mjs` | QA Playwright, benchmark, profilo dei fotogrammi in un luogo (cadenza, triangoli, tempo sul thread principale), chi occupa la memoria in una vista (istantanea dell'heap per proprietario) e cattura a camera identica per i confronti prima/dopo (`x,y,zoom[,turn]`) |

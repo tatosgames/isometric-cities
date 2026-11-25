@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path[:0] = [str(Path(".cache/pylib").resolve()), str(Path(__file__).resolve().parent)]
 from geo import from_crs, origin, to_crs
+from city_layers import read_layers
 from shapely import make_valid, union_all
 from shapely.geometry import LineString, Polygon, mapping
 from shapely.ops import transform
@@ -48,7 +49,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=Path(".cache/audit-city"))
     out = parser.parse_args().out
-    data = read("public/data/city.json")
+    data = read_layers("city")
     catalog = read("content/las-palmas.json")
     osm = acquire(catalog["coverage"], offline=True)
     forward = to_crs()

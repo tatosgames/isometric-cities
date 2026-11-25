@@ -1,4 +1,4 @@
-import type { Building, CityCore, Layers, Point, Prop, Ring, RoofTones, SectorIndex, Zone, ZoneData } from '../../data/types.ts';
+import type { Building, CityCore, FarBlock, Layers, Point, Prop, Ring, RoofTones, SectorIndex, Zone, ZoneData } from '../../data/types.ts';
 import { ringCenter, sectorOwner, zoneOfSector } from '../../data/sector-index.ts';
 import { isLayers, isZone, loadData } from '../../data/load.ts';
 import { required } from '../../required.ts';
@@ -119,6 +119,25 @@ function gpuOnly(root: T.Object3D){
   });
 }
 
+// The far blocks of a zone in typed arrays: enough to draw its silhouettes again after a lost graphics context,
+// at a sixth of the memory the silhouettes themselves would keep.
+type PackedBlocks={points: Float64Array;ends: Uint32Array;heights: Float64Array;tones: string[]};
+function packBlocks(blocks: FarBlock[]): PackedBlocks {
+  const points=new Float64Array(blocks.reduce((n,b)=>n+b.ring.length*2,0)),ends=new Uint32Array(blocks.length);
+  let i=0;
+  blocks.forEach((b,k)=>{for(const [x,y] of b.ring){points[i++]=x;points[i++]=y;}ends[k]=i;});
+  return {points,ends,heights:Float64Array.from(blocks,b=>b.height),tones:blocks.map(b=>b.tone)};
+}
+function unpackBlocks({points,ends,heights,tones}: PackedBlocks): FarBlock[] {
+  let start=0;
+  return Array.from(ends,(end,k)=>{
+    const ring: Ring=[];
+    for(let i=start;i<end;i+=2)ring.push([points[i]??0,points[i+1]??0]);
+    start=end;
+    return {ring,height:heights[k]??0,tone:tones[k]??''};
+  });
+}
+
 // Three levels. Far: merged blocks of every zone, always resident. Zone: one silhouette per building, on demand.
 // Sector: full detail inside a loaded zone, within the byte budget. Zones are bounded by the view and counted apart.
 export function streamCity({data,stage='city',neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,loadZone,onZone,lod}: StreamOptions){
@@ -136,10 +155,19 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   const farGround=ground(base.groundMap?.texture??null);
   const box=(bounds: Zone['bounds'],vertical: Zone['vertical'])=>new T.Box3(
     new T.Vector3(bounds[0],vertical[0],-bounds[3]),new T.Vector3(bounds[2],vertical[1],-bounds[1]));
+  const packed=new Map<string,PackedBlocks>();
+  // Silhouettes keep no copy once uploaded; the ground stays, because the ground sampler walks its triangles.
+  function farSilhouettes(blocks: FarBlock[]){
+    const mesh=overviewSilhouettes({blocks},base.altitude,null,neutral,overviewMaterials,!compact);
+    mesh.userData.silhouettes=true;
+    gpuOnly(mesh);
+    return mesh;
+  }
   const zones: ResidentZone[]=data.zones.map(z=>{
     const far=new T.Group(),level=required(data.far[z.id],'far level of zone '+z.id);
     const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround,!compact);
-    far.add(overviewSilhouettes(level,base.altitude,null,neutral,overviewMaterials,!compact),surface);
+    packed.set(z.id,packBlocks(level.blocks));
+    far.add(farSilhouettes(level.blocks),surface);
     base.group.add(far);
     const bounds=box(z.bounds,z.vertical);
     return {id:z.id,file:z.file,far,farGroundAt:groundSampler(()=>[surface.geometry]),bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
@@ -314,6 +342,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   function forget(){
     suspend();
     for(const z of zones)releaseZone(z,true);
+    // The far silhouettes have no copy to send again either: they are drawn anew from the packed blocks.
+    for(const z of zones){
+      const old=z.far.children.find(c=>c.userData.silhouettes);
+      if(!(old instanceof T.Mesh))continue;
+      z.far.remove(old);old.geometry.dispose();
+      z.far.add(farSilhouettes(unpackBlocks(required(packed.get(z.id),'packed blocks of zone '+z.id))));
+    }
   }
   function zoneAt(x: number,y: number){return zoneById.get(sectorOwner(x,y,data.zoneSize));}
   /** Ask for the zone under a point whatever the camera shows. True once its footprints are resident. */

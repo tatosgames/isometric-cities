@@ -7,9 +7,10 @@ sys.path.insert(0,str(Path(".cache/pylib").resolve()))
 from shapely import STRtree, union_all
 from shapely.geometry import Polygon, LineString, box
 from carriageways import grade_separated, Carriageways
+from city_layers import read_layers
 root=Path("public/data")
 index=json.loads((root/"city-index.json").read_bytes())
-city=json.loads((root/"city.json").read_bytes())
+city=read_layers("city",root)
 special=[r for r in city["roads"] if grade_separated(r)]
 assert set(index["roadExceptions"])=={r["id"] for r in special}
 protected=STRtree([LineString(r["line"]).buffer(8-0.001) for r in special])

@@ -5,3 +5,6 @@ dist/
 .env.*
 __pycache__/
 public/data/stress*
+
+# The city layers are published gzipped (scripts/city_layers.py)
+public/data/city.json

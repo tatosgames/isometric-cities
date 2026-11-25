@@ -873,17 +873,17 @@
   },
   "coverage": {
     "bounds": [
-      -15.48,
+      -15.53,
       28.0,
       -15.38,
       28.19
     ],
     "lattice": 0.01,
     "seaCoastBounds": [
-      -15.49,
+      -15.58,
       28.13,
       -15.48,
-      28.14
+      28.17
     ],
     "zones": [
       {
@@ -1321,8 +1321,273 @@
         "municipal": 2,
         "entity": 14,
         "name": "Los Hoyos"
+      },
+      {
+        "id": "almatriche-alto",
+        "municipal": 1,
+        "entity": 1,
+        "name": "Almatriche Alto"
+      },
+      {
+        "id": "almatriche-bajo",
+        "municipal": 2,
+        "entity": 1,
+        "name": "Almatriche Bajo"
+      },
+      {
+        "id": "dragonal-alto",
+        "municipal": 3,
+        "entity": 1,
+        "name": "Dragonal Alto"
+      },
+      {
+        "id": "dragonal-bajo",
+        "municipal": 4,
+        "entity": 1,
+        "name": "Dragonal Bajo"
+      },
+      {
+        "id": "hoya-andrea",
+        "municipal": 5,
+        "entity": 1,
+        "name": "Hoya Andrea"
+      },
+      {
+        "id": "el-zardo",
+        "municipal": 6,
+        "entity": 1,
+        "name": "El Zardo"
+      },
+      {
+        "id": "diseminado-almatriche",
+        "municipal": 99,
+        "entity": 1
+      },
+      {
+        "id": "cuevas-blancas",
+        "municipal": 1,
+        "entity": 12,
+        "name": "Cuevas Blancas"
+      },
+      {
+        "id": "los-giles",
+        "municipal": 2,
+        "entity": 12,
+        "name": "Los Giles"
+      },
+      {
+        "id": "canada-honda",
+        "municipal": 3,
+        "entity": 12,
+        "name": "Cañada Honda"
+      },
+      {
+        "id": "casa-ayala",
+        "municipal": 4,
+        "entity": 12,
+        "name": "Casa Ayala"
+      },
+      {
+        "id": "la-cazuela",
+        "municipal": 5,
+        "entity": 12,
+        "name": "La Cazuela"
+      },
+      {
+        "id": "costa-ayala",
+        "municipal": 6,
+        "entity": 12,
+        "name": "Costa Ayala"
+      },
+      {
+        "id": "ladera-alta",
+        "municipal": 7,
+        "entity": 12,
+        "name": "Ladera Alta"
+      },
+      {
+        "id": "diseminado-los-giles",
+        "municipal": 99,
+        "entity": 12
+      },
+      {
+        "id": "la-cruz",
+        "municipal": 1,
+        "entity": 30,
+        "name": "La Cruz"
+      },
+      {
+        "id": "las-cuevas",
+        "municipal": 2,
+        "entity": 30,
+        "name": "Las Cuevas"
+      },
+      {
+        "id": "llanos-de-maria-rivera",
+        "municipal": 3,
+        "entity": 30,
+        "name": "Llanos de María Rivera"
+      },
+      {
+        "id": "lomo-corcobado",
+        "municipal": 4,
+        "entity": 30,
+        "name": "Lomo Corcobado"
+      },
+      {
+        "id": "masapez",
+        "municipal": 5,
+        "entity": 30,
+        "name": "Masapez"
+      },
+      {
+        "id": "la-milagrosa",
+        "municipal": 6,
+        "entity": 30,
+        "name": "La Milagrosa"
+      },
+      {
+        "id": "la-palma",
+        "municipal": 7,
+        "entity": 30,
+        "name": "La Palma"
+      },
+      {
+        "id": "el-pintor",
+        "municipal": 8,
+        "entity": 30,
+        "name": "El Pintor"
+      },
+      {
+        "id": "risco-negro",
+        "municipal": 9,
+        "entity": 30,
+        "name": "Risco Negro"
+      },
+      {
+        "id": "el-roman",
+        "municipal": 10,
+        "entity": 30,
+        "name": "El Román"
+      },
+      {
+        "id": "el-roque",
+        "municipal": 11,
+        "entity": 30,
+        "name": "El Roque"
+      },
+      {
+        "id": "san-jose-del-alamo",
+        "municipal": 12,
+        "entity": 30,
+        "name": "San José del Álamo"
+      },
+      {
+        "id": "san-lorenzo",
+        "municipal": 13,
+        "entity": 30,
+        "name": "San Lorenzo"
+      },
+      {
+        "id": "siete-puertas",
+        "municipal": 14,
+        "entity": 30,
+        "name": "Siete Puertas"
+      },
+      {
+        "id": "diseminado-san-lorenzo",
+        "municipal": 99,
+        "entity": 30
+      },
+      {
+        "id": "ciudad-del-campo",
+        "municipal": 1,
+        "entity": 36,
+        "name": "Ciudad del Campo"
+      },
+      {
+        "id": "cruz-del-ovejero",
+        "municipal": 2,
+        "entity": 36,
+        "name": "Cruz del Ovejero"
+      },
+      {
+        "id": "la-galera",
+        "municipal": 3,
+        "entity": 36,
+        "name": "La Galera"
+      },
+      {
+        "id": "isla-perdida",
+        "municipal": 4,
+        "entity": 36,
+        "name": "Isla Perdida"
+      },
+      {
+        "id": "lomo-los-frailes",
+        "municipal": 5,
+        "entity": 36,
+        "name": "Lomo Los Frailes"
+      },
+      {
+        "id": "las-majadillas",
+        "municipal": 6,
+        "entity": 36,
+        "name": "Las Majadillas"
+      },
+      {
+        "id": "las-perreras",
+        "municipal": 7,
+        "entity": 36,
+        "name": "Las Perreras"
+      },
+      {
+        "id": "piletas",
+        "municipal": 8,
+        "entity": 36,
+        "name": "Piletas"
+      },
+      {
+        "id": "la-suerte",
+        "municipal": 9,
+        "entity": 36,
+        "name": "La Suerte"
+      },
+      {
+        "id": "tamaraceite",
+        "municipal": 10,
+        "entity": 36,
+        "name": "Tamaraceite"
+      },
+      {
+        "id": "diseminado-tamaraceite",
+        "municipal": 99,
+        "entity": 36
+      },
+      {
+        "id": "las-mesas",
+        "municipal": 1,
+        "entity": 37,
+        "name": "Las Mesas"
+      },
+      {
+        "id": "tenoya",
+        "municipal": 2,
+        "entity": 37,
+        "name": "Tenoya"
+      },
+      {
+        "id": "el-toscon",
+        "municipal": 3,
+        "entity": 37,
+        "name": "El Toscón"
+      },
+      {
+        "id": "diseminado-tenoya",
+        "municipal": 99,
+        "entity": 37
       }
     ],
-    "minimumLandM2": 60000000
+    "minimumLandM2": 100000000
   }
 }

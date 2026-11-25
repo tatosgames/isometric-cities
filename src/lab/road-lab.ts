@@ -59,7 +59,7 @@ function makeRoute(roads:Road[]){
 }
 export async function roadLab(){
   const [city,palette,sample,surface]=await Promise.all([
-    loadData('city.json',isCity),loadData('roof-tones.json',isRoofPalette),
+    loadData('city.json.gz',isCity),loadData('roof-tones.json',isRoofPalette),
     asset<Sample>(new URL('./mercado.json',import.meta.url)),
     asset<Carriageway>(new URL('./mercado-carriageway.json',import.meta.url))
   ]);

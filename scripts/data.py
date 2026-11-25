@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 from shapely.geometry import Polygon, LineString, Point, shape, mapping, box, MultiPoint
 from shapely.ops import transform, unary_union, polygonize, nearest_points
+import shapely
 from shapely import make_valid, maximum_inscribed_circle
 from shapely.strtree import STRtree
 from geo import from_crs, origin, to_crs
@@ -14,6 +15,7 @@ import rasterio
 from source_cache import fetch
 from osm_extract import acquire
 from osm_buildings import osm_buildings
+from city_layers import write_layers
 
 cache = Path('.cache')
 out = Path('public/data')
@@ -317,8 +319,18 @@ with rasterio.open(fetch(stage+'-dem.tif',url)) as dem:
     grid=np.ma.masked_less(grid,-1000)
     assert grid.count()
     elev=dict(origin=[dem.transform.c+dem.transform.a/2-ox,dem.transform.f+dem.transform.e/2-oy],stepY=-dem.transform.e,step=dem.transform.a,w=dem.width,h=dem.height,values=grid.filled(0).round(1).flatten().tolist())
-ground=[coords(p.exterior.coords) for x in range(15*math.floor(x0/15),math.ceil(x1),15) for y in range(15*math.floor(y0/15),math.ceil(y1),15) for p in parts(area.intersection(box(x,y,x+15,y+15)),'Polygon') if p.area>0.01]
-save(stage+'.json',dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,props=props,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
+def ground_cells():
+    """The land in 15 m squares. Only the squares on the edge are clipped: one wholly inside is the square itself, with
+    the vertices in the order GEOS gives them, and a million clips against the whole outline took twenty minutes."""
+    shapely.prepare(area)
+    ys=list(range(15*math.floor(y0/15),math.ceil(y1),15))
+    for x in range(15*math.floor(x0/15),math.ceil(x1),15):
+        squares=shapely.box(x,ys,x+15,[y+15 for y in ys])
+        for y,square,inside,touch in zip(ys,squares,shapely.contains(area,squares),shapely.intersects(area,squares)):
+            if inside: yield coords((float(a),float(b)) for a,b in ((x,y),(x,y+15),(x+15,y+15),(x+15,y),(x,y)))
+            elif touch: yield from (coords(p.exterior.coords) for p in parts(area.intersection(square),'Polygon') if p.area>0.01)
+ground=list(ground_cells())
+write_layers(stage,dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,props=props,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
 print(stage,count,len(buildings),len(roads),len(trees),elev['step'],round(time.perf_counter()-started,2),'s')
 
 

@@ -7,8 +7,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(".cache/pylib").resolve()))
 from shapely import constrained_delaunay_triangles, union_all
 from shapely.geometry import LineString, Polygon, box
+from city_layers import read_layers
 
-city = json.loads(Path("public/data/city.json").read_bytes())
+city = read_layers("city")
 bounds = json.loads(Path("src/lab/mercado.json").read_bytes())["bounds"]
 sample = box(*bounds)
 footways = {"steps", "footway", "path", "pedestrian", "cycleway"}

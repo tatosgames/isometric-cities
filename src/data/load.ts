@@ -166,8 +166,16 @@ async function readMapFile<T>(path: string, read: (response: Response) => Promis
   return attempt(false);
 }
 
+// A `.json.gz` file is read as gzip unless the server already decoded it (`Content-Encoding: gzip`): the first two
+// bytes tell which.
+async function readJson(response: Response): Promise<unknown> {
+  const bytes=new Uint8Array(await response.arrayBuffer());
+  const gzipped=bytes[0]===0x1f && bytes[1]===0x8b;
+  return gzipped?new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json():JSON.parse(new TextDecoder().decode(bytes));
+}
+
 export async function loadData<T>(path: string, valid: (v: unknown) => v is T, signal?: AbortSignal, retry = false): Promise<T> {
-  const payload: unknown = await readMapFile(path, response=>response.json(), signal, retry);
+  const payload: unknown = await readMapFile(path, response=>path.endsWith('.gz')?readJson(response):response.json(), signal, retry);
   if (!valid(payload)) throw new Error('Invalid map data: ' + path);
   return payload;
 }

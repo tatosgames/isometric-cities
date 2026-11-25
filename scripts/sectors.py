@@ -11,10 +11,13 @@ import sys
 sys.path.insert(0,str(Path(".cache/pylib").resolve()))
 from array import array
 from PIL import Image
+# The roof atlas is our own mosaic: the whole municipality is larger than PIL's guard against foreign images.
+Image.MAX_IMAGE_PIXELS = None
 from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from road_sections import select_sections
+from city_layers import read_layers
 from carriageways import Carriageways, grade_separated, polygon_rings
 
 SIZE = 240
@@ -68,7 +71,7 @@ def far_blocks(buildings, tones):
 
 def stress(copies):
     """Tile the city into a synthetic stage that only measures load. Never published."""
-    data = json.loads((ROOT / "city.json").read_bytes())
+    data = read_layers("city")
     t = data["terrain"]
     dx, dy = t["w"] * t["step"], t["h"] * t.get("stepY", t["step"])
     columns = ceil(copies ** .5)
@@ -215,7 +218,7 @@ def fused(buildings, altitude, tones):
 
 
 def partition(stage, road_cells=None):
-    data = json.loads((ROOT / f"{stage}.json").read_bytes())
+    data = read_layers(stage)
     directory = ROOT / f"{stage}-sectors"
     directory.mkdir(exist_ok=True)
     tiles = defaultdict(lambda: {"buildings": [], "trees": [], "props": [], "ground": [], "roads": [], "surfaces": []})

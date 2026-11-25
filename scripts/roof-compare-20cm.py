@@ -13,6 +13,7 @@ import rasterio
 from rasterio.windows import Window
 from PIL import Image, ImageDraw, ImageFilter
 from geo import CANARY, origin
+from city_layers import read_layers
 from math import floor, ceil
 
 URL = '/vsicurl/https://opendata.sitcan.es/upload/251/OTARM20/tif/251_OTARM20_GC.tif'
@@ -20,7 +21,7 @@ OUT = Path('.cache/roof20'); OUT.mkdir(parents=True, exist_ok=True)
 tones = json.loads(Path('public/data/roof-tones.json').read_text())
 west, south, width, height = tones['bounds']
 ox, oy = origin(CANARY)
-stages = [json.loads(Path(f'public/data/{s}.json').read_bytes()) for s in ('pilot', 'city')]
+stages = [read_layers(s) for s in ('pilot', 'city')]
 
 F = 5  # 0.2 m -> 1 m
 t0 = time.time()

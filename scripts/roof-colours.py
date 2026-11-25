@@ -7,11 +7,12 @@ sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 from geo import CANARY, origin
+from city_layers import read_layers
 
 # Keep the 1 m grid fixed to the original scene origin. Adjacent requests share edges.
 from source_cache import fetch
 from math import floor, ceil
-stages = [json.loads(Path(f'public/data/{s}.json').read_bytes()) for s in ('pilot','city')]
+stages = [read_layers(s) for s in ('pilot','city')]
 xs,ys = zip(*(p for stage in stages for p in stage['boundary']))
 west,south=floor(min(xs))-8,floor(min(ys))-8
 width,height=ceil(max(xs))-west+8,ceil(max(ys))-south+8

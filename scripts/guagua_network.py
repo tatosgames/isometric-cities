@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 from guaguas import ROOT, SOURCE, extract, rows
+from city_layers import read_layers
 from guagua_roads import BusRoads, RoadClearance
 from guagua_index import index_piece
 from geo import origin, to_crs
@@ -145,7 +146,7 @@ def coverage_report(source,patterns):
 
 def generate(feed,out):
     public=ROOT/'public/data'
-    datasets={area:json.loads((public/(area+'.json')).read_bytes()) for area in ('city','pilot')}
+    datasets={area:read_layers(area,public) for area in ('city','pilot')}
     style=json.loads((ROOT/'src/data/road-style.json').read_bytes())
     catalog=json.loads((ROOT/'content/las-palmas.json').read_bytes())
     shapes,patterns,stops=read_feed(feed)

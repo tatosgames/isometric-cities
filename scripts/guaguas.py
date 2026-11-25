@@ -13,6 +13,7 @@ from zipfile import ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".cache/pylib"))
 from geo import origin, to_crs
+from city_layers import read_layers
 from shapely import make_valid, union_all
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import substring
@@ -100,7 +101,7 @@ def extract(feed):
     coords = [[round(x,2),round(y,2)] for x,y in path.simplify(.03).coords]
     path = LineString(coords)
     style = json.loads((ROOT/"src/data/road-style.json").read_bytes())
-    for city in [pilot, json.loads((city_dir/"city.json").read_bytes())]:
+    for city in [pilot, read_layers("city", city_dir)]:
         check_sweep(path,city,style)
     return dict(line=route["route_short_name"],direction=trip["trip_headsign"],path=coords,
                 stops=[dict(id=i,name=stops[i]["stop_name"],position=[round(v,2) for v in p.coords[0]],
