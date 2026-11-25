@@ -30,6 +30,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Estrusione senza fondo e coperchio: uno è interrato, l'altro sta sotto il tetto | `wallsOnly()` in `src/render/scene.ts` | Con i parapetti a tre facce: Santa Ana da 359.000 a 264.000 triangoli |
 | Parapetto a una faccia nel profilo compatto: il muro sale di 0,56 m (`RIM`) e fa da faccia esterna, il parapetto è solo la striscia in cima. Niente coperchio delle cabine sul tetto e niente davanzali semplici | `parapet()` e `scene.ts` | Con tre facce, poi due, poi una: nucleo di La Isleta da 325.000 a 258.000 a 208.000 triangoli con la fusione; Santa Catalina da 233.000 a 208.000 con il solo parapetto. Costo: bordo dei tetti più sottile sul lato lontano e fascia sotto il bordo del colore del muro |
 | Niente finestre, cornici e parapetti sepolti in un edificio adiacente più alto. Si chiede cosa c'è 0,5 m fuori dal muro e fino a che quota. Disattivato nell'editor, dove gli edifici si spostano. | `buriedTo()` in `scene.ts` | Insieme alle impronte semplificate: da −8 a −21 % di triangoli negli isolati densi |
+| Modelli dedicati senza le facce rivolte in basso (fondo di scatole, cornici, cilindri e coni): la camera guarda sempre dall'alto e non le inquadra mai. Vale per ogni modello, anche futuro. | `seen()` in `src/render/landmarks.ts` | I 24 modelli da 8.614 a 7.520 triangoli (−12,7 %); Santa Ana 1.905 → 1.657, Castillo de Mata 1.332 → 1.110, Mercado del Puerto 1.170 → 978. Schermate a camera identica: differenze solo da vento e nuvole (0,02-1,2 % dei pixel, sparse su tutto il quadro). |
 | Finestre e davanzali come rettangoli piatti; cornici di piano solo su desktop | `scene.ts` | — |
 | Chiome a icosaedro senza suddivisione e 4 per albero invece di 7; palme a 8 fronde invece di 13, nel profilo compatto | `scene.ts` | — |
 | Geometrie fuse per cella di 120 m e materiale; alberi istanziati per cella di 320 m | `add()`, `instance()` | 85-150 draw call per fotogramma da vicino |
@@ -65,6 +66,8 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 - Fusione con soglie strette (tetti entro 0,6 m, tinta entro 26): nel settore più denso unisce solo 14 edifici su 385, perché i tetti vicini differiscono quasi sempre di più. Senza livellare i tetti la fusione non rende.
 - Alleggerire i settori non riduce in proporzione i triangoli a schermo: il budget si riempie con più settori precaricati. Conta il numero per settore, non solo quello per fotogramma.
 - I fotogrammi doppi (uno su dieci, 35 ms) negli isolati più densi restano con 220.000 come con 300.000 triangoli. Il thread principale è scarico (2-4 ms): il costo è nella GPU integrata e non è diagnosticato.
+- Ridurre ancora i modelli dedicati non sposta la cadenza: tutti insieme sono 7.520 triangoli contro 80.000-280.000 a schermo, e le loro parti finiscono già nella mesh unica degli edifici (nessuna draw call in più). Meno segmenti su cupole e archi si vedrebbe da vicino.
+
 
 ## Idee non ancora provate
 

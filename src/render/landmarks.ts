@@ -452,7 +452,28 @@ const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, build
   'quiosco-de-la-musica':quioscoDeLaMusica,'quiosco-modernista':quioscoModernista,'el-obelisco':elObelisco,
   'las-arenas':lasArenas,'hospital-insular':hospitalInsular};
 
-export function addLandmarks(buildings: Building[],add: AddBuilding,altitude: Altitude){
+// The camera always looks down on the city: a face that looks straight down (the underside of a box, a cornice
+// or a cylinder) is never on screen. Dropping those faces changes no pixel.
+function seen(geometry: T.BufferGeometry){
+  const flat=geometry.index?geometry.toNonIndexed():geometry,p=flat.getAttribute('position'),n=flat.getAttribute('normal');
+  const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),position: number[]=[],normal: number[]=[];
+  for(let i=0;i<p.count;i+=3){
+    a.fromBufferAttribute(p,i);b.fromBufferAttribute(p,i+1);c.fromBufferAttribute(p,i+2);
+    const down=b.sub(a).cross(c.sub(a)).normalize().y;
+    // Both windings count: the material draws both sides, so a single sheet lying flat has to stay.
+    if(Math.abs(down)>.999 && n.getY(i)<-.999 && n.getY(i+1)<-.999 && n.getY(i+2)<-.999)continue;
+    for(let k=i;k<i+3;k++){position.push(p.getX(k),p.getY(k),p.getZ(k));normal.push(n.getX(k),n.getY(k),n.getZ(k));}
+  }
+  if(position.length===p.count*3)return geometry;
+  const out=new T.BufferGeometry();
+  out.setAttribute('position',new T.Float32BufferAttribute(position,3));out.setAttribute('normal',new T.Float32BufferAttribute(normal,3));
+  if(flat!==geometry)flat.dispose();
+  geometry.dispose();
+  return out;
+}
+
+export function addLandmarks(buildings: Building[],addAll: AddBuilding,altitude: Altitude){
+  const add: AddBuilding=(geometry,color,x,y)=>addAll(seen(geometry),color,x,y);
   const built=new Set();
   for(const building of buildings){
     const key=building.landmark;
