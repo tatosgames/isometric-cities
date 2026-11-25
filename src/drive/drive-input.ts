@@ -26,7 +26,7 @@ export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () 
     if(k==='Escape'){onExit();return;}
     if(!canDrive())return;
     if(k==='c' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onCamera();e.preventDefault();return;}
-    if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement)return;
+    if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement)return;
     keys.add(k);onDrive();e.preventDefault();
   }
 

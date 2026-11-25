@@ -133,8 +133,7 @@ function mercadoDelPuerto(add: AddBuilding,altitude: Altitude,market: Building){
       v.push(low[i][0],y0,low[i][1],high[k][0],y1,high[k][1],low[k][0],y0,low[k][1],low[i][0],y0,low[i][1],high[i][0],y1,high[i][1],high[k][0],y1,high[k][1]);
     }
     if(lid)v.push(-c,y1,-d,-c,y1,d,c,y1,d,-c,y1,-d,c,y1,d,c,y1,-d);
-    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();
-    return g;
+    return mesh(v);
   }
   place(slopes(along+.6,across+.6,0,along*.42,across*.42,ridge-wall,true),0,wall,0,roof);
   place(slopes(along+reach,across+reach,-.6,along,across,0,false),0,shade,0,zinc);
@@ -227,20 +226,9 @@ function estadioDeGranCanaria(add: AddBuilding,altitude: Altitude,stands: Buildi
       along=Math.max(along,Math.abs((x-cx)*dx+(y-cy)*dy));across=Math.max(across,Math.abs((y-cy)*dx-(x-cx)*dy));
     }
   }
-  const outer=new T.BufferGeometry();outer.setAttribute('position',new T.Float32BufferAttribute(wall,3));outer.computeVertexNormals();
-  add(outer,stands.wallColor??'#d9d4c8',cx,cy);
+  add(mesh(wall),stands.wallColor??'#d9d4c8',cx,cy);
   // The pitch fills most of the space the stands enclose, short of the track around it.
   facade(add,cx,cy,dx,dy,altitude(cx,cy))(new T.BoxGeometry(Math.max(10,along*2-14),.12,Math.max(10,across*2-14)),0,.15,0,'#5f8f4e');
-}
-
-// A gabled prism along x, `width` across z, rising `rise` to the ridge; its eaves lie on y = 0.
-function gable(length: number,width: number,rise: number){
-  const a=length/2,b=width/2,v: number[]=[];
-  v.push(-a,0,-b, a,0,-b, a,rise,0, -a,0,-b, a,rise,0, -a,rise,0);
-  v.push(a,0,b, -a,0,b, -a,rise,0, a,0,b, -a,rise,0, a,rise,0);
-  v.push(-a,0,b, -a,0,-b, -a,rise,0, a,0,-b, a,0,b, a,rise,0);
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();
-  return g;
 }
 
 // Iron warehouse of 1904 on the Parque Santa Catalina: white walls under two red gabled roofs side by side, their
@@ -249,7 +237,7 @@ function gable(length: number,width: number,rise: number){
 function edificioMiller(add: AddBuilding,altitude: Altitude,miller: Building){
   const {cx,cy,dx,dy,along,across}=frame(miller),[x0,y0]=miller.rings[0][0];
   const place=facade(add,cx,cy,dx,dy,altitude(x0,y0)),wall=miller.heightOverride??9,rise=Math.max(1.5,miller.height-wall);
-  for(const side of [-1,1])place(gable(along*2,across,rise),0,wall,side*across/2,'#b0634a');
+  for(const side of [-1,1])place(pitchedRoof(along*2,across,rise),0,wall,side*across/2,'#b0634a');
 }
 
 // El Muelle shopping centre. The municipal record extrudes the whole complex to its highest roof; the catalogue
@@ -268,8 +256,7 @@ function elMuelle(add: AddBuilding,altitude: Altitude){
     const pb=at(outer,a0,base+6),qb=at(outer,a1,base+6);
     v.push(...pb,...q,...p,...pb,...qb,...q);
   }
-  const vault=new T.BufferGeometry();vault.setAttribute('position',new T.Float32BufferAttribute(v,3));vault.computeVertexNormals();
-  add(vault,glass,cx,cy);
+  add(mesh(v),glass,cx,cy);
   // Glazed front along the straight side, from the forecourt up under the vault.
   add(new T.BoxGeometry(outer*2,low-base-6,.4).translate(cx,base+6+(low-base-6)/2,-cy),glass,cx,cy);
   // Pergola: a level grid of thin white beams over the forecourt, on posts along its edge.
@@ -293,8 +280,7 @@ function carpaSantaCatalina(add: AddBuilding,altitude: Altitude,tent: Building){
     const k=(i+1)%ring.length,[nx,ny]=ring[k];
     v.push(cx,middle,-cy,x,z(i),-y,nx,z(k),-ny);
   });
-  const membrane=new T.BufferGeometry();membrane.setAttribute('position',new T.Float32BufferAttribute(v,3));membrane.computeVertexNormals();
-  add(membrane,'#f4f3ef',cx,cy);
+  add(mesh(v),'#f4f3ef',cx,cy);
   ring.forEach(([x,y],i)=>{
     if(reach[i]>far*.9)add(new T.CylinderGeometry(.25,.3,z(i)-base+1.5,6).translate(x,base+(z(i)-base+1.5)/2,-y),'#cfd0cc',x,y);
   });
@@ -304,12 +290,15 @@ function mesh(v: number[]){
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();
   return g;
 }
-// A pitched roof placed on the map: ridge along `angle`, eaves at `z`, rising `rise`; `hip` pulls the ridge ends in.
-function roof(add: AddBuilding,cx: number,cy: number,angle: number,length: number,width: number,z: number,rise: number,color: string,hip=0){
+// Eaves lie at y = 0; hip pulls both ridge ends in along x.
+function pitchedRoof(length: number,width: number,rise: number,hip=0){
   const a=length/2,b=width/2,r=a-hip;
-  add(mesh([-a,0,-b, a,0,-b, r,rise,0, -a,0,-b, r,rise,0, -r,rise,0,
+  return mesh([-a,0,-b, a,0,-b, r,rise,0, -a,0,-b, r,rise,0, -r,rise,0,
     a,0,b, -a,0,b, -r,rise,0, a,0,b, -r,rise,0, r,rise,0,
-    -a,0,b, -a,0,-b, -r,rise,0, a,0,-b, a,0,b, r,rise,0]).rotateY(angle).translate(cx,z,-cy),color,cx,cy);
+    -a,0,b, -a,0,-b, -r,rise,0, a,0,-b, a,0,b, r,rise,0]);
+}
+function roof(add: AddBuilding,cx: number,cy: number,angle: number,length: number,width: number,z: number,rise: number,color: string,hip?: number){
+  add(pitchedRoof(length,width,rise,hip).rotateY(angle).translate(cx,z,-cy),color,cx,cy);
 }
 function block(add: AddBuilding,cx: number,cy: number,angle: number,length: number,width: number,z: number,height: number,color: string){
   add(new T.BoxGeometry(length,height,width).rotateY(angle).translate(cx,z+height/2,-cy),color,cx,cy);

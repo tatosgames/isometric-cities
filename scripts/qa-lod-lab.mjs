@@ -37,13 +37,13 @@ try{
    let swaps=0;
    if(!city){
     assert.equal(cold.changes,2);
-    await page.getByRole('button',{name:'Oscilla sullo zoom'}).click();
+    await page.getByRole('button',{name:'Oscillate on the zoom'}).click();
     await page.waitForTimeout(5600);
     const zoom=await sample();swaps=zoom.changes-cold.changes;
     if(mode==='attuale')assert.ok(swaps>=4,'Oscillation should cross default threshold');
     else assert.equal(swaps,0);
    }
-   await page.getByRole('button',{name:'Curva e inversione'}).click();
+   await page.getByRole('button',{name:'Bend and reversal'}).click();
    await page.waitForTimeout(5600);await settled();
    const drive=await sample();
    const p95=percentile(drive.frames.map(f=>f.gap),.95);
@@ -55,13 +55,13 @@ try{
    if(mode==='visivo'){
     const view=page.locator('#view');
     const check=text=>page.getByText(text,{exact:true}).locator('..').locator('input');
-    await check('Ispeziona transizione').check();
+    await check('Inspect transition').check();
     const both=await view.screenshot({path:out+'/'+device+'-meta.png'});
     halfCalls=await drawCalls();
-    await check('Retino edifici e alberi').uncheck();
+    await check('Screen buildings and trees').uncheck();
     const ground=await view.screenshot({path:out+'/'+device+'-suolo.png'});
-    await check('Retino edifici e alberi').check();
-    await check('Sfuma suolo e strade').uncheck();
+    await check('Screen buildings and trees').check();
+    await check('Fade ground and roads').uncheck();
     const objects=await view.screenshot({path:out+'/'+device+'-retino.png'});
     assert.ok(!both.equals(ground),'Object dithering should change the image');
     assert.ok(!both.equals(objects),'Ground blending should change the image');

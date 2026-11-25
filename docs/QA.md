@@ -1,5 +1,13 @@
 # Verifica locale · 21 novembre 2026
 
+## Deduplicazione del rendering · 25 novembre 2026
+
+Rimosse 31 righe nette in quattro moduli di rendering. Le sagome di zona e gli isolati lontani condividono la costruzione delle geometrie. I landmark condividono la geometria dei tetti a falde, i due canvas del terreno condividono la preparazione del contesto e lo streamer espone soltanto lo stato di apertura che il viewer usa.
+
+Gli hash di vertici, normali, colori e gruppi di materiali coincidono per landmark e sagome LOD. Nel pilota e in un settore con carreggiate, pixel della texture, coordinate della texture e campioni d'ombra coincidono sia con Canvas sia con OffscreenCanvas. Nelle catture a camera identica vicino all'Edificio Miller e a scala di quartiere, la media per pixel della differenza massima fra i tre canali RGB è rispettivamente 0,122 e 0,126 su 255.
+
+Verificati TypeScript, build con controllo dei dati, `qa-ground`, `qa-main-lod`, `qa-recovery` e `qa-sectors`. Il circuito ha completato sei giri e attraversato il confine nei due sensi con pattuglia attiva. La suite completa desktop e mobile emulato è passata su una build isolata dopo un primo giro con errori di richiesta su zone e settori serviti da `dist`.
+
 ## Avvio del viewer e modifiche del pilota · 25 novembre 2026
 
 Il viewer carica i dati iniziali in `load-startup-data.ts`. La decisione di apertura usa l'esito dello streaming dopo il disegno del frame. `motion.ts` calcola la velocità al rilascio e l'interpolazione del volo, con la posa applicata dal viewer.
@@ -7,6 +15,47 @@ Il viewer carica i dati iniziali in `load-startup-data.ts`. La decisione di aper
 L'editor separa cronologia, bozza, mesh del pilota e gestione del puntatore. `qa-editor.mjs` verifica anche che la perdita del focus o della cattura durante un trascinamento scarti l'anteprima e che un commit equivalente o invalido consenta ancora il redo.
 
 Verificati TypeScript, build con controllo dei dati, suite completa desktop e mobile emulato, `qa-editor` in sviluppo e sulla build, `qa-boot`, `qa-map-camera`, `qa-main-lod`, `qa-drive-lab` e `qa-recovery`. Controllate le catture di apertura desktop e di Triana con la scheda aperta su mobile.
+
+## Seconda riduzione dei valori del lab · 25 novembre 2026
+
+Il pannello scende da 91 a **79** cursori. Prima di scegliere, ogni valore di guida è stato spostato a metà e a una volta e mezza su otto percorsi (anche contro un muro), e ogni valore della posa della scocca su 18 serie.
+
+- Nessun effetto possibile: i sette valori di premio delle pattuglie (non ne prendono mai), quindi la cartella pattuglie mostra sei valori. Nascosta anche la vista isometrica, che è quella della mappa.
+- Ricavati da un altro valore con il rapporto esatto di prima, quindi senza effetto ai valori di default: `bonusMin` da `bonusMax`; `boostFade` fissato a 1 (con `bonusRecover` descrive la stessa aderenza extra); `poseMinSpeed` da `poseFullSpeed`, `poseLift` da `poseDive`, `poseAttack` e `poseReverse` da `poseRelease`; `sparkLife` da `puffLife`; `stopArrive` e `stopCaught` da `hitStop` (ex `stopWall`).
+- Verifica: angoli della scocca identici entro 2·10⁻¹⁵ gradi su 7.200 passi, 18 traiettorie e inseguimenti identici, nessun valore rimasto fuori dalle cartelle.
+
+Scartata con misura: portare le pattuglie sulla posa del giocatore. In curva il rollio cambierebbe fino a 18° e l'imbardata fino a 9°, e la carrozzeria intera, ruote comprese, si inclinerebbe fino a 28°: non è un effetto piccolo.
+
+Suite completa superata due volte su due in copia isolata; `qa-drive-lab.mjs` superata.
+
+## Valori accorpati e auto che segue la pendenza · 25 novembre 2026
+
+**Accorpamenti.** Il pannello del lab scende da 133 a 91 cursori. Ogni fusione è stata confrontata con le traiettorie di prima: 18 serie (giocatore a 90 e 30 km/h e pattuglia, in slalom, tocchi ripetuti, sterzo tenuto, controsterzi rapidi, frenata in derapata e partenza in curva) e gli inseguimenti simulati.
+
+- Senza effetto, traiettorie identiche al millimetro: `gearLoss` dentro `coast` (erano entrambi 0,8); `kickDamp`, `puffSlip`, `puffRearm` e `zoomRate` ricavati da `kickStiff`, `skidSpeed` e `paceRate` con rapporti che danno esattamente i valori di prima (22; 2,5 e 1,5 m/s; 1,1).
+- Soglia unica `hardImpact` di 11 m/s per il fermo del giocatore e la distruzione delle pattuglie (prima 11,5): sugli inseguimenti nessuna differenza.
+- Un solo `recover` mentre si sterza al posto della rampa da `recover` a `driftRecover` (con `holdRate` e `holdRelease`): 54°/s per il giocatore, 135°/s per le pattuglie. Le 18 traiettorie restano entro **0,45 m**, il muso entro 0,1° e la velocità entro 0,1 km/h. Su 158 inseguimenti: prima 99 arrivi, 18 distrutte, 4 bloccate, 52 km/h; dopo 99, 16, 3, 56 km/h.
+- Solo nascosti nel pannello: cartelle monete e pendenza, `rollbackGrip`, `steerDead` del giocatore (sterza solo −1/0/1), il campo visivo dell'altro tipo di schermo. Le pattuglie mostrano solo i valori propri e `steerDead`; un valore che condividono con il giocatore si cambia nella cartella del giocatore e muove entrambi (verificato in Chrome sul server di sviluppo: `accel` del giocatore porta con sé quello delle pattuglie, `recover` no; «Reset» e il ripristino dall'URL rimettono entrambi).
+
+Scartate perché regressioni: togliere `turnRelease` cambia di **9,5°** la sterzata con tocchi ripetuti dallo stesso lato; fondere `poseReverse` in `poseAttack` raddoppia il tempo del controsterzo visibile (17 → 33 ms), contro i 40 ms d'inversione documentati in `JUICE.md`. Non fatta: portare le pattuglie sulla posa del giocatore, che cambierebbe il loro aspetto in curva e va giudicata a occhio.
+
+**Pendenza.** Prima l'auto seguiva solo l'altezza del terreno e restava sempre in piano; nella fisica la pendenza vale al massimo 0,6 m/s² e il cambio tiene comunque la velocità alla marcia, quindi in crociera salita e discesa non si sentono. Nelle strade della città un tratto su tre supera il 5% e uno su cinque il 10% (90° percentile 8,7°). Ora l'auto intera, ruote e ombra comprese, prende la pendenza della strada lungo il muso, misurata sotto i due assi e smorzata (il terreno è una griglia di 5 m), fino a 22°; vale anche per le pattuglie. La scocca del giocatore si piega in più del 50% (`slopeLean`), muso su in salita e giù in discesa, senza staccare le ruote. `groundPitch` è provato in `qa-drive-pose.mjs`: 10% in salita, inversione girando l'auto, zero di traverso, limite sui dislivelli del terreno. Confronto a schermo su Calle Crucita Arbelo Cruz (13%) con l'auto ferma: in piano, con la strada e con la piega in più. Il lab accetta `start=x,y` per partire su una strada scelta.
+
+Suite completa superata due volte su due in una copia isolata del checkout; prove del lab superate.
+
+## Revisione della guida e lab in inglese · 25 novembre 2026
+
+Revisione del codice della guida unica e del lab, poi correzioni.
+
+Difetti del lab corretti: i cursori dei valori per cui il gioco divide (raggi, campi visivi, durate) si fermano un passo sopra lo zero, e `bonusTime` a zero non produce più NaN nel modello; l'URL si scrive a fine modifica e non a ogni passo del trascinamento (prima 400 scritture in 0,47 s, ora **una**); i tasti premuti in un campo del pannello non guidano più l'auto; da fermi la telemetria mostra la marcia base invece di zero.
+
+Riduzioni: tolta l'opzione `start` di `makeDrive` (resta `startAt()`); tolto `cameraModes.fixed.pitch`, mai letto; lo slittamento si calcola una volta per passo; `spawnChaser` e `restart` ripartono da `restBody()`; tolti dalle prove i parametri serviti solo al confronto col modello precedente. Dopo queste modifiche le misure del giocatore sono identiche (4,58 s, 3,2°, 60°, 0,79°); gli inseguimenti simulati passano da 23/40 a **25/40** a 47 km/h: la simulazione è sensibile a differenze di arrotondamento, quindi vale come ordine di grandezza.
+
+Tutto il lab è in inglese: `lab.html`, il catalogo, i pannelli delle prove di strade, larghezze, settori e LOD e il pannello di guida. Restano invariati gli identificativi negli URL (`?test=larghezze`, `?lab=guida`, `modo=visivo`…) e i toponimi. Prove rieseguite sulla build: `qa-drive-lab.mjs`, `qa-road-lab.mjs`, `qa-lod-lab.mjs`, `qa-road-width-lab.mjs` superate. `qa-lod-lab.mjs` e `qa-road-width-lab.mjs` sono fallite alla prima esecuzione (un'asserzione e un timeout) e passate nelle due successive senza modifiche.
+
+Suite completa (`node scripts/qa.mjs`): **superata due volte su due** in una copia isolata del checkout con queste modifiche. Nel checkout principale era fallita tre volte (due timeout sulla cattura, un errore HTTP al caricamento) mentre un altro agente vi lavorava: ha ricostruito `dist` durante la corsa e la suite serve quella cartella. La stessa suite sul codice già committato, in copia isolata, passa. È probabile che anche i due fallimenti iniziali delle prove del lab vengano da lì; non è dimostrato.
+
+Misura a parte, 12 partenze con l'auto frenata subito: le pattuglie la catturano 12 volte su 12, in 8–59 s. In un'altra serie di 12 con 1,5 s di guida prima della frenata, una partenza su 12 non è stata catturata entro 100 s (le pattuglie restavano oltre 67 m); con il modello precedente (`bed2273`) nella stessa prova ne sono mancate 2 su 12.
 
 ## Guida unica e laboratorio di taratura · 25 novembre 2026
 

@@ -4,7 +4,7 @@ import { isLayers, isZone, loadData } from '../../data/load.ts';
 import { required } from '../../required.ts';
 import {surfaceStencil} from '../building-stencil.ts';
 import { sectorBuilder } from './sector-builder.ts';
-import { overviewBlocks, overviewBuildings, overviewGround } from '../overview.ts';
+import { overviewGround, overviewSilhouettes } from '../overview.ts';
 import * as T from 'three';
 import { makeCity } from '../scene.ts';
 import { breezy } from '../wind.ts';
@@ -133,7 +133,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   const zones: ResidentZone[]=data.zones.map(z=>{
     const far=new T.Group(),level=required(data.far[z.id],'far level of zone '+z.id);
     const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround,!compact);
-    far.add(overviewBlocks(level.blocks,base.altitude,neutral,overviewMaterials,!compact),surface);
+    far.add(overviewSilhouettes(level,base.altitude,null,neutral,overviewMaterials,!compact),surface);
     base.group.add(far);
     const bounds=box(z.bounds,z.vertical);
     return {id:z.id,file:z.file,far,farGroundAt:groundSampler(()=>[surface.geometry]),bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.5),
@@ -223,7 +223,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         const surface=overviewGround(b.ground,base.altitude,map,material,!compact);
         s.low=new T.Group();
         s.groundAt=groundSampler(()=>[surface.geometry]);
-        const silhouettes=overviewBuildings(b.buildings,b.trees,base.altitude,tones,neutral,overviewMaterials,b.props,!compact);
+        const silhouettes=overviewSilhouettes(b,base.altitude,tones,neutral,overviewMaterials,!compact);
         s.low.add(silhouettes,surface);
         group.add(s.low);
       }
@@ -366,7 +366,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     // The same grace as the requests: a sector on the edge of the screen keeps one answer while its download runs.
     for(const s of sectors){if(frustum.intersectsBox(s.bounds))s.seen=now;s.inView=now-s.seen<linger;}
     requested.sort((a,b)=>rank(a)-rank(b));
-    let fading=0,openingFading=false;
+    let fading=0;
     for(const s of sectors){
       if(!s.low)continue;
       const show=requested.includes(s)&&!!s.detail;
@@ -379,10 +379,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       }
       s.low.visible=!show;
       if(s.detail){s.detail.visible=show;if(show)s.used=tick;}
-      if(transitions.get(s.id)?.step(show,now,opening==='covered' && s===openingSector)){
-        fading++;
-        if(s===openingSector)openingFading=true;
-      }
+      if(transitions.get(s.id)?.step(show,now,opening==='covered' && s===openingSector))fading++;
     }
     if(fading || activeFades)refresh();
     activeFades=fading;
@@ -405,10 +402,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       visible:sectors.filter(s=>s.detail?.visible).length,zones:zones.filter(z=>z.assets).map(z=>z.id),
       zoneBytes,bytes,budget,evictions,
       pending:pending?.s.id??pendingZone?.z.id??null});
-    return {
-      zoneReady:!openingZone || !!openingZone.assets,
-      detailReady:!openingSector || (!!openingSector.detail?.visible && !openingFading)
-    };
+    return {zoneReady:!openingZone || !!openingZone.assets};
   }
   return {...base,groundAt,update,suspend,forget,demand,undemand(){demanded=undefined;}};
 }

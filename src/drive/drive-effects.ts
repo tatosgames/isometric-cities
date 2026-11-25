@@ -1,6 +1,9 @@
 import * as T from 'three';
 import type { Altitude } from '../data/types.ts';
 import { DUST, SKIDS, TUNE } from './drive-tune.ts';
+
+// Sparks live this share of a dust puff's life: 0.16 s with the default 0.22 s.
+const SPARK_LIFE=.16/.22;
 import type { Vehicle } from './drive-types.ts';
 
 const COLOURS={dust:new T.Color('#d8cdbb'),smoke:new T.Color('#3b3836'),drift:new T.Color('#fff6de'),spark:new T.Color('#ffcc68')};
@@ -50,10 +53,10 @@ export function makeDriveEffects(group: T.Group,groundAt: Altitude){
     update(dt: number){
       dust.forEach((p,i)=>{
         const spark=p.kind==='spark',drift=p.kind==='drift';
-        p.life=Math.max(0,p.life-dt*(spark?1/TUNE.sparkLife:drift?1/TUNE.puffLife:1.5));
+        p.life=Math.max(0,p.life-dt*(spark?1/(TUNE.puffLife*SPARK_LIFE):drift?1/TUNE.puffLife:1.5));
         const age=1-p.life;
         if(spark){
-          const elapsed=age*TUNE.sparkLife,size=.25*p.life;
+          const elapsed=age*TUNE.puffLife*SPARK_LIFE,size=.25*p.life;
           dummy.position.set(p.x+p.vx*elapsed,p.z+.22*Math.sin(age*Math.PI),-p.y-p.vy*elapsed);
           dummy.rotation.set(0,Math.atan2(p.vy,p.vx),0);dummy.scale.set(size*2.1,size*.6,size*.6);
         }else{

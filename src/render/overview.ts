@@ -4,38 +4,55 @@ import type { GroundMap } from './ground-map.ts';
 import { groundPatch } from './ground-surface.ts';
 import * as T from 'three';
 
-// Build only the silhouette and roof of each footprint. Keep buildings and trees in separate draw groups.
 // The overview materials are flat shaded: the fragment shader finds the face normal by itself. A normal per vertex
 // is only read by the shadow map of the desktop profile, so `normals` is false where there is none.
-export function overviewBuildings(buildings: Building[],trees: Point[],altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[],props: Prop[]=[],normals=true){
+type Silhouettes = {blocks: FarBlock[]} | {buildings: Building[];trees: Point[];props: Prop[]};
+export function overviewSilhouettes(data: Silhouettes,altitude: Altitude,tones: RoofTones | null,neutral: boolean,materials: T.Material[],normals: boolean){
   const positions: number[]=[],colours: number[]=[],color=new T.Color();
-  const point=(p: Point,h: number)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
-  function tint(value: string){color.set(neutral?'#e4dfd3':value);}
-  for(const b of buildings){
-    const base=altitude(...b.rings[0][0]),top=base+(b.heightOverride??b.height);
-    const outline=b.rings.map(r=>r.slice(0,-1));
-    tint(b.wallColor??['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'][Math.abs(b.id)%6]);
-    for(const r of outline)for(let j=0;j<r.length;j++){
+  const vertex=(x: number,y: number,z: number)=>{positions.push(x,y,z);colours.push(color.r*255,color.g*255,color.b*255);};
+  const point=([x,y]: Point,h: number)=>vertex(x,h,-y);
+  const tint=(value: string)=>color.set(neutral?'#e4dfd3':value);
+  function prism(rings: Ring[],base: number,top: number,wall: string,roof: string){
+    tint(wall);
+    for(const r of rings)for(let j=0;j<r.length;j++){
       const a=r[j],c=r[(j+1)%r.length];
-      point(a,base-2);point(c,base-2);point(c,top);
-      point(c,top);point(a,top);point(a,base-2);
+      point(a,base);point(c,base);point(c,top);
+      point(c,top);point(a,top);point(a,base);
     }
-    tint(tones?.[String(b.id)+(b.toneSuffix??'')]??'#d4c8b6');
-    const vectors=outline.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
-    const triangles=T.ShapeUtils.triangulateShape(vectors[0],vectors.slice(1)),all=outline.flat();
+    tint(roof);
+    const [outline,...holes]=rings.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
+    const triangles=T.ShapeUtils.triangulateShape(outline,holes),all=rings.flat();
     for(const t of triangles)for(const i of t)point(all[i],top);
   }
-  // Port objects keep their silhouette from afar: a crane is a landmark of the skyline.
-  for(const prop of props)for(const [geometry,value] of propParts(prop,altitude(prop[1],prop[2]),false)){
-    tint(value);
-    const flat=geometry.toNonIndexed().attributes.position;
-    for(let i=0;i<flat.count;i++){positions.push(flat.getX(i),flat.getY(i),flat.getZ(i));colours.push(color.r*255,color.g*255,color.b*255);}
+  if('blocks' in data){
+    // Far roofs use mean ground height across the outline.
+    for(const b of data.blocks){
+      const outline=b.ring.slice(0,-1),heights=outline.map(p=>altitude(...p));
+      const base=Math.min(...heights)-2,top=heights.reduce((a,h)=>a+h,0)/heights.length+b.height;
+      prism([outline],base,top,'#e6ded6',b.tone);
+    }
+  }else{
+    for(const b of data.buildings){
+      const base=altitude(...b.rings[0][0]),top=base+(b.heightOverride??b.height);
+      prism(b.rings.map(r=>r.slice(0,-1)),base-2,top,
+        b.wallColor??['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'][Math.abs(b.id)%6],
+        tones?.[String(b.id)+(b.toneSuffix??'')]??'#d4c8b6');
+    }
+    // Port objects keep their silhouette from afar: a crane is a landmark of the skyline.
+    for(const prop of data.props)for(const [geometry,value] of propParts(prop,altitude(prop[1],prop[2]),false)){
+      tint(value);
+      const flat=geometry.toNonIndexed().attributes.position;
+      for(let i=0;i<flat.count;i++)vertex(flat.getX(i),flat.getY(i),flat.getZ(i));
+    }
   }
+  // Trees use a separate material group.
   const buildingVertices=positions.length/3;
-  tint('#637b50');
-  for(const [x,y] of trees){
-    const z=altitude(x,y),crown: Point[]=[[x-3,y],[x,y-3],[x+3,y],[x,y+3]];
-    for(let i=0;i<4;i++){point(crown[i],z+3);point(crown[(i+1)%4],z+3);point([x,y],z+8);}
+  if('trees' in data){
+    tint('#637b50');
+    for(const [x,y] of data.trees){
+      const z=altitude(x,y),crown: Point[]=[[x-3,y],[x,y-3],[x+3,y],[x,y+3]];
+      for(let i=0;i<4;i++){point(crown[i],z+3);point(crown[(i+1)%4],z+3);point([x,y],z+8);}
+    }
   }
   const g=new T.BufferGeometry();
   g.setAttribute('position',new T.Float32BufferAttribute(positions,3));
@@ -62,28 +79,4 @@ export function overviewGround(rings: Ring[],altitude: Altitude,map: GroundMap |
   if(map)g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));
   if(normals)g.computeVertexNormals();
   const mesh=new T.Mesh(g,material);mesh.receiveShadow=true;return mesh;
-}
-
-// Far level: one prism per city block. The roof sits at the mean ground height of its outline.
-export function overviewBlocks(blocks: FarBlock[],altitude: Altitude,neutral: boolean,materials: T.Material[],normals=true){
-  const positions: number[]=[],colours: number[]=[],color=new T.Color();
-  const point=(p: Point,h: number)=>{positions.push(p[0],h,-p[1]);colours.push(color.r*255,color.g*255,color.b*255);};
-  for(const b of blocks){
-    const outline=b.ring.slice(0,-1),heights=outline.map(p=>altitude(...p));
-    const base=Math.min(...heights)-2,top=heights.reduce((a,h)=>a+h,0)/heights.length+b.height;
-    color.set(neutral?'#e4dfd3':'#e6ded6');
-    for(let j=0;j<outline.length;j++){
-      const a=outline[j],c=outline[(j+1)%outline.length];
-      point(a,base);point(c,base);point(c,top);
-      point(c,top);point(a,top);point(a,base);
-    }
-    color.set(neutral?'#e4dfd3':b.tone);
-    for(const t of T.ShapeUtils.triangulateShape(outline.map(([x,y])=>new T.Vector2(x,y)),[]))for(const i of t)point(outline[i],top);
-  }
-  const g=new T.BufferGeometry();
-  g.setAttribute('position',new T.Float32BufferAttribute(positions,3));
-  g.setAttribute('color',new T.Uint8BufferAttribute(colours,3,true));
-  if(normals)g.computeVertexNormals();
-  if(positions.length)g.addGroup(0,positions.length/3,0);
-  return new T.Mesh(g,materials);
 }

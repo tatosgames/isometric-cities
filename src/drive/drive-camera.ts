@@ -3,7 +3,7 @@ import { approach, wrapAngle as shortest } from '../geometry.ts';
 import { TUNE } from './drive-tune.ts';
 
 const radians=MathUtils.degToRad;
-// Pitch, zoom and framing of each view are in `TUNE.cameraModes`. The first one keeps the map's own pitch.
+// Pitch, zoom and framing of each view are in `TUNE.cameraModes`. A view without a pitch keeps the map's.
 const modes=[
   {id:'fixed',label:'Isométrica'},
   {id:'high',label:'Aérea'},
@@ -52,7 +52,7 @@ export function makeDriveCamera(mapDirection: Vector3){
       const fraction=blend===1?1:(t-previous)/(1-previous);
       pose.yaw=shortest(pose.yaw+shortest((index?travelYaw:mapYaw)-pose.yaw)*fraction);
       const x=Math.cos(pose.yaw),z=Math.sin(pose.yaw);
-      const basePitch=index?mode.pitch:mapPitch;
+      const basePitch='pitch' in mode?mode.pitch:mapPitch;
       let wanted=basePitch;
       if(index){
         while(wanted<radians(85) && occluded(x/Math.tan(wanted),-z/Math.tan(wanted))){

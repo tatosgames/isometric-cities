@@ -12,11 +12,11 @@ try{
   const ready=()=>page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
   // The catalogue of the lab links to it.
   await page.goto(new URL('lab.html',origin).href);
-  await page.getByRole('link',{name:'Guida · taratura'}).click();
+  await page.getByRole('link',{name:'Drive · tuning'}).click();
   await ready();
   assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
   const titles=await page.locator('#drive-lab .title').allTextContents();
-  for(const title of ['Giocatore','Pattuglie','Urti e frenata','Auto a schermo','Camera ed effetti','Inseguimento','Viste di guida']){
+  for(const title of ['Player','Patrols','Impacts and braking','Car on screen','Camera and effects','Chase','Drive views']){
     assert.ok(titles.includes(title),'Missing folder '+title);
   }
 
@@ -27,24 +27,42 @@ try{
   await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.lab?.split(',')[0])>20,null,{timeout:30000});
 
   // A slider acts on the car that is already driving: a lower base speed caps it within a few seconds.
+  await page.locator('#drive-lab .title',{hasText:'Player'}).click();
   await page.evaluate(()=>{
     const row=[...document.querySelectorAll('#drive-lab .controller')].find(c=>c.querySelector('.name').textContent==='baseSpeed (km/h)');
     const input=row.querySelector('input');
-    input.value='30';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));input.blur();
+    // The URL is written when the change ends, as it does when the field loses the keyboard.
+    input.focus();input.value='30';input.dispatchEvent(new Event('input',{bubbles:true}));input.blur();
   });
   assert.match(decodeURIComponent(page.url()),/t=player\.baseSpeed:30/);
+  // A drag is hundreds of steps: the URL is written once at its end, and a duration cannot reach zero.
+  const drag=await page.evaluate(()=>{
+    const row=[...document.querySelectorAll('#drive-lab .controller')].find(c=>c.querySelector('.name').textContent==='bonusTime');
+    const input=row.querySelector('input'),replace=history.replaceState.bind(history);
+    let writes=0;
+    history.replaceState=(...args)=>{writes++;return replace(...args);};
+    input.focus();
+    for(let i=300;i>=0;i--){input.value=String(i/100);input.dispatchEvent(new Event('input',{bubbles:true}));}
+    const during=writes;
+    input.blur();
+    history.replaceState=replace;
+    return {during,after:writes,search:decodeURIComponent(location.search)};
+  });
+  assert.equal(drag.during,0);
+  assert.equal(drag.after,1);
+  assert.match(drag.search,/player\.bonusTime:0\.01/);
   await page.waitForFunction(()=>{const v=Number(document.querySelector('#scene').dataset.lab.split(',')[0]);return v>5 && v<45;},null,{timeout:30000});
   await page.waitForTimeout(3000);
   assert.ok((await lab())[0]<45,'The lowered base speed must hold');
 
   // Patrols: on by default, they leave when turned off and the choice is in the URL.
   await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.lab.split(',')[2])>0,null,{timeout:30000});
-  await page.locator('#drive-lab').getByLabel('Polizia').uncheck();
+  await page.locator('#drive-lab').getByLabel('Police').uncheck();
   await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.lab.split(',')[2])===0);
   assert.ok(new URL(page.url()).searchParams.has('nopolice'));
 
   // Copy gives the changed values as they are written in drive-tune.ts.
-  await page.locator('#drive-lab').getByRole('button',{name:'Copia valori'}).click();
+  await page.locator('#drive-lab').getByRole('button',{name:'Copy values'}).click();
   await page.waitForFunction(()=>document.querySelector('#drive-lab output').textContent.includes('player: baseSpeed:kmh(30)'));
 
   // The URL carries the values: after a reload the panel and the car start from them.
@@ -52,7 +70,7 @@ try{
   await ready();
   assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#drive-lab .controller')]
     .find(c=>c.querySelector('.name').textContent==='baseSpeed (km/h)').querySelector('input').value),'30');
-  assert.equal(await page.locator('#drive-lab').getByLabel('Polizia').isChecked(),false);
+  assert.equal(await page.locator('#drive-lab').getByLabel('Police').isChecked(),false);
 
   // Outside the lab the same parameter is ignored: the published game keeps its own values.
   await page.goto(new URL('index.html?area=pilot&t=player.baseSpeed:30',origin).href);

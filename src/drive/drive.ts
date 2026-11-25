@@ -8,7 +8,7 @@ import type {ZoneData} from '../data/types.ts';
 export {TUNE};
 import {makeDrivePhysics,resetSteering,restBody} from './drive-physics.ts';
 import {makeRoadGrade} from './road-grade.ts';
-import {makeDrivePose} from './drive-pose.ts';
+import {groundPitch,makeDrivePose} from './drive-pose.ts';
 import {driveLookAhead,makeDriveCamera} from './drive-camera.ts';
 import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
@@ -20,6 +20,15 @@ import {makePedestrians} from './pedestrians.ts';
 import {makeDriveEffects} from './drive-effects.ts';
 import {makeCrowdView} from './drive-crowd.ts';
 import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
+
+// Ratios that keep a single tuning value for related effects. At the defaults they give the earlier separate
+// values exactly: dust at 2.5 and 1.5 m/s of slip, a kick damping of 22, a zoom ease of 1.1.
+const PUFF_START=2.5/4,PUFF_REARM=1.5/4,KICK_DAMPING=22/(2*Math.sqrt(220)),ZOOM_PACE=1.1/.7;
+// Hit-stops on arrival and on capture as shares of the impact one: 100 and 220 ms with the default 110 ms.
+const STOP_ARRIVE=.1/.11,STOP_CAUGHT=.22/.11;
+// Slope tilt: half the distance between the axles of the model (before its visual scale), how fast the tilt
+// follows the road, and the steepest one shown. The terrain grid is 5 m, so the raw slope steps at its cells.
+const HALF_BASE=.95,TILT_RATE=10,TILT_LIMIT=T.MathUtils.degToRad(22);
 import { approach } from '../geometry.ts';
 import { CAMERA_DISTANCE, screenOffsetOnGround } from '../render/map-camera.ts';
 
@@ -31,7 +40,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,endless=false,start}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,endless=false}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
@@ -76,8 +85,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   function vehicle(geometry: T.BufferGeometry): Vehicle{
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
-    mesh.rotation.order='YXZ';
-    return {...restBody(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1};
+    mesh.rotation.order='YXZ';blob.rotation.order='YXZ';
+    return {...restBody(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
@@ -131,12 +140,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   const WALKERS=compact?26:40;
   const crowd=makeCrowdView(group,altitude,WALKERS);
   let people: ReturnType<typeof makePedestrians> | null=null;
-  function place(b: Vehicle,yaw: number,roll: number,pitch: number){
+  function place(b: Vehicle,yaw: number,roll: number,pitch: number,dt: number){
     const z=groundAt(b.x,b.y);
+    // The whole car, wheels and shadow included, follows the road: it pivots on the ground under its centre.
+    const slope=groundPitch(groundAt,b.x,b.y,yaw,HALF_BASE*TUNE.visualScale,TILT_LIMIT);
+    b.tilt+=(slope-b.tilt)*approach(TILT_RATE,dt);
     b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
-    b.mesh.rotation.set(roll,yaw,pitch);
+    b.mesh.rotation.set(roll,yaw,pitch+b.tilt);
     b.blob.position.set(b.x,z+.76,-b.y);
-    b.blob.rotation.y=yaw;
+    b.blob.rotation.set(0,yaw,b.tilt);
     return z;
   }
 
@@ -220,7 +232,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       return;
     }
     pop(player.x,player.y,event.points,'coin',true);
-    gain(event.points);buzz(40);stop(TUNE.stopArrive);
+    gain(event.points);buzz(40);stop(TUNE.hitStop*STOP_ARRIVE);
     for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5);
     trail();
   }
@@ -236,8 +248,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const pool=ahead.length && Math.random()<.5?ahead:ring.length?ring:all;
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
     const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
-    Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,slip:0,side:0,puff:0,slopeAccel:undefined});
-    resetSteering(c);
+    Object.assign(c,restBody(),{x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,puff:0,tilt:0,slopeAccel:undefined});
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function nextStart(){
@@ -252,12 +263,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     location?.reset([n.x,n.y]);
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
-    resetSteering(player);
     puffArmed=true;
     sparkCool=0;
     playerPose.reset();
     resetEffects();
-    Object.assign(player,{x:n.x,y:n.y,vx:0,vy:0,h:0,trail:null,hold:0,steer:0,side:0,hop:0,dive:0,slopeAccel:undefined});
+    Object.assign(player,restBody(),{x:n.x,y:n.y,trail:null,hop:0,tilt:0,slopeAccel:undefined});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     people?.reset(player);crowd.reset();
     const path=trail();
@@ -284,7 +294,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     kick(by.x-player.x,by.y-player.y,1);
     // The contact holds for a beat; dust and the push-in start when it lets go.
-    stop(TUNE.stopCaught,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5);});
+    stop(TUNE.hitStop*STOP_CAUGHT,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5);});
     const best=score>record;
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
     el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
@@ -335,7 +345,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(knock>3)player.hop=Math.max(player.hop,Math.min(TUNE.playerHop,knock*TUNE.playerHopGain));
     if(knock>6){kick(player.hitX,player.hitY,Math.min(1,knock/14));buzz(18);}
     // Only a hard, nearly head-on hit stops time, and not twice in a row: scraping along a street never does.
-    if(knock>TUNE.stopImpact && !stopCool){stop(TUNE.stopWall);stopCool=TUNE.stopGap;}
+    if(knock>TUNE.hardImpact && !stopCool){stop(TUNE.hitStop);stopCool=TUNE.stopGap;}
     const speed=Math.hypot(player.vx,player.vy);
     routeAge+=dt;
     if(routeAge>.6){routeAge=0;field=routes(world.nearestNode(player.x,player.y));}
@@ -354,14 +364,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
       c.stuck=pace<1.5?c.stuck+dt:0;
-      if(hit>TUNE.wreckImpact)wreck(c);
+      if(hit>TUNE.hardImpact)wreck(c);
       else if(c.stuck>TUNE.stuckTime)spawnChaser(c);
     }
     for(let i=0;i<chasers.length;i++){
       const a=chasers[i];
       for(let j=i+1;j<chasers.length;j++){
         const impact=bump(a,chasers[j]);
-        if(impact>TUNE.wreckImpact && !a.wreck && !chasers[j].wreck){wreck(a);wreck(chasers[j]);}
+        if(impact>TUNE.hardImpact && !a.wreck && !chasers[j].wreck){wreck(a);wreck(chasers[j]);}
       }
       const shove=bump(a,player);
       if(shove>=0)playerContact=true;
@@ -373,8 +383,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       }
     }
     const playerSlip=playerPose.update(player,steer,dt,driveLoad);
-    if(playerSlip<TUNE.puffRearm)puffArmed=true;
-    else if(puffArmed && playerSlip>=TUNE.puffSlip){
+    // Dust starts below the skid marks and rearms once the slide has nearly gone: 2.5 and 1.5 m/s by default.
+    if(playerSlip<TUNE.skidSpeed*PUFF_REARM)puffArmed=true;
+    else if(puffArmed && playerSlip>=TUNE.skidSpeed*PUFF_START){
       puffArmed=false;
       if(!playerContact && (steer || brake)){
         const yaw=player.h+playerPose.yaw,fx=Math.cos(yaw),fy=Math.sin(yaw);
@@ -463,15 +474,16 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     spin+=dt*4;
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
-    const playerGround=place(player,player.h+playerPose.yaw,0,0);
-    shell.rotation.set(playerPose.roll,0,playerPose.pitch);
-    shell.position.y=carShellHeight(playerPose.roll,playerPose.pitch);
+    const playerGround=place(player,player.h+playerPose.yaw,0,0,dt);
+    const shellPitch=playerPose.pitch+player.tilt*TUNE.slopeLean;
+    shell.rotation.set(playerPose.roll,0,shellPitch);
+    shell.position.y=carShellHeight(playerPose.roll,shellPitch);
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
     const lightTime=capture?capture.started+capture.motionElapsed*CAPTURE.speed*1000:now;
     chasers.forEach((c,i)=>{
-      place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32),-c.dive*TUNE.dive);
+      place(c,c.h+c.steer*TUNE.tailSwing*Math.min(1,c.slip/5+.25),T.MathUtils.clamp(c.side*TUNE.roll,-.32,.32),-c.dive*TUNE.dive,dt);
       c.light.visible=!c.wreck;c.light.material=(Math.floor(lightTime/140)+i)%2?lightRed:lightBlue;
     });
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target && !capture;
@@ -491,7 +503,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     focus.lerp(chase.set(cx,playerGround,-cy),approach(TUNE.followRate,dt));
     // Kick: a damped spring back to rest, in small steps so a long frame cannot blow it up.
     for(let n=Math.max(1,Math.ceil(dt*240)),h=dt/n;n>0;n--){
-      kickVX-=(TUNE.kickStiff*kickX+TUNE.kickDamp*kickVX)*h;kickVY-=(TUNE.kickStiff*kickY+TUNE.kickDamp*kickVY)*h;
+      const damp=KICK_DAMPING*2*Math.sqrt(TUNE.kickStiff);
+      kickVX-=(TUNE.kickStiff*kickX+damp*kickVX)*h;kickVY-=(TUNE.kickStiff*kickY+damp*kickVY)*h;
       kickX+=kickVX*h;kickY+=kickVY*h;
     }
     const reach=Math.hypot(kickX,kickY);
@@ -501,7 +514,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*approach(TUNE.paceRate,dt);
     // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
     const wantZoom=state==='caught'?(freeze?zoomNow:1+TUNE.zoomCaught):1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
-    zoomNow+=(wantZoom-zoomNow)*approach(TUNE.zoomRate,dt);
+    zoomNow+=(wantZoom-zoomNow)*approach(TUNE.paceRate*ZOOM_PACE,dt);
     const base=Math.min(host.clientWidth,host.clientHeight)/(compact?TUNE.viewSpanCompact:TUNE.viewSpanWide);
     const pose=rig.update(dt,player,cabinIsHidden);
     const zoom=base*zoomNow*pose.zoom;
@@ -581,7 +594,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(start){restart(start);host.focus({preventScroll:true});}
   };
   el('leave').onclick=()=>onExit();
-  let policing=police,fixedStart=start;
+  let policing=police,fixedStart: Point | undefined;
   return {
     get active(){return state!=='off';},
     /** The player's body and the patrols on the road, for the lab's readout. */

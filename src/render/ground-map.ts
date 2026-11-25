@@ -18,20 +18,23 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
   }
   const size = extent.getSize(new T.Vector2());
   const scale = Math.min(pixelsPerMetre, 2048 / Math.max(size.x, size.y));
-  const canvas = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
-  canvas.width = Math.max(1, Math.ceil(size.x * scale));
-  canvas.height = Math.max(1, Math.ceil(size.y * scale));
-  const context = canvas.getContext('2d', { alpha: false });
-  if (!context || !('fillRect' in context)) throw new Error('Ground canvas requires a 2D context');
-  const ctx = context;
-  const sx = canvas.width / size.x, sy = canvas.height / size.y;
-  ctx.fillStyle = '#c7bcb2';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(sx, 0, 0, -sy, -extent.min.x * sx, extent.max.y * sy);
+  function paintCanvas(width: number,height: number,background: string) {
+    const canvas = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(width));
+    canvas.height = Math.max(1, Math.ceil(height));
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx || !('fillRect' in ctx)) throw new Error('Ground canvas requires a 2D context');
+    const sx = canvas.width / size.x, sy = canvas.height / size.y;
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(sx, 0, 0, -sy, -extent.min.x * sx, extent.max.y * sy);
+    return {canvas,ctx,sx,sy};
+  }
+  const {canvas,ctx,sx,sy} = paintCanvas(size.x * scale,size.y * scale,'#c7bcb2');
 
-  function trace(points: Point[]) {
-    ctx.moveTo(points[0][0], points[0][1]);
-    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  function trace(points: Point[],brush = ctx) {
+    brush.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) brush.lineTo(points[i][0], points[i][1]);
   }
   for (const s of data.surfaces) {
     ctx.beginPath();
@@ -89,21 +92,11 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
   // outlines instead costs seconds for the whole city.
   if (data.buildings.length) {
     const coarse = Math.min(1, .25 / Math.max(sx, sy));
-    const mask = typeof document==='undefined'?new OffscreenCanvas(1,1):document.createElement('canvas');
-    mask.width = Math.max(1, Math.ceil(canvas.width * coarse));
-    mask.height = Math.max(1, Math.ceil(canvas.height * coarse));
-    const shade = mask.getContext('2d', { alpha: false });
-    if (!shade || !('fillRect' in shade)) throw new Error('Ground canvas requires a 2D context');
-    shade.fillStyle = '#fff';
-    shade.fillRect(0, 0, mask.width, mask.height);
-    const mx = mask.width / size.x, my = mask.height / size.y;
-    shade.setTransform(mx, 0, 0, -my, -extent.min.x * mx, extent.max.y * my);
+    const {canvas:mask,ctx:shade,sx:mx,sy:my} = paintCanvas(canvas.width * coarse,canvas.height * coarse,'#fff');
     shade.fillStyle = '#8f8a9c';
     for (const b of data.buildings) {
-      const outline = b.rings[0];
       shade.beginPath();
-      shade.moveTo(outline[0][0], outline[0][1]);
-      for (let i = 1; i < outline.length; i++) shade.lineTo(outline[i][0], outline[i][1]);
+      trace(b.rings[0],shade);
       shade.fill();
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);

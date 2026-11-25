@@ -1,5 +1,5 @@
 import type * as T from 'three';
-import type { Altitude, CityData, Place, Point, ZoneData } from '../data/types.ts';
+import type { Altitude, CityData, Place, ZoneData } from '../data/types.ts';
 import type { Body } from './drive-physics.ts';
 import type { routesFrom } from './road-routing.ts';
 import type { Zoning } from './drive-world.ts';
@@ -20,8 +20,6 @@ export interface DriveOptions {
   police?: boolean;
   /** True keeps the run going when a patrol reaches the player: for the lab. */
   endless?: boolean;
-  /** Fixed starting point, snapped to the nearest road node. Without it each run starts somewhere else. */
-  start?: Point;
   onExit: () => void;
   /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
   zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};
@@ -35,6 +33,8 @@ export interface Vehicle extends Body {
   stuck: number;
   trail: [number,number,number][] | null;
   puff: number;
+  /** Pitch shown for the slope of the road, eased. */
+  tilt: number;
   node: number;
 }
 

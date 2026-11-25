@@ -432,8 +432,14 @@ async function start(){
     if(lab && drive){
       // Driving lab: every run starts where the map opens, with the tuning panel beside the game.
       const tested=drive;
-      tested.startAt([controls.target.x,-controls.target.z]);
-      void import('./lab/drive-lab.ts').then(({driveLab})=>driveLab({drive:tested,host,begin:()=>play.click()}));
+      // `start=x,y` (map metres) picks the street to test on, for example a steep one.
+      const [sx,sy]=(query.get('start')??'').split(',').map(Number);
+      if(Number.isFinite(sx) && Number.isFinite(sy)){
+        // Look there first, so the zone with its walls is the one loaded before the run.
+        view(new T.Vector3(sx,altitude(sx,sy),-sy),camera.zoom);
+        tested.startAt([sx,sy]);
+      }else tested.startAt([controls.target.x,-controls.target.z]);
+      void import('./lab/drive-lab.ts').then(({driveLab})=>driveLab({drive:tested,host,compact,begin:()=>play.click()}));
       return;
     }
     if('requestIdleCallback' in window)requestIdleCallback(warm,{timeout:4000});else setTimeout(warm,1500);

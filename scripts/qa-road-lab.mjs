@@ -13,7 +13,7 @@ try{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     const catalog=new URL(url);catalog.search='';
     await page.goto(catalog.href);
-    await page.getByRole('link',{name:'Strade · Mercado de Vegueta'}).click();
+    await page.getByRole('link',{name:'Roads · Mercado de Vegueta'}).click();
     await page.waitForSelector('#view[data-ready=true]');
     const variant=page.locator('select'),view=page.locator('#view');
     const captured=[];
@@ -30,16 +30,16 @@ try{
     const moved=await view.screenshot({style:'#tools,#divider,#credit{visibility:hidden}'});
     assert.ok(!split.equals(moved),'Changing the divider should reveal different road pixels');
     await page.locator('#compare').uncheck();
-    await page.getByRole('button',{name:'Avvia percorso'}).click();
+    await page.getByRole('button',{name:'Start route'}).click();
     await page.waitForFunction(()=>Number(document.querySelector('.lil-gui input').value)>1);
-    await page.getByRole('button',{name:'Pausa',exact:true}).click();
+    await page.getByRole('button',{name:'Pause',exact:true}).click();
     const progress=await page.locator('.lil-gui input').inputValue();
     await variant.selectOption({index:1});assert.equal(await page.locator('.lil-gui input').inputValue(),progress);
-    await page.getByRole('button',{name:'Riparti da Calle Pelota'}).click();
+    await page.getByRole('button',{name:'Restart from Calle Pelota'}).click();
     assert.equal(Number(await page.locator('.lil-gui input').inputValue()),0);
     if(mobile){
-      await page.getByRole('button',{name:'Misura le tre rese'}).click();
-      await page.waitForFunction(()=>document.querySelector('#metrics').textContent.includes('Carreggiata geometrica'),null,{timeout:120000});
+      await page.getByRole('button',{name:'Measure the three renderings'}).click();
+      await page.waitForFunction(()=>document.querySelector('#metrics').textContent.includes('Geometric carriageway'),null,{timeout:120000});
       console.log(await page.locator('#metrics').textContent());
       assert.equal(await view.getAttribute('data-road-mode'),'1');
     }

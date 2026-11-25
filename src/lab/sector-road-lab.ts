@@ -15,11 +15,11 @@ export async function sectorRoadLab(){
   const [city,index,palette]=await Promise.all([loadData('city.json',isCity),loadData('city-index.json',isSectorIndex),loadData('roof-tones.json',isRoofPalette)]);
   const widths=query.get('test')==='larghezze';
   type Section={name:string;line:Point[];cell:string;before:number;sides:number[]};
-  const samples:Record<string,Section>=widths?await fetch('./data/road-width-lab/sections.json').then(r=>{if(!r.ok)throw Error('Campioni assenti');return r.json();}):{};
+  const samples:Record<string,Section>=widths?await fetch('./data/road-width-lab/sections.json').then(r=>{if(!r.ok)throw Error('Samples missing');return r.json();}):{};
   const selected=query.get('caso')??'ordinaria',section=samples[selected]??Object.values(samples)[0];
   const previous=widths&&query.has('prima');
   const way=section??city.roads.find(r=>r.id==='30801332');
-  if(!way)throw Error('Tratto Calle San Nicolás assente');
+  if(!way)throw Error('The Calle San Nicolás way is missing');
   const path=way.line.map(p=>new T.Vector2(...p)),lengths=[0];
   for(let i=1;i<path.length;i++)lengths.push(lengths[i-1]+path[i-1].distanceTo(path[i]));
   const pair=new Set(section?[section.cell]:['-2_-2','-1_-2']);
@@ -50,7 +50,7 @@ export async function sectorRoadLab(){
       observe(){changes++;}}}:{}),
     async loadZone(z){
       const zone=split.zones.get(z.id);
-      if(!zone)throw Error('Zona assente '+z.id);
+      if(!zone)throw Error('Missing zone '+z.id);
       return zone;
     },
     async loadLayers(s,signal){
@@ -58,15 +58,15 @@ export async function sectorRoadLab(){
       const result=await loadData('city-sectors/'+s.file,isLayers,signal);
       if(previous){
         const response=await fetch('./data/road-width-lab/'+s.id+'.json',{signal});
-        if(!response.ok)throw Error('Carreggiata di riferimento assente');
+        if(!response.ok)throw Error('Reference carriageway missing');
         result.carriageway=await response.json();
-        if(!isLayers(result))throw Error('Geometria di riferimento non valida');
+        if(!isLayers(result))throw Error('Invalid reference geometry');
       }
       if(result.carriageway)ready.add(s.id);
       return result;
     },refresh(){renderer.shadowMap.needsUpdate=true;schedule();}});
   scene.add(stream.group);
-  const gui=new GUI({container:el('gui'),title:widths?'Larghezza della strada':'Confine di Calle San Nicolás'});
+  const gui=new GUI({container:el('gui'),title:widths?'Road width':'Calle San Nicolás boundary'});
   function reload(){for(const [key,on] of [['raster',ui.legacy],['inverso',ui.reverse],['mappa',!ui.drive],['ritardo',ui.delay]] as const){
     if(on)query.set(key,'1');else query.delete(key);
   }query.set('pos',String(ui.pos));location.search=query.toString();}
@@ -75,35 +75,35 @@ export async function sectorRoadLab(){
     const store=()=>{query.set('modo',options.mode);query.set('campo',String(options.span));query.set('durata',String(options.duration));
       for(const [key,v] of [['noSuolo',options.ground],['noRetino',options.objects]] as const){if(v)query.delete(key);else query.set(key,'1');}
     };
-    gui.add(options,'mode',{Attuale:'attuale','Soglie e priorità':'stabile','Soglie e transizioni':'visivo'}).name('Variante').onChange(()=>{store();reload();});
+    gui.add(options,'mode',{Current:'attuale','Thresholds and priority':'stabile','Thresholds and transitions':'visivo'}).name('Variant').onChange(()=>{store();reload();});
     if(options.mode==='visivo'){
-      gui.add(options,'ground').name('Sfuma suolo e strade').onChange(()=>{store();redrawMaterials();});
-      gui.add(options,'objects').name('Retino edifici e alberi').onChange(()=>{store();redrawMaterials();});
-      gui.add(options,'manual').name('Ispeziona transizione').onChange(redrawMaterials);
-      gui.add(options,'progress',0,100,1).name('Transizione (%)').onChange(()=>{options.manual=true;gui.controllers.forEach(c=>c.updateDisplay());redrawMaterials();});
-      gui.add(options,'duration',100,600,25).name('Durata (ms)').onChange(store);
+      gui.add(options,'ground').name('Fade ground and roads').onChange(()=>{store();redrawMaterials();});
+      gui.add(options,'objects').name('Screen buildings and trees').onChange(()=>{store();redrawMaterials();});
+      gui.add(options,'manual').name('Inspect transition').onChange(redrawMaterials);
+      gui.add(options,'progress',0,100,1).name('Transition (%)').onChange(()=>{options.manual=true;gui.controllers.forEach(c=>c.updateDisplay());redrawMaterials();});
+      gui.add(options,'duration',100,600,25).name('Duration (ms)').onChange(store);
     }
-    gui.add(options,'span',100,650,1).name('Campo mappa (m)').onChange(()=>{ui.drive=false;store();schedule();});
-    gui.add(ui,'delay').name('Ritarda settore est').onChange(()=>{store();reload();});
-    gui.add({run(){ui.delay=true;ui.pos=95;ui.reverse=true;ui.drive=false;options.span=185;store();reload();}},'run').name('Arrivo a camera ferma');
-    gui.add({run(){scenario='zoom';scenarioStart=performance.now();playing=false;ui.drive=false;schedule();}},'run').name('Oscilla sullo zoom');
-    gui.add({run(){scenario='guida';scenarioStart=performance.now();playing=false;ui.drive=true;schedule();}},'run').name('Curva e inversione');
+    gui.add(options,'span',100,650,1).name('Map span (m)').onChange(()=>{ui.drive=false;store();schedule();});
+    gui.add(ui,'delay').name('Delay east sector').onChange(()=>{store();reload();});
+    gui.add({run(){ui.delay=true;ui.pos=95;ui.reverse=true;ui.drive=false;options.span=185;store();reload();}},'run').name('Arrival with a still camera');
+    gui.add({run(){scenario='zoom';scenarioStart=performance.now();playing=false;ui.drive=false;schedule();}},'run').name('Oscillate on the zoom');
+    gui.add({run(){scenario='guida';scenarioStart=performance.now();playing=false;ui.drive=true;schedule();}},'run').name('Bend and reversal');
   }else if(widths){
     const settings={selected,previous};
-    gui.add(settings,'selected',Object.keys(samples)).name('Sezione').onChange((value:string)=>{
+    gui.add(settings,'selected',Object.keys(samples)).name('Section').onChange((value:string)=>{
       query.set('caso',value);ui.pos=50;reload();
     });
-    gui.add(settings,'previous').name('Larghezza precedente').onChange((on:boolean)=>{
+    gui.add(settings,'previous').name('Previous width').onChange((on:boolean)=>{
       if(on)query.set('prima','1');else query.delete('prima');reload();
     });
   }else{
-    gui.add(ui,'legacy').name('Confronto raster').onChange(reload);
-    gui.add(ui,'delay').name('Ritarda settore est').onChange(reload);
+    gui.add(ui,'legacy').name('Raster comparison').onChange(reload);
+    gui.add(ui,'delay').name('Delay east sector').onChange(reload);
   }
-  gui.add(ui,'drive').name('Camera di guida').onChange(reload);
-  gui.add(ui,'reverse').name('Senso inverso').onChange(reload);
-  const scrub=gui.add(ui,'pos',0,100,.1).name('Percorso (%)').onChange(()=>{playing=false;schedule();});
-  gui.add({run(){playing=!playing;if(playing&&ui.pos>=100)ui.pos=0;last=performance.now();schedule();}},'run').name('Avvia / pausa');
+  gui.add(ui,'drive').name('Drive camera').onChange(reload);
+  gui.add(ui,'reverse').name('Reverse direction').onChange(reload);
+  const scrub=gui.add(ui,'pos',0,100,.1).name('Route (%)').onChange(()=>{playing=false;schedule();});
+  gui.add({run(){playing=!playing;if(playing&&ui.pos>=100)ui.pos=0;last=performance.now();schedule();}},'run').name('Start / pause');
   let playing=false,last=0,frame=0,scenario='',scenarioStart=0;
   function schedule(){if(!frame)frame=requestAnimationFrame(draw);}
   function draw(now:number){
@@ -134,12 +134,12 @@ export async function sectorRoadLab(){
       if(changesBefore!==changes){switchNext=true;schedule();}
       previousFrame=now;
       host.dataset.lodChanges=String(changes);
-      el('metrics').textContent=changes+' cambi di settore · '+renderer.info.render.calls+' draw call · '+switchGap.toFixed(1)+' ms intervallo RAF dopo il cambio';
+      el('metrics').textContent=changes+' sector changes · '+renderer.info.render.calls+' draw call · '+switchGap.toFixed(1)+' ms RAF interval after the change';
     }
     host.dataset.position=String(ui.pos);host.dataset.meshCells=[...ready].sort().join(',');
     if(playing||scenario)schedule();
   }
   el('panel').onclick=()=>{const p=el('settings');p.hidden=!p.hidden;el('panel').setAttribute('aria-expanded',String(!p.hidden));};
-  el('status').textContent=section?section.name+' · '+(previous?section.before:section.sides.reduce((a,b)=>a+b,0)).toLocaleString('it-IT')+' m al centro del percorso':'Calle San Nicolás · confine a −240 m';
+  el('status').textContent=section?section.name+' · '+(previous?section.before:section.sides.reduce((a,b)=>a+b,0)).toLocaleString('en')+' m at the middle of the route':'Calle San Nicolás · boundary at −240 m';
   new ResizeObserver(schedule).observe(host);draw(performance.now());host.dataset.ready='true';
 }

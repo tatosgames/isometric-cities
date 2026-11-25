@@ -40,7 +40,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive-tune.ts` al 25 novembre 2026;
 - La pendenza lungo la marcia frena la ripresa in salita e la aiuta in discesa. È neutra fino al 2%, poi applica 0,06 m/s² per ogni punto percentuale aggiuntivo fino a 0,6 m/s². La stessa correzione aiuta il freno in salita e lo riduce in discesa. I limiti in avanti restano 90 e 94 km/h.
 - A ogni cambio di lato la rampa ricomincia dal 35%. Al rilascio il peso della derapata cala di 10 al secondo e il coefficiente di aderenza laterale tende a 9,5 s⁻¹. La frenata usa il proprio coefficiente di 2,2 s⁻¹.
 - La posa si aggiorna a 120 Hz. La risposta allo sterzo cresce tra 2 e 10 m/s. A pieno sterzo la rotazione aggiuntiva va da 10,5° a 21° e il rollio da 14° a 28°, secondo lo slittamento. Quando amplifica lo slittamento, la rotazione aggiuntiva porta il muso fino a 45° dalla direzione di marcia.
-- Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa.
+- Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa; nel codice un solo valore, `poseRelease`, da cui gli altri due derivano. Sulle strade in pendenza l'auto intera prende l'inclinazione della strada lungo il muso, fino a 22°, e la scocca del giocatore si piega di un altro 50% (`slopeLean`).
 - Tre particelle bianco caldo compaiono dietro le ruote per 220 ms quando lo slittamento laterale supera 2,5 m/s durante una manovra senza contatti. Il puff si riarma sotto 1,5 m/s. Le due tracce partono da 4 m/s. Sagoma, freccia, tracce e puff seguono l'orientamento visivo. Camera e collisioni usano la simulazione.
 - L'ombra di contatto delle auto è un rettangolo di 4,15 × 2,5 m con opacità 0,38. Ruota con l'auto e resta a terra durante rollio e saltelli.
 
@@ -58,8 +58,8 @@ Per alcuni fotogrammi la simulazione non avanza: auto, pattuglie, monete e crono
 Il saltello del giocatore arriva fino a 0,9 m e rientra in circa 0,41 s alla massima altezza. Un secondo urto più debole lascia finire il saltello in corso. L'ombra resta a terra.
 
 - **Eventi:** urto forte contro un muro o un albero, arrivo a destinazione, cattura. Lo schianto di una pattuglia non lo usa (scelta di Luca, 22 novembre 2026).
-- **Durate:** `stopWall` 0,11 s, `stopArrive` 0,1 s, `stopCaught` 0,22 s. A 60 fotogrammi al secondo sono circa 7, 6 e 13 fotogrammi. Raddoppiate su richiesta di Luca il 23 novembre 2026: alla metà non si notavano sul telefono.
-- **Soglia dell'urto:** `stopImpact` 11 m/s di velocità nella direzione dell'ostacolo. Le strisciate nelle vie strette restano sotto.
+- **Durate:** `hitStop` 0,11 s per l'urto; l'arrivo ne usa 0,1 s e la cattura 0,22 s, ricavati dallo stesso valore. A 60 fotogrammi al secondo sono circa 7, 6 e 13 fotogrammi. Raddoppiate su richiesta di Luca il 23 novembre 2026: alla metà non si notavano sul telefono.
+- **Soglia dell'urto:** `hardImpact` 11 m/s di velocità nella direzione dell'ostacolo; la stessa soglia distrugge una pattuglia. Le strisciate nelle vie strette restano sotto.
 - **Intervallo minimo:** `stopGap` 0,6 s tra due fermi da urto. Arrivo e cattura non hanno intervallo perché non possono ripetersi.
 - **Fermi sovrapposti:** vale il più lungo, non si sommano.
 - **Alla cattura** il contatto blocca punteggio e cronometro. Dopo 110 ms, camera, polvere, pedoni e vento rallentano al 30%. Auto e pattuglia si assestano per un secondo con l'inerzia residua, limitata da ostacoli e superficie disponibile.
@@ -71,7 +71,7 @@ Il saltello del giocatore arriva fino a 0,9 m e rientra in circa 0,41 s alla mas
 La camera scatta **verso ciò che ha colpito** e torna a riposo con una molla smorzata. Un muro urtato la tira verso il muro, una pattuglia che spinge la tira verso la pattuglia. Dice da che parte è arrivato il colpo, cosa che il tremolio di prima non faceva.
 
 - **Forza:** proporzionale alla velocità d'urto, piena a 14 m/s. `kick` 36 è la velocità di lancio di un colpo pieno.
-- **Molla:** `kickStiff` 220, `kickDamp` 22. Supera di poco lo zero al ritorno, una volta sola.
+- **Molla:** `kickStiff` 220; lo smorzamento ne deriva con rapporto 0,74 (22 a questa rigidità). Supera di poco lo zero al ritorno, una volta sola.
 - **Misure:** un colpo pieno sposta la vista di 0,99 m al massimo e rientra sotto i 3 cm in 0,28 s; un colpo a metà forza arriva a 0,49 m. Su telefono (6,3 px per metro) sono circa 6 e 3 pixel. A 20 fotogrammi al secondo il picco è 0,93 m.
 - **Limite:** `kickMax` 1,2 m, anche con più colpi nello stesso istante.
 - La direzione dell'urto contro i muri viene dalla fisica (`hitX`, `hitY` in `src/drive/drive-physics.ts`), non dalla velocità dell'auto.

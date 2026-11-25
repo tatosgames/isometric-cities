@@ -9,14 +9,14 @@ const degrees=angle=>angle*180/Math.PI;
 const speed=car=>Math.hypot(car.vx,car.vy);
 const slip=car=>degrees(Math.atan2(Math.sin(car.h-Math.atan2(car.vy,car.vx)),Math.cos(car.h-Math.atan2(car.vy,car.vx))));
 const body=(vx=0)=>({...restBody(),vx});
-const drift=()=>makeDrivePhysics(TUNE);
+const physics=()=>makeDrivePhysics(TUNE);
 function run(physics,car,steer,seconds,dt=1/120,brake=false){
   for(let i=0,n=Math.round(seconds/dt);i<n;i++)physics.steerPlayer(car,steer,brake,dt);
   return car;
 }
 
 // Launch and gears: base speed first, then the top speed creeps up on a straight.
-const launch=body(),engine=drift();
+const launch=body(),engine=physics();
 let seconds=0;
 for(;speed(launch)<d.baseSpeed-1e-9 && seconds<10;seconds+=1/120)engine.steerPlayer(launch,0,false,1/120);
 assert.ok(Math.abs(seconds-4.57)<.05,`Base speed after ${seconds.toFixed(2)} s`);
@@ -28,7 +28,7 @@ run(engine,launch,0,4);
 assert.ok(speed(launch)>d.baseSpeed-.1 && speed(launch)<d.baseSpeed+1,'Braking drops back to the base gear');
 
 // A held wheel slides: the nose leads the travel up to the limit, and the slide costs almost no speed.
-const slide=body(d.baseSpeed),slider=drift();
+const slide=body(d.baseSpeed),slider=physics();
 run(slider,slide,1,.1);
 const tap={heading:degrees(slide.h),slip:slip(slide)};
 assert.ok(tap.heading>2 && tap.heading<6,`A 100 ms tap turns the nose ${tap.heading.toFixed(1)} degrees`);
@@ -44,39 +44,44 @@ assert.ok(Math.abs(slip(slide))<.01,`Straight again 350 ms after the release, sl
 assert.ok(speed(slide)>=d.baseSpeed-.05,'The drift bonus returns the speed lost in the slide');
 
 // No bonus without a slide.
-const short=body(d.baseSpeed),shorter=drift();
+const short=body(d.baseSpeed),shorter=physics();
 run(shorter,short,1,.1);run(shorter,short,0,1/120);
 assert.ok(speed(short)<=d.baseSpeed,'A tap earns no bonus');
 
 // Same result at 60 and 120 steps per second.
-const fast=run(drift(),body(d.baseSpeed),1,1,1/120),slow=run(drift(),body(d.baseSpeed),1,1,1/60);
+const fast=run(physics(),body(d.baseSpeed),1,1,1/120),slow=run(physics(),body(d.baseSpeed),1,1,1/60);
 assert.ok(Math.abs(degrees(fast.h-slow.h))<3,`Cadence changes the turn by ${degrees(fast.h-slow.h).toFixed(2)} degrees`);
 assert.ok(Math.abs(speed(fast)-speed(slow))<.05);
 
 // Rolling back from a wall: the car pushes forward again instead of stopping dead or spinning.
-const back=body(-3),reverser=drift();
+const back=body(-3),reverser=physics();
 reverser.steerPlayer(back,0,false,1/120);
 assert.ok(Math.abs(back.vx-(-3+d.accel/120))<1e-9);
 run(reverser,back,0,1);
 assert.ok(back.vx>4 && Math.abs(back.vy)<1e-9);
 
 // Every car carries its own steering state: one sliding does not change the other.
-const pair=drift(),first=body(d.baseSpeed),second=body(d.baseSpeed),alone=body(d.baseSpeed);
+const pair=physics(),first=body(d.baseSpeed),second=body(d.baseSpeed),alone=body(d.baseSpeed);
 for(let i=0;i<120;i++){pair.steerPlayer(first,1,false,1/120);pair.steerPlayer(second,0,false,1/120);}
-run(drift(),alone,0,1);
+run(physics(),alone,0,1);
 assert.deepEqual(second,alone);
 
 // Patrols: a short slide, and small corrections that neither drop the gear nor count as a held wheel.
-const p=TUNE.patrol,clear={near:()=>false},chase=drift();
+const p=TUNE.patrol,clear={near:()=>false},chase=physics();
 const cornering=body(p.baseSpeed),correcting=body(p.baseSpeed);
 for(let i=0;i<240;i++){chase.steerPatrol(cornering,1,clear,1/120);chase.steerPatrol(correcting,.2,clear,1/120);}
 assert.ok(Math.abs(slip(cornering))<=degrees(p.maxSlip)+.01 && Math.abs(slip(cornering))>degrees(p.maxSlip)-2,`Patrol slide ${slip(cornering).toFixed(1)} degrees`);
-assert.ok(speed(correcting)>=p.baseSpeed-.01 && correcting.hold===0 && correcting.h>0,'A light correction turns without slowing down');
+assert.ok(speed(correcting)>=p.baseSpeed-.01 && correcting.drifted===0 && correcting.h>0,'A light correction turns without slowing down');
 
 // A car turning on the spot after a wall is never held at zero speed by its own sideways drift.
-const pinned={...body(),vx:0,vy:.2},freer=drift();
+const pinned={...body(),vx:0,vy:.2},freer=physics();
 run(freer,pinned,-1,1.5);
 assert.ok(speed(pinned)>4,`A stopped car pulls away while steering, ${speed(pinned).toFixed(1)} m/s`);
+
+// The lab's sliders can bring a duration down to zero: the car must keep finite numbers.
+const zeroed=makeDrivePhysics({...TUNE,player:{...TUNE.player,bonusTime:0,bonusLeast:0}}),instant=body(d.baseSpeed);
+for(let i=0;i<120;i++)zeroed.steerPlayer(instant,i<60?1:0,false,1/120);
+assert.ok(Number.isFinite(instant.x+instant.y+instant.h+instant.vx+instant.vy),'A zero bonus time keeps the car finite');
 
 // Chases on the pilot's streets. The previous handling reached the player in 22 of these 40 runs, at 41 km/h.
 const chase40=await chaseRuns();

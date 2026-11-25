@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="it">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Laboratorio visivo · Las Palmas</title><link rel="stylesheet" href="./src/lab/lab.css"></head>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Visual lab · Las Palmas</title><link rel="stylesheet" href="./src/lab/lab.css"></head>
 <body>
-<header><div><small>LAS PALMAS / ATLAS INSULAR</small><h1 id="title">Laboratorio visivo</h1></div>
-<nav><a id="back" href="./lab.html" hidden>Tutte le prove</a> <button id="panel" aria-expanded="true" aria-controls="settings" hidden>Parametri</button></nav></header>
-<section id="catalog"><h2>Prove disponibili</h2><ul id="tests"></ul></section>
-<main hidden><section id="view" aria-label="Confronto del plastico"><div id="tools"><label><input type="checkbox" id="compare"> Confronta con l’attuale</label><input hidden id="split" type="range" min="0" max="100" value="50" aria-label="Posizione tendina"></div><div id="divider" hidden></div><small id="credit">Comune di Las Palmas de Gran Canaria · © OpenStreetMap contributors · PNOA / MDT05 © IGN</small></section>
+<header><div><small>LAS PALMAS / ATLAS INSULAR</small><h1 id="title">Visual lab</h1></div>
+<nav><a id="back" href="./lab.html" hidden>All tests</a> <button id="panel" aria-expanded="true" aria-controls="settings" hidden>Settings</button></nav></header>
+<section id="catalog"><h2>Available tests</h2><ul id="tests"></ul></section>
+<main hidden><section id="view" aria-label="Model comparison"><div id="tools"><label><input type="checkbox" id="compare"> Compare with the current one</label><input hidden id="split" type="range" min="0" max="100" value="50" aria-label="Divider position"></div><div id="divider" hidden></div><small id="credit">Comune di Las Palmas de Gran Canaria · © OpenStreetMap contributors · PNOA / MDT05 © IGN</small></section>
 <aside id="settings"><div id="gui"></div><output id="status" aria-live="polite"></output><output id="metrics"></output></aside></main>
 <script type="module" src="./src/lab/main.ts"></script></body></html>

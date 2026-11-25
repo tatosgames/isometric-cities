@@ -7,7 +7,7 @@ import { wrapAngle as wrap } from '../geometry.ts';
 
 export interface Body {
   x: number; y: number; h: number; vx: number; vy: number;
-  wayHold: number; dive: number; hold: number; steer: number;
+  wayHold: number; dive: number; steer: number;
   slip: number; side: number; way: number; hitX: number; hitY: number;
   /** Handling state: steering wheel rate, top speed of the current gear, seconds spent sliding, extra grip after a slide. */
   wheel: number; gear: number; drifted: number; boost: number;
@@ -16,11 +16,14 @@ export interface Body {
 }
 
 type Profile = typeof TUNE.player;
+// The shortest slide that earns a bonus returns this share of the longest one's (2.5 of 12.3 m/s by default),
+// and the extra grip it gives fades at this rate per second.
+const BONUS_START=2.5/12.3,BOOST_FADE=1;
 type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'brake' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction' | 'slope'>;
 
 /** A car at rest with its steering centred. */
 export function restBody(): Body{
-  return {x:0,y:0,h:0,vx:0,vy:0,wayHold:0,dive:0,hold:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0,wheel:0,gear:0,drifted:0,boost:0};
+  return {x:0,y:0,h:0,vx:0,vy:0,wayHold:0,dive:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0,wheel:0,gear:0,drifted:0,boost:0};
 }
 export function resetSteering(b: Body){b.wheel=b.gear=b.drifted=b.boost=0;}
 
@@ -44,19 +47,19 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
   }
   // The travel follows the nose at a fixed rate: slowly while the wheel is held, fast once it is free.
   // Returns the angle left between the two and the speed a long slide pays back on release.
-  // `loose` is the angle a contact left between the two: it is not cut back to the slide limit at once.
-  function followNose(b: Body,p: Profile,turning: boolean,speed: number,loose: number,dt: number){
-    let slip=speed>.5?wrap(b.h-Math.atan2(b.vy,b.vx)):0;
-    const recover=(turning?T.MathUtils.lerp(p.recover,p.driftRecover,b.hold):p.releaseRecover)+b.boost;
+  // `slip` is that angle after the nose turned and `loose` the one a contact had left before: a contact's
+  // slide is not cut back to the limit at once.
+  function followNose(b: Body,p: Profile,turning: boolean,slip: number,loose: number,dt: number){
+    const recover=(turning?p.recover:p.releaseRecover)+b.boost;
     slip-=Math.sign(slip)*Math.min(Math.abs(slip),recover*dt);
     const limit=Math.max(p.maxSlip,loose-recover*dt);
     slip=T.MathUtils.clamp(slip,-limit,limit);
-    b.boost*=Math.exp(-p.boostFade*dt);
+    b.boost*=Math.exp(-BOOST_FADE*dt);
     let bonus=0;
     if(turning){if(Math.abs(slip)>p.bonusSlip)b.drifted+=dt;}
     else{
       if(b.drifted>=p.bonusLeast){
-        bonus=T.MathUtils.lerp(p.bonusMin,p.bonusMax,Math.min(1,b.drifted/p.bonusTime));
+        bonus=T.MathUtils.lerp(p.bonusMax*BONUS_START,p.bonusMax,p.bonusTime>0?Math.min(1,b.drifted/p.bonusTime):1);
         b.boost=bonus*p.bonusRecover;
       }
       b.drifted=0;
@@ -66,7 +69,7 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
   // Gears: the top speed creeps up on a straight at full speed and falls back while steering or braking.
   function paceCar(b: Body,p: Profile,turning: boolean,brake: boolean,speed: number,slope: number,dt: number){
     if(brake){b.gear=p.baseSpeed;return Math.max(0,speed-(tune.brake+slope)*dt);}
-    if(turning)b.gear=Math.max(p.baseSpeed,b.gear-p.gearLoss*dt);
+    if(turning)b.gear=Math.max(p.baseSpeed,b.gear-p.coast*dt);
     else if(speed>=b.gear-.01)b.gear=Math.min(p.topSpeed,b.gear+p.gearAccel*dt);
     if(speed>b.gear)return Math.max(b.gear,speed-(p.coast+slope)*dt);
     // A steering car pushes only at low speed; above that it coasts through the corner.
@@ -80,11 +83,10 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
     // Small corrections steer the nose without counting as a held wheel.
     const turning=Math.abs(steer)>p.steerDead;
     b.gear=T.MathUtils.clamp(b.gear,p.baseSpeed,p.topSpeed);
-    const loose=before>.5?Math.abs(wrap(b.h-Math.atan2(b.vy,b.vx))):0;
+    const moving=before>.5,nose=b.h,drift=moving?wrap(nose-Math.atan2(b.vy,b.vx)):0;
     turnNose(b,p,steer,before,dt);
     const fx=Math.cos(b.h),fy=Math.sin(b.h),forward=b.vx*fx+b.vy*fy;
     b.wayHold-=dt;b.dive+=((brake?1:0)-b.dive)*Math.min(1,dt*8);
-    b.hold=turning?Math.min(1,b.hold+dt*p.holdRate):Math.max(0,b.hold-dt*p.holdRelease);
     b.steer+=(steer-b.steer)*Math.min(1,dt*9);
     let speed: number,side: number;
     const push=(brake?tune.brake:p.accel)*dt;
@@ -95,7 +97,7 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
       b.vx=fx*back-fy*side;b.vy=fy*back+fx*side;
       speed=Math.hypot(back,side);b.drifted=0;
     }else{
-      const {slip,bonus}=followNose(b,p,turning,before,loose,dt);
+      const {slip,bonus}=followNose(b,p,turning,moving?wrap(drift+b.h-nose):0,Math.abs(drift),dt);
       speed=paceCar(b,p,turning,brake,bonus?Math.max(before,Math.min(b.gear,before+bonus)):before,slope,dt);
       const travel=b.h-slip;
       b.vx=Math.cos(travel)*speed;b.vy=Math.sin(travel)*speed;

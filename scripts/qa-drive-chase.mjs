@@ -6,7 +6,8 @@ import {makeDrivePhysics,restBody} from '../src/drive/drive-physics.ts';
 import {buildDriveWorld} from '../src/drive/drive-world.ts';
 import {chaseSteer} from '../src/drive/drive-chase.ts';
 
-export async function chaseRuns(physics=makeDrivePhysics(TUNE),body=restBody,runs=40){
+export async function chaseRuns(){
+  const physics=makeDrivePhysics(TUNE),runs=40;
   const data=JSON.parse(await readFile(new URL('../public/data/pilot.json',import.meta.url),'utf8'));
   const world=buildDriveWorld(data,()=>0,TUNE);
   const valid=world.validNodes.filter(i=>world.free(world.nodes[i].x,world.nodes[i].y,TUNE.radius+.5));
@@ -17,8 +18,8 @@ export async function chaseRuns(physics=makeDrivePhysics(TUNE),body=restBody,run
       && Math.hypot(world.nodes[i].x-world.nodes[target].x,world.nodes[i].y-world.nodes[target].y)<TUNE.chaserLost-20);
     if(!far.length)continue;
     const start=far[(run*7919)%far.length],n=world.nodes[start],next=world.nodes[field.prev[start]];
-    const player={...body(),x:world.nodes[target].x,y:world.nodes[target].y};
-    const c={...body(),x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),node:start};
+    const player={...restBody(),x:world.nodes[target].x,y:world.nodes[target].y};
+    const c={...restBody(),x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),node:start};
     let time=0,stuck=0,hits=0,outcome='late';
     for(;time<60;time+=dt){
       const turn=chaseSteer(c,player,world,field.prev,TUNE);
@@ -27,7 +28,7 @@ export async function chaseRuns(physics=makeDrivePhysics(TUNE),body=restBody,run
       const hit=physics.collide(c,world);
       if(hit>3)hits++;
       stuck=Math.hypot(c.vx,c.vy)<1.5?stuck+dt:0;
-      if(hit>TUNE.wreckImpact){outcome='wreck';break;}
+      if(hit>TUNE.hardImpact){outcome='wreck';break;}
       if(stuck>TUNE.stuckTime){outcome='stuck';break;}
       if(Math.hypot(c.x-player.x,c.y-player.y)<TUNE.catchReach){outcome='reached';break;}
     }

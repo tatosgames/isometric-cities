@@ -10,14 +10,14 @@ import { cityMaterials } from '../render/city-materials.ts';
 import { breezy } from '../render/wind.ts';
 
 
-const labels=['Attuale','Texture 4 px/m pulita','Carreggiata geometrica'];
+const labels=['Current','Clean 4 px/m texture','Geometric carriageway'];
 const modes=[0,1,2] as const;
 const asphalt=new T.Color('#626575');
 type Mode=typeof modes[number];
 interface Carriageway {vertices:number[];outlines:Ring[][]}
 const $=(id:string)=>document.getElementById(id)!;
 async function asset<A>(url:URL){
-  const res=await fetch(url);if(!res.ok)throw Error('Dati del test non disponibili');return res.json() as Promise<A>;
+  const res=await fetch(url);if(!res.ok)throw Error('Test data unavailable');return res.json() as Promise<A>;
 }
 interface Sample {center:Point;bounds:Bounds}
 function subset(city:CityData,s:Sample):CityData {
@@ -43,9 +43,9 @@ function makeRoute(roads:Road[]){
   // Calle Pelota turns into Mendizábal, then into Lugar Mercadillos Municipales.
   for(const id of ['38040579','30913362','38062741']){
     const road=roads.find(r=>(r as Road & {id:string}).id===id);
-    if(!road)throw Error('Aggiornare il percorso Mercado: tratto OSM mancante.');
+    if(!road)throw Error('Update the Mercado route: an OSM way is missing.');
     const start=new T.Vector2(...road.line[0]);
-    if(points.length&&!start.equals(points[points.length-1]))throw Error('Percorso Mercado discontinuo.');
+    if(points.length&&!start.equals(points[points.length-1]))throw Error('The Mercado route is not continuous.');
     for(const p of road.line.slice(points.length?1:0))points.push(new T.Vector2(...p));
   }
   const lengths=[0];
@@ -92,9 +92,9 @@ export async function roadLab(){
   car.scale.setScalar(carVisualScale);car.castShadow=true;car.receiveShadow=true;scene.add(car);
   const ui={variant:labels[0],distance:0};
   let mode:Mode=0,playing=false,measuring=false,last=0,animation=0;
-  const gui=new GUI({container:$('gui'),title:'Confronto carreggiata'});
-  const variant=gui.add(ui,'variant',labels).name('Resa').onChange(()=>{select(labels.indexOf(ui.variant) as Mode);draw();});
-  const scrub=gui.add(ui,'distance',0,100,.1).name('Percorso (%)').onChange(()=>{pause();draw();});
+  const gui=new GUI({container:$('gui'),title:'Carriageway comparison'});
+  const variant=gui.add(ui,'variant',labels).name('Rendering').onChange(()=>{select(labels.indexOf(ui.variant) as Mode);draw();});
+  const scrub=gui.add(ui,'distance',0,100,.1).name('Route (%)').onChange(()=>{pause();draw();});
   function select(n:Mode){
     mode=n;ui.variant=labels[n];variant.updateDisplay();host.dataset.roadMode=String(n);
     applyMaterial(n);
@@ -130,7 +130,7 @@ export async function roadLab(){
     const w=host.clientWidth,h=host.clientHeight;
     camera.zoom=Math.min(w,h)/(compact?62:95);fitPixels(camera,w,h);renderer.setSize(w,h,false);draw();
   }
-  function pause(){playing=false;cancelAnimationFrame(animation);play.name('Avvia percorso');}
+  function pause(){playing=false;cancelAnimationFrame(animation);play.name('Start route');}
   function tick(now:number){
     if(!playing)return;
     ui.distance=Math.min(100,ui.distance+(now-last)/1000/route.duration*100);last=now;draw();
@@ -139,9 +139,9 @@ export async function roadLab(){
   const play=gui.add({play(){
     if(playing){pause();return;}
     if(ui.distance>=100)ui.distance=0;
-    playing=true;last=performance.now();play.name('Pausa');animation=requestAnimationFrame(tick);
-  }},'play').name('Avvia percorso');
-  gui.add({reset(){pause();ui.distance=0;draw();}},'reset').name('Riparti da Calle Pelota');
+    playing=true;last=performance.now();play.name('Pause');animation=requestAnimationFrame(tick);
+  }},'play').name('Start route');
+  gui.add({reset(){pause();ui.distance=0;draw();}},'reset').name('Restart from Calle Pelota');
   // Compare the same set of positions with one active road representation per frame.
   async function measure(){
     if(measuring)return;pause();measuring=true;gui.domElement.inert=true;
@@ -153,10 +153,10 @@ export async function roadLab(){
     const next=()=>new Promise<number>(resolve=>requestAnimationFrame(resolve));
     try{
       for(const n of modes){
-        select(n);$('status').textContent='Misurazione · '+labels[n];
+        select(n);$('status').textContent='Measuring · '+labels[n];
         const times:number[]=[];let calls=0,tris=0,prev=await next();
         for(let i=0;i<120;i++){
-          if(document.hidden||host.clientWidth!==w||host.clientHeight!==h)throw Error('Misura interrotta. Ripetere con la finestra visibile e stabile.');
+          if(document.hidden||host.clientWidth!==w||host.clientHeight!==h)throw Error('Measurement interrupted. Repeat with the window visible and steady.');
           ui.distance=(i%60)*100/59;draw();const now=await next();
           if(i>=60){times.push(now-prev);calls+=renderer.info.render.calls;tris+=renderer.info.render.triangles;}prev=now;
         }
@@ -164,13 +164,13 @@ export async function roadLab(){
         const map=[original.groundMap!,raster,vector][n],im=map.texture.image;
         const meshBytes=n===2?(geometry.attributes.position.array.byteLength+geometry.attributes.normal.array.byteLength):0;
         const bytes=(im.width*im.height*4)*4/3+meshBytes;
-        rows.push(labels[n]+'\np95 '+times[56].toFixed(1)+' ms · '+Math.round(calls/60)+' draw · '+Math.round(tris/60)+' triangoli · '+(bytes/1048576).toFixed(2)+' MiB suolo');
+        rows.push(labels[n]+'\np95 '+times[56].toFixed(1)+' ms · '+Math.round(calls/60)+' draw · '+Math.round(tris/60)+' triangles · '+(bytes/1048576).toFixed(2)+' MiB ground');
       }
-      $('metrics').textContent=rows.join('\n\n');$('status').textContent='Memoria stimata dei dati del suolo attivi, inclusi mipmap e mesh stradale.';
+      $('metrics').textContent=rows.join('\n\n');$('status').textContent='Estimated memory of the active ground data, including mipmaps and the road mesh.';
     }catch(e){$('status').textContent=String(e);}
     finally{panel.style.height='';select(savedMode);ui.distance=savedDistance;measuring=false;gui.domElement.inert=false;draw();}
   }
-  gui.add({measure},'measure').name('Misura le tre rese');
+  gui.add({measure},'measure').name('Measure the three renderings');
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)pause();});
   $('panel').onclick=()=>{const el=$('settings');el.hidden=!el.hidden;$('panel').setAttribute('aria-expanded',String(!el.hidden));};
   select(0);size();new ResizeObserver(size).observe(host);

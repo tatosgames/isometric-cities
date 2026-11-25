@@ -16,10 +16,10 @@ try {
     return s.visible===1&&!s.pending&&h.dataset.position==='50';
   });
   await page.goto(server.resolvedUrls.local[0]+'lab.html?test=larghezze');
-  for(const [section,wide,old] of [['ordinaria','5','4,5'],['principale','9','8'],['vincolata','4,75','4,5']]){
+  for(const [section,wide,old] of [['ordinaria','5','4.5'],['principale','9','8'],['vincolata','4.75','4.5']]){
     await page.locator('.lil-gui select').selectOption({label:section});
     await settle();
-    const before=page.getByText('Larghezza precedente',{exact:true}).locator('..').locator('input');
+    const before=page.getByText('Previous width',{exact:true}).locator('..').locator('input');
     for(const [previous,width] of [[true,old],[false,wide]]){
       await before.setChecked(previous);
       await page.waitForURL(url=>url.searchParams.has('prima')===previous);

@@ -8,7 +8,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 |---|---|
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
 | `editor.html`, `src/editor/` | Editor locale del pilota: trascinamento di edifici, vertici e props (`building-drag`, `pilot-preview`, `props`); prova `scripts/qa-editor.mjs` |
-| `lab.html`, `src/lab/` | Laboratorio visivo (`?test=lod`, `?test=larghezze`, `?test=settori`): carreggiate e transizioni LOD |
+| `lab.html`, `src/lab/` | Laboratorio visivo (`?test=lod`, `?test=larghezze`, `?test=settori`): carreggiate e transizioni LOD. Interfaccia in inglese, identificativi degli URL in italiano |
 | `src/lab/drive-lab.ts`, `scripts/qa-drive-lab.mjs` | Laboratorio di guida `index.html?lab=guida&area=pilot`: il gioco vero con un pannello che cambia `TUNE` dal vivo (giocatore, pattuglie, auto, camera), polizia sì/no, valori nell'URL (`t=`) e copia per `drive-tune.ts` |
 | `src/main.ts` | Camera, input, filtro per area e recupero contesto WebGL |
 | `src/data/` | Contratti e validazione dei geodati e della vista salvata |

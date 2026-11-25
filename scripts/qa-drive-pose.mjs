@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {Euler,Vector3} from 'three';
 import {TUNE} from '../src/drive/drive-tune.ts';
 import {makeDrivePhysics,restBody} from '../src/drive/drive-physics.ts';
-import {makeDrivePose} from '../src/drive/drive-pose.ts';
+import {POSE_LIFT,POSE_MIN_SPEED,groundPitch,makeDrivePose} from '../src/drive/drive-pose.ts';
 import {makeRoadGrade} from '../src/drive/road-grade.ts';
 import {carShellHeight,carShellParts,carShellPivot} from '../src/drive/car-model.ts';
 
@@ -14,7 +14,6 @@ const speed = car => Math.hypot(car.vx,car.vy);
 
 const body = (vx = 0) => ({...restBody(),vx});
 
-const clear={near:()=>false};
 const braking=body(25);
 let brakeSteps=0;
 for(;speed(braking)>0 && brakeSteps<180;brakeSteps++)steerPlayer(braking,0,true,dt);
@@ -86,7 +85,7 @@ function advance(steer, steps, brake = false) {
     assert.deepEqual(car,reference,'Visual pose must not affect movement');
     assert.ok(Math.abs(pose.yaw)<=TUNE.poseYaw);
     assert.ok(Math.abs(pose.roll)<=TUNE.poseRoll);
-    if(speed(car)>TUNE.poseMinSpeed){
+    if(speed(car)>TUNE.poseFullSpeed*POSE_MIN_SPEED){
       const slipAngle = car.h-Math.atan2(car.vy,car.vx);
       assert.ok(Math.abs(slipAngle+pose.yaw)<=Math.max(Math.abs(slipAngle),TUNE.poseYawLimit)+1e-9);
     }
@@ -123,13 +122,21 @@ for(let i=0;i<36;i++)pose.update(body(16.5),0,dt,0);
 assert.ok(Math.abs(degrees(pose.pitch))<.12,'Cruising should settle the shell back to neutral');
 const shellParts=carShellParts('#fff','#fff').map(part=>part.translate(0,-carShellPivot,0));
 const corner=new Vector3();
-for(const roll of [-TUNE.poseRoll,TUNE.poseRoll])for(const pitch of [TUNE.poseLift,-TUNE.poseDive]){
+for(const roll of [-TUNE.poseRoll,TUNE.poseRoll])for(const pitch of [TUNE.poseDive*POSE_LIFT,-TUNE.poseDive]){
   const rotation=new Euler(roll,0,pitch);
   for(const {attributes:{position}} of shellParts)for(let i=0;i<position.count;i++){
     corner.fromBufferAttribute(position,i).applyEuler(rotation);
     assert.ok(corner.y+carShellHeight(roll,pitch)>=.019,'Keep the tilted chassis above the bottom of the wheels');
   }
 }
+
+// The car leans with the road along its nose: up a 10% climb, down when it turns round, flat across it,
+// and never past the limit on a cliff of noisy terrain.
+const climb=(x,y)=>x*.1,limit=22*Math.PI/180;
+assert.ok(Math.abs(groundPitch(climb,5,0,0,1.2,limit)-Math.atan(.1))<1e-12);
+assert.ok(Math.abs(groundPitch(climb,5,0,Math.PI,1.2,limit)+Math.atan(.1))<1e-12);
+assert.ok(Math.abs(groundPitch(climb,5,0,Math.PI/2,1.2,limit))<1e-12);
+assert.equal(groundPitch((x)=>x*5,0,0,0,1.2,limit),limit);
 
 const wall = body(13);
 wall.vy = 4;
