@@ -56,6 +56,7 @@ export function makePedestrians(roads: Road[],surfaces: Surface[],world: {free(x
   }
   // Squares and parks get a few chords between points inside their outline.
   for(const s of surfaces){
+    if(s.kind==='water')continue;
     const ring=s.rings[0],xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]);
     const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
     const wanted=Math.min(6,Math.max(1,Math.round((x1-x0)*(y1-y0)/900)));

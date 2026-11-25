@@ -867,6 +867,41 @@ Aggiunte 26 schede: 30 luoghi su 31 del catalogo hanno ora testo e link, 21 anch
 
 `check:data` e build superati. In Chromium, a 1280 × 800, tutte le 29 voci del menu aperte una per una: 28 schede con testo, foto dove prevista e dominio del link corretto, una pillola (Iglesia San Francisco Javier), nessun errore in pagina né richiesta fallita. A 390 × 844 controllate una scheda senza foto e una con foto. Nessuna prova su telefono fisico. I testi non sono stati riletti da una persona del posto.
 
+## Passaggio sui luoghi senza modello (25 novembre 2026)
+
+Richiesto da Luca: verificare tutti i luoghi del catalogo che non avevano un modello e dare a ciascuno una sagoma a pochi poligoni più fedele. Fonti: ortofoto SITCAN 20 cm letta a finestra (un ritaglio per luogo, con le impronte comunali sovrapposte), tag e geometrie di OpenStreetMap dagli estratti in cache, altezze comunali. Nessuna tessera LiDAR su questa macchina: ogni altezza che non viene dal Comune o da OSM è una stima dichiarata. Nessuna fotografia riprodotta.
+
+**Nuovi modelli** (`src/render/landmarks.ts`, con gli helper condivisi `roof`, `block`, `bounds`, `eaves`, `pitched`):
+
+- **Teatro Pérez Galdós (41435).** `split.polygon` separa la torre scenica (27 m, tetto a padiglione fino ai 30,6 m comunali, come nell'ortofoto) dalla sala, abbassata a 19 m (stima). Fronte d'ingresso sul lato opposto alla scena: tre porte ad arco e due cornici (stima da conoscenza generale, non da foto).
+- **Mercado de Vegueta (41434).** Anello dei banchi a 8 m (stima) e tre navate rialzate dove le mostra l'ortofoto: due con tetto bianco a falde fino ai 13,5 m comunali, una grigia più bassa.
+- **Casa de Colón (41117).** Fasce di tegole lungo tutti i muri, patii compresi. Il portale in pietra non è disegnato: la sua posizione non è verificata.
+- **Iglesia de Santo Domingo (40140), Parroquia de San Cristóbal (40525), Iglesia San Francisco Javier (corpo 37217:-340:-3736), Ermita de San Telmo (40444).** Navata sotto il tetto a falde dell'ortofoto (tegole, lamiera grigia a San Cristóbal); muri abbassati (stime: 12, 12,5, 8,5 e 8 m), colmo all'altezza comunale. Campanili e facciate non disegnati: non verificabili dall'alto.
+- **Parque de San Telmo.** Chiosco della musica (way 259777939, `building=roof`: colonne e tetto ottagonale verde) e chiosco modernista (way 259777937, `building=kiosk`, 1923: corpo e cupola rossa) come `osmBuildings`. Altezze stimate (6,5 e 6,4 m).
+- **El Obelisco.** Way 582805814 (`man_made=obelisk`): basamento estruso e fusto rastremato fino ai 25 m del tag `height`, colore dal tag `colour`.
+- **Parque Antiguo Estadio Insular.** Le due tende bianche (way 511090031 e 511090032, `amenity=shelter`) con lo stesso modello a membrana della stazione di Santa Catalina; punte a 9 m (stima).
+- **Las Arenas (15839).** Le cinque piramidi di vetro quadrate sopra gli atri, sulle impronte OSM (way 1307312257-60 e 62; lato 16,2 m), alte 6 m e 9 m la maggiore (stima). Altezza del corpo: comunale.
+- **Hospital Insular (corpo 39612:-315:-2492).** Eliporto sul tetto dove lo mettono OSM (way 808027654) e l'ortofoto. Il record comunale estrude tutto il corpo a 45,9 m: l'eliporto sta quindi più in alto del vero.
+- **Club Metropole (30075).** `split.polygon` abbassa a 0,4 m i campi da tennis e padel scoperti, che il record comunale estrudeva a 8,5 m insieme ai padiglioni. Padiglioni chiari senza finestre.
+- **Castillo de San Francisco (33451).** Solo aspetto: pietra, senza finestre né arredi di copertura.
+
+**Acqua.** `data.py` scrive come superficie `water` ogni area OSM `leisure=swimming_pool` o `natural=water` tra 4 e 20.000 m² (308 in città); `ground-map.ts` la dipinge con `color.water` di `road-style.json`, dopo parchi e piazze. Servono Metropole, Real Club Náutico, gli stagni e le vasche del Parque Doramas. I pedoni della guida non ci camminano sopra.
+
+**Luoghi lasciati senza modello, e perché.** Plaza de la Feria (la scultura di Galdós è un nodo OSM: nessuna dimensione mappata), Cementerio Inglés (un recinto, nessun edificio da modellare), Hospital Doctor Negrín e Mercado de Altavista (corpi di altezza diversa distinguibili solo con il LiDAR), parchi di La Ballena, Las Rehoyas e Gloria Fuertes e Playa de Las Canteras (nessuna struttura mappata). Parque Doramas riceve solo l'acqua; Pueblo Canario e Hotel Santa Catalina restano estrusioni comunali.
+
+**Limiti.** Le fasce di tegole di Casa de Colón seguono anche i muri in comune con i vicini e fanno una punta negli angoli acuti. Il tetto dell'Ermita de San Telmo copre il rettangolo che contiene l'impronta a L. Stime da misurare con il LiDAR: tutte le altezze dei muri abbassati, le punte delle tende, le piramidi, i chioschi.
+
+**Misure** (`node scripts/frame-profile.mjs`, telefono emulato, prima → dopo):
+
+```
+Teatro (97,-159) zoom 1.59: draw 91,1 -> 90,5; mediana 18,0 -> 17,4 ms; p90 18,1 -> 18,0 ms
+Teatro zoom 0.352:           draw 155,5 -> 156,5; mediana 18,0 -> 17,7 ms; p90 18,1 -> 18,3 ms
+Las Arenas (-3286,2600) 1.59: draw 79,5 -> 80,5; mediana 18,0 -> 17,4 ms; p90 18,1 -> 18,2 ms
+San Telmo (-200,385) 1.59:    draw 117,2 -> 117,2; mediana 18,0 -> 17,3 ms; p90 18,1 -> 18,2 ms
+```
+
+**Prove.** `npm.cmd run typecheck` e `npm.cmd run build` passano. `npm.cmd test` si ferma a `qa.mjs` riga 181 (attesa del pinch, 30 s): è lo stesso errore già registrato su main prima di questo lavoro (allora riga 180); i controlli precedenti della suite passano. Schermate a camera identica prima e dopo per 15 luoghi (`node scripts/shot.mjs`), controllate una per una.
+
 ## Porto di Santa Catalina (24 novembre 2026)
 
 Richiesto da Luca da una cattura sul telefono: El Muelle come blocco unico a 38 m con finestre da palazzina, Elder e Miller come condomini, barre d'asfalto radiali sul piazzale della stazione, strade che finivano in un tappo tondo. Riferimenti: ortofoto PNOA 1 m e SITCAN 20 cm (letta a finestra da remoto) sovrapposte a impronte e strade del modello; foto di Wikimedia Commons («Buildings of Elder ^ Miller - panoramio», «Museo Elder de la Ciencia y la Tecnología», «ELDER - panoramio») usate solo come riferimento, non riprodotte.

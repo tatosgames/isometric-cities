@@ -300,10 +300,157 @@ function carpaSantaCatalina(add: AddBuilding,altitude: Altitude,tent: Building){
   });
 }
 
+function mesh(v: number[]){
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();
+  return g;
+}
+// A pitched roof placed on the map: ridge along `angle`, eaves at `z`, rising `rise`; `hip` pulls the ridge ends in.
+function roof(add: AddBuilding,cx: number,cy: number,angle: number,length: number,width: number,z: number,rise: number,color: string,hip=0){
+  const a=length/2,b=width/2,r=a-hip;
+  add(mesh([-a,0,-b, a,0,-b, r,rise,0, -a,0,-b, r,rise,0, -r,rise,0,
+    a,0,b, -a,0,b, -r,rise,0, a,0,b, -r,rise,0, r,rise,0,
+    -a,0,b, -a,0,-b, -r,rise,0, a,0,-b, a,0,b, r,rise,0]).rotateY(angle).translate(cx,z,-cy),color,cx,cy);
+}
+function block(add: AddBuilding,cx: number,cy: number,angle: number,length: number,width: number,z: number,height: number,color: string){
+  add(new T.BoxGeometry(length,height,width).rotateY(angle).translate(cx,z+height/2,-cy),color,cx,cy);
+}
+// The box around a footprint, turned along its longest side: true centre, heading and full sizes.
+function bounds(building: Building){
+  const {dx,dy}=frame(building);
+  let a0=Infinity,a1=-Infinity,c0=Infinity,c1=-Infinity;
+  for(const [x,y] of building.rings[0]){
+    const a=x*dx+y*dy,c=y*dx-x*dy;
+    a0=Math.min(a0,a);a1=Math.max(a1,a);c0=Math.min(c0,c);c1=Math.max(c1,c);
+  }
+  const a=(a0+a1)/2,c=(c0+c1)/2;
+  return {cx:a*dx-c*dy,cy:a*dy+c*dx,angle:Math.atan2(dy,dx),length:a1-a0,width:c1-c0};
+}
+// Height of the extruded walls above sea level, and what the model may add up to the mapped height.
+const top=(altitude: Altitude,building: Building)=>altitude(building.rings[0][0][0],building.rings[0][0][1])+(building.heightOverride??building.height);
+const crest=(building: Building,least: number)=>Math.max(least,building.height-(building.heightOverride??building.height));
+const tile='#ad6249';
+
+// Tiled bands along every wall of a footprint, patios included: a small ridge `depth` wide, as on a Canarian house.
+function eaves(add: AddBuilding,building: Building,z: number,depth: number,rise: number,color: string){
+  const v: number[]=[];
+  for(const [n,full] of building.rings.entries()){
+    const ring=full.slice(0,-1).filter(([x,y],i,all)=>{
+      const [px,py]=all[(i+all.length-1)%all.length];
+      return Math.hypot(x-px,y-py)>.8;
+    });
+    if(ring.length<3)continue;
+    let area=0;
+    ring.forEach(([x,y],i)=>{const [nx,ny]=ring[(i+1)%ring.length];area+=x*ny-nx*y;});
+    // Left of the direction of travel is inside a counter-clockwise outline; a patio pushes the other way.
+    const inward=Math.sign(area)*(n?-1:1);
+    const shift=ring.map(([x,y],i)=>{
+      const [px,py]=ring[(i+ring.length-1)%ring.length],[nx,ny]=ring[(i+1)%ring.length];
+      const a=Math.atan2(y-py,x-px),b=Math.atan2(ny-y,nx-x),ox=-Math.sin(a)-Math.sin(b),oy=Math.cos(a)+Math.cos(b),l=Math.hypot(ox,oy)||1;
+      return [inward*ox/l,inward*oy/l];
+    });
+    ring.forEach(([x,y],i)=>{
+      const k=(i+1)%ring.length,[nx,ny]=ring[k],[sx,sy]=shift[i],[tx,ty]=shift[k],h=depth/2;
+      const mx=x+sx*h,my=y+sy*h,ox=nx+tx*h,oy=ny+ty*h,ix=x+sx*depth,iy=y+sy*depth,jx=nx+tx*depth,jy=ny+ty*depth;
+      v.push(x,z,-y,nx,z,-ny,ox,z+rise,-oy, x,z,-y,ox,z+rise,-oy,mx,z+rise,-my,
+        mx,z+rise,-my,ox,z+rise,-oy,jx,z,-jy, mx,z+rise,-my,jx,z,-jy,ix,z,-iy);
+    });
+  }
+  const [x,y]=building.rings[0][0];
+  add(mesh(v),color,x,y);
+}
+
+// Theatre of 1888 by the mouth of the Guiniguada. The catalogue lowers the auditorium and splits off the stage
+// house; this model closes the stage house with the hipped roof of the 2024 orthophoto, up to the municipal
+// height, and marks the entrance front at the opposite end: three arched doors under two cornices.
+function teatroPerezGaldos(add: AddBuilding,altitude: Altitude,stage: Building){
+  const {cx,cy,angle,length,width}=bounds(stage);
+  roof(add,cx,cy,angle,length+.8,width+.8,top(altitude,stage),crest(stage,2),'#9a6250',width*.42);
+  const stone='#f4ecd9',front=facade(add,69.1,-119.4,-19.2,-14.2,altitude(69.1,-119.4));
+  for(const u of [-5,0,5]){
+    front(arch(3.6,4.2),u,.3,.25,stone);front(arch(2.8,4),u,.3,.32,'#4a4743');front(arch(2.2,2.6),u,8.8,.3,'#59615f');
+  }
+  for(const h of [7.6,13.4])front(new T.BoxGeometry(22,.5,1),0,h,.3,stone);
+}
+
+// Market of 1854: a low ring of stalls around three raised halls. The halls, their headings and sizes come from
+// the 2024 orthophoto (two white pitched roofs and a lower grey one); the ring height is an estimate.
+function mercadoDeVegueta(add: AddBuilding,altitude: Altitude,market: Building){
+  const z=top(altitude,market),rise=crest(market,3),along=19.4*Math.PI/180,across=-64.9*Math.PI/180;
+  for(const [x,y,angle,length,width] of [[175.8,-256.5,across,32,13],[149,-275,along,26,14]]){
+    block(add,x,y,angle,length,width,z,rise-2.2,'#efebe1');
+    roof(add,x,y,angle,length+.6,width+.6,z+rise-2.2,2.2,'#f6f4ee');
+  }
+  block(add,162.5,-264,across,24,8,z,1.6,'#a3a4a1');
+}
+
+// Casa de Colón: houses of Vegueta around three patios. Tiled bands follow every wall, patios included.
+function casaDeColon(add: AddBuilding,altitude: Altitude,house: Building){
+  eaves(add,house,top(altitude,house),3.2,1.1,tile);
+}
+
+// Churches: the nave under its pitched roof, placed after the 2024 orthophoto. Walls at the catalogue
+// `heightOverride` (an estimate), ridge at the municipal height.
+function santoDomingo(add: AddBuilding,altitude: Altitude,church: Building){
+  roof(add,-93.8,-729,0,44,18.4,top(altitude,church),crest(church,2),tile);
+}
+function parroquiaSanCristobal(add: AddBuilding,altitude: Altitude,church: Building){
+  roof(add,-23,-3036.5,2.7*Math.PI/180,35.8,14.3,top(altitude,church),crest(church,2),'#8f9499');
+}
+// A roof over the whole footprint, for a body that is one plain rectangle; `hip` is a share of its width.
+const pitched=(color: string,hip: number)=>(add: AddBuilding,altitude: Altitude,body: Building)=>{
+  const {cx,cy,angle,length,width}=bounds(body);
+  roof(add,cx,cy,angle,length+.6,width+.6,top(altitude,body),crest(body,1.5),color,hip*width);
+};
+
+// Bandstand of the Parque de San Telmo, on its OpenStreetMap outline: thin iron columns and the green octagonal roof.
+function quioscoDeLaMusica(add: AddBuilding,altitude: Altitude,kiosk: Building){
+  const ring=kiosk.rings[0].slice(0,-1),{cx,cy}=bounds(kiosk),base=altitude(cx,cy),eave=base+4.2,peak=base+kiosk.height,v: number[]=[];
+  ring.forEach(([x,y],i)=>{
+    const [nx,ny]=ring[(i+1)%ring.length],px=cx+(x-cx)*.82,py=cy+(y-cy)*.82;
+    v.push(cx,peak,-cy,x,eave,-y,nx,eave,-ny);
+    add(new T.CylinderGeometry(.14,.14,eave-base,6).translate(px,base+(eave-base)/2,-py),'#3f5f52',px,py);
+  });
+  add(mesh(v),'#4f8a68',cx,cy);
+}
+// Art nouveau kiosk of 1923 at the corner of the park: a projecting eave and the dark red dome of the orthophoto.
+function quioscoModernista(add: AddBuilding,altitude: Altitude,kiosk: Building){
+  const {cx,cy,length}=bounds(kiosk),z=top(altitude,kiosk),r=length/2;
+  add(new T.CylinderGeometry(r+.9,r+.9,.25,16).translate(cx,z+.12,-cy),'#f4efe2',cx,cy);
+  add(new T.SphereGeometry(r*.72,14,7,0,Math.PI*2,0,Math.PI/2).translate(cx,z+.25,-cy),'#9c4f3f',cx,cy);
+  add(new T.ConeGeometry(.3,1.1,6).translate(cx,z+.25+r*.72+.5,-cy),'#f4efe2',cx,cy);
+}
+// Basalt obelisk of 1957: a tapering square shaft and its point, 25 m with the plinth (height from OpenStreetMap).
+function elObelisco(add: AddBuilding,altitude: Altitude,plinth: Building){
+  const {cx,cy,angle,length}=bounds(plinth),z=top(altitude,plinth),point=2.4,shaft=plinth.height-(plinth.heightOverride??0)-point;
+  const turn=angle+Math.PI/4,low=length*.36,high=length*.2,stone=plinth.wallColor??'#a46a6a';
+  add(new T.CylinderGeometry(high,low,shaft,4).rotateY(turn).translate(cx,z+shaft/2,-cy),stone,cx,cy);
+  add(new T.ConeGeometry(high,point,4).rotateY(turn).translate(cx,z+shaft+point/2,-cy),stone,cx,cy);
+}
+
+// Las Arenas shopping centre: the five square glass pyramids over its atria, on their OpenStreetMap outlines.
+function lasArenas(add: AddBuilding,altitude: Altitude,mall: Building){
+  const z=top(altitude,mall),turn=Math.atan2(-14.9,6.4)+Math.PI/4;
+  for(const [x,y,rise] of [[-3278.8,2614.1,6],[-3247.7,2601.9,6],[-3309.6,2626.2,6],[-3363.4,2670.9,9],[-3200.1,2572.1,6]])
+    add(new T.ConeGeometry(11.4,rise,4).rotateY(turn).translate(x,z+rise/2,-y),'#6aa392',x,y);
+}
+// Hospital Insular: the helipad on the roof, where OpenStreetMap and the 2024 orthophoto place it.
+function hospitalInsular(add: AddBuilding,altitude: Altitude,hospital: Building){
+  const x=-244.6,y=-2455,z=top(altitude,hospital);
+  add(new T.CylinderGeometry(13,13,.5,24).translate(x,z+.25,-y),'#8f918d',x,y);
+  add(new T.RingGeometry(8.6,9.6,24).rotateX(-Math.PI/2).translate(x,z+.56,-y),'#f2f2ee',x,y);
+  for(const [u,w,l] of [[-2.2,1,7],[2.2,1,7],[0,4.4,1]])add(new T.BoxGeometry(w,.08,l).translate(x+u,z+.58,-y),'#f2f2ee',x+u,y);
+}
+
 const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario,'castillo-de-la-luz':castilloDeLaLuz,
   'mercado-del-puerto':mercadoDelPuerto,'auditorio-alfredo-kraus':auditorioAlfredoKraus,
   'castillo-de-mata':castilloDeMata,'estadio-de-gran-canaria':estadioDeGranCanaria,
-  'edificio-miller':edificioMiller,'el-muelle':elMuelle,'carpa-santa-catalina':carpaSantaCatalina};
+  'edificio-miller':edificioMiller,'el-muelle':elMuelle,'carpa-santa-catalina':carpaSantaCatalina,
+  'carpa-estadio-insular-1':carpaSantaCatalina,'carpa-estadio-insular-2':carpaSantaCatalina,
+  'teatro-perez-galdos':teatroPerezGaldos,'mercado-de-vegueta':mercadoDeVegueta,'casa-de-colon':casaDeColon,
+  'santo-domingo':santoDomingo,'parroquia-san-cristobal':parroquiaSanCristobal,
+  'ermita-de-san-telmo':pitched(tile,0),'iglesia-san-francisco-javier':pitched(tile,.35),
+  'quiosco-de-la-musica':quioscoDeLaMusica,'quiosco-modernista':quioscoModernista,'el-obelisco':elObelisco,
+  'las-arenas':lasArenas,'hospital-insular':hospitalInsular};
 
 export function addLandmarks(buildings: Building[],add: AddBuilding,altitude: Altitude){
   const built=new Set();

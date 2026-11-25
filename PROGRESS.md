@@ -152,6 +152,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AN · Guida alla drift-racer (`?handling=drift`).** Profilo alternativo per il solo giocatore, riscritto dal gioco Construct di Rising Pixel: una velocità e due angoli (il muso gira con lo sterzo, la direzione di marcia lo insegue a gradi al secondo), quindi la derapata non costa velocità. Senza freno a mano: tenere lo sterzo allenta l'aderenza fino a 60° di deriva, rilasciarlo riallinea la marcia al muso e restituisce la velocità persa. Marce lunghe da 90 a 116 km/h in rettilineo. Pattuglie, urti e comandi invariati. [Verifica](docs/QA.md#guida-alla-drift-racer-24-novembre-2026). Aperto: feel da giudicare giocando; nessun effetto visivo dedicato al premio di fine derapata; fuori pista e turbo dell'originale non portati.
 
+**AO · Passaggio sui luoghi senza modello.** Verifica su ortofoto 20 cm e OpenStreetMap di tutti i 31 luoghi; modelli nuovi per Teatro Pérez Galdós, Mercado de Vegueta, Casa de Colón, quattro chiese, i due chioschi di San Telmo, El Obelisco, le tende dell'Estadio Insular, le piramidi di Las Arenas e l'eliporto dell'Hospital Insular; campi scoperti del Metropole abbassati; piscine e stagni dipinti come acqua (308 superfici). [Dettagli, stime e luoghi lasciati senza modello](docs/QA.md#passaggio-sui-luoghi-senza-modello-25-novembre-2026). Aperto: altezze stimate da misurare con il LiDAR; Negrín e Altavista richiedono il LiDAR per distinguere i corpi.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.

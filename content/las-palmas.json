@@ -572,10 +572,26 @@
     },
     "41434": {
       "roofFurniture": false,
-      "roofSurface": 3
+      "roofSurface": 3,
+      "landmark": "mercado-de-vegueta",
+      "heightOverride": 8,
+      "wallColor": "#efe4c8"
     },
     "41435": {
-      "roofFurniture": false
+      "heightOverride": 19,
+      "wallColor": "#eadfc6",
+      "roofFurniture": false,
+      "split": {
+        "polygon": [[82.3, -158.9], [101.3, -185.9], [121.7, -171.5], [102.7, -144.5], [82.3, -158.9]],
+        "inside": {
+          "landmark": "teatro-perez-galdos",
+          "heightOverride": 27,
+          "wallColor": "#eadfc6",
+          "windows": false,
+          "roofFurniture": false,
+          "toneSuffix": "-escena"
+        }
+      }
     },
     "29223": {
       "wallColor": "#e6e4de",
@@ -618,7 +634,8 @@
     "15839": {
       "wallColor": "#ece7dc",
       "windows": false,
-      "roofFurniture": false
+      "roofFurniture": false,
+      "landmark": "las-arenas"
     },
     "15840": {
       "wallColor": "#ece7dc",
@@ -633,7 +650,61 @@
     "39612:-315:-2492": {
       "wallColor": "#f1efe9",
       "balconies": false,
+      "roofFurniture": false,
+      "landmark": "hospital-insular"
+    },
+    "41117": {
+      "landmark": "casa-de-colon",
+      "wallColor": "#f1e6cf",
       "roofFurniture": false
+    },
+    "40140": {
+      "landmark": "santo-domingo",
+      "heightOverride": 12,
+      "wallColor": "#f1ede4",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "40444": {
+      "landmark": "ermita-de-san-telmo",
+      "heightOverride": 8,
+      "wallColor": "#f4f1ea",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "40525": {
+      "landmark": "parroquia-san-cristobal",
+      "heightOverride": 12.5,
+      "wallColor": "#efece4",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "37217:-340:-3736": {
+      "landmark": "iglesia-san-francisco-javier",
+      "heightOverride": 8.5,
+      "wallColor": "#f2efe8",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "33451": {
+      "wallColor": "#a59a88",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "30075": {
+      "wallColor": "#d9d9d6",
+      "windows": false,
+      "roofFurniture": false,
+      "split": {
+        "polygon": [[-1208.1, 2072.2], [-1197.5, 2078.5], [-1181.0, 2086.2], [-1170.0, 2067.5], [-1166.9, 2059.4], [-1153.1, 2052.8], [-1151.2, 2046.2], [-1146.9, 2042.5], [-1190.0, 2018.5], [-1194.4, 2029.4], [-1191.5, 2040.0], [-1193.8, 2046.2], [-1198.8, 2055.0], [-1203.8, 2067.5], [-1208.1, 2072.2]],
+        "inside": {
+          "heightOverride": 0.4,
+          "wallColor": "#7c8f6d",
+          "windows": false,
+          "roofFurniture": false,
+          "toneSuffix": "-pistas"
+        }
+      }
     }
   },
   "osmBuildings": [
@@ -673,6 +744,56 @@
       "windows": false,
       "roofFurniture": false,
       "note": "Tenda bianca sopra la stazione delle guaguas di Santa Catalina (building=roof): membrana disegnata da landmarks.ts. Punte a 13 m stimate dall'ortofoto, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/259777939",
+      "landmark": "quiosco-de-la-musica",
+      "height": 6.5,
+      "heightOverride": 0.6,
+      "wallColor": "#cfc8bb",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Chiosco della musica del Parque de San Telmo (building=roof): basamento estruso, colonne e tetto ottagonale verde disegnati da landmarks.ts. Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/259777937",
+      "landmark": "quiosco-modernista",
+      "height": 6.4,
+      "heightOverride": 3.6,
+      "wallColor": "#ece4d2",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Chiosco modernista di San Telmo (building=kiosk, 1923): corpo estruso, cupola disegnata da landmarks.ts. Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/582805814",
+      "landmark": "el-obelisco",
+      "height": 25,
+      "heightOverride": 1.6,
+      "wallColor": "#a46a6a",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Obelisco di Plaza de la Constitución (man_made=obelisk): altezza 25 m e colore dai tag OSM; fusto disegnato da landmarks.ts sopra il basamento estruso."
+    },
+    {
+      "osm": "way/511090031",
+      "landmark": "carpa-estadio-insular-1",
+      "height": 9,
+      "heightOverride": 0.2,
+      "wallColor": "#f4f3ef",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Tenda bianca del Parque Antiguo Estadio Insular (amenity=shelter): membrana disegnata da landmarks.ts. Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/511090032",
+      "landmark": "carpa-estadio-insular-2",
+      "height": 9,
+      "heightOverride": 0.2,
+      "wallColor": "#f4f3ef",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Seconda tenda bianca del Parque Antiguo Estadio Insular (amenity=shelter). Altezza stimata, da misurare con il LiDAR."
     }
   ],
   "pavedParks": [

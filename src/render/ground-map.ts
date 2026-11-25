@@ -39,7 +39,7 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
       trace(ring);
       ctx.closePath();
     }
-    ctx.fillStyle = s.kind === 'beach' ? style.color.beach : s.kind === 'park' && !s.paved ? '#728157' :
+    ctx.fillStyle = s.kind === 'beach' ? style.color.beach : s.kind === 'water' ? style.color.water : s.kind === 'park' && !s.paved ? '#728157' :
       s.id === '30801430' ? '#96948f' : '#c0b9af';
     ctx.fill('evenodd');
   }

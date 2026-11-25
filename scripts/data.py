@@ -236,9 +236,11 @@ for i,(t,vs) in ways.items():
     green=t.get('leisure') in ('garden','park') or t.get('landuse') in ('grass','village_green')
     # A sand beach mapped as an area is ground of its own: the viewer paints it as sand.
     beach=t.get('natural')=='beach' and t.get('surface','sand')=='sand'
-    if vs[0]==vs[-1] and len(vs)>3 and beach:
+    # Swimming pools and ponds are painted on the ground as water; the sea comes from the coast instead.
+    water=t.get('leisure')=='swimming_pool' or t.get('natural')=='water'
+    if vs[0]==vs[-1] and len(vs)>3 and (beach or water):
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
-            if p.area>50: surfaces.append(dict(id=i,kind='beach',rings=rings(p)))
+            if p.area>50 if beach else 4<p.area<20000: surfaces.append(dict(id=i,kind='beach' if beach else 'water',rings=rings(p)))
     elif vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road):
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
             surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p)))
@@ -247,6 +249,8 @@ for i,(t,vs) in ways.items():
             grade={key:t[key] for key in ('bridge','layer') if key in t}
             if any(tuple(l.coords[k]) in portals for k in (0,-1)): grade['portal']=True
             roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords),**grade))
+# Water is painted last, over the park or square it lies in.
+surfaces.sort(key=lambda s:s['kind']=='water')
 for e in osm.findall('node'):
     if tags(e).get('natural')=='tree' and area.contains(Point(nodes[e.get('id')])):
         trees+=coords([nodes[e.get('id')]])
