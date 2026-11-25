@@ -42,7 +42,8 @@ export function makeGroundMap(data: CityData, pixelsPerMetre = data.textureBound
       trace(ring);
       ctx.closePath();
     }
-    ctx.fillStyle = s.kind === 'beach' ? style.color.beach : s.kind === 'water' ? style.color.water : s.kind === 'park' && !s.paved ? '#728157' :
+    const ground = s.ground ? (style.color as Record<string, string>)[s.ground] : undefined;
+    ctx.fillStyle = s.kind === 'beach' ? style.color.beach : s.kind === 'water' ? style.color.water : ground ? ground : s.kind === 'park' && !s.paved ? style.color.grass :
       s.id === '30801430' ? '#96948f' : '#c0b9af';
     ctx.fill('evenodd');
   }

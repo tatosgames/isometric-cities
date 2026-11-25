@@ -164,6 +164,10 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Prestazioni su PC · 25 novembre 2026.** Apertura mediana a freddo di 12,97 s in Chrome con CPU rallentata 6×. A velocità normale il p90 è 18,2 ms sia a Santa Ana sia a Santo Domingo sia durante cinque minuti di guida senza pattuglie. Il disegno del suolo in background è stato provato e ritirato: i guadagni della versione integrata (1,38 s all'apertura e 1,24 s al primo trascinamento) rientrano nella variabilità di riferimento. [Misure e confronto](docs/QA.md#prestazioni-in-chrome-a-390--844--25-novembre-2026).
 
+**AP · San Telmo nel suo insieme, Teatro e tipi di suolo.** Stazione delle guaguas con lucernari, piramide blu e pista, balaustre, Barco Pirata, chiosco della musica rifatto, aiuole del parco di nuovo verdi; Teatro Pérez Galdós corretto (torre scenica moderna alta, sala storica con tetto a padiglione e facciate); superfici con tipo di suolo (`ground`: erba, asfalto, terra, gomma, campo sportivo). [Dettagli e stime](docs/QA.md#san-telmo-nel-suo-insieme-teatro-pérez-galdós-e-tipi-di-suolo-25-novembre-2026). Aperto: altezze stimate da misurare con il LiDAR; assegnare `grounds` alle altre piazze quando si rivedono i quartieri.
+
+**AQ · Archetipi di edificio.** `kind` sugli edifici: `hall` (capannoni, mercati, centri commerciali: 655) e `block` (ospedali, scuole, uffici: 247), da tag OSM e dalla profondità della pianta; eccezioni a catalogo `footprint: "osm"` per i lotti estrusi per intero e modello della Ciudad de la Justicia. [Dettagli e limiti](docs/QA.md#archetipi-di-edificio-ed-eccezioni-a-catalogo-25-novembre-2026). Aperto: verificare sull'ortofoto gli altri lotti estrusi per intero; altezze dei singoli corpi con il LiDAR.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.

@@ -63,6 +63,8 @@ Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson`
 
 ## Spiagge e lungomare
 
+- **Archetipo di edificio:** `data.py` assegna `kind` (`hall` o `block`) dai tag OSM e dalla profondità della pianta agli edifici senza voce di catalogo; nel catalogo `kind` lo impone e `"housing"` lo nega. Un record comunale che è un lotto intero prende `footprint: "osm"` dopo la verifica sull'ortofoto: restano solo gli edifici che OSM mappa al suo interno.
+- **Tipo di suolo:** una superficie prende `ground` (`grass`, `asphalt`, `earth`, `rubber`, `pitch`; colori in `src/data/road-style.json`) dal tag OSM `surface`, dal tipo (`leisure=playground`, `leisure=pitch` a livello strada) o dalla voce `grounds` del catalogo (id della way → tipo), da usare quando l'ortofoto mostra un suolo che OSM non dichiara. Le superfici si dipingono dalla più grande alla più piccola: un'aiuola dentro una piazza resta visibile.
 - **Acqua:** `data.py` scrive come superficie `water` le aree OSM `leisure=swimming_pool` e `natural=water` tra 4 e 20.000 m²; `ground-map.ts` le dipinge per ultime con `color.water`. Una piscina dentro un'impronta comunale resta coperta dall'edificio: abbassa quella parte con `split.polygon` (Club Metropole).
 - **Sabbia:** `data.py` scrive come superficie `beach` ogni area OSM `natural=beach` di sabbia; `ground-map.ts` la dipinge con `color.beach` di `src/data/road-style.json` e lo shader del suolo le dà increspature invece dei giunti del selciato.
 - **Paseo:** una via pedonale il cui nome è in `promenade.names` di `road-style.json` viene disegnata alla larghezza e nel colore indicati lì, con la fascia chiara al centro. Larghezza e colori vengono da fotografie di riferimento; il tracciato resta quello di OSM.

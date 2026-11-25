@@ -22,7 +22,8 @@ function building(v: unknown): v is Building {
     && (v.toneSuffix === undefined || string(v.toneSuffix))
     && (v.landmark === undefined || string(v.landmark))
     && (v.roofFurniture === undefined || boolean(v.roofFurniture))
-    && (v.windows === undefined || boolean(v.windows)) && (v.balconies === undefined || boolean(v.balconies));
+    && (v.windows === undefined || boolean(v.windows)) && (v.balconies === undefined || boolean(v.balconies))
+    && (v.kind === undefined || v.kind === 'hall' || v.kind === 'block');
 }
 const road = (v: unknown): v is Road => record(v) && (v.id===undefined||string(v.id)) && string(v.kind) && list(v.line, point)
   && (v.name == null || string(v.name)) && (v.bridge===undefined||string(v.bridge)) && (v.layer===undefined||string(v.layer))
@@ -32,7 +33,7 @@ const barrio = (v: unknown): v is Barrio =>
 export const isBarrios = (v: unknown): v is Barrio[] => list(v, barrio);
 const surface = (v: unknown): v is Surface =>
   record(v) && string(v.id) && string(v.kind) && rings(v.rings)
-  && (v.paved === undefined || boolean(v.paved));
+  && (v.paved === undefined || boolean(v.paved)) && (v.ground === undefined || string(v.ground));
 
 function validCarriageway(v:unknown, b:unknown){
   if(!record(v) || !bounds(b) || !list(v.positions,number) || !Array.isArray(v.indices))return false;
