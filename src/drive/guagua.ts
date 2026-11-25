@@ -1,77 +1,135 @@
 import * as T from 'three';
-import { surfaceStencil } from '../render/building-stencil.ts';
-import type { Body } from './drive-physics.ts';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {required} from '../required.ts';
+import {tint} from './car-model.ts';
+import type {Point} from '../data/types.ts';
+import type {Body} from './drive-physics.ts';
 
-export interface GuaguaStop { id: string; name: string; position: [number, number]; distance: number }
-export interface GuaguaData { line: string; direction: string; path: [number, number][]; stops: GuaguaStop[] }
-export interface GuaguaState { x: number; y: number; h: number; distance: number; speed: number; stopped: number }
-
+export interface GuaguaData {
+  line: string; direction: string; path: Point[];
+  stops: {id: string; name: string; position: Point; distance: number}[];
+}
+const point = (p: unknown): p is Point => Array.isArray(p) && p.length===2 && p.every(Number.isFinite);
 export function validGuagua(value: unknown): value is GuaguaData {
-  if (!value || typeof value !== 'object') return false;
-  const d = value as Partial<GuaguaData>;
-  return typeof d.line === 'string' && typeof d.direction === 'string' && Array.isArray(d.path) && d.path.length > 1
-    && d.path.every(p => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]))
-    && Array.isArray(d.stops) && d.stops.every(s => !!s && typeof s.id === 'string' && typeof s.name === 'string'
-      && Array.isArray(s.position) && Number.isFinite(s.position[0]) && Number.isFinite(s.position[1]) && Number.isFinite(s.distance));
+  if (!value || typeof value!=='object') return false;
+  const d=value as Partial<GuaguaData>;
+  if (!d.line || typeof d.line!=='string' || !d.direction || typeof d.direction!=='string'
+    || !Array.isArray(d.path) || d.path.length<2 || !d.path.every(point)) return false;
+  let length=0;
+  for (let i=1;i<d.path.length;i++){
+    const [x,y]=d.path[i], prev=d.path[i-1], step=Math.hypot(x-prev[0],y-prev[1]);
+    if (!step) return false;
+    length+=step;
+  }
+  return Array.isArray(d.stops) && d.stops.length>=2 && d.stops.every((s,i,stops)=>
+    s && typeof s.id==='string' && typeof s.name==='string' && point(s.position)
+    && Number.isFinite(s.distance) && s.distance>=0 && s.distance<=length
+    && (i===0 || s.distance>stops[i-1].distance));
 }
 
-export async function loadGuagua(base = import.meta.env.BASE_URL): Promise<GuaguaData | null> {
+export async function loadGuagua(): Promise<GuaguaData|null> {
   try {
-    const response = await fetch(`${base}data/guaguas.json`, { cache: 'no-cache' });
+    const response=await fetch('./data/guaguas.json');
     if (!response.ok) return null;
-    const value: unknown = await response.json();
-    return validGuagua(value) ? value : null;
+    const data: unknown=await response.json();
+    return validGuagua(data)?data:null;
   } catch { return null; }
 }
 
-function length(path: readonly [number, number][]) {
-  let total = 0;
-  for (let i = 1; i < path.length; i++) total += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-  return total;
-}
-
-export function guaguaState(data: GuaguaData, previous: GuaguaState | null, dt: number): GuaguaState {
-  const total = length(data.path);
-  const cruise = 8;
-  if (previous?.stopped && previous.stopped > 0) {
-    const stopped = Math.max(0, previous.stopped - dt);
-    return { ...previous, stopped };
+export function makeGuagua(data: GuaguaData){
+  const ends=[0];
+  for (let i=1;i<data.path.length;i++){
+    const a=data.path[i-1], b=data.path[i];
+    ends.push(ends[i-1]+Math.hypot(b[0]-a[0],b[1]-a[1]));
   }
-  const start = previous?.distance ?? 0;
-  let distance = start + cruise * dt;
-  if (distance > total) distance = 0;
-  const stop = data.stops.find(s => Math.abs(s.distance - distance) < cruise * dt + .25
-    && s.distance !== previous?.distance);
-  if (stop) distance = stop.distance;
-  let walked = 0;
-  for (let i = 1; i < data.path.length; i++) {
-    const a = data.path[i - 1], b = data.path[i], segment = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (distance <= walked + segment) {
-      const t = segment ? (distance - walked) / segment : 0;
-      return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, h: Math.atan2(b[1] - a[1], b[0] - a[0]), distance, speed: stop ? 0 : cruise, stopped: stop ? 3 : 0 };
+  const length=ends[ends.length-1];
+  const state={x:0,y:0,h:0,distance:0,speed:0,stopped:0,braking:false};
+  let nextStop=0, segment=0;
+  function pose(){
+    while(segment<ends.length-2 && state.distance>=ends[segment+1])segment++;
+    const a=data.path[segment], b=data.path[segment+1];
+    const t=(state.distance-ends[segment])/(ends[segment+1]-ends[segment]);
+    state.x=a[0]+t*(b[0]-a[0]); state.y=a[1]+t*(b[1]-a[1]);
+    state.h=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  }
+  function reset(){
+    state.distance=state.speed=state.stopped=nextStop=segment=0;
+    state.braking=false;
+    pose();
+  }
+  reset();
+  return {state,reset,step(dt: number,visible: (point: Point)=>boolean){
+    if(state.distance===length){
+      if(!visible(data.path[0]) && !visible(data.path[data.path.length-1]))reset();
+      return;
     }
-    walked += segment;
+    if(state.stopped>0){
+      state.stopped=Math.max(0,state.stopped-dt);
+      return;
+    }
+    const stop=data.stops[nextStop];
+    const target=stop?.distance??length;
+    const remaining=target-state.distance;
+    const limit=Math.min(8,Math.sqrt(2*3.5*remaining));
+    state.braking=limit<state.speed;
+    state.speed=Math.min(limit,state.speed+2.5*dt);
+    state.distance=Math.min(target,state.distance+state.speed*dt);
+    if(target-state.distance<.001){
+      state.distance=target;
+      state.speed=0;
+      state.braking=true;
+      if(stop){nextStop++;state.stopped=3;}
+    }
+    pose();
+  }};
+}
+
+type BusPose=Pick<ReturnType<typeof makeGuagua>['state'],'x'|'y'|'h'|'speed'>;
+type CarBody=Pick<Body,'x'|'y'|'vx'|'vy'>;
+const HALF_LENGTH=4.5, HALF_WIDTH=1.1;
+
+/** Resolve circle against moving oriented body, preserving tangential velocity. */
+export function resolveGuaguaContact(bus: BusPose, car: CarBody, radius: number){
+  const dx=car.x-bus.x, dy=car.y-bus.y;
+  if(Math.abs(dx)>5+radius || Math.abs(dy)>5+radius)return false;
+  const c=Math.cos(bus.h),s=Math.sin(bus.h);
+  const x=dx*c+dy*s, y=-dx*s+dy*c;
+  let nx=x-T.MathUtils.clamp(x,-HALF_LENGTH,HALF_LENGTH);
+  let ny=y-T.MathUtils.clamp(y,-HALF_WIDTH,HALF_WIDTH);
+  const d=Math.hypot(nx,ny);
+  if(d>=radius)return false;
+  let depth=radius-d;
+  if(d>0){nx/=d;ny/=d;}
+  else {
+    const end=HALF_LENGTH-Math.abs(x), side=HALF_WIDTH-Math.abs(y);
+    nx=end<side?(Math.sign(x)||1):0;
+    ny=end<side?0:(Math.sign(y)||1);
+    depth+=Math.min(end,side);
   }
-  const a = data.path[data.path.length - 2], b = data.path[data.path.length - 1];
-  return { x: b[0], y: b[1], h: Math.atan2(b[1] - a[1], b[0] - a[0]), distance, speed: cruise, stopped: 0 };
+  const wx=nx*c-ny*s, wy=nx*s+ny*c;
+  car.x+=wx*depth; car.y+=wy*depth;
+  const closing=(car.vx-bus.speed*c)*wx+(car.vy-bus.speed*s)*wy;
+  if(closing<0){car.vx-=closing*wx; car.vy-=closing*wy;}
+  return true;
 }
 
-/** Circular footprint used by the arcade cars and the bus. Returns closing speed. */
-export function guaguaHit(bus: GuaguaState, car: Pick<Body, 'x' | 'y' | 'vx' | 'vy'>, radius = 3.2) {
-  const dx = car.x - bus.x, dy = car.y - bus.y, d = Math.hypot(dx, dy), reach = radius + 2.7;
-  if (d >= reach || d < 1e-5) return 0;
-  const nx = dx / d, ny = dy / d;
-  const closing = car.vx * nx + car.vy * ny - bus.speed;
-  return closing > 0 ? closing : 0;
-}
-
-export function guaguaMesh() {
-  const group = new T.Group();
-  const yellow = new T.MeshStandardMaterial({ ...surfaceStencil(), color: '#f0c928', roughness: .75, flatShading: true });
-  const dark = new T.MeshStandardMaterial({ ...surfaceStencil(), color: '#24323a', roughness: .8, flatShading: true });
-  const body = new T.Mesh(new T.BoxGeometry(2.2, 1.8, 6.2).translate(0, 1.25, 0), yellow);
-  const windows = new T.Mesh(new T.BoxGeometry(2.24, .7, 5.1).translate(0, 1.95, 0), dark);
-  group.add(body, windows);
-  group.rotation.order = 'YXZ';
-  return group;
+export function guaguaMesh(paint: T.MeshStandardMaterial,red: T.MeshBasicMaterial){
+  const box=(l:number,h:number,w:number,x:number,y:number,z:number,color:string)=>
+    tint(new T.BoxGeometry(l,h,w).translate(x,y,z),color);
+  const yellow='#efbd29', glass='#334c59';
+  const parts=[
+    box(9,2.6,2.16,0,1.66,0,yellow), box(8.55,.14,2.1,0,3,0,'#ffce47'),
+    box(1.65,.16,1.12,-1,3.15,0,'#c7ba9a'), box(.04,1.12,1.92,4.49,1.93,0,glass),
+    box(.04,.85,1.62,-4.49,2,0,glass)
+  ];
+  for(const side of [-1,1]){
+    for(const x of [-3.46,-2.1,-.74,.62,1.98,3.34])parts.push(box(1.25,.96,.04,x,2.02,side*1.08,glass));
+    for(const x of [-2.8,2.75])parts.push(tint(new T.CylinderGeometry(.49,.49,.22,10)
+      .rotateX(Math.PI/2).translate(x,.49,side*.99),'#282a2b'));
+  }
+  const mesh=new T.Mesh(required(mergeGeometries(parts),'bus geometry'),paint);
+  const lights=[-.78,.78].map(z=>new T.BoxGeometry(.07,.2,.31).translate(-4.5,1.25,z));
+  const brake=new T.Mesh(required(mergeGeometries(lights),'bus stop lights'),red);
+  mesh.add(brake); mesh.rotation.order='YXZ'; mesh.visible=false;
+  return {mesh,brake};
 }

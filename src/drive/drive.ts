@@ -19,6 +19,7 @@ import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians} from './pedestrians.ts';
 import {makeDriveEffects} from './drive-effects.ts';
 import {makeCrowdView} from './drive-crowd.ts';
+import {guaguaMesh,makeGuagua,loadGuagua,resolveGuaguaContact} from './guagua.ts';
 import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
 
 // Ratios that keep a single tuning value for related effects. At the defaults they give the earlier separate
@@ -90,6 +91,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
+  const busView=guaguaMesh(paint,lightRed);
+  group.add(busView.mesh);
+  let bus: ReturnType<typeof makeGuagua> | null=null;
+  void loadGuagua().then(data=>{if(data)bus=makeGuagua(data);});
+  function endpointVisible([x,y]: Point){
+    const [px,py]=project(x,y,2);
+    const margin=7*camera.zoom;
+    return px>=-margin && py>=-margin && px<=host.clientWidth+margin && py<=host.clientHeight+margin;
+  }
   function patrol(){
     const c=vehicle(policeGeometry);
     const light=new T.Mesh(lightGeometry,lightRed);
@@ -270,6 +280,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     Object.assign(player,restBody(),{x:n.x,y:n.y,trail:null,hop:0,tilt:0,slopeAccel:undefined});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     people?.reset(player);crowd.reset();
+    bus?.reset();
     const path=trail();
     // The first destination is there when the run starts: the camera is still gliding in, so nothing flies.
     goalFlight=1;
@@ -328,9 +339,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
   function step(dt: number){
     const world=activeWorld();
     time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);
+    bus?.step(dt,endpointVisible);
     const {steer,brake}=controls.read();
     const driveLoad=steerPlayer(player,steer,brake,dt);
     const beforeContactX=player.x,beforeContactY=player.y;
+    if(bus)resolveGuaguaContact(bus.state,player,TUNE.radius);
     const knock=collide(player,world);
     let playerContact=knock>0 || player.x!==beforeContactX || player.y!==beforeContactY;
     sparkCool=Math.max(0,sparkCool-dt);
@@ -361,9 +374,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       const turn=chaseSteer(c,player,world,required(field,"route field").prev,TUNE);
       if(turn===null){spawnChaser(c);continue;}
       steerPatrol(c,turn,world,dt);
+      const blocked=bus && resolveGuaguaContact(bus.state,c,TUNE.radius);
       const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
-      c.stuck=pace<1.5?c.stuck+dt:0;
+      c.stuck=!blocked && pace<1.5?c.stuck+dt:0;
       if(hit>TUNE.hardImpact)wreck(c);
       else if(c.stuck>TUNE.stuckTime)spawnChaser(c);
     }
@@ -374,7 +388,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
         if(impact>TUNE.hardImpact && !a.wreck && !chasers[j].wreck){wreck(a);wreck(chasers[j]);}
       }
       const shove=bump(a,player);
-      if(shove>=0)playerContact=true;
+      if(shove>=0){
+        playerContact=true;
+        // A car-to-car shove can push either body back into the bus.
+        if(bus){
+          resolveGuaguaContact(bus.state,a,TUNE.radius);
+          resolveGuaguaContact(bus.state,player,TUNE.radius);
+        }
+      }
       if(shove>6)kick(a.x-player.x,a.y-player.y,Math.min(1,shove/14)*.7);
       // Close enough counts as contact: a tree or a corner must not save a stopped car.
       if(!endless && !a.wreck && !grace && speed<TUNE.catchSpeed && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){
@@ -475,6 +496,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     spin+=dt*4;
     for(const b of [player,...chasers])b.hop=Math.max(0,b.hop-dt*2.2);
     const playerGround=place(player,player.h+playerPose.yaw,0,0,dt);
+    if(bus){
+      const {x,y,h,braking}=bus.state;
+      busView.mesh.position.set(x,groundAt(x,y)+.72,-y);
+      busView.mesh.rotation.set(0,h,groundPitch(groundAt,x,y,h,2.75,TILT_LIMIT));
+      busView.mesh.visible=true;busView.brake.visible=braking;
+    }
     const shellPitch=playerPose.pitch+player.tilt*TUNE.slopeLean;
     shell.rotation.set(playerPose.roll,0,shellPitch);
     shell.position.y=carShellHeight(playerPose.roll,shellPitch);
@@ -491,7 +518,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     // Pedestrians hold with the simulation during a hit-stop, and keep strolling before the start and after a capture.
     let walking=0,clearance=99;
     if(people){
-      if(dt && !freeze && !held)people.update(dt,player,[player,...chasers.filter(c=>!c.wreck)]);
+      if(dt && !freeze && !held){
+        const threats: {x:number;y:number;vx:number;vy:number}[]=[player,...chasers.filter(c=>!c.wreck)];
+        if(bus){
+          const {x,y,h,speed}=bus.state,fx=Math.cos(h),fy=Math.sin(h);
+          for(const along of [-3.3,0,3.3])threats.push({x:x+along*fx,y:y+along*fy,vx:speed*fx,vy:speed*fy});
+        }
+        people.update(dt,player,threats);
+      }
       ({walking,clearance}=crowd.update(people,dt,player));
     }
     // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
@@ -565,6 +599,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       if(text!==goalText){goalText=text;goalLabel.textContent=text;}
     }
     for(const [b,x,y,h] of drawn){b.x=x;b.y=y;b.h=h;}
+    if(bus && host.dataset.labReady==='true'){
+      const {x,y,distance,speed,stopped,braking}=bus.state;
+      host.dataset.guagua=[x,y,distance,speed,stopped,Number(braking)].join(',');
+    }
     host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0,stops,Math.hypot(kickX,kickY).toFixed(2),walking,clearance.toFixed(1)].join(',');
   }
 
@@ -638,12 +676,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     },
     exit(){
       if(state==='off')return;
-      state='off';cancelAnimationFrame(raf);scene.remove(group);
+      state='off';cancelAnimationFrame(raf);scene.remove(group);busView.mesh.visible=false;
       controls.deactivate();
       location?.reset();
       held=false;
       el('hud').hidden=true;clearCapture();guide.className='';el('pops').replaceChildren();
-      delete host.dataset.drive;
+      delete host.dataset.drive;delete host.dataset.guagua;
     },
     /** A zone arrived with its footprints, or left with `null`. */
     zone(id: string,content: ZoneData | null){

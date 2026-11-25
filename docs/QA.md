@@ -1033,3 +1033,22 @@ Un quarto avvio con campionamento CPU attribuisce 2,77 s su 14,12 s al disegno d
 Il guadagno mediano all'apertura (1,377 s) è inferiore alla variabilità iniziale (1,638 s). Il guadagno al primo trascinamento (1,236 s) è inferiore alla variabilità del riferimento alternato (1,388 s). Il candidato è stato ritirato. Le misure P1 riguardano la build isolata basata su bed2273, precedente ai nuovi modelli dei luoghi. Consumo, calore e fluidità su telefono fisico restano da misurare.
 
 Dopo l’arrivo dei nuovi modelli dei luoghi (f9b9da9), sulla seconda build isolata sono passati anche avvio e recupero, tre ripetizioni del test dei livelli, entrambi gli attraversamenti stradali e la suite desktop/mobile. La prima esecuzione della suite si era interrotta nella prova della fisica durante modifiche concorrenti alla guida. La stessa prova e la suite sono passate alla ripetizione.
+
+## Guagua in Conducir · 25 novembre 2026
+
+La linea 13 verso Tres Palmas percorre 230,8 m in Vegueta. L’importatore ha verificato il rettangolo del veicolo (9 × 2,2 m) lungo ogni segmento, compresi muso e coda, contro carreggiate, edifici, alberi e limite del pilota e della città. Due estrazioni dello stesso ZIP producono file identici. Un archivio invalido lascia intatto l’ultimo estratto valido.
+
+La prova a 120 Hz usa entrambe le fermate reali. Verifica frenata, tre secondi di sosta, ripartenza e attesa al termine finché entrambi gli estremi escono dalla vista. A La Portadilla la prova ripete l’inseguimento con gli ostacoli del pilota, la fisica dell’auto e lo sterzo delle pattuglie. Il giocatore che segue la guagua resta dietro. Spostando la traiettoria di avvicinamento di 2,45 m verso sinistra, il giocatore supera il bus mentre la pattuglia entra in contatto e rallenta. Il controllo copre anche gli urti laterali e la separazione dei corpi sovrapposti.
+
+Per ripetere i controlli dalla radice del progetto usare questi comandi.
+
+```powershell
+npm.cmd run typecheck
+npm.cmd run build
+npm.cmd test
+node scripts/qa-guagua-browser.mjs
+```
+
+La prova browser dedicata parte vicino alla prima fermata, con le richieste esterne bloccate, su desktop e telefono emulato. Osserva entrambe le soste e ripartenze e riporta la partita all'inizio. Le catture della prima sosta sono in `.cache/qa-guaguas/`. Per una prova manuale aprire `index.html?lab=guida&area=pilot&start=-60,-818` e scegliere la vista aerea con il pulsante della camera.
+
+[Guagua e auto alla prima fermata, vista aerea del pilota](screenshots/guagua-vegueta.png).

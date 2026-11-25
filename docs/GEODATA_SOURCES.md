@@ -76,3 +76,19 @@ Portale CKAN: <https://opendata.sitcan.es/>, API <https://opendata.sitcan.es/api
 
 ## Come aggiungere una fonte a questo catalogo
 Registra link, licenza e obbligo di attribuzione, il modo di accedere in modo riproducibile (e cosa non si può automatizzare), una misura su un edificio o una zona di controllo e il limite noto. Poi aggiorna `DATA_SOURCES.md` solo quando il dato entra nella mappa.
+
+## Guaguas Municipales · modalità guida
+
+Il piano prevede una guagua su due fermate consecutive della stessa corsa, usando la geometria GTFS per identificare il corridoio e la carreggiata del plastico per percorrerlo. La simulazione usa tempi di gioco. L'estratto iniziale copre la linea 13 verso Tres Palmas, su Calle Hernán Pérez de Grado. Il primo candidato sulla linea 54 richiedeva una svolta da Reyes Católicos su Doctor Chil in cui la coda del modello usciva dal nastro stradale del pilota.
+
+**Acquisizione del 25 novembre 2026.** Il feed dell'operatore contiene 46 linee, 845 fermate, 7.009 corse e 20.564 punti di tracciato. Conservare lo ZIP originale in cache. Fonte, impronta SHA-256, corsa, tracciato e via OSM accompagnano il piccolo estratto locale. Le schede comunali riportano come condizioni d'uso «Reutilización de la información del sector público para el ámbito del sector público estatal». [ZIP dell’operatore](https://www.guaguas.com/transit/google_transit.zip) · [Catalogo comunale GTFS](https://datosabiertos.laspalmasgc.es/data/?q=&tags=gtfs) · [Paradas](https://datosabiertos.laspalmasgc.es/dataset/?id=guaguas-municipales-paradas) · [Viajes](https://datosabiertos.laspalmasgc.es/dataset/?id=guaguas-municipales-viajes) · [Trazados](https://datos.gob.es/es/catalogo/l01350167-guaguas-municipales-trazados).
+
+Per aggiornare, scaricare una nuova edizione in un file separato. Un download con identificativo browser ha restituito lo ZIP ufficiale. Dalla radice del progetto, usando l'ambiente Python dei geodati:
+
+```powershell
+New-Item -ItemType Directory -Force .cache/guaguas | Out-Null
+curl.exe -fL --retry 2 -A "Mozilla/5.0" https://www.guaguas.com/transit/google_transit.zip -o .cache/guaguas/candidate.zip
+py -3.14 scripts/guaguas.py .cache/guaguas/candidate.zip
+```
+
+L'importatore collega linea, corsa, geometria e sequenza di fermate della stessa edizione. Converte WGS84 in metri UTM 28N relativi all'origine del plastico, verifica la vicinanza al tracciato e l'intero ingombro 9 × 2,2 m su ciascun segmento in entrambe le mappe. Solo dopo la verifica sostituisce l'estratto. Se una nuova edizione sposta il percorso, riesaminare geometria, fermate e carreggiata prima di aggiornare gli identificativi. Ripetere le prove di sosta, sorpasso, collisioni e riapparizione fuori campo riportate in [QA](QA.md).

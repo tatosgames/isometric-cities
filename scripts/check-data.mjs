@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {coreWithTerrain, isBarrios, isCity, isCoreFile, isLayers, isPlaces, isRoofPalette, isSea, isSectorIndex, isZone} from '../src/data/load.ts';
+import {validGuagua} from '../src/drive/guagua.ts';
 import {validateSectorIndex, validateZone} from '../src/data/sector-index.ts';
 
 async function load(file, valid) {
@@ -15,7 +16,8 @@ const [core, index, , places] = await Promise.all([
   load('poi.geojson', isPlaces),
   load('roof-tones.json', isRoofPalette),
   load('sea.json', isSea),
-  load('barrios.json', isBarrios)
+  load('barrios.json', isBarrios),
+  load('guaguas.json', validGuagua)
 ]);
 validateSectorIndex(index);
 // Place cards: a text that fits the sheet on a phone, and a photo that is really there.
@@ -35,4 +37,4 @@ for (const {id, file} of index.zones) {
 }
 if (buildings !== index.buildingCount) throw new Error('Zones hold ' + buildings + ' buildings, the index expects ' + index.buildingCount);
 for (const {file} of index.sectors) await load('city-sectors/' + file, isLayers);
-console.log('Map data validated: core, pilot, places, roof palette, sea, barrios, ' + index.zones.length + ' zones and ' + index.sectors.length + ' sectors');
+console.log('Map data validated: core, pilot, places, roof palette, sea, barrios, guaguas, ' + index.zones.length + ' zones and ' + index.sectors.length + ' sectors');
