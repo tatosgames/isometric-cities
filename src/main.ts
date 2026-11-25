@@ -96,7 +96,7 @@ async function start(){
   let playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
-  const skyRequested=query.get('sky')==='1';
+  const skyRequested=query.get('sky')!=='0';
   const sky=makeSkyEffects(scene,locations.filter(f=>['parque-doramas','parque-santa-catalina'].includes(f.properties.id)).map(f=>{
     const [x,y]=f.properties.xy;
     return {x,y:altitude(x,y)+34,z:-y};

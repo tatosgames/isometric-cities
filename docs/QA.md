@@ -1174,7 +1174,7 @@ Verifiche: `typecheck`, `build`, `node scripts/qa.mjs`, `qa-boot`, `qa-recovery`
 
 Limiti. `qa-drive-lab.mjs` fallisce sull'URL dei valori (`t=player.baseSpeed:30`) anche sulla build precedente: non dipende da questo passo e non è diagnosticato. Chi gioca torna ai valori di prima finché la pagina resta visibile. Le impronte delle zone caricate (4-10 MB) restano in memoria per il Play seguente. Una misura per vista; memoria della GPU non misurata; il primo Play più lento non è stato provato su telefono fisico.
 
-**Cielo opzionale a Parque Doramas.** La prova in `scripts/qa-sky.mjs` confronta la stessa camera con e senza `sky=1`, conta i disegni WebGL dei due effetti e verifica la riattivazione, il recupero del contesto e l’ingresso in guida. L’osservazione dura 20 secondi per formato. [Cattura desktop](screenshots/sky-doramas.png) · [Controlli da URL e codice](SKY_EFFECTS.md).
+**Cielo a Parque Doramas.** La prova in `scripts/qa-sky.mjs` confronta la stessa camera con il cielo predefinito e con `sky=0`, conta i disegni WebGL dei due effetti e verifica la riattivazione, il recupero del contesto e l’ingresso in guida. L’osservazione dura 20 secondi per formato. [Cattura desktop](screenshots/sky-doramas.png) · [Controlli da URL e codice](SKY_EFFECTS.md).
 
 ## Guaguas locali in Conducir · rete cittadina
 

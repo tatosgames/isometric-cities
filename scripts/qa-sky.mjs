@@ -46,7 +46,7 @@ try{
     await open('sky=0');await quality(true);await page.waitForTimeout(700);
     assert.deepEqual(await draws(),{birds:0,clouds:0});
     const view=await page.locator('#scene').getAttribute('data-view');
-    await open('sky=1');
+    await open('');
     assert.equal(await page.locator('#scene').getAttribute('data-view'),view);
     await page.waitForFunction(()=>skyDraws.birds>2 && skyDraws.clouds>2);
     await page.waitForTimeout(20000);

@@ -1,6 +1,8 @@
-# Sky effects trial
+# Sky effects
 
-Open `/?focus=parque-doramas&sky=1` to see three gulls circling the park and wisps drifting over the city. Switch to `sky=0` for the same camera without the trial. Omitting `sky` also leaves the trial off. The other flock is at `focus=parque-santa-catalina`. For a drive near Doramas use `/?lab=guida&sky=1&start=-1340,1762`.
+The cloud layer sits 400 m above the camera target. Its opacity fades as the view narrows and reaches zero when the vertical span is 160 m or less.
+
+Open `/?focus=parque-doramas` to see three gulls circling the park and wisps drifting over the city. Switch to `sky=0` for the same camera with sky effects disabled. Omitting `sky` or setting `sky=1` enables the effects by default. The other flock is at `focus=parque-santa-catalina`. For a drive near Doramas use `/?lab=guida&start=-1340,1762`.
 
 **Quality control.** The renderer calls `sky.setEnabled(skyRequested && allowed)`. A quality policy can change `allowed` after the map opens:
 
@@ -9,7 +11,7 @@ window.dispatchEvent(new CustomEvent('atlas:sky-quality', {detail: false}));
 window.dispatchEvent(new CustomEvent('atlas:sky-quality', {detail: true}));
 ```
 
-The second call restores the effects on an opted-in page. The current adaptive resolution policy only changes pixel ratio. Wire its quality decision to `setSkyQualityAllowed` in `src/main.ts` to control the trial automatically.
+The second call restores the effects unless the URL specifies `sky=0`. The current adaptive resolution policy only changes pixel ratio. Wire its quality decision to `setSkyQualityAllowed` in `src/main.ts` to control the trial automatically.
 
 **Rendering.** Each flock shares a gull mesh and uses one instanced draw when visible. The transparent cloud plane samples the wind texture and clock used by the ground shadows. Its opacity fades at street zoom. Switching the trial off detaches the objects and skips animation updates. Switching it back on reuses the resources. Existing wind, sea and shadows run in both modes.
 

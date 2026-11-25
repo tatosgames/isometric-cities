@@ -79,9 +79,13 @@ function build(anchors:Anchor[]){
       flock.instanceMatrix.needsUpdate=true;
     }
     const span=(camera.top-camera.bottom)/camera.zoom;
-    mist.uniforms.opacity.value=(driving ? .11 : .46)*T.MathUtils.smoothstep(span,95,340);
+    mist.uniforms.opacity.value=(driving ? .08 : .28)*T.MathUtils.smoothstep(span,160,500);
     cloud.visible=mist.uniforms.opacity.value>.002;
-    cloud.position.set(target.x,150,target.z);
+    // Centre the sheet where the line of sight crosses the cloud deck.
+    const clearance=400;
+    const fraction=clearance/Math.max(1,camera.position.y-target.y);
+    cloud.position.copy(target).lerp(camera.position,fraction);
+    cloud.position.y=target.y+clearance;
     cloud.scale.setScalar(450+4*Math.max(span,(camera.right-camera.left)/camera.zoom));
   },dispose(){
     for(const flock of flocks)flock.dispose();
