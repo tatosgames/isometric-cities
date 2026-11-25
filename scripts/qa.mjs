@@ -2,6 +2,7 @@ import {launchBrowser,serveMap} from './qa-browser.mjs';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import './qa-drive-pose.mjs';
+import './qa-guaguas.mjs';
 import './qa-drive-handling.mjs';
 import './qa-drive-location.mjs';
 import './qa-pedestrians.mjs';
