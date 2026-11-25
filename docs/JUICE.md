@@ -46,6 +46,15 @@ I valori sono quelli di `TUNE` in `src/drive/drive-tune.ts` al 25 novembre 2026;
 
 Il campionamento della pendenza usa la griglia del terreno a 6 m dietro e a 6 m davanti. Segue la velocità di marcia e usa il muso sotto 2 m/s. Il filtro ha costante di tempo di 180 ms. Entro 11 m dai tracciati OSM marcati come ponte o a un altro livello, la correzione torna a zero perché la quota del suolo può differire da quella della carreggiata. Le pattuglie usano la stessa correzione per calcolare da quanto lontano iniziare la frenata.
 
+## Superfici
+
+Un fatto, più indicatori coerenti: fuori dall'asfalto l'auto rallenta e scivola di più, e lo si vede senza testi.
+
+- **Tracce**: sull'asfalto solo in derapata, nere; sul prato, sulla terra e sulla sabbia sempre in movimento (opacità 0,3–0,35, 0,5–0,55 in derapata), più larghe e del colore del terreno; sulla pavimentazione nessuna.
+- **Detriti**: dalle ruote posteriori, oltre 4 m/s, un pezzo ogni 0,6 m percorsi (la metà per le pattuglie): zolle verdi e marroni sul prato, una nuvola bassa sulla terra, spruzzo chiaro sulla sabbia, di lato in derapata. La derapata fuori strada lancia una raffica del terreno invece del fumo bianco.
+- **Tremolio**: quota, rollio e beccheggio della scocca, da un rumore che dipende dai metri percorsi (fermo con l'auto, uguale su ogni dispositivo), pieno da 10 m/s; ampiezza per superficie (`rumble`: pavimentazione 0,25, prato 1, terra 0,8, sabbia 0,6).
+- **Cordolo**: lasciando la strada o tornandoci oltre 5 m/s, un saltello di 2 cm per m/s (al massimo 35 cm) e una vibrazione di 12 ms sul telefono.
+
 ## Strisciata contro una facciata
 
 - Quando la componente verso il muro vale al massimo metà della componente lungo il muro, il contatto annulla la prima e riduce la seconda del 12% di quanto è stato annullato. Il muso si riallinea verso la tangente e il veicolo può continuare lungo la facciata.

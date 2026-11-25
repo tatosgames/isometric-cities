@@ -1,7 +1,7 @@
 // Tuning panel for the drive (`index.html?lab=guida`). It edits `TUNE` in place while the real game runs:
 // the changed values live in the URL and can be copied as lines for `drive-tune.ts`.
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
-import {TUNE} from '../drive/drive-tune.ts';
+import {SURFACES,TUNE} from '../drive/drive-tune.ts';
 import type {makeDrive} from '../drive/drive.ts';
 import './drive-lab.css';
 
@@ -13,12 +13,14 @@ const angles=/^(turn|turnLow|turnRamp|recover|releaseRecover|maxSlip|bonusSlip|p
 const unitOf=(key: string)=>angles.test(key)?DEG:/^(baseSpeed|topSpeed)$/.test(key)?KMH:RAW;
 // Not in the panel: read once when the drive world is built, a dead zone the player's keys never use (they steer
 // -1, 0 or 1), and the side grip of a car rolling back from a wall, which hardly shows.
-// Also out: the patrols' bonus, which is none, and the isometric view, which is the map's own.
+// Also out: the patrols' bonus, which is none, the isometric view, which is the map's own, and the speed and grip
+// of paving, which drives as asphalt and only shakes the car.
 const hidden=new Set(['treeClearance','player.steerDead','player.rollbackGrip','patrol.rollbackGrip','patrol.bonusMax',
-  'cameraModes.fixed.zoom','cameraModes.fixed.framing']);
+  'cameraModes.fixed.zoom','cameraModes.fixed.framing','surfaces.paving.speed','surfaces.paving.grip']);
 // Sizes, spans and durations the game divides by: their sliders stop one step above zero.
-const positive=/^(radius|visualScale|viewSpan|baseSpeed|topSpeed|bonusTime|response|skidSpeed|chaserEvery|coinStep|puffLife|hitStop|pose(Release|FullSpeed))/;
-const folders: Record<string,string>={player:'Player',patrol:'Patrols',cameraModes:'Drive views',fixed:'Isometric',high:'Aerial',chase:'Chase'};
+const positive=/^(radius|visualScale|viewSpan|baseSpeed|topSpeed|bonusTime|response|skidSpeed|chaserEvery|coinStep|puffLife|hitStop|pose(Release|FullSpeed)|speed|grip)/;
+const folders: Record<string,string>={player:'Player',patrol:'Patrols',cameraModes:'Drive views',fixed:'Isometric',high:'Aerial',chase:'Chase',
+  surfaces:'Surfaces',paving:'Paving',grass:'Grass',dirt:'Dirt',sand:'Sand'};
 const groups: [title: string,keys: RegExp][]=[
   ['Impacts and braking',/^(brake|hardImpact|deflect|radius|treeRadius|bounce|wallLoss|scrape)/],
   ['Car on screen',/^(visualScale|slopeLean|roll|tailSwing|hop|playerHop|dive|skidSpeed|pose|puff|spark)/],
@@ -83,6 +85,9 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
       if(typeof value==='number' && keys.test(key) && !hidden.has(key))controllers.set(key,add(folder,tree as Record<string,number>,key,key));
     }
   }
+  const surfaceFolder=gui.addFolder(folders.surfaces).close();
+  controllers.set('roughDrag',add(surfaceFolder,tree as Record<string,number>,'roughDrag','roughDrag'));
+  walk(surfaceFolder,tree.surfaces as Record<string,unknown>,'surfaces.');
   walk(gui.addFolder(folders.cameraModes).close(),tree.cameraModes as Record<string,unknown>,'cameraModes.');
 
   // Written when a change ends, not on every step of a drag: browsers limit how often the URL may change.
@@ -136,8 +141,8 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
       // A car that has not moved yet has no gear: it starts in the base one.
       next=(speed*3.6).toFixed(0).padStart(3)+' km/h · gear '+(Math.max(car.gear,TUNE.player.baseSpeed)*3.6).toFixed(0)
         +'\nslip '+slip.toFixed(0).padStart(3)+'° · slide '+car.drifted.toFixed(1)+' s'
-        +'\npatrols '+drive.patrols+(copied?'\n\n'+copied:'');
-      host.dataset.lab=[(speed*3.6).toFixed(1),slip.toFixed(1),drive.patrols].join(',');
+        +'\n'+SURFACES[car.ground]+' · patrols '+drive.patrols+(copied?'\n\n'+copied:'');
+      host.dataset.lab=[(speed*3.6).toFixed(1),slip.toFixed(1),drive.patrols,car.ground].join(',');
     }
     if(next!==text)readout.textContent=text=next;
   }

@@ -14,7 +14,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/data/` | Contratti e validazione dei geodati e della vista salvata |
 | `src/data/load.ts`, `types.ts`, `sector-index.ts`, `pilot-edits.ts`, `src/required.ts` | Caricamento a tre livelli, tipi condivisi con il worker, indice dei settori, correzioni dell'editor, accesso obbligatorio al DOM |
 | `src/boot.ts`, `src/map/dom.ts`, `src/map/framing.ts` | Avvio (fase, progresso, errore, nota delle attribuzioni), riferimenti DOM, orientamento e limiti di zoom della camera della mappa |
-| `src/drive/drive-tune.ts`, `drive-types.ts`, `drive-effects.ts`, `drive-crowd.ts` | Parametri `TUNE` e costanti, tipi condivisi, particelle e segni di sgommata, vista dei pedoni (estratti da `drive.ts`) |
+| `src/drive/drive-tune.ts`, `drive-types.ts`, `drive-effects.ts`, `drive-crowd.ts` | Parametri `TUNE` e costanti, tipi condivisi, particelle e segni di sgommata, vista dei pedoni (estratti da `drive.ts`); particelle e tracce mosse dalla GPU |
 | `src/drive/drive-route.ts`, `drive-location.ts`, `drive-pose.ts`, `road-grade.ts`, `building-occlusion.ts`, `car-model.ts` | Destinazioni e monete, toponimi, appoggio al terreno, pendenza e ripresa, camera sopra gli edifici, modello dell'auto |
 | `src/render/city-materials.ts`, `ground-surface.ts`, `ground-map.ts`, `building-stencil.ts`, `port-props.ts`, `sectors/lod-transition.ts`, `sectors/protocol.ts` | Materiali condivisi, suolo e carreggiate, retino edifici, gru e oggetti del porto, transizioni LOD da 250 ms, protocollo worker |
 | `scripts/check-data.mjs`, `audit-city.py`, `osm_extract.py`, `carriageways.py`, `road_sections.py`, `source_cache.py`, `requirements.txt` | Controllo dell'indice dati (parte di `build`), audit della città, estratti OSM su reticolo, carreggiate, cache delle fonti |
@@ -30,7 +30,8 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/render/wind.ts` | Vento unico: ombre di nuvole in movimento, oscillazione di chiome e palme, ciclo a 30 fps a mappa ferma |
 | `src/render/sea.ts` | Mare dalla costa OSM: fondali, onde con il vento e schiuma a riva da una texture di distanza |
 | `src/drive/drive.ts` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
-| `src/drive/drive-world.ts` | Griglia degli ostacoli, visibilità e rete stradale della guida |
+| `src/drive/drive-world.ts` | Griglia degli ostacoli (con l'acqua interna), visibilità e rete stradale della guida |
+| `src/drive/drive-surface.ts`, `scripts/qa-drive-surface.mjs` | Superficie sotto le ruote (asfalto, pavimentazione, prato, terra, sabbia) su tessere dipinte a richiesta; prova di classi, tempi e guida sulla sabbia |
 | `src/drive/drive-physics.ts`, `drive-chase.ts` | Modello di guida unico per giocatore e pattuglie (`steerCar`: muso, slittamento, marce; profili `TUNE.player` e `TUNE.patrol`), urti con ostacoli e veicoli; sterzo delle pattuglie verso il giocatore. Prove `scripts/qa-drive-handling.mjs`, `qa-drive-chase.mjs`, `qa-drive-pose.mjs` |
 | `src/drive/pedestrians.ts` | Pedoni d'atmosfera della guida: percorsi, fuga dai veicoli, regola che impedisce di investirli |
 | `src/drive/drive-input.ts` | Comandi touch e tastiera, registrazione e rilascio degli input |

@@ -83,6 +83,28 @@ const zeroed=makeDrivePhysics({...TUNE,player:{...TUNE.player,bonusTime:0,bonusL
 for(let i=0;i<120;i++)zeroed.steerPlayer(instant,i<60?1:0,false,1/120);
 assert.ok(Number.isFinite(instant.x+instant.y+instant.h+instant.vx+instant.vy),'A zero bonus time keeps the car finite');
 
+// Surfaces. Off the road the car slows to the surface's share of its speeds within a second and slides wider;
+// back on asphalt it drives exactly as before. Indices: 0 asphalt, 2 grass, 4 sand.
+const on=(ground)=>makeDrivePhysics(TUNE,undefined,()=>ground);
+const lawn={...body(d.topSpeed),gear:d.topSpeed},lawnCar=on(2);
+for(let i=0;i<120;i++)lawnCar.steerPlayer(lawn,0,false,1/120);
+assert.ok(Math.abs(speed(lawn)-d.topSpeed*TUNE.surfaces.grass.speed)<.3,`One second on grass: ${(speed(lawn)*3.6).toFixed(0)} km/h`);
+const beach={...body(d.topSpeed),gear:d.topSpeed},beachCar=on(4);
+for(let i=0;i<120;i++)beachCar.steerPlayer(beach,0,false,1/120);
+const sandShare=speed(beach)/d.topSpeed;
+assert.ok(sandShare>TUNE.surfaces.sand.speed-.01 && sandShare<TUNE.surfaces.sand.speed+.02,`Sand holds ${(sandShare*100).toFixed(0)}% of the top speed, no less`);
+const lawnSlide=body(d.baseSpeed*TUNE.surfaces.grass.speed);
+for(let i=0;i<120;i++)lawnCar.steerPlayer(lawnSlide,1,false,1/120);
+assert.ok(Math.abs(slip(lawnSlide))>degrees(d.maxSlip)+5,`Grass lets the slide open to ${slip(lawnSlide).toFixed(0)} degrees`);
+// Leaving the grass: the shares come back and the car is the asphalt car again.
+let ground=2;const mixed=makeDrivePhysics(TUNE,undefined,()=>ground),leaving=body(d.baseSpeed);
+for(let i=0;i<240;i++){if(i===60)ground=0;mixed.steerPlayer(leaving,i%40<20?1:0,false,1/120);}
+assert.ok(leaving.pace===1 && leaving.grip===1 && Number.isFinite(leaving.x+leaving.y+leaving.vx),'Back on asphalt the shares return to one');
+// Patrols off the road slow down too.
+const field=body(p.topSpeed),patrolOnGrass=on(2);
+for(let i=0;i<120;i++)patrolOnGrass.steerPatrol(field,0,clear,1/120);
+assert.ok(speed(field)<p.topSpeed*TUNE.surfaces.grass.speed+.3,'A patrol slows on grass');
+
 // Chases on the pilot's streets. The previous handling reached the player in 22 of these 40 runs, at 41 km/h.
 const chase40=await chaseRuns();
 assert.ok(chase40.reached>=20 && chase40.stuck<=4,`Chases: ${JSON.stringify(chase40)}`);

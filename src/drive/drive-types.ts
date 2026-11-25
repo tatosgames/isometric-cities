@@ -1,5 +1,5 @@
 import type * as T from 'three';
-import type { Altitude, CityData, Place, ZoneData } from '../data/types.ts';
+import type { Altitude, CityData, Place, Ring, ZoneData } from '../data/types.ts';
 import type { Body } from './drive-physics.ts';
 import type { routesFrom } from './road-routing.ts';
 import type { Zoning } from './drive-world.ts';
@@ -11,6 +11,8 @@ export interface DriveOptions {
   host: HTMLElement;
   data: CityData;
   locations: Place[];
+  /** Carriageway coverage of the streamed city, for the surface under the wheels. */
+  streets?: Ring[][];
   altitude: Altitude;
   groundAt: Altitude;
   view: (target: T.Vector3, zoom: number, offset: T.Vector3) => void;
@@ -35,6 +37,9 @@ export interface Vehicle extends Body {
   puff: number;
   /** Pitch shown for the slope of the road, eased. */
   tilt: number;
+  /** Surface feel: metres rolled, rumble of the surface (eased) and its strength at this speed, off the road or not,
+   * seconds to the next thrown particle and the wheel that throws it. */
+  odo: number; rumble: number; shake: number; rough: boolean; debris: number; wheel2: number;
   node: number;
 }
 

@@ -1,4 +1,5 @@
-import type { Altitude, Building, Point, Ring, Road } from '../data/types.ts';
+import type { Altitude, Building, Point, Ring, Road, Surface } from '../data/types.ts';
+import { pointInRing } from '../geometry.ts';
 import type { BuildingBlock } from './building-occlusion.ts';
 import type { RoadNode } from './road-routing.ts';
 import {blocksCamera} from './building-occlusion.ts';
@@ -41,9 +42,38 @@ export function inRing(ring: Ring,x: number,y: number){
 }
 
 type Grid=Map<string,Cell>;
-interface WorldData {boundary: Ring;roads: Road[];buildings: Building[];trees: Point[]}
+interface WorldData {boundary: Ring;roads: Road[];buildings: Building[];trees: Point[];surfaces?: Surface[]}
 /** Zones whose footprints arrive later. Without it every obstacle comes with `data`. */
 export interface Zoning {size: number;ids: ReadonlySet<string>}
+
+// Ponds and fountains are solid, like the city boundary. One that a road or path runs into or over (a culvert,
+// a ford, a bridge drawn as water) stays open: the way across it is real.
+export function solidWater(data: Pick<WorldData,'roads'|'surfaces'>){
+  const water=(data.surfaces??[]).filter(s=>s.kind==='water');
+  if(!water.length)return [];
+  // Points every 2 m along the ways, by cells of 50 m: each pond tests only the points around it.
+  const cells=new Map<string,number[]>(),size=50;
+  for(const road of data.roads)for(let i=1;i<road.line.length;i++){
+    const [ax,ay]=road.line[i-1],[bx,by]=road.line[i],steps=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/2));
+    for(let t=0;t<=steps;t++){
+      const x=ax+(bx-ax)*t/steps,y=ay+(by-ay)*t/steps,key=Math.floor(x/size)+','+Math.floor(y/size);
+      const list=cells.get(key);if(list)list.push(x,y);else cells.set(key,[x,y]);
+    }
+  }
+  return water.filter(s=>{
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    for(const [x,y] of s.rings[0]){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}
+    for(let i=Math.floor(x0/size);i<=Math.floor(x1/size);i++)for(let j=Math.floor(y0/size);j<=Math.floor(y1/size);j++){
+      const list=cells.get(i+','+j)??[];
+      for(let k=0;k<list.length;k+=2){
+        const x=list[k],y=list[k+1];
+        if(x<x0 || x>x1 || y<y0 || y>y1)continue;
+        if(pointInRing(s.rings[0],x,y) && !s.rings.slice(1).some(h=>pointInRing(h,x,y)))return false;
+      }
+    }
+    return true;
+  }).flatMap(s=>s.rings);
+}
 
 // The road graph covers the whole city. Walls, roofs and trees live in one layer per zone, so they can
 // come and go with the zones the map has loaded; the boundary and anything in `data` form the base layer.
@@ -53,7 +83,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   let stack: Grid[]=[];
   let highestRoof=-Infinity;
   const span=(a: number,b: number)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
-  function addLayer(id: string,buildings: Building[],trees: Point[],boundary?: Ring){
+  function addLayer(id: string,buildings: Building[],trees: Point[],boundary?: Ring,water: Ring[]=[]){
     const grid: Grid=new Map();
     const cell=(cx: number,cy: number)=>{
       const k=cx+','+cy;
@@ -79,6 +109,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
       for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
     }
     if(boundary)wall(boundary,false);
+    for(const ring of water)wall(ring,false);
     // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
     // Judged against the walls of the same layer, so the result does not depend on arrival order.
     stack=[grid];
@@ -111,7 +142,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
       nodes[a].links.push([b,d]);nodes[b].links.push([a,d]);
     }
   }
-  addLayer('',data.buildings,data.trees,data.boundary);
+  addLayer('',data.buildings,data.trees,data.boundary,solidWater(data));
   const sizes=[];
   for(const start of nodes){
     if(start.part>=0)continue;

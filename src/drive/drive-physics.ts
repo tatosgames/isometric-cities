@@ -4,6 +4,7 @@ import type { TUNE } from './drive-tune.ts';
 import type { makeRoadGrade } from './road-grade.ts';
 import * as T from 'three';
 import { wrapAngle as wrap } from '../geometry.ts';
+import { SURFACES } from './drive-tune.ts';
 
 export interface Body {
   x: number; y: number; h: number; vx: number; vy: number;
@@ -11,6 +12,8 @@ export interface Body {
   slip: number; side: number; way: number; hitX: number; hitY: number;
   /** Handling state: steering wheel rate, top speed of the current gear, seconds spent sliding, extra grip after a slide. */
   wheel: number; gear: number; drifted: number; boost: number;
+  /** Surface under the car (an index into SURFACES) and the shares of speed and grip it allows, eased. */
+  ground: number; pace: number; grip: number;
   slopeAccel?: number;
   scrape?: {x: number;y: number;nx: number;ny: number;vx: number;vy: number;closing: number};
 }
@@ -19,15 +22,32 @@ type Profile = typeof TUNE.player;
 // The shortest slide that earns a bonus returns this share of the longest one's (2.5 of 12.3 m/s by default),
 // and the extra grip it gives fades at this rate per second.
 const BONUS_START=2.5/12.3,BOOST_FADE=1;
-type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'brake' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction' | 'slope'>;
+// A change of surface takes effect over about 0.2 s, so a kerb does not jolt the car.
+const SURFACE_EASE=.07,MAX_SLIP=T.MathUtils.degToRad(80);
+type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'brake' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction' | 'slope' | 'surfaces' | 'roughDrag'>;
 
 /** A car at rest with its steering centred. */
 export function restBody(): Body{
-  return {x:0,y:0,h:0,vx:0,vy:0,wayHold:0,dive:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0,wheel:0,gear:0,drifted:0,boost:0};
+  return {x:0,y:0,h:0,vx:0,vy:0,wayHold:0,dive:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0,wheel:0,gear:0,drifted:0,boost:0,ground:0,pace:1,grip:1};
 }
 export function resetSteering(b: Body){b.wheel=b.gear=b.drifted=b.boost=0;}
 
-export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof makeRoadGrade>){
+export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof makeRoadGrade>,surfaceAt?: (x: number,y: number)=>number){
+  const scaled={...tune.player};
+  // The profile the car drives with on its surface. On asphalt it is the profile itself.
+  function onGround(b: Body,p: Profile,dt: number): Profile{
+    b.ground=surfaceAt?surfaceAt(b.x,b.y):0;
+    const name=SURFACES[b.ground],s=name==='asphalt'?null:tune.surfaces[name];
+    const k=-Math.expm1(-dt/SURFACE_EASE);
+    b.pace+=((s?.speed??1)-b.pace)*k;b.grip+=((s?.grip??1)-b.grip)*k;
+    if(Math.abs(b.pace-1)<1e-4)b.pace=1;
+    if(Math.abs(b.grip-1)<1e-4)b.grip=1;
+    if(b.pace===1 && b.grip===1)return p;
+    Object.assign(scaled,p);
+    scaled.baseSpeed*=b.pace;scaled.topSpeed*=b.pace;scaled.accel*=b.pace;
+    scaled.recover*=b.grip;scaled.releaseRecover*=b.grip;scaled.maxSlip=Math.min(MAX_SLIP,p.maxSlip/b.grip);
+    return scaled;
+  }
   function slopeAccel(b: Body,speed: number,dt: number){
     if(!gradeAt)return 0;
     const dx=speed>=2?b.vx/speed:Math.cos(b.h),dy=speed>=2?b.vy/speed:Math.sin(b.h);
@@ -71,14 +91,15 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
     if(brake){b.gear=p.baseSpeed;return Math.max(0,speed-(tune.brake+slope)*dt);}
     if(turning)b.gear=Math.max(p.baseSpeed,b.gear-p.coast*dt);
     else if(speed>=b.gear-.01)b.gear=Math.min(p.topSpeed,b.gear+p.gearAccel*dt);
-    if(speed>b.gear)return Math.max(b.gear,speed-(p.coast+slope)*dt);
+    if(speed>b.gear)return Math.max(b.gear,speed-(p.coast+slope+tune.roughDrag*(1-b.pace))*dt);
     // A steering car pushes only at low speed; above that it coasts through the corner.
     if(turning && speed>=p.baseSpeed*p.steerPush)return Math.max(0,speed-(p.coast+slope)*dt);
     return Math.min(b.gear,speed+((speed<p.baseSpeed/2?p.accel:p.accel*p.cruiseShare)-slope)*dt);
   }
   // One speed and two angles: the nose turns with the wheel and the direction of travel follows it,
   // so a slide changes direction without costing speed. Returns the drive load, -1 braking to 1 pushing.
-  function steerCar(b: Body,p: Profile,steer: number,brake: boolean,slope: number,dt: number){
+  function steerCar(b: Body,profile: Profile,steer: number,brake: boolean,slope: number,dt: number){
+    const p=onGround(b,profile,dt);
     const before=Math.hypot(b.vx,b.vy);
     // Small corrections steer the nose without counting as a held wheel.
     const turning=Math.abs(steer)>p.steerDead;

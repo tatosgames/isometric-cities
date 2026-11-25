@@ -29,6 +29,12 @@ export const TUNE={
   patrol:{...player,baseSpeed:kmh(94),topSpeed:kmh(120),turn:deg(170),
     recover:deg(135),maxSlip:deg(20),bonusMax:0},
   slope:{deadZone:.02,gain:6,limit:.6,response:.18},
+  // Off the asphalt: shares of the speeds and acceleration (speed) and of the grip that pulls a slide back in
+  // (grip, which also lets the slide open wider), and how much the body shakes (rumble, visual only).
+  // Above the top speed of the surface the car sheds roughDrag × (1 − speed) m/s² more than when coasting.
+  surfaces:{paving:{speed:1,grip:1,rumble:.25},grass:{speed:.72,grip:.6,rumble:1},dirt:{speed:.8,grip:.7,rumble:.8},
+    sand:{speed:.85,grip:.75,rumble:.6}},
+  roughDrag:32,
   deflect:4.5,
   // Juice: visual only, no effect on collisions.
   roll:.035, tailSwing:.3, hop:.5, playerHop:.9, playerHopGain:.085, dive:.09, skidSpeed:4,
@@ -58,6 +64,10 @@ export const TUNE={
   coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
   viewSpanCompact:62, viewSpanWide:95
 };
-export const SKIDS=600, DUST=48, COINS=220;
+/** What the wheels roll on. Asphalt is the carriageway; paving covers pavements, squares and pedestrian streets. */
+export const SURFACES=['asphalt','paving','grass','dirt','sand'] as const;
+export const ASPHALT=0,PAVING=1;
+
+export const SKIDS=1500, DUST=256, COINS=220;
 export const CAPTURE={speed:.3,coast:1,maxSpeed:6,grade:.85,summary:.3,actions:.6};
 export { wrapAngle as wrap } from '../geometry.ts';

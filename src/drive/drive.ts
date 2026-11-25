@@ -17,10 +17,11 @@ import {makeDriveInput} from './drive-input.ts';
 import {chaseSteer} from './drive-chase.ts';
 import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians} from './pedestrians.ts';
-import {makeDriveEffects} from './drive-effects.ts';
+import {DEBRIS,makeDriveEffects,type ParticleKind} from './drive-effects.ts';
+import {makeSurfaceMap,type SurfaceMap} from './drive-surface.ts';
 import {makeCrowdView} from './drive-crowd.ts';
 import {BUS_AXLE,guaguaMesh,makeGuagua,loadGuagua,resolveGuaguaContact} from './guagua.ts';
-import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
+import {CAPTURE,COINS,SURFACES,TUNE,wrap} from './drive-tune.ts';
 
 // Ratios that keep a single tuning value for related effects. At the defaults they give the earlier separate
 // values exactly: dust at 2.5 and 1.5 m/s of slip, a kick damping of 22, a zoom ease of 1.1.
@@ -30,6 +31,12 @@ const STOP_ARRIVE=.1/.11,STOP_CAUGHT=.22/.11;
 // Slope tilt: half the distance between the axles of the model (before its visual scale), how fast the tilt
 // follows the road, and the steepest one shown. The terrain grid is 5 m, so the raw slope steps at its cells.
 const HALF_BASE=.95,TILT_RATE=10,TILT_LIMIT=T.MathUtils.degToRad(22);
+// Off the road: tracks from 2 m/s, thrown turf or sand from 4 m/s at about one piece per 0.6 m rolled (twice as
+// sparse for patrols), a hop of 2 cm per m/s (up to 35 cm) on leaving or rejoining the road, the shake of the
+// body at full rumble (metres and radians) and the speed that reaches it.
+const TRACK_SPEED=2,DEBRIS_SPEED=4,DEBRIS_STEP=.6,KERB_HOP=.02,KERB_HOP_MAX=.35,KERB_SPEED=5;
+const SHAKE_LIFT=.05,SHAKE_ROLL=.025,SHAKE_PITCH=.02,SHAKE_SPEED=10;
+const feel=()=>({odo:0,rumble:0,shake:0,rough:false,debris:0,wheel2:1});
 import { approach } from '../geometry.ts';
 import { CAMERA_DISTANCE, screenOffsetOnGround } from '../render/map-camera.ts';
 
@@ -41,12 +48,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,endless=false}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,endless=false}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
-  const {steerPatrol,steerPlayer,collide,bump}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads));
+  // The surface map is built with the driving world, on the first run.
+  let surfaceMap: SurfaceMap | null=null;
+  const {steerPatrol,steerPlayer,collide,bump}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads),(x,y)=>surfaceMap?.at(x,y)??0);
   const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -87,7 +96,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';blob.rotation.order='YXZ';
-    return {...restBody(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0};
+    return {...restBody(),...feel(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
@@ -155,7 +164,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     // The whole car, wheels and shadow included, follows the road: it pivots on the ground under its centre.
     const slope=groundPitch(groundAt,b.x,b.y,yaw,HALF_BASE*TUNE.visualScale,TILT_LIMIT);
     b.tilt+=(slope-b.tilt)*approach(TILT_RATE,dt);
-    b.mesh.position.set(b.x,z+.72+b.hop,-b.y);
+    b.mesh.position.set(b.x,z+.72+b.hop+b.shake*SHAKE_LIFT*(Math.sin(b.odo*2.9)+.5*Math.sin(b.odo*7.3+1.1)),-b.y);
     b.mesh.rotation.set(roll,yaw,pitch+b.tilt);
     b.blob.position.set(b.x,z+.76,-b.y);
     b.blob.rotation.set(0,yaw,b.tilt);
@@ -258,7 +267,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const pool=ahead.length && Math.random()<.5?ahead:ring.length?ring:all;
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
     const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
-    Object.assign(c,restBody(),{x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,puff:0,tilt:0,slopeAccel:undefined});
+    Object.assign(c,restBody(),feel(),{x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,puff:0,tilt:0,slopeAccel:undefined});
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function nextStart(){
@@ -277,7 +286,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     sparkCool=0;
     playerPose.reset();
     resetEffects();
-    Object.assign(player,restBody(),{x:n.x,y:n.y,trail:null,hop:0,tilt:0,slopeAccel:undefined});
+    Object.assign(player,restBody(),feel(),{x:n.x,y:n.y,trail:null,hop:0,tilt:0,slopeAccel:undefined});
     paceEase=0;threat=0;lead.set(0,0,0);el('pops').replaceChildren();
     people?.reset(player);crowd.reset();
     bus?.reset();
@@ -405,28 +414,62 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     }
     const playerSlip=playerPose.update(player,steer,dt,driveLoad);
     // Dust starts below the skid marks and rearms once the slide has nearly gone: 2.5 and 1.5 m/s by default.
+    // Off the road the slide throws the surface instead of white smoke.
     if(playerSlip<TUNE.skidSpeed*PUFF_REARM)puffArmed=true;
     else if(puffArmed && playerSlip>=TUNE.skidSpeed*PUFF_START){
       puffArmed=false;
       if(!playerContact && (steer || brake)){
-        const yaw=player.h+playerPose.yaw,fx=Math.cos(yaw),fy=Math.sin(yaw);
+        const yaw=player.h+playerPose.yaw,fx=Math.cos(yaw),fy=Math.sin(yaw),rough=DEBRIS[player.ground];
         for(const side of [-.72,0,.72]){
           const rear=side===0?1.55:1.3,scale=TUNE.visualScale;
-          puff(player.x-(fx*rear+fy*side)*scale,player.y+(-fy*rear+fx*side)*scale,'drift');
+          if(rough)for(let k=0;k<3;k++)spray(player,rough,fx,fy,scale,true);
+          else puff(player.x-(fx*rear+fy*side)*scale,player.y+(-fy*rear+fx*side)*scale,'drift');
         }
       }
     }
     route.advance(player,world.nodes,dt,handleRouteEvent);
     for(const b of [player,...chasers]){
-      const isPlayer=b===player;
-      if(b.wreck>0 || (isPlayer?playerSlip:b.slip)<TUNE.skidSpeed){b.trail=null;continue;}
+      const isPlayer=b===player,slip=isPlayer?playerSlip:b.slip,speed=Math.hypot(b.vx,b.vy);
+      surfaceFeel(b,isPlayer,speed,dt);
+      const rough=DEBRIS[b.ground],sliding=slip>=TUNE.skidSpeed;
+      if(b.wreck>0 || !(sliding || (rough && speed>TRACK_SPEED))){b.trail=null;continue;}
       const yaw=b.h+(isPlayer?playerPose.yaw:0),fx=Math.cos(yaw),fy=Math.sin(yaw);
       const scale=isPlayer?TUNE.visualScale:1;
-      skid(b,fx,fy,scale);
+      skid(b,fx,fy,scale,b.ground,sliding);
+      if(rough){
+        b.debris-=dt;
+        if(speed>DEBRIS_SPEED && b.debris<=0){b.debris=DEBRIS_STEP/speed*(isPlayer?1:2);spray(b,rough,fx,fy,scale,sliding);}
+        continue;
+      }
       if(isPlayer)continue;
       b.puff-=dt;
       if(b.puff<=0){b.puff=.07;puff(b.x-fx*1.3*scale,b.y-fy*1.3*scale);}
     }
+  }
+  // Leaving the road or coming back onto it hops the car; the rumble of the surface follows it within 0.2 s.
+  function surfaceFeel(b: Vehicle,isPlayer: boolean,speed: number,dt: number){
+    const rough=DEBRIS[b.ground]!==null;
+    if(rough!==b.rough){
+      b.rough=rough;
+      if(speed>KERB_SPEED && !b.wreck){
+        b.hop=Math.max(b.hop,Math.min(KERB_HOP_MAX,speed*KERB_HOP));
+        if(isPlayer)buzz(12);
+      }
+    }
+    const name=SURFACES[b.ground],target=name==='asphalt'?0:TUNE.surfaces[name].rumble;
+    b.rumble+=(target-b.rumble)*approach(14,dt);
+    b.odo+=speed*dt;
+    b.shake=b.wreck>0?0:b.rumble*Math.min(1,speed/SHAKE_SPEED);
+  }
+  // A piece of the surface thrown up and back by one rear wheel, sideways too when sliding.
+  function spray(b: Vehicle,kind: ParticleKind,fx: number,fy: number,scale: number,sliding: boolean){
+    b.wheel2=-b.wheel2;
+    const side=.7*b.wheel2,x=b.x-(fx*1.2+fy*side)*scale,y=b.y+(-fy*1.2+fx*side)*scale;
+    const back=kind==='dirt'?.25:.15,spread=(Math.random()-.5)*2.4,lateral=sliding?.35:0;
+    const along=b.vx*fx+b.vy*fy;
+    const vx=-b.vx*back-fy*spread+(b.vx-fx*along)*lateral;
+    const vy=-b.vy*back+fx*spread+(b.vy-fy*along)*lateral;
+    puff(x,y,kind,vx,vy,kind==='dirt'?0:kind==='sand'?2.5+Math.random()*2:1.5+Math.random()*1.5);
   }
   function wreck(c: Patrol){
     c.wreck=TUNE.wreckTime;c.vx=c.vy=0;c.trail=null;c.mesh.material=wreckPaint;c.hop=TUNE.hop;
@@ -471,6 +514,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
         acc+=dt;
         for(;acc>=STEP && state==='playing' && !freeze;acc-=STEP){remember();step(STEP);}
         if(freeze)acc=0;
+        // The next tile of the surface map is painted between steps, before the car reaches it.
+        surfaceMap?.prefetch(player.x,player.y,player.vx,player.vy);
       }
     }
     const drawn=state==='playing' && !capture && !freeze && !held?between(acc/STEP):[];
@@ -502,9 +547,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       busView.mesh.rotation.set(0,h,groundPitch(groundAt,x,y,h,BUS_AXLE,TILT_LIMIT));
       busView.mesh.visible=true;busView.brake.visible=braking;
     }
-    const shellPitch=playerPose.pitch+player.tilt*TUNE.slopeLean;
-    shell.rotation.set(playerPose.roll,0,shellPitch);
-    shell.position.y=carShellHeight(playerPose.roll,shellPitch);
+    const shake=player.shake,odo=player.odo;
+    const shellPitch=playerPose.pitch+player.tilt*TUNE.slopeLean+shake*SHAKE_PITCH*Math.sin(odo*4.9+2);
+    const shellRoll=playerPose.roll+shake*SHAKE_ROLL*Math.sin(odo*3.7+.4);
+    shell.rotation.set(shellRoll,0,shellPitch);
+    shell.position.y=carShellHeight(shellRoll,shellPitch);
     heading.position.copy(player.blob.position);
     heading.rotation.y=player.mesh.rotation.y;
 
@@ -621,6 +668,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(!pois.length || !data.roads.length)return false;
     if(!world){
       world=buildDriveWorld(data,altitude,TUNE,zoning);
+      surfaceMap=makeSurfaceMap(data.roads,data.surfaces,streets);
       for(const [id,zone] of zoning?.resident??[])world.addZone(id,zone.buildings,zone.trees);
     }
     people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);

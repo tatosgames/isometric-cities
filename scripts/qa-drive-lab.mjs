@@ -16,7 +16,7 @@ try{
   await ready();
   assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
   const titles=await page.locator('#drive-lab .title').allTextContents();
-  for(const title of ['Player','Patrols','Impacts and braking','Car on screen','Camera and effects','Chase','Drive views']){
+  for(const title of ['Player','Patrols','Impacts and braking','Car on screen','Camera and effects','Chase','Surfaces','Drive views']){
     assert.ok(titles.includes(title),'Missing folder '+title);
   }
 
