@@ -1132,3 +1132,44 @@ La prova browser dedicata parte vicino alla prima fermata, con le richieste este
 [Guagua e auto alla prima fermata, vista aerea del pilota](screenshots/guagua-vegueta.png).
 
 **Modello compatto della linea 13.** La lunghezza di collisione passa da 9 a 7,2 m. Il controllo geometrico copre i 230,8 m del percorso e il test di inseguimento verifica che il giocatore possa ancora superare il bus a La Portadilla. [Vista del modello dal lato porte](screenshots/guagua-modello.png).
+
+## Chi occupa la memoria · 25 novembre 2026
+
+Misura senza modifiche al viewer, con il nuovo `node scripts/heap-profile.mjs <x,y,zoom> <build> "" <profondità>`: istantanea dell'heap in Chrome con emulazione del telefono (390 × 844), dopo la raccolta, attribuita alla prima variabile con nome sul cammino più corto dalla radice. Build non minificata (`npx vite build --minify false --outDir .cache/dist-profile`), a mappa ferma e senza entrare in Conducir.
+
+| Voce (MB) | Da vicino in Vegueta (-80, -560, 1.59) | Vista più ampia su Schamann (-2250, 300, 0.352) |
+|---|---|---|
+| Totale dell'istantanea | 88,3 | 113,4 |
+| Mondo di guida (`drive.world`), a guida spenta | 22,0 | 38,9 |
+| di cui segmenti dei muri delle zone caricate (`segs`) | non separato | 21,1 |
+| di cui nodi e collegamenti della rete stradale | 8,5 | 7,6 |
+| Pedoni (`people`) | 4,9 | 4,9 |
+| Geometrie dei livelli in streaming ancora in JavaScript | 27,4 | 26,9 |
+| Impronte delle zone caricate (`residentZones.buildings`) | 4,2 | 10,5 |
+| Terreno del nucleo (più 7,6 MB della copia nel worker) | 6,9 | 6,9 |
+| Superfici e strade del nucleo | 6,3 | 5,8 |
+| Stima dei contatori: dettaglio / zone | 58,0 / 26,5 (5 zone, 18 settori) | 0 / 85,0 (16 zone) |
+
+Lettura. La parte sempre residente del nucleo (terreno, strade, superfici) vale circa 13 MB più 7,6 nel worker: non è la voce maggiore. Pesano di più il mondo di guida, costruito e tenuto anche quando non si guida (22-39 MB, cresce con le zone caricate), e le geometrie in streaming che restano in JavaScript (27 MB). Limiti: una sola esecuzione per vista; l'attribuzione segue il cammino più corto, quindi un dato condiviso tra due proprietari è contato su uno solo; la memoria della GPU non è misurata; nessuna prova su telefono fisico.
+
+## Memoria: guida al primo Play e geometrie liberate · 25 novembre 2026
+
+Due correzioni dopo la misura qui sopra, senza toccare dati né resa.
+
+- **Geometrie.** `gpuOnly()` libera la copia in memoria all'upload, ma l'upload avviene al primo disegno e un settore fuori vista non viene mai disegnato: la copia restava per tutta la vita della zona. Ora ogni mesh di zona e di settore è disegnata una volta appena arriva, anche fuori vista, poi torna al taglio normale. La copia passa alla GPU: l'heap scende, la memoria grafica sale della stessa quota per i settori caricati e mai inquadrati (300 buffer in più nel benchmark, 1.660 contro 1.360).
+- **Guida.** Rete stradale, muri e pedoni non si costruiscono più dopo l'apertura: li costruisce il primo Play, a passi con un fotogramma in mezzo e il pulsante in attesa, e restano per le partite seguenti. Una pagina nascosta senza partita in corso li libera.
+
+| Misura (Chrome, telefono emulato) | Prima | Dopo |
+|---|---|---|
+| Istantanea dell'heap, da vicino in Vegueta | 88,3 MB | 45,7 MB |
+| Istantanea dell'heap, vista più ampia su Schamann | 113,4 MB | 56,2 MB |
+| `benchmark.mjs`, heap dopo la raccolta | 107,3 MB | 55,2 MB |
+| Primo Play, dal tocco al primo fotogramma | 287 ms | 590 ms |
+| Primo Play con CPU 6× più lenta | 1.302 ms | 4.958 ms |
+| Play seguenti (CPU normale / 6×) | 58 / 455-541 ms | 50-61 / 421-555 ms |
+
+Con la sola correzione delle geometrie le istantanee erano 72,8 e 100,0 MB. Il costo del primo Play a CPU 6× si divide in rete stradale 1,7-2,3 s, muri di 6-8 zone 1,4-1,7 s e pedoni 0,8-1,1 s; prima lo stesso lavoro bloccava il thread principale in un momento qualsiasi dopo l'apertura.
+
+Verifiche: `typecheck`, `build`, `node scripts/qa.mjs`, `qa-boot`, `qa-recovery`, `qa-sectors`, ripetuti dopo il riallineamento su `9d307b4`, con `qa-guagua-motion` (benchmark su `4d6eff2`: 54,6 MB). Catture a camera identica con `shot.mjs` in tre viste: le differenze tra versione precedente e nuova (13.000-91.000 pixel, scarto massimo 2-79 su 255) stanno dentro quelle tra due catture della stessa versione (20.000-67.000 pixel, scarto massimo 1-127), dovute a vento e nuvole.
+
+Limiti. `qa-drive-lab.mjs` fallisce sull'URL dei valori (`t=player.baseSpeed:30`) anche sulla build precedente: non dipende da questo passo e non è diagnosticato. Chi gioca torna ai valori di prima finché la pagina resta visibile. Le impronte delle zone caricate (4-10 MB) restano in memoria per il Play seguente. Una misura per vista; memoria della GPU non misurata; il primo Play più lento non è stato provato su telefono fisico.

@@ -90,7 +90,7 @@ async function start(){
   const coastVelocity=new T.Vector3(),trail: DragSample[]=[];
   const shift=new T.Vector2(),toCamera=new T.Vector3(),centre=new T.Vector3();
   let lastView: ViewState | null=null;
-  let drive: ReturnType<typeof makeDrive> | null=null,awaitingZone=false;
+  let drive: ReturnType<typeof makeDrive> | null=null,awaitingZone=false,building=false;
   const openingView=openingFrame(draw);
   let playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
@@ -263,6 +263,8 @@ async function start(){
   window.addEventListener('pagehide',remember);
   document.addEventListener('visibilitychange',()=>{
     drive?.visibilityChanged();
+    // A hidden page is the first the browser closes for memory: the drive's world goes unless a run is on.
+    if(document.hidden && !building)drive?.release();
     if(document.hidden){if(!flight?.driveOrbit)flight=null;coasting=false;stopGesture();remember();}
     else if(!lost)syncSize();
   });
@@ -408,15 +410,27 @@ async function start(){
     controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');
   }
   play.onclick=()=>{
-    if(lost || !drive || drive.active || flight?.driveOrbit || awaitingZone || map.dataset.boot!=='ready' || play.getAttribute('aria-disabled')==='true')return;
+    if(lost || !drive || drive.active || flight?.driveOrbit || awaitingZone || building || map.dataset.boot!=='ready' || play.getAttribute('aria-disabled')==='true')return;
     playRequestedAt=performance.now();
     rebase();
-    // The run starts on streets whose walls are loaded: wait for the zone under the view.
-    if(streamed && !streamed.demand(controls.target.x,-controls.target.z)){
-      awaitingZone=true;play.setAttribute('aria-busy','true');play.setAttribute('aria-label','Play · Preparando la conducción');
-      return;
-    }
-    beginDrive();
+    const busy=()=>{play.setAttribute('aria-busy','true');play.setAttribute('aria-label','Play · Preparando la conducción');};
+    const start=()=>{
+      // The run starts on streets whose walls are loaded: wait for the zone under the view.
+      if(streamed && !streamed.demand(controls.target.x,-controls.target.z)){awaitingZone=true;busy();return;}
+      beginDrive();
+    };
+    if(drive.built){start();return;}
+    // The driving world is built at the first Play, not behind the map: seconds on a slow phone, so the wait shows
+    // first and a frame is drawn between the steps.
+    building=true;busy();
+    const steps=drive.build();
+    const next=()=>{
+      if(signal.aborted)return;
+      if(!lost && !steps.next().done){setTimeout(next);return;}
+      building=false;
+      if(lost){play.removeAttribute('aria-busy');play.setAttribute('aria-label','Play');}else start();
+    };
+    requestAnimationFrame(()=>setTimeout(next));
   };
   el('drive-exit').onclick=leaveDrive;
   controls.addEventListener('change',draw);
@@ -426,9 +440,8 @@ async function start(){
     controls.enabled=!lost;
     performance.mark('atlas:startup-interactive');
     draw();
-    // The driving world and its pedestrians take about a second on a phone and are not needed to see the map:
-    // they are built in the first quiet moment after it opens. Play builds them itself if it is pressed first.
-    const warm=()=>{if(!signal.aborted && !drive?.prepare())disablePlay();};
+    // The driving world and its pedestrians are not needed to see the map: the first Play builds them.
+    if(drive && !drive.available)disablePlay();
     if(lab && drive){
       // Driving lab: every run starts where the map opens, with the tuning panel beside the game.
       const tested=drive;
@@ -442,7 +455,6 @@ async function start(){
       void import('./lab/drive-lab.ts').then(({driveLab})=>driveLab({drive:tested,host,compact,begin:()=>play.click()}));
       return;
     }
-    if('requestIdleCallback' in window)requestIdleCallback(warm,{timeout:4000});else setTimeout(warm,1500);
   },{once:true});
   let firstView=true;
   new ResizeObserver(()=>{

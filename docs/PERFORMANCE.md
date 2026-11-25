@@ -57,6 +57,8 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 | Niente normali per vertice nella vista intermedia e lontana del profilo compatto: materiali a ombreggiatura piatta e nessuna shadow map | `overview.ts` | 12 byte su 27 per vertice; buffer di geometria da 66 a 41 MB alla vista più ampia |
 | Contorni del livello lontano rilasciati dopo averne fatto la geometria | `streamCity()` | Circa 4 MB |
 | Copia in memoria delle geometrie liberata dopo l'upload sulla GPU; alla perdita del contesto WebGL zone e settori si ricaricano dai file | `gpuOnly()` e `forget()` in `sector-stream.ts` | Heap da 104 a 89 MB alla vista più ampia, da 101 a 79 MB nel benchmark |
+| Ogni mesh di zona e di settore disegnata una volta all'arrivo, anche fuori vista: senza il primo disegno non c'è upload e la copia in memoria non si libera mai | `gpuOnly()` in `sector-stream.ts` | Heap da 88 a 73 MB da vicino, da 113 a 100 MB alla vista più ampia; la quota passa alla GPU |
+| Mondo di guida (rete stradale, muri, pedoni) costruito al primo Play, a passi, e liberato quando la pagina è nascosta senza partita | `build()` e `release()` in `drive.ts`, `play.onclick` in `main.ts` | Heap da 73 a 46 MB da vicino, da 100 a 56 MB alla vista più ampia, 107 → 55 MB nel benchmark. Costo: primo Play da 0,3 a 0,6 s, da 1,3 a 5 s con CPU 6× |
 | Guida: grafo stradale globale, muri e alberi per zona; una zona non caricata vale come piena | `drive-world.ts` | L'indice degli ostacoli non cresce con la città |
 | Confine della città indicizzato per fasce di 25 m: un punto incontra solo i lati della propria fascia | `ringIndex()` in `drive-world.ts` | −2,7 s all'apertura con la costa di La Isleta (2.451 lati) |
 
@@ -74,6 +76,8 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 - Avvio su telefono (con CPU 6× più lenta: 14-25 s). Voci maggiori nel profilo: `WebGLRenderer.setSize` e primo uso degli shader (3,6 s insieme, attesa della GPU dopo l'upload della texture di suolo dell'intera città), `makeGroundMap` del livello lontano (1,4 s), mondo di guida e pedoni costruiti prima della prima immagine (circa 1,2 s), validazione dei JSON. Fatto: guida e pedoni dopo l'apertura, apertura sul quartiere senza attendere il dettaglio (da 13,4 a 10,6 s). Candidati rimasti: texture di suolo lontana dipinta nel worker o più piccola, lettura e validazione dei JSON nel worker.
 - Budget di dettaglio espresso anche in triangoli, non solo in byte: i settori densi pesano sulla GPU più di quanto dica la loro dimensione.
 - Impronte delle zone caricate tenute per la guida anche a guida spenta; strade, superfici e copertura dell'intera città sempre residenti.
+- Dopo il passo sulla guida restano, a mappa ferma: geometrie del livello lontano e suolo delle zone (12-13 MB), terreno (6,9 MB più 7,6 nel worker), impronte delle zone (4-10 MB), strade e superfici (6 MB). Si rimisura con `node scripts/heap-profile.mjs`.
+- Primo Play più rapido: rete stradale in array tipizzati o calcolata in `sectors.py`, muri delle sole zone attorno alla partenza.
 - Per trovare cosa occupa l'heap: istantanea con `HeapProfiler.takeHeapSnapshot` via CDP, somma di `self_size` per tipo e nome di nodo. `JSArrayBufferData` sono i buffer, `(object elements)` e `Array` sono le coordinate dei JSON.
 - Un oggetto dato a ogni zona non deve contenere la città intera: controlla cosa viene ridisegnato o ricopiato a ogni caricamento prima di cercare altrove uno scatto.
 

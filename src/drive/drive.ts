@@ -664,15 +664,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     try{renderer.compile(scene,camera);}catch{}
     group.remove(...stand);
   }
-  function prepare(){
-    if(!pois.length || !data.roads.length)return false;
-    if(!world){
-      world=buildDriveWorld(data,altitude,TUNE,zoning);
-      surfaceMap=makeSurfaceMap(data.roads,data.surfaces,streets);
-      for(const [id,zone] of zoning?.resident??[])world.addZone(id,zone.buildings,zone.trees);
-    }
+  const available=pois.length>0 && data.roads.length>0;
+  // Road graph, surface map, walls of the zones in memory, walkers: seconds of work on a slow phone, in steps that
+  // leave room for a frame between them. The walkers come last, so they tell that all of it is there.
+  function* build(){
+    if(!world){world=buildDriveWorld(data,altitude,TUNE,zoning);yield;}
+    if(!surfaceMap){surfaceMap=makeSurfaceMap(data.roads,data.surfaces,streets);yield;}
+    for(const [id,zone] of zoning?.resident??[]){world.addZone(id,zone.buildings,zone.trees);yield;}
     people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
-    return true;
   }
   again.onclick=()=>{
     if(state!=='caught' || actions.hidden)return;
@@ -702,10 +701,21 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     retune(){for(const c of [player,...chasers])c.mesh.scale.setScalar(TUNE.visualScale);},
     get desaturation(){return capture?T.MathUtils.smoothstep(capture.elapsed,0,CAPTURE.grade):0;},
     get visualTimeScale(){return capture?(freeze?0:CAPTURE.speed):1;},
-    prepare,
+    /** False when the city has no places or no roads to drive on. */
+    available,
+    /** Whether the road graph, the walls and the walkers are in memory. `enter` builds what is missing in one go. */
+    get built(){return !!people;},
+    /** The same work as `enter` would do, one step per `next()`, for a caller that draws between the steps. */
+    build,
+    /** The map alone does not pay for the drive: outside a run, free what `build` made. */
+    release(){
+      if(state!=='off')return;
+      world=null;people=null;field=null;route.clear();
+    },
     enter(): 'started' | 'unavailable'{
       if(state!=='off')return 'started';
-      if(!prepare())return 'unavailable';
+      if(!available)return 'unavailable';
+      if(!people)for(const _ of build());
       const start=nextStart();
       if(!start)return 'unavailable';
       location??=makeDriveLocation(data.roads,street,barrio);
