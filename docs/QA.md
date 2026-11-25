@@ -1,5 +1,25 @@
 # Verifica locale · 21 novembre 2026
 
+## Guida unica e laboratorio di taratura · 25 novembre 2026
+
+La guida della drift-racer è l'unica: `?handling` è stato tolto insieme al modello precedente. `steerCar` in `drive-physics.ts` serve giocatore e pattuglie con due profili della stessa forma, `TUNE.player` e `TUNE.patrol`; lo stato di sterzo (volante, marcia, tempo di derapata, aderenza extra) sta in ogni auto. La sezione qui sotto descrive il modello; dove cita `?handling=drift`, `steerDrift`, `TUNE.drift` e `qa-drive-drift.mjs` vale questa.
+
+`qa-drive-handling.mjs` (parte di `npm.cmd test`) ripete le misure del giocatore con gli stessi risultati di prima del riordino: 90 km/h a **4,58 s**, tocco di 100 ms **3,2°**, limite di derapata 60°, 60 contro 120 Hz **0,79°**. In più: due auto non si influenzano; una pattuglia in curva scivola fino al suo limite di 20°; una correzione leggera (sterzo 0,2) gira senza far scalare marcia né rallentare; un'auto ferma che sterza dopo un urto riparte (oltre 4 m/s in 1,5 s).
+
+Difetto trovato e corretto, presente nel profilo pubblicato il 25 novembre: dopo un urto, con una piccola velocità laterale residua e lo sterzo tenuto, il ramo «rotola all'indietro» azzerava la velocità a ogni passo e l'auto restava ferma finché si sterzava. Ora quel ramo vale solo se l'auto arretra più di quanto la spinta di un passo recuperi. Inoltre lo slittamento lasciato da un urto non viene più tagliato di colpo al limite di derapata: si riassorbe alla velocità di recupero, così un'auto può scorrere lungo un muro.
+
+`qa-drive-chase.mjs` simula 40 inseguimenti nelle strade vere del pilota (`pilot.json`, muri e alberi compresi): la pattuglia parte a 150–300 m di strada da un giocatore fermo.
+
+| Modello | Raggiunto | Distrutte | Bloccate | Oltre 60 s | Media su strada | Urti forti per corsa |
+|---|---|---|---|---|---|---|
+| Precedente (commit `bed2273`) | 22/40 | 4 | 1 | 12 | 41 km/h | 8,2 |
+| Unico, prima delle due correzioni | 9/40 | 5 | 21 | 3 | 62 km/h | 1,4 |
+| Unico, profilo `TUNE.patrol` attuale | **23/40** | 5 | 2 | 9 | **51 km/h** | 4,8 |
+
+La prova fallisce sotto 20 arrivi o sopra 4 blocchi. È una simulazione con il giocatore fermo: non dice come le pattuglie si comportano contro un giocatore che derapa, né come appaiono a schermo.
+
+Laboratorio `index.html?lab=guida&area=pilot` (`qa-drive-lab.mjs`, Chrome, sulla build): dal catalogo di `lab.html` si apre il gioco nel pilota di Vegueta con il pannello e le sue cartelle; abbassando `baseSpeed` a 30 km/h l'auto già in corsa resta sotto 45 km/h; l'URL diventa `t=player.baseSpeed:30`; spegnendo «Polizia» le pattuglie spariscono e l'URL prende `nopolice`; «Copia valori» mostra `player: baseSpeed:kmh(30)`; dopo il ricaricamento il pannello riparte da quei valori; fuori dal lab `t=` è ignorato e il pannello non c'è. Nessun errore in console. Non provato su telefono: il pannello è pensato per il desktop.
+
 ## Guida alla drift-racer · 24 novembre 2026
 
 `?handling=drift` sostituisce la guida del giocatore con quella di drift-racer (Construct 3), riscritta in `steerDrift` di `drive-physics.ts` con i parametri in `TUNE.drift`. I valori vengono da `carconf.json` del gioco, a 24,4 px per metro (610 px/s = 90 km/h); le costanti che nell'originale valgono per tick (crescita dello sterzo e della derapata) sono convertite in valori al secondo.

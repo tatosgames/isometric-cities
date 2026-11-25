@@ -38,6 +38,8 @@ async function start(){
   bootProgress(12);
   const query=new URLSearchParams(location.search);
   const pilot=query.get('area')==='pilot';
+  // `?lab=guida`: the tuning panel of the drive, listed in lab.html.
+  const lab=query.get('lab')==='guida';
   const neutral=query.has('neutral');
   const {signal}=startup;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
@@ -442,7 +444,7 @@ async function start(){
     stopGesture();
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,police:!query.has('nopolice'),handling:query.get('handling')==='drift'?'drift':'standard',onExit:leaveDrive,
+  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   function disablePlay(){
@@ -486,6 +488,13 @@ async function start(){
     // The driving world and its pedestrians take about a second on a phone and are not needed to see the map:
     // they are built in the first quiet moment after it opens. Play builds them itself if it is pressed first.
     const warm=()=>{if(!signal.aborted && !drive?.prepare())disablePlay();};
+    if(lab && drive){
+      // Driving lab: every run starts where the map opens, with the tuning panel beside the game.
+      const tested=drive;
+      tested.startAt([controls.target.x,-controls.target.z]);
+      void import('./lab/drive-lab.ts').then(({driveLab})=>driveLab({drive:tested,host,begin:()=>play.click()}));
+      return;
+    }
     if('requestIdleCallback' in window)requestIdleCallback(warm,{timeout:4000});else setTimeout(warm,1500);
   },{once:true});
   let firstView=true;

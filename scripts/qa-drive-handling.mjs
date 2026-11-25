@@ -1,14 +1,15 @@
-// Drift-racer handling (`?handling=drift`): launch, gears, slide without speed loss, release, bonus, cadence.
+// Handling: launch, gears, slide without speed loss, release, bonus, cadence, patrols.
 import assert from 'node:assert/strict';
 import {TUNE} from '../src/drive/drive-tune.ts';
-import {makeDrivePhysics} from '../src/drive/drive-physics.ts';
+import {makeDrivePhysics,restBody} from '../src/drive/drive-physics.ts';
+import {chaseRuns} from './qa-drive-chase.mjs';
 
-const d=TUNE.drift;
+const d=TUNE.player;
 const degrees=angle=>angle*180/Math.PI;
 const speed=car=>Math.hypot(car.vx,car.vy);
 const slip=car=>degrees(Math.atan2(Math.sin(car.h-Math.atan2(car.vy,car.vx)),Math.cos(car.h-Math.atan2(car.vy,car.vx))));
-const body=(vx=0)=>({x:0,y:0,h:0,vx,vy:0,wayHold:0,dive:0,hold:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0});
-const drift=()=>makeDrivePhysics(TUNE,undefined,'drift');
+const body=(vx=0)=>({...restBody(),vx});
+const drift=()=>makeDrivePhysics(TUNE);
 function run(physics,car,steer,seconds,dt=1/120,brake=false){
   for(let i=0,n=Math.round(seconds/dt);i<n;i++)physics.steerPlayer(car,steer,brake,dt);
   return car;
@@ -59,10 +60,26 @@ assert.ok(Math.abs(back.vx-(-3+d.accel/120))<1e-9);
 run(reverser,back,0,1);
 assert.ok(back.vx>4 && Math.abs(back.vy)<1e-9);
 
-// Patrols keep the standard handling.
-const standardPatrol=body(20),driftPatrol=body(20),clear={near:()=>false};
-makeDrivePhysics(TUNE).steerPatrol(standardPatrol,1,clear,1/120);
-drift().steerPatrol(driftPatrol,1,clear,1/120);
-assert.deepEqual(driftPatrol,standardPatrol);
+// Every car carries its own steering state: one sliding does not change the other.
+const pair=drift(),first=body(d.baseSpeed),second=body(d.baseSpeed),alone=body(d.baseSpeed);
+for(let i=0;i<120;i++){pair.steerPlayer(first,1,false,1/120);pair.steerPlayer(second,0,false,1/120);}
+run(drift(),alone,0,1);
+assert.deepEqual(second,alone);
 
-console.log(`Drift QA passed (base speed at ${seconds.toFixed(2)} s, 100 ms tap ${tap.heading.toFixed(1)} degrees, slide limit ${degrees(d.maxSlip).toFixed(0)} degrees, 60 vs 120 Hz ${degrees(fast.h-slow.h).toFixed(2)} degrees)`);
+// Patrols: a short slide, and small corrections that neither drop the gear nor count as a held wheel.
+const p=TUNE.patrol,clear={near:()=>false},chase=drift();
+const cornering=body(p.baseSpeed),correcting=body(p.baseSpeed);
+for(let i=0;i<240;i++){chase.steerPatrol(cornering,1,clear,1/120);chase.steerPatrol(correcting,.2,clear,1/120);}
+assert.ok(Math.abs(slip(cornering))<=degrees(p.maxSlip)+.01 && Math.abs(slip(cornering))>degrees(p.maxSlip)-2,`Patrol slide ${slip(cornering).toFixed(1)} degrees`);
+assert.ok(speed(correcting)>=p.baseSpeed-.01 && correcting.hold===0 && correcting.h>0,'A light correction turns without slowing down');
+
+// A car turning on the spot after a wall is never held at zero speed by its own sideways drift.
+const pinned={...body(),vx:0,vy:.2},freer=drift();
+run(freer,pinned,-1,1.5);
+assert.ok(speed(pinned)>4,`A stopped car pulls away while steering, ${speed(pinned).toFixed(1)} m/s`);
+
+// Chases on the pilot's streets. The previous handling reached the player in 22 of these 40 runs, at 41 km/h.
+const chase40=await chaseRuns();
+assert.ok(chase40.reached>=20 && chase40.stuck<=4,`Chases: ${JSON.stringify(chase40)}`);
+
+console.log(`Handling QA passed (chases ${chase40.reached}/${chase40.runs} at ${chase40.pace.toFixed(0)} km/h, base speed at ${seconds.toFixed(2)} s, 100 ms tap ${tap.heading.toFixed(1)} degrees, slide limit ${degrees(d.maxSlip).toFixed(0)} degrees, 60 vs 120 Hz ${degrees(fast.h-slow.h).toFixed(2)} degrees)`);

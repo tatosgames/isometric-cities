@@ -6,7 +6,7 @@ import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
 import {buildDriveWorld} from './drive-world.ts';
 import type {ZoneData} from '../data/types.ts';
 export {TUNE};
-import {makeDrivePhysics} from './drive-physics.ts';
+import {makeDrivePhysics,resetSteering,restBody} from './drive-physics.ts';
 import {makeRoadGrade} from './road-grade.ts';
 import {makeDrivePose} from './drive-pose.ts';
 import {driveLookAhead,makeDriveCamera} from './drive-camera.ts';
@@ -14,6 +14,7 @@ import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
 import { chooseStartNode, type RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
+import {chaseSteer} from './drive-chase.ts';
 import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians} from './pedestrians.ts';
 import {makeDriveEffects} from './drive-effects.ts';
@@ -30,12 +31,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,handling}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,endless=false,start}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
-  const {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads),handling);
+  const {steerPatrol,steerPlayer,collide,bump}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads));
   const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -76,7 +77,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';
-    return {x:0,y:0,h:0,vx:0,vy:0,slip:0,side:0,hold:0,steer:0,hop:0,dive:0,way:1,wayHold:0,hitX:0,hitY:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1};
+    return {...restBody(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
@@ -236,12 +237,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
     const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
     Object.assign(c,{x:n.x,y:n.y,vx:0,vy:0,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,hold:0,steer:0,slip:0,side:0,puff:0,slopeAccel:undefined});
+    resetSteering(c);
     c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
   }
   function nextStart(){
     const world=activeWorld();
-    const index=chooseStartNode(world.nodes,world.validNodes,world.free,10,Math.random,lastStart);
-    if(index===undefined)return undefined;
+    // A fixed start, when given, is the road node nearest to it.
+    const index=fixedStart?world.nearestNode(fixedStart[0],fixedStart[1]):chooseStartNode(world.nodes,world.validNodes,world.free,10,Math.random,lastStart);
+    if(index===undefined || !world.nodes[index])return undefined;
     lastStart=index;
     return world.nodes[index];
   }
@@ -249,7 +252,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     location?.reset([n.x,n.y]);
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
-    resetPlayerSteering();
+    resetSteering(player);
     puffArmed=true;
     sparkCool=0;
     playerPose.reset();
@@ -336,7 +339,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const speed=Math.hypot(player.vx,player.vy);
     routeAge+=dt;
     if(routeAge>.6){routeAge=0;field=routes(world.nearestNode(player.x,player.y));}
-    const wanted=police?Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery)):0;
+    const wanted=policing?Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery)):0;
     while(chasers.length<wanted){const c=patrol();chasers.push(c);spawnChaser(c);}
     for(const c of chasers){
       if(c.wreck>0){
@@ -345,20 +348,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
         if(c.wreck<=0)spawnChaser(c);
         continue;
       }
-      let tx=player.x+player.vx*.4,ty=player.y+player.vy*.4;
-      const gap=Math.hypot(player.x-c.x,player.y-c.y);
-      if(gap>TUNE.chaserLost){spawnChaser(c);continue;}
-      if(gap>TUNE.chaserSight || !world.sight(c.x,c.y,player.x,player.y)){
-        // Follow the road graph node by node: straight lines between nodes stay clear of buildings.
-        let n=world.nodes[c.node];
-        if(!n || Math.hypot(n.x-c.x,n.y-c.y)>60){c.node=world.nearestNode(c.x,c.y);n=world.nodes[c.node];}
-        const prev=required(field,"route field").prev;
-        for(let hop=0;hop<3 && prev[c.node]>=0 && Math.hypot(n.x-c.x,n.y-c.y)<5;hop++){c.node=prev[c.node];n=world.nodes[c.node];}
-        tx=n.x;ty=n.y;
-      }else c.node=-1;
-      let turn=T.MathUtils.clamp(wrap(Math.atan2(ty-c.y,tx-c.x)-c.h)*2.5,-1,1);
-      for(const side of [-1,1])if(world.near(c.x+Math.cos(c.h+side*.45)*6,c.y+Math.sin(c.h+side*.45)*6,1.2))turn-=side*.9;
-      steerPatrol(c,T.MathUtils.clamp(turn,-1,1),world,dt);
+      const turn=chaseSteer(c,player,world,required(field,"route field").prev,TUNE);
+      if(turn===null){spawnChaser(c);continue;}
+      steerPatrol(c,turn,world,dt);
       const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
       c.stuck=pace<1.5?c.stuck+dt:0;
@@ -375,7 +367,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       if(shove>=0)playerContact=true;
       if(shove>6)kick(a.x-player.x,a.y-player.y,Math.min(1,shove/14)*.7);
       // Close enough counts as contact: a tree or a corner must not save a stopped car.
-      if(!a.wreck && !grace && speed<TUNE.catchSpeed && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){
+      if(!endless && !a.wreck && !grace && speed<TUNE.catchSpeed && Math.hypot(a.x-player.x,a.y-player.y)<TUNE.catchReach){
         playerPose.update(player,steer,dt,driveLoad);
         caught(a);return;
       }
@@ -493,7 +485,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     // Camera. The look-ahead is smoothed on its own so a wall hit never yanks the view;
     // the follow itself is tight, which keeps the car steady on screen.
     const speed=Math.hypot(player.vx,player.vy);
-    const leadScale=speed?driveLookAhead(speed,TUNE.player.maxSpeed)/speed:0;
+    const leadScale=speed?driveLookAhead(speed,TUNE.player.baseSpeed)/speed:0;
     lead.lerp(chase.set(player.vx*leadScale,0,-player.vy*leadScale),approach(TUNE.leadRate,dt));
     const cx=player.x+lead.x,cy=player.y-lead.z;
     focus.lerp(chase.set(cx,playerGround,-cy),approach(TUNE.followRate,dt));
@@ -505,7 +497,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     const reach=Math.hypot(kickX,kickY);
     if(reach>TUNE.kickMax){kickX*=TUNE.kickMax/reach;kickY*=TUNE.kickMax/reach;}
     const nearest=Math.min(999,...chasers.filter(c=>!c.wreck).map(c=>Math.hypot(c.x-player.x,c.y-player.y)));
-    paceEase+=(Math.min(1,speed/TUNE.player.maxSpeed)-paceEase)*approach(TUNE.paceRate,dt);
+    paceEase+=(Math.min(1,speed/TUNE.player.baseSpeed)-paceEase)*approach(TUNE.paceRate,dt);
     threat+=(T.MathUtils.clamp((45-nearest)/30,0,1)-threat)*approach(TUNE.paceRate,dt);
     // Zoom: a little wider with speed and with patrols closing in, a slow push-in when caught.
     const wantZoom=state==='caught'?(freeze?zoomNow:1+TUNE.zoomCaught):1-TUNE.zoomSpeed*paceEase-TUNE.zoomThreat*threat;
@@ -589,8 +581,26 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(start){restart(start);host.focus({preventScroll:true});}
   };
   el('leave').onclick=()=>onExit();
+  let policing=police,fixedStart=start;
   return {
     get active(){return state!=='off';},
+    /** The player's body and the patrols on the road, for the lab's readout. */
+    get player(): Readonly<Vehicle>{return player;},
+    get patrols(){return chasers.length;},
+    /** Patrols on or off during a run. Turning them off clears the streets. */
+    setPolice(on: boolean){
+      policing=on;
+      if(!on){for(const c of chasers)group.remove(c.mesh,c.blob);chasers=[];}
+    },
+    /** Every run from now on starts at the road node nearest to this point. */
+    startAt(point: Point){fixedStart=point;},
+    /** Back to the start with a fresh run. */
+    respawn(){
+      const node=state==='off'?undefined:nextStart();
+      if(node){clearCapture();restart(node);}
+    },
+    /** Reapply the tuning values that are read only when a car is built. */
+    retune(){for(const c of [player,...chasers])c.mesh.scale.setScalar(TUNE.visualScale);},
     get desaturation(){return capture?T.MathUtils.smoothstep(capture.elapsed,0,CAPTURE.grade):0;},
     get visualTimeScale(){return capture?(freeze?0:CAPTURE.speed):1;},
     prepare,
@@ -634,7 +644,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     suspend(){
       if(state==='off')return;
       cancelAnimationFrame(raf);raf=0;controls.release();
-      resetPlayerSteering();
+      resetSteering(player);
       if(capture){over.inert=true;over.dataset.paused='';}
       else playerPose.reset();
       if(state==='playing'){held=true;guide.className='ready';}

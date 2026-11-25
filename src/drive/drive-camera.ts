@@ -1,12 +1,14 @@
 import {MathUtils,Vector3} from 'three';
 import { approach, wrapAngle as shortest } from '../geometry.ts';
+import { TUNE } from './drive-tune.ts';
 
 const radians=MathUtils.degToRad;
+// Pitch, zoom and framing of each view are in `TUNE.cameraModes`. The first one keeps the map's own pitch.
 const modes=[
-  {id:'fixed',label:'Isométrica',zoom:1,framing:0},
-  {id:'high',label:'Aérea',pitch:radians(65),zoom:1,framing:.055},
-  {id:'chase',label:'Seguimiento',pitch:radians(48),zoom:1.22,framing:.13}
-];
+  {id:'fixed',label:'Isométrica'},
+  {id:'high',label:'Aérea'},
+  {id:'chase',label:'Seguimiento'}
+] as const;
 const key='drive-camera';
 
 export function driveLookAhead(speed: number,maxSpeed: number){
@@ -37,7 +39,7 @@ export function makeDriveCamera(mapDirection: Vector3){
     },
     startHeading(h: number){travelYaw=shortest(Math.PI-h);lift=clearTime=0;transition();},
     update(dt: number,car: {vx: number;vy: number},occluded: (dx: number,dy: number) => boolean){
-      const mode=modes[index];
+      const mode=TUNE.cameraModes[modes[index].id];
       if(Math.hypot(car.vx,car.vy)>=2){
         const error=shortest(Math.atan2(car.vy,-car.vx)-travelYaw);
         const limit=radians(100)*dt;
@@ -50,7 +52,7 @@ export function makeDriveCamera(mapDirection: Vector3){
       const fraction=blend===1?1:(t-previous)/(1-previous);
       pose.yaw=shortest(pose.yaw+shortest((index?travelYaw:mapYaw)-pose.yaw)*fraction);
       const x=Math.cos(pose.yaw),z=Math.sin(pose.yaw);
-      const basePitch=mode.pitch??mapPitch;
+      const basePitch=index?mode.pitch:mapPitch;
       let wanted=basePitch;
       if(index){
         while(wanted<radians(85) && occluded(x/Math.tan(wanted),-z/Math.tan(wanted))){

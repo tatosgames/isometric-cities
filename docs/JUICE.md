@@ -2,7 +2,7 @@
 
 Cosa risponde a cosa nella modalità «Conducir», con quali valori e con quali limiti. Va letto prima di aggiungere o ritoccare un effetto. Sul modello di `doc/JUICE.md` di Butter Run e delle regole di juice di Smash Royale, tenendo solo ciò che serve a una guida arcade vista dall'alto.
 
-I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
+I valori sono quelli di `TUNE` in `src/drive/drive-tune.ts` al 25 novembre 2026; si provano dal vivo nel laboratorio `index.html?lab=guida&area=pilot`. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
 
 ## Regole
 
@@ -19,7 +19,7 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 | Evento | Simulazione | Camera | Auto e scena | Interfaccia | Vibrazione |
 |---|---|---|---|---|---|
 | Moneta raccolta | – | – | La moneta è attirata entro 6 m | «+1» che sale dal punto, pillola delle monete che pulsa | 8 ms |
-| Accelerazione | 60 km/h in 1,44 s, poi 90 km/h in altri 4 s | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
+| Accelerazione | 90 km/h in 4,58 s, poi fino a 116 km/h in rettilineo | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
 | Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 28° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
 | Frenata | 27 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
 | Strisciata laterale contro una facciata | La velocità lungo il muro perde il 12% della velocità in entrata | – | Fino a tre scintille brevi dal contatto del giocatore | – | – |
@@ -34,8 +34,8 @@ I valori sono quelli di `TUNE` in `src/drive/drive.ts` al 23 novembre 2026. Se c
 
 ## Sterzata e derapata
 
-- L'accelerazione in rettilineo è 11,574 m/s² fino a 60 km/h, poi scende gradualmente tra 60 e 63 km/h. Sopra i 63 la spinta è 1,957 m/s² per il giocatore e 2,240 m/s² per le pattuglie. I limiti di velocità in avanti sono 90 e 94 km/h. La prima ondata ha già la stessa punta delle successive.
-- Le pattuglie hanno un coefficiente di perdita longitudinale da slittamento di 0,0525, contro 0,035 del giocatore. Frenano anche prima dei muri, con un controllo da 4 m fino alla distanza di arresto più il raggio dell'auto, circa 13,8 m a 94 km/h.
+- Giocatore e pattuglie guidano lo stesso modello (`steerCar`): il muso gira con lo sterzo e la direzione di marcia lo insegue, così una derapata cambia direzione quasi senza costare velocità. La spinta è 8,2 m/s² fino a metà della velocità base e 4,1 m/s² oltre. La velocità base è 90 km/h per il giocatore e 94 per le pattuglie; in rettilineo la punta sale piano fino a 116 e 120 km/h e torna alla base sterzando o frenando.
+- Il giocatore scivola fino a 60° e, dopo una derapata lunga, al rilascio riprende la velocità persa; le pattuglie scivolano fino a 20° e non hanno premio. Le pattuglie frenano anche prima dei muri, con un controllo da 4 m fino alla distanza di arresto più il raggio dell'auto, circa 13,8 m a 94 km/h.
 - Per la cattura vale la soglia di 4,5 m/s. Per le monete il raggio di richiamo è 6 m e la trazione è 25 m/s.
 - La pendenza lungo la marcia frena la ripresa in salita e la aiuta in discesa. È neutra fino al 2%, poi applica 0,06 m/s² per ogni punto percentuale aggiuntivo fino a 0,6 m/s². La stessa correzione aiuta il freno in salita e lo riduce in discesa. I limiti in avanti restano 90 e 94 km/h.
 - A ogni cambio di lato la rampa ricomincia dal 35%. Al rilascio il peso della derapata cala di 10 al secondo e il coefficiente di aderenza laterale tende a 9,5 s⁻¹. La frenata usa il proprio coefficiente di 2,2 s⁻¹.

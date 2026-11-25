@@ -9,6 +9,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `index.html`, `style.css` | Shell della pagina e stili (UI minimale) |
 | `editor.html`, `src/editor/` | Editor locale del pilota: trascinamento di edifici, vertici e props (`building-drag`, `pilot-preview`, `props`); prova `scripts/qa-editor.mjs` |
 | `lab.html`, `src/lab/` | Laboratorio visivo (`?test=lod`, `?test=larghezze`, `?test=settori`): carreggiate e transizioni LOD |
+| `src/lab/drive-lab.ts`, `scripts/qa-drive-lab.mjs` | Laboratorio di guida `index.html?lab=guida&area=pilot`: il gioco vero con un pannello che cambia `TUNE` dal vivo (giocatore, pattuglie, auto, camera), polizia sì/no, valori nell'URL (`t=`) e copia per `drive-tune.ts` |
 | `src/main.ts` | Camera, input, filtro per area e recupero contesto WebGL |
 | `src/data/` | Contratti e validazione dei geodati e della vista salvata |
 | `src/data/load.ts`, `types.ts`, `sector-index.ts`, `pilot-edits.ts`, `src/required.ts` | Caricamento a tre livelli, tipi condivisi con il worker, indice dei settori, correzioni dell'editor, accesso obbligatorio al DOM |
@@ -30,7 +31,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/render/sea.ts` | Mare dalla costa OSM: fondali, onde con il vento e schiuma a riva da una texture di distanza |
 | `src/drive/drive.ts` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
 | `src/drive/drive-world.ts` | Griglia degli ostacoli, visibilità e rete stradale della guida |
-| `src/drive/drive-physics.ts` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli; profilo alternativo `?handling=drift` (`TUNE.drift`, prova `scripts/qa-drive-drift.mjs`) |
+| `src/drive/drive-physics.ts`, `drive-chase.ts` | Modello di guida unico per giocatore e pattuglie (`steerCar`: muso, slittamento, marce; profili `TUNE.player` e `TUNE.patrol`), urti con ostacoli e veicoli; sterzo delle pattuglie verso il giocatore. Prove `scripts/qa-drive-handling.mjs`, `qa-drive-chase.mjs`, `qa-drive-pose.mjs` |
 | `src/drive/pedestrians.ts` | Pedoni d'atmosfera della guida: percorsi, fuga dai veicoli, regola che impedisce di investirli |
 | `src/drive/drive-input.ts` | Comandi touch e tastiera, registrazione e rilascio degli input |
 | `src/render/sectors/sector-stream.ts`, `src/render/sectors/sector-builder.ts`, `src/render/sectors/sector-worker.ts`, `src/render/overview.ts` | Priorità e budget, costruzione fuori thread, panoramica |
