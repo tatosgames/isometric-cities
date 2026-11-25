@@ -1036,7 +1036,7 @@ Dopo l’arrivo dei nuovi modelli dei luoghi (f9b9da9), sulla seconda build isol
 
 ## Guagua in Conducir · 25 novembre 2026
 
-La linea 13 verso Tres Palmas percorre 230,8 m in Vegueta. L’importatore ha verificato il rettangolo del veicolo (9 × 2,2 m) lungo ogni segmento, compresi muso e coda, contro carreggiate, edifici, alberi e limite del pilota e della città. Due estrazioni dello stesso ZIP producono file identici. Un archivio invalido lascia intatto l’ultimo estratto valido.
+La linea 13 verso Tres Palmas percorre 230,8 m in Vegueta. L’importatore ha verificato il rettangolo del veicolo (7,2 × 2,2 m) lungo ogni segmento, compresi muso e coda, contro carreggiate, edifici, alberi e limite del pilota e della città. Due estrazioni dello stesso ZIP producono file identici. Un archivio invalido lascia intatto l’ultimo estratto valido.
 
 La prova a 120 Hz usa entrambe le fermate reali. Verifica frenata, tre secondi di sosta, ripartenza e attesa al termine finché entrambi gli estremi escono dalla vista. A La Portadilla la prova ripete l’inseguimento con gli ostacoli del pilota, la fisica dell’auto e lo sterzo delle pattuglie. Il giocatore che segue la guagua resta dietro. Spostando la traiettoria di avvicinamento di 2,45 m verso sinistra, il giocatore supera il bus mentre la pattuglia entra in contatto e rallenta. Il controllo copre anche gli urti laterali e la separazione dei corpi sovrapposti.
 
@@ -1052,3 +1052,5 @@ node scripts/qa-guagua-browser.mjs
 La prova browser dedicata parte vicino alla prima fermata, con le richieste esterne bloccate, su desktop e telefono emulato. Osserva entrambe le soste e ripartenze e riporta la partita all'inizio. Le catture della prima sosta sono in `.cache/qa-guaguas/`. Per una prova manuale aprire `index.html?lab=guida&area=pilot&start=-60,-818` e scegliere la vista aerea con il pulsante della camera.
 
 [Guagua e auto alla prima fermata, vista aerea del pilota](screenshots/guagua-vegueta.png).
+
+**Modello compatto della linea 13.** La lunghezza di collisione passa da 9 a 7,2 m. Il controllo geometrico copre i 230,8 m del percorso e il test di inseguimento verifica che il giocatore possa ancora superare il bus a La Portadilla. [Vista del modello dal lato porte](screenshots/guagua-modello.png).

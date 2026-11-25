@@ -19,7 +19,7 @@ import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians} from './pedestrians.ts';
 import {makeDriveEffects} from './drive-effects.ts';
 import {makeCrowdView} from './drive-crowd.ts';
-import {guaguaMesh,makeGuagua,loadGuagua,resolveGuaguaContact} from './guagua.ts';
+import {BUS_AXLE,guaguaMesh,makeGuagua,loadGuagua,resolveGuaguaContact} from './guagua.ts';
 import {CAPTURE,COINS,TUNE,wrap} from './drive-tune.ts';
 
 // Ratios that keep a single tuning value for related effects. At the defaults they give the earlier separate
@@ -499,7 +499,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     if(bus){
       const {x,y,h,braking}=bus.state;
       busView.mesh.position.set(x,groundAt(x,y)+.72,-y);
-      busView.mesh.rotation.set(0,h,groundPitch(groundAt,x,y,h,2.75,TILT_LIMIT));
+      busView.mesh.rotation.set(0,h,groundPitch(groundAt,x,y,h,BUS_AXLE,TILT_LIMIT));
       busView.mesh.visible=true;busView.brake.visible=braking;
     }
     const shellPitch=playerPose.pitch+player.tilt*TUNE.slopeLean;
@@ -522,7 +522,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
         const threats: {x:number;y:number;vx:number;vy:number}[]=[player,...chasers.filter(c=>!c.wreck)];
         if(bus){
           const {x,y,h,speed}=bus.state,fx=Math.cos(h),fy=Math.sin(h);
-          for(const along of [-3.3,0,3.3])threats.push({x:x+along*fx,y:y+along*fy,vx:speed*fx,vy:speed*fy});
+          for(const along of [-2.4,0,2.4])threats.push({x:x+along*fx,y:y+along*fy,vx:speed*fx,vy:speed*fy});
         }
         people.update(dt,player,threats);
       }

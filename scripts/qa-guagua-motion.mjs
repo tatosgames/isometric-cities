@@ -72,6 +72,13 @@ function encounter(side){
 const queued=encounter(0),passed=encounter(2.45);
 assert.ok(queued.playerHits>0 && queued.player<0);
 assert.ok(passed.playerHits===0 && passed.player>6 && passed.patrolHits>0 && passed.patrol<0);
+// The compact body ends at 3.6 m. A car clearing the tail must keep its speed.
+const parked={x:0,y:0,h:0,speed:0};
+const clearTail={x:-4.80,y:0,vx:8,vy:0};
+assert.equal(resolveGuaguaContact(parked,clearTail,TUNE.radius),false);
+const atTail={...clearTail,x:-4.70};
+assert.ok(resolveGuaguaContact(parked,atTail,TUNE.radius));
+assert.ok(Math.abs(atTail.x+3.6+TUNE.radius)<1e-8 && atTail.vx===0);
 const turning={x:0,y:0,h:Math.PI/2,speed:4};
 const alongside={x:-1.9,y:0,vx:2,vy:7};
 assert.ok(resolveGuaguaContact(turning,alongside,1.15));

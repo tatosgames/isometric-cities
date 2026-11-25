@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {required} from '../required.ts';
 import {tint} from './car-model.ts';
@@ -86,7 +87,8 @@ export function makeGuagua(data: GuaguaData){
 
 type BusPose=Pick<ReturnType<typeof makeGuagua>['state'],'x'|'y'|'h'|'speed'>;
 type CarBody=Pick<Body,'x'|'y'|'vx'|'vy'>;
-const HALF_LENGTH=4.5, HALF_WIDTH=1.1;
+const HALF_LENGTH=3.6, HALF_WIDTH=1.1;
+export const BUS_AXLE=2.08;
 
 /** Resolve circle against moving oriented body, preserving tangential velocity. */
 export function resolveGuaguaContact(bus: BusPose, car: CarBody, radius: number){
@@ -116,19 +118,46 @@ export function resolveGuaguaContact(bus: BusPose, car: CarBody, radius: number)
 export function guaguaMesh(paint: T.MeshStandardMaterial,red: T.MeshBasicMaterial){
   const box=(l:number,h:number,w:number,x:number,y:number,z:number,color:string)=>
     tint(new T.BoxGeometry(l,h,w).translate(x,y,z),color);
-  const yellow='#efbd29', glass='#334c59';
+  const yellow='#fac421', trim='#222c33', glass='#446678';
+  const shell=(l:number,h:number,w:number,y:number,r:number,color:string)=>
+    tint(new RoundedBoxGeometry(l,h,w,1,r).translate(0,y,0),color);
   const parts=[
-    box(9,2.6,2.16,0,1.66,0,yellow), box(8.55,.14,2.1,0,3,0,'#ffce47'),
-    box(1.65,.16,1.12,-1,3.15,0,'#c7ba9a'), box(.04,1.12,1.92,4.49,1.93,0,glass),
-    box(.04,.85,1.62,-4.49,2,0,glass)
+    shell(2*HALF_LENGTH,1.15,2.14,.92,.16,yellow),
+    shell(7.14,1.58,2.13,2.08,.17,trim),
+    shell(7.04,.17,2.10,2.88,.08,yellow),
+    box(.035,1.03,1.86,3.57,1.97,0,glass),
+    box(.02,.18,1.82,3.59,2.38,0,'#64828b'),
+    box(.025,.09,1.05,3.60,.66,0,trim),
+    box(.04,.78,1.67,-3.57,2.03,0,glass),
+    box(1.48,.14,1.12,-1.15,3.01,0,'#d4c499')
   ];
+  // The header sits above the windscreen. Amber segments show the route number 13.
+  for(const [z,y] of [[.66,2.70],[.66,2.56],[.37,2.70],[.37,2.56]])
+    parts.push(box(.02,.095,.035,3.575,y,z,'#ff9b37'));
+  for(const y of [2.77,2.63,2.49])parts.push(box(.02,.033,.15,3.575,y,.43,'#ff9b37'));
   for(const side of [-1,1]){
-    for(const x of [-3.46,-2.1,-.74,.62,1.98,3.34])parts.push(box(1.25,.96,.04,x,2.02,side*1.08,glass));
-    for(const x of [-2.8,2.75])parts.push(tint(new T.CylinderGeometry(.49,.49,.22,10)
-      .rotateX(Math.PI/2).translate(x,.49,side*.99),'#282a2b'));
+    parts.push(box(.025,.27,.36,3.597,.97,side*.78,'#a9a99d'),
+      box(.025,.11,.24,3.612,1.0,side*.78,'#fff1bb'));
+    const wiper=box(.023,.033,.62,0,0,0,trim).rotateX(-.16).translate(3.597,1.53,side*.45);
+    parts.push(wiper);
+    for(const x of [-2.67,-1.38,-.09,1.20,2.88]){
+      // The two passenger doors are on the right (local +Z) and reach the step.
+      const door=side===1 && (x===-.09 || x===2.88);
+      const width=x===2.88 ? .78 : 1.12;
+      if(door)parts.push(box(width+.08,2.11,.03,x,1.51,1.068,trim));
+      parts.push(box(width,door?1.75:.98,.034,x,door?1.52:1.99,side*1.084,glass));
+      if(door)parts.push(box(.06,1.80,.036,x,1.52,1.086,trim));
+    }
+    for(const axle of [-BUS_AXLE,BUS_AXLE]){
+      const wheel=(radius:number,depth:number,z:number,color:string)=>tint(
+        new T.CylinderGeometry(radius,radius,depth,12).rotateX(Math.PI/2).translate(axle,.48,side*z),color);
+      parts.push(wheel(.48,.18,1.00,'#25282b'),wheel(.245,.02,1.09,yellow));
+    }
   }
-  const mesh=new T.Mesh(required(mergeGeometries(parts),'bus geometry'),paint);
-  const lights=[-.78,.78].map(z=>new T.BoxGeometry(.07,.2,.31).translate(-4.5,1.25,z));
+  for(let i=0;i<4;i++)parts.push(box(.085,.035,.75,-1.55+i*.23,3.09,0,'#727975'));
+  const geometry=required(mergeGeometries(parts.map(p=>p.index?p.toNonIndexed():p)),'bus geometry');
+  const mesh=new T.Mesh(geometry,paint);
+  const lights=[-.78,.78].map(z=>new T.BoxGeometry(.05,.2,.23).translate(-3.57,.96,z));
   const brake=new T.Mesh(required(mergeGeometries(lights),'bus stop lights'),red);
   mesh.add(brake); mesh.rotation.order='YXZ'; mesh.visible=false;
   return {mesh,brake};

@@ -173,3 +173,7 @@ Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.
 Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diagnosticata); heap dopo la raccolta a ~106 MB; 103 edifici con tetto LiDAR oltre 10 m sopra il dato comunale; nessun luogo dedicato in Ciudad Alta; `qa.mjs` e `qa-main-lod` da riverificare con Chrome; tempi da rimisurare a macchina libera. Fase C (ridipintura AI) solo pianificata, non autorizzata.
 
 **Guaguas Municipales · Conducir.** Una guagua della linea 13 verso Tres Palmas percorre Calle Hernán Pérez de Grado fra le fermate 73 e 75. La guida usa l’estratto locale del GTFS ufficiale. Il veicolo frena e riparte dopo tre secondi, interagisce con auto e pattuglie e fa scostare i pedoni. Percorso e ingombro sono verificati sia nel pilota sia nella città. [Fonti e rigenerazione](docs/GEODATA_SOURCES.md#guaguas-municipales--modalità-guida) · [Prove](docs/QA.md#guagua-in-conducir--25-novembre-2026).
+
+**Guagua compatta.** La carrozzeria gialla riprende dalle foto di riferimento il parabrezza panoramico, la fascia scura continua, le porte vetrate e i coprimozzi gialli. Il display frontale indica la linea 13. Il rettangolo di collisione misura 7,2 × 2,2 m, con assi delle ruote e punti di rilevamento dei pedoni riposizionati. Verificati ingombro sul percorso e sorpasso a La Portadilla. [Modello visto dal lato porte](docs/screenshots/guagua-modello.png).
+
+[Guaguas in drive mode · English maintenance guide](docs/GUAGUAS.md).

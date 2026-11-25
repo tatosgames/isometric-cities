@@ -31,7 +31,7 @@ def rows(archive, table):
 
 
 def check_sweep(path, city, style):
-    # Sweep the entire 9 x 2.2 m body along every exported segment. Use the
+    # Sweep the entire 7.2 x 2.2 m body along every exported segment. Use the
     # original road widths shared by the pilot and city, including intersections.
     region = path.envelope.buffer(12)
     streets = []
@@ -56,7 +56,7 @@ def check_sweep(path, city, style):
         length = math.hypot(dx, dy)
         ux, uy = dx/length, dy/length
         swept = Polygon([(x + f*ux - s*uy, y + f*uy + s*ux)
-                         for (x,y), f, s in [(a,-4.5,1.1),(a,-4.5,-1.1),(b,4.5,-1.1),(b,4.5,1.1)]])
+                         for (x,y), f, s in [(a,-3.6,1.1),(a,-3.6,-1.1),(b,3.6,-1.1),(b,3.6,1.1)]])
         if not clear.covers(swept):
             raise ValueError(f"Bus envelope leaves drivable area near {a}: {swept.difference(clear).area:.3f} m²")
 
