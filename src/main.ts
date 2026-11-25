@@ -224,6 +224,7 @@ async function start(){
   signal.addEventListener('abort',()=>{
     openingView.cancel();
     cancelAnimationFrame(frame);
+    drive?.exit();
     streamed?.suspend();
     controls.dispose();
     renderer.dispose();
@@ -387,7 +388,7 @@ async function start(){
     stopGesture();
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
+  drive=makeDrive({scene,camera,renderer,host,data,locations,...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   function disablePlay(){

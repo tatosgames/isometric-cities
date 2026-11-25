@@ -18,6 +18,8 @@ export interface DriveOptions {
   view: (target: T.Vector3, zoom: number, offset: T.Vector3) => void;
   mapDirection: T.Vector3;
   compact: boolean;
+  busArea: 'city' | 'pilot';
+  buses: boolean;
   /** False leaves the streets without patrols: the run has no capture and goes on until the player leaves. */
   police?: boolean;
   /** True keeps the run going when a patrol reaches the player: for the lab. */

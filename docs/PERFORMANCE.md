@@ -85,3 +85,7 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 - Un solo parapetto dove due tetti alla stessa quota condividono il lato.
 - Dettaglio ridotto (senza finestre) per i settori precaricati fuori dallo schermo.
 - Misura su un telefono reale: tutte le cifre vengono da Chrome con emulazione mobile su GPU integrata Intel UHD.
+
+### Guaguas in Conducir
+
+Il catalogo geografico iniziale della città pesa 2.010 byte. Gli indici da 960 m contengono intervalli di tempo e di distanza per celle da 240 m. La guida scarica geometrie solo per i quartieri con passaggi candidati e le riusa fra linee e varianti. La simulazione a 120 Hz aggiorna al massimo sei bus. A Triana la prova A/B sul telefono emulato misura 16,8 ms al p90 sia con sia senza autobus e 0,1 ms al p90 per la CPU della flotta. [Misura, limiti e riproduzione](QA.md#guaguas-locali-in-conducir--rete-cittadina).

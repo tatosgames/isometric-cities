@@ -92,3 +92,5 @@ py -3.14 scripts/guaguas.py .cache/guaguas/candidate.zip
 ```
 
 L'importatore collega linea, corsa, geometria e sequenza di fermate della stessa edizione. Converte WGS84 in metri UTM 28N relativi all'origine del plastico, verifica la vicinanza al tracciato e l'intero ingombro 7,2 × 2,2 m su ciascun segmento in entrambe le mappe. Solo dopo la verifica sostituisce l'estratto. Se una nuova edizione sposta il percorso, riesaminare geometria, fermate e carreggiata prima di aggiornare gli identificativi. Ripetere le prove di sosta, sorpasso, collisioni e riapparizione fuori campo riportate in [QA](QA.md).
+
+Per la rete cittadina eseguire `py -3 scripts/guaguas.py .cache/guaguas/candidate.zip --network` dalla radice del repository. Servono gli stessi XML OSM in cache usati per generare la città. Il risultato contiene directory per città e pilota, indici spaziali, geometrie condivise e rapporti per variante. [Dati e prove in guida](GUAGUAS.md).

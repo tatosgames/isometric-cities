@@ -112,8 +112,14 @@ def extract(feed):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("zip",type=Path,nargs="?",default=ROOT/".cache/guaguas/feed.zip")
-    parser.add_argument("--output",type=Path,default=ROOT/"public/data/guaguas.json")
+    parser.add_argument("--output",type=Path)
+    parser.add_argument("--network",action="store_true",help="build the verified city and pilot fleet")
     args = parser.parse_args()
+    if args.network:
+        from guagua_network import publish
+        publish(args.zip,args.output or ROOT/"public/data/guaguas")
+        sys.exit(0)
+    args.output=args.output or ROOT/"public/data/guaguas.json"
     data = extract(args.zip)
     with NamedTemporaryFile("w",encoding="utf-8",dir=args.output.parent,delete=False) as out:
         json.dump(data,out,ensure_ascii=False,separators=(",",":"))
