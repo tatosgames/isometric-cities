@@ -46,7 +46,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `public/data/` | `city.json`, `pilot.json` (+ AOI), `poi.geojson`, `roof-tones.json`, `roof-colours.webp`, `sea.json` (mare e costa, da `data.py city`) |
 | `scripts/data.py` | Acquisizione/rigenerazione dati (`pilot`, `city`), cache in `.cache` |
 | `scripts/roof-colours.py` | Palette tetti |
-| `scripts/qa.mjs`, `scripts/benchmark.mjs`, `scripts/frame-profile.mjs`, `scripts/shot.mjs` | QA Playwright, benchmark, profilo dei fotogrammi in un luogo (cadenza, triangoli, tempo sul thread principale) e cattura a camera identica per i confronti prima/dopo (`x,y,zoom[,turn]`) |
+| `scripts/qa.mjs`, `scripts/benchmark.mjs`, `scripts/frame-profile.mjs`, `scripts/heap-profile.mjs`, `scripts/shot.mjs` | QA Playwright, benchmark, profilo dei fotogrammi in un luogo (cadenza, triangoli, tempo sul thread principale), chi occupa la memoria in una vista (istantanea dell'heap per proprietario) e cattura a camera identica per i confronti prima/dopo (`x,y,zoom[,turn]`) |
 | `docs/UI_ANTI_SLOP.md`, `docs/CAMERA_FRAMING.md`, `docs/JUICE.md` | Regole UI (niente testi nel gioco, un fatto un indicatore), contratto di inquadratura e catalogo del game feel della guida (hit-stop, colpo di camera): da leggere prima di toccare HUD, camera o effetti |
 | `docs/DATA_SOURCES.md`, `docs/QA.md` | Fonti dati/attribuzioni, rapporto QA e screenshot |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Catalogo delle ottimizzazioni che non toccano la resa, con misure, e passaggio da ripetere dopo ogni quartiere |

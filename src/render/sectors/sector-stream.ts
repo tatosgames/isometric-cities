@@ -110,6 +110,12 @@ function gpuOnly(root: T.Object3D){
     // Culling needs the bounds, and they are computed from the positions about to go.
     if(!geometry.boundingSphere)geometry.computeBoundingSphere();
     for(const a of [...Object.values(geometry.attributes),geometry.index])if(a instanceof T.BufferAttribute)a.onUpload(release);
+    // A buffer is uploaded at its first draw, and a mesh outside the view is never drawn: its copy would stay
+    // for as long as the zone. Draw it once wherever it is; culling returns with the upload.
+    const position=geometry.getAttribute('position');
+    if(!mesh.frustumCulled || !(position instanceof T.BufferAttribute))return;
+    mesh.frustumCulled=false;
+    position.onUpload(function(this: T.BufferAttribute){release.call(this);mesh.frustumCulled=true;});
   });
 }
 
