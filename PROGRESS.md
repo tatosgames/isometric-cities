@@ -154,6 +154,10 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **AO · Passaggio sui luoghi senza modello.** Verifica su ortofoto 20 cm e OpenStreetMap di tutti i 31 luoghi; modelli nuovi per Teatro Pérez Galdós, Mercado de Vegueta, Casa de Colón, quattro chiese, i due chioschi di San Telmo, El Obelisco, le tende dell'Estadio Insular, le piramidi di Las Arenas e l'eliporto dell'Hospital Insular; campi scoperti del Metropole abbassati; piscine e stagni dipinti come acqua (308 superfici). [Dettagli, stime e luoghi lasciati senza modello](docs/QA.md#passaggio-sui-luoghi-senza-modello-25-novembre-2026). Aperto: altezze stimate da misurare con il LiDAR; Negrín e Altavista richiedono il LiDAR per distinguere i corpi.
 
+**Ripristino mobile · 25 novembre 2026.** La scheda del luogo riparte dal nome compatto dopo il ricaricamento in verticale. Si può leggere la scheda con un tocco sul nome o entrare direttamente in Conducir. Verificati il pannello desktop e la posizione della camera durante la dissolvenza e dopo il recupero WebGL. [Prove di ripristino](docs/QA.md#ripristino-della-scheda-e-dei-settori--25-novembre-2026).
+
+**Prestazioni su PC · 25 novembre 2026.** Apertura mediana a freddo di 12,97 s in Chrome con CPU rallentata 6×. A velocità normale il p90 è 18,2 ms sia a Santa Ana sia a Santo Domingo sia durante cinque minuti di guida senza pattuglie. Il disegno del suolo in background è stato provato e ritirato: i guadagni della versione integrata (1,38 s all'apertura e 1,24 s al primo trascinamento) rientrano nella variabilità di riferimento. [Misure e confronto](docs/QA.md#prestazioni-in-chrome-a-390--844--25-novembre-2026).
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.

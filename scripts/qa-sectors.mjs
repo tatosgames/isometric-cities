@@ -100,6 +100,7 @@ try{
     await p.goto(origin);await p.waitForSelector('#scene[data-view]');
     // The run starts among the zones on screen: bring the first endpoint into view, then mirror that world.
     await select('santa-ana');await settle();
+    await p.locator('#close').click();
     const world=buildDriveWorld({boundary:core.boundary,roads:core.roads,buildings:[],trees:[]},()=>0,{treeClearance:4.5,treeRadius:.3},
       {size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id))});
     for(const id of (await state()).zones){

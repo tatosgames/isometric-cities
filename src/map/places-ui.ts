@@ -29,10 +29,10 @@ export function createPlacesUI(features: Place[], altitude: Altitude, onSelect: 
     nav.classList.toggle('open',open);
     toggle.setAttribute('aria-expanded',String(open));
   }
-  function select(id: string | null){
+  function select(id: string | null,restoring=false){
     const place=id===null?undefined:places.get(id);
     selected=place?id:null;
-    if(place)card.show(place.details,place.number);else card.close();
+    if(place)card.show(place.details,place.number,restoring);else card.close();
     for(const [key,{btn,pin}] of places){
       btn.setAttribute('aria-pressed',String(key===selected));
       pin.setAttribute('aria-pressed',String(key===selected));
@@ -66,7 +66,7 @@ export function createPlacesUI(features: Place[], altitude: Altitude, onSelect: 
     close:()=>select(null),
     /** The map is being moved: on a phone the sheet folds to its name. */
     fold:()=>card.fold(),
-    restore:(id: string | number | null | undefined)=>select((typeof id==='number'?legacyIds[id]:id)??null),
+    restore:(id: string | number | null | undefined)=>select((typeof id==='number'?legacyIds[id]:id)??null,true),
     project(camera: T.Camera){
       for(const {point,pin} of places.values()){
         projected.copy(point).project(camera);

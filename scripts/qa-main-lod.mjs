@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {launchBrowser,serveMap} from './qa-browser.mjs';
 
-const {server}=await serveMap({env:null});
+const {server,origin}=await serveMap();
 const browser=await launchBrowser();
 try {
   const page=await browser.newPage({viewport:{width:510,height:850}});
@@ -15,9 +15,9 @@ try {
   let release;
   const gate=new Promise(resolve=>release=resolve);
   await page.route('**/city-sectors/*.json',async route=>{await gate;await route.continue();},{times:1});
-  await page.goto(server.resolvedUrls.local[0]);
+  await page.goto(origin);
   await page.waitForFunction(()=>JSON.parse(document.querySelector('#scene').dataset.sectors||'{}').pending);
-  const originalView=await page.locator('#scene').getAttribute('data-view');
+  const originalView='-95.00,218.00,1.00'; // Saved target x/z and zoom from the fixture above.
   await page.evaluate(()=>{
     const host=document.querySelector('#scene');
     const extension=host.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context');
@@ -42,6 +42,7 @@ try {
   },null,{timeout:90000});
   await settle();
   assert.equal(await page.evaluate(()=>window.fadeAtView),originalView);
+  assert.equal(await page.locator('#scene').getAttribute('data-view'),originalView);
   // The orthographic frustum's shorter side is viewport width here and the saved zoom is 1.
   for(const [width,near] of [[545,true],[560,true],[540,true],[585,false],[555,false],[515,true]]){
     await page.setViewportSize({width,height:850});
@@ -51,8 +52,8 @@ try {
     },[width,near]);
   }
   await settle();
-  await page.goto(server.resolvedUrls.local[0]+'?neutral');
+  await page.goto(origin+'?neutral');
   await settle();
   assert.deepEqual(errors,[]);
   console.log('Main LOD: stationary arrival, loss during fade, restoration, hysteresis, idle completion and neutral mode passed');
-}finally{await browser.close();await server.close();}
+}finally{await browser.close();await server?.close();}

@@ -99,12 +99,12 @@ export function createPlaceCard(released: () => void){
     }else if(arrive)play(card,rise('10px'),420);
   }
 
-  function show(place: Details,order: string){
+  function show(place: Details,order: string,restoring: boolean){
     const wasPanel=!card.hidden && !leaving && card.dataset.kind==='card';
     settle();
-    shown=place;folded=false;
+    shown=place;folded=restoring && !!place.card && !side.matches;
     fill(place,order);
-    present(!!place.card,!(wasPanel && place.card));
+    present(!!place.card && !folded,!(wasPanel && place.card));
   }
   function close(){
     if(card.hidden || leaving)return;

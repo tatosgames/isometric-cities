@@ -175,8 +175,10 @@ try{
     if(mobile){
       const cdp=await page.context().newCDPSession(page);
       const prior=await host.getAttribute('data-view');
+      // The place card is open here and its sheet covers the lower part of the phone: pinch on the map above it.
+      const above=Math.round(page.viewportSize().height*.15);
       for(const [type,d] of [['touchStart',15],['touchMove',25],['touchMove',45],['touchEnd',0]]){
-        await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:d?[{x:x-d,y,id:1},{x:x+d,y,id:2}]:[]});
+        await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:d?[{x:x-d,y:above,id:1},{x:x+d,y:above,id:2}]:[]});
       }
       await page.waitForFunction(v=>document.querySelector('#scene').dataset.view!==v,prior);
     }
@@ -192,7 +194,12 @@ try{
     assert.equal(await host.getAttribute('data-view'),retryView);
     assert.equal(await angle(),90);
     assert.match(await page.locator('article:visible h3').textContent(),/Santa Ana/);
-
+    const card=page.locator('article:visible');
+    assert.equal(await card.getAttribute('data-kind'),mobile?'pill':'card');
+    if(mobile){
+      await card.locator('h3').tap();
+      assert.equal(await card.getAttribute('data-kind'),'card');
+    }
   }
   if(!process.argv.includes('pilot')){
     // Driving mode: start, steer, collect, get caught, retry and leave.
@@ -201,7 +208,10 @@ try{
     await turnRight();await settled();assert.equal(await angle(),entryAngle);
     const before=await host.getAttribute('data-view');
     const drive=async()=>(await host.getAttribute('data-drive')).split(',');
-    await page.locator('#drive').click();
+    if(mobile){
+      assert.equal(await page.locator('article:visible').getAttribute('data-kind'),'pill');
+      await page.locator('#drive').tap();
+    }else await page.locator('#drive').click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));
     // Pedestrians populate the streets around the car before the run starts, none of them on top of it.
     await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.drive.split(',')[12])>0);

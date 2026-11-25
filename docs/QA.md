@@ -922,3 +922,37 @@ Stime dichiarate, da misurare con il LiDAR (su questa macchina `.cache/lidar` è
 | Più ampia (0,352) | 306,5 → 308,4 | 277.592 → 279.536 | 16,7 / 16,8 ms, invariata |
 
 `npm.cmd test`: guida, pedoni, suolo e camera della mappa superati; `qa.mjs` si ferma alla riga 180 (pinch sul telefono, `data-view` invariato entro 30 s). `qa-sectors.mjs`: il circuito dei settori passa, poi il clic su Play è intercettato dal link della scheda di Santa Ana. Entrambi gli arresti avvengono identici su una copia pulita del commit di partenza `4de5a3e`: non dipendono da questo passo.
+
+## Ripristino della scheda e dei settori · 25 novembre 2026
+
+Su Chrome a 390 × 844, ricaricare la mappa con Santa Ana selezionata ripristina il nome compatto. La suite verifica due percorsi con il touch: toccare il nome riapre la scheda, toccare Play dopo un nuovo ripristino entra in guida. Sul desktop si riapre il pannello laterale. Centro, zoom e orientamento salvati superano i controlli al ripristino.
+
+Su una build di produzione isolata sono passati tre avvii consecutivi di `qa-main-lod.mjs`. Il test confronta le coordinate osservate durante la dissolvenza e dopo il recupero WebGL con quelle impostate all'inizio. Passati anche TypeScript, build con verifica dei dati, suite completa desktop e mobile e `qa-sectors.mjs` (sei giri e attraversamento del confine nei due versi con pattuglia attiva). Gli screenshot della suite sono in cache locale.
+
+## Prestazioni in Chrome a 390 × 844 · 25 novembre 2026
+
+Windows, Chrome headless 155, WebGL su NVIDIA RTX 4060 via ANGLE/D3D11. Tre processi browser nuovi, cache HTTP disabilitata, CPU rallentata 6×, build locale di produzione isolata. I primi due tempi decorrono dall'inizio della navigazione. L'ultima colonna misura il tempo dal primo tocco inviato dal test al cambiamento della vista.
+
+| Apertura | Mappa interattiva | Primo trascinamento visibile | Tocco → vista |
+|---|---:|---:|---:|
+| 1 | 14,205 s | 15,668 s | 126 ms |
+| 2 | 12,972 s | 14,437 s | 101 ms |
+| 3 | 12,567 s | 14,091 s | 119 ms |
+| Mediana | 12,972 s | 14,437 s | 119 ms |
+
+Un quarto avvio con campionamento CPU attribuisce 2,77 s su 14,12 s al disegno del suolo sul thread principale, incluse le funzioni chiamate. Per la cadenza abbiamo usato `frame-profile.mjs` a velocità CPU normale, zoom 1,59 e orientamento iniziale, alternando i due luoghi. Ogni prova misura 160 fotogrammi con piccoli spostamenti di camera.
+
+| Luogo | Mediane delle tre prove (ms) | 90º percentile delle tre prove (ms) |
+|---|---|---|
+| Plaza de Santa Ana | 18,1 · 17,7 · 18,1 | 18,2 · 18,2 · 18,2 |
+| Iglesia de Santo Domingo | 18,1 · 18,1 · 17,3 | 18,2 · 18,2 · 18,2 |
+
+**Guida di cinque minuti sulla build di riferimento.** Partenza a (−642,9, −820,9), destinazione Parque Antiguo Estadio Insular. In modalità `?nopolice` il percorso automatico ha coperto 3.873 m e 10 settori in 300,06 s. Su 16.871 fotogrammi la mediana è 17,9 ms e il p90 è 18,2 ms. Quattro fotogrammi superano 50 ms, il peggiore arriva a 128 ms. La traccia registrata tra il secondo 120 e il 130 cade fuori dai picchi osservati ai secondi 20, 49 e 64. Da questa corsa si ricava la frequenza degli scatti, ma la loro causa resta aperta.
+
+**Esperimento sul suolo all'avvio.** Due copie isolate della stessa build, A con disegno sul thread principale e B con trasferimento dell'immagine da un worker. In ordine A/B/B/A/A/B, ciascuna con un nuovo browser e CPU 6×, la mappa diventa interattiva in 15,312 / 11,145 / 11,354 / 12,822 / 14,220 / 15,106 s. Mediane A e B: 14,220 e 11,354 s. Il primo trascinamento visibile passa da 15,852 a 12,754 s di mediana. Il miglioramento mediano di 2,866 s all'apertura supera la variazione di 2,490 s fra le prove di riferimento. Il campione B più lento è 15,106 s. A Santa Ana con centro e zoom identici, i limiti della texture coincidono e tutti gli 895 × 2.048 pixel hanno valori RGBA identici.
+
+**Verifica del codice integrato e decisione.** Nel confronto alternato A/B/B/A/A/B la mappa è interattiva in 16,159 · 16,055 · 14,839 s con il riferimento e 14,678 · 15,173 · 14,444 s con il worker compilato dai sorgenti. Mediane 16,055 e 14,678 s. Per il primo trascinamento visibile i campioni sono 17,748 · 17,550 · 16,360 s e 16,314 · 16,551 · 16,047 s, con mediane 17,550 e 16,314 s. Trasferimento dell'immagine osservato in tutte e tre le aperture del candidato. Il rallentamento 6× è applicato alla pagina emulata, senza configurazione separata per il worker.
+
+Il guadagno mediano all'apertura (1,377 s) è inferiore alla variabilità iniziale (1,638 s). Il guadagno al primo trascinamento (1,236 s) è inferiore alla variabilità del riferimento alternato (1,388 s). Il candidato è stato ritirato. Le misure P1 riguardano la build isolata basata su bed2273, precedente ai nuovi modelli dei luoghi. Consumo, calore e fluidità su telefono fisico restano da misurare.
+
+Dopo l’arrivo dei nuovi modelli dei luoghi (f9b9da9), sulla seconda build isolata sono passati anche avvio e recupero, tre ripetizioni del test dei livelli, entrambi gli attraversamenti stradali e la suite desktop/mobile. La prima esecuzione della suite si era interrotta nella prova della fisica durante modifiche concorrenti alla guida. La stessa prova e la suite sono passate alla ripetizione.
