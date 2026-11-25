@@ -11,6 +11,7 @@ import * as T from 'three';
 import { makeCity } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
 import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
+import { makeSkyEffects } from './render/sky-effects.ts';
 import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
 import { propObstacles } from './render/port-props.ts';
@@ -95,6 +96,17 @@ async function start(){
   let playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
+  const skyRequested=query.get('sky')==='1';
+  const sky=makeSkyEffects(scene,locations.filter(f=>['parque-doramas','parque-santa-catalina'].includes(f.properties.id)).map(f=>{
+    const [x,y]=f.properties.xy;
+    return {x,y:altitude(x,y)+34,z:-y};
+  }));
+  const setSkyQualityAllowed=(allowed:boolean)=>sky.setEnabled(skyRequested && allowed);
+  setSkyQualityAllowed(true);
+  window.addEventListener('atlas:sky-quality',e=>{
+    const allowed=(e as CustomEvent<unknown>).detail;
+    if(typeof allowed==='boolean')setSkyQualityAllowed(allowed);
+  },{signal});
   const places=createPlacesUI(locations,altitude,(_id,point,frame)=>{
     if(lost || flight?.driveOrbit)return false;
     rebase();
@@ -226,6 +238,7 @@ async function start(){
     cancelAnimationFrame(frame);
     streamed?.suspend();
     controls.dispose();
+    sky.dispose();
     renderer.dispose();
     setDesaturation(0);
   },{once:true});
@@ -273,6 +286,7 @@ async function start(){
     const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
     wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
     painted=time;
+    sky.update(camera,controls.target,!!drive?.active);
     renderer.render(scene,camera);
     if(!document.hidden)setDesaturation(drive?.desaturation??0);
   }
@@ -456,20 +470,21 @@ async function start(){
       return;
     }
   },{once:true});
+  const openingPlace=places.point(query.get('focus'));
+  const initialZoom=()=>openingPlace ? Math.min(host.clientWidth,host.clientHeight)/270 : openingZoom();
   let firstView=true;
   new ResizeObserver(()=>{
     if(signal.aborted || lost || !host.clientWidth || !host.clientHeight)return;
     if(firstView){
       firstView=false;
-      const start=home();
-      view(start,openingZoom());
+      view(openingPlace ?? home(),initialZoom());
       if(resume){
         mapTurn=resume.turn;
         view(new T.Vector3().fromArray(resume.target),resume.zoom);
         places.restore(resume.selected);
       }
     }else if(booting() && !resume){
-      view(controls.target,openingZoom());
+      view(controls.target,initialZoom());
     }
     syncSize();
   }).observe(host);

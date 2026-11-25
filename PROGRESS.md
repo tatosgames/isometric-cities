@@ -183,3 +183,5 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 **Guagua compatta.** La carrozzeria gialla riprende dalle foto di riferimento il parabrezza panoramico, la fascia scura continua, le porte vetrate e i coprimozzi gialli. Il display frontale indica la linea 13. Il rettangolo di collisione misura 7,2 × 2,2 m, con assi delle ruote e punti di rilevamento dei pedoni riposizionati. Verificati ingombro sul percorso e sorpasso a La Portadilla. [Modello visto dal lato porte](docs/screenshots/guagua-modello.png).
 
 [Guaguas in drive mode · English maintenance guide](docs/GUAGUAS.md).
+
+**Cielo sperimentale.** Gabbiani sopra Parque Doramas e Santa Catalina e nubi mosse dallo stesso vento delle ombre. Prova opzionale con ?sky=1. [Controlli e guida tecnica in inglese](docs/SKY_EFFECTS.md).
