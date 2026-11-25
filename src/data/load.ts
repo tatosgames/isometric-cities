@@ -86,24 +86,31 @@ export function isZone(v: unknown): v is ZoneData {
     && (v.coverage === undefined || list(v.coverage, rings));
 }
 
-type CoreFile = Omit<CityCore, 'terrain' | 'buildings' | 'trees' | 'ground'> & {terrain: Omit<Terrain, 'values'> & {file: string}};
+type CoreFile = Omit<CityCore, 'terrain' | 'buildings' | 'trees' | 'ground'>
+  & {terrain: Omit<Terrain, 'values' | 'slots'> & {file: string; tile: number; tiles: number[]}};
 export function isCoreFile(v: unknown): v is CoreFile {
   return record(v) && ring(v.boundary) && list(v.roads, road) && list(v.surfaces, surface)
     && (v.focus == null || string(v.focus)) && record(v.terrain) && terrainGrid(v.terrain) && string(v.terrain.file)
+    && number(v.terrain.tile) && Number.isInteger(v.terrain.tile) && v.terrain.tile > 0 && list(v.terrain.tiles, number)
     && record(v.far) && Object.values(v.far).every(farZone);
 }
 
-/** Terrain heights are little-endian Int16 decimetres on the grid named by the core. */
+/** Terrain heights are little-endian Int16 decimetres, one square of the grid after another as the core lists them. */
 export function coreWithTerrain(core: CoreFile, heights: ArrayBuffer): CityCore {
-  const {w, h} = core.terrain;
-  if (heights.byteLength !== w * h * 2) throw new Error('Terrain size does not match its grid');
-  // Kept as stored: a quarter of the memory of floats, on the main thread and again in the worker.
+  const {w, h, tile, tiles, ...grid} = core.terrain, cells = tile * tile;
+  const slots = new Int32Array(Math.ceil(w / tile) * Math.ceil(h / tile)).fill(-1);
+  if (heights.byteLength !== tiles.length * cells * 2) throw new Error('Terrain size does not match its grid');
+  tiles.forEach((square, i) => {
+    if (!Number.isInteger(square) || square < 0 || square >= slots.length || slots[square] >= 0) throw new Error('Unexpected terrain square ' + square);
+    slots[square] = i * cells;
+  });
+  // Kept as stored: a quarter of the memory of floats.
   let values = new Int16Array(heights);
   if (new Uint8Array(new Uint16Array([1]).buffer)[0] !== 1) {
     const view = new DataView(heights);
-    values = Int16Array.from({length: w * h}, (_, i) => view.getInt16(i * 2, true));
+    values = Int16Array.from({length: values.length}, (_, i) => view.getInt16(i * 2, true));
   }
-  return {...core, terrain: {...core.terrain, values, scale: .1}, buildings: [], trees: [], ground: []};
+  return {...core, terrain: {...grid, w, h, tile, slots, values, scale: .1}, buildings: [], trees: [], ground: []};
 }
 
 export async function loadCore(stage: string, signal?: AbortSignal): Promise<CityCore> {

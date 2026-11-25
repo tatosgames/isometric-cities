@@ -5,7 +5,7 @@ import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
 import { GROUND_SURFACE, groundPatch, groundSampler } from './ground-surface.ts';
 import { addLandmarks } from './landmarks.ts';
-import { pointInRing } from '../geometry.ts';
+import { heightAt, pointInRing } from '../geometry.ts';
 import quarters from '../data/historic-quarters.json';
 
 const oldQuarters=quarters.rings as [number,number][][];
@@ -66,14 +66,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     }
     bucket.parts.length=0;bucket.vertices=0;
   }
-  const terrain = data.terrain;
-  function altitude(x: number,y: number) {
-    const col=T.MathUtils.clamp((x-terrain.origin[0])/terrain.step,0,terrain.w-1.001);
-    const row=T.MathUtils.clamp((terrain.origin[1]-y)/(terrain.stepY || terrain.step),0,terrain.h-1.001);
-    const i=Math.floor(row)*terrain.w+Math.floor(col);
-    const v=terrain.values, u=col%1, t=row%1;
-    return T.MathUtils.lerp(T.MathUtils.lerp(v[i],v[i+1],u),T.MathUtils.lerp(v[i+terrain.w],v[i+terrain.w+1],u),t)*(terrain.scale??1);
-  }
+  const altitude=heightAt(data.terrain);
   function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material=mat) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');

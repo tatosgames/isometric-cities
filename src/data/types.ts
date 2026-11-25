@@ -55,6 +55,12 @@ export interface Terrain {
   values: number[] | Float32Array<ArrayBuffer> | Int16Array<ArrayBuffer>;
   // Metres per stored unit: the city grid keeps its decimetres as 16-bit integers.
   scale?: number;
+  /**
+   * The city keeps only the squares of `tile` cells a side that touch the land: `slots` gives, for each square of
+   * the grid in row order, where its rows start in `values`, or -1 for sea and ground beyond the map (height 0).
+   */
+  tile?: number;
+  slots?: Int32Array<ArrayBuffer>;
 }
 
 export interface Carriageway {

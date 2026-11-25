@@ -20,6 +20,8 @@ from carriageways import Carriageways, grade_separated, polygon_rings
 SIZE = 240
 ZONE = SIZE * 4
 FAR = 60
+# Cells along the side of a terrain square: 320 m on the 5 m grid.
+TILE = 64
 ROOT = Path("public/data")
 
 
@@ -91,6 +93,29 @@ def stress(copies):
     x1, y0 = x0 + columns * dx, y1 - rows * dy
     out["boundary"] = [[x0 + 1, y0 + 1], [x1 - 1, y0 + 1], [x1 - 1, y1 - 1], [x0 + 1, y1 - 1], [x0 + 1, y0 + 1]]
     (ROOT / "stress.json").write_bytes(encode(out))
+
+
+def terrain_tiles(terrain, boundary):
+    """The height grid in squares of TILE cells, keeping those that touch the land: the rest is sea or beyond the map.
+
+    A point up to 100 m outside the boundary still reads its four cells, so the camera and the edges never meet a gap.
+    """
+    w, h, step = terrain["w"], terrain["h"], terrain["step"]
+    step_y, (ox, oy), values = terrain.get("stepY") or step, terrain["origin"], terrain["values"]
+    land = Polygon(boundary).buffer(100)
+    kept, heights = [], array("h")
+    across = ceil(w / TILE)
+    for ty in range(ceil(h / TILE)):
+        for tx in range(across):
+            c0, r0 = tx * TILE, ty * TILE
+            if not land.intersects(box(ox + c0 * step, oy - (r0 + TILE) * step_y, ox + (c0 + TILE) * step, oy - r0 * step_y)):
+                continue
+            kept.append(ty * across + tx)
+            for r in range(r0, r0 + TILE):
+                row = values[r * w + c0:r * w + min(c0 + TILE, w)] if r < h else []
+                heights.extend(round(v * 10) for v in row)
+                heights.extend([0] * (TILE - len(row)))
+    return kept, heights
 
 
 def encode(value):
@@ -342,9 +367,10 @@ def partition(stage, road_cells=None):
             path.unlink()
     # The core is everything the viewer needs before any zone arrives.
     terrain = data["terrain"]
-    (ROOT / f"{stage}-terrain.bin").write_bytes(array("h", [round(v * 10) for v in terrain["values"]]).tobytes())
+    kept, heights = terrain_tiles(terrain, data["boundary"])
+    (ROOT / f"{stage}-terrain.bin").write_bytes(heights.tobytes())
     core = dict(boundary=data["boundary"], roads=data["roads"], surfaces=data["surfaces"], focus=data.get("focus"),
-                terrain={**{k: v for k, v in terrain.items() if k != "values"}, "file": f"{stage}-terrain.bin"}, far=far)
+                terrain={**{k: v for k, v in terrain.items() if k != "values"}, "file": f"{stage}-terrain.bin", "tile": TILE, "tiles": kept}, far=far)
     (ROOT / f"{stage}-core.json").write_bytes(encode(core))
     # The same footprint index serves collision, the low LOD and the route graph.
     # Detail files remain independently cacheable on static hosting.

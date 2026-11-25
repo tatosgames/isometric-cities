@@ -84,7 +84,7 @@ Il catalogo dei settori è `public/data/city-index.json`. I JSON e i WebP dettag
 
 Il viewer cittadino non carica più `city.json`. `sectors.py` scrive tre livelli:
 
-- **Nucleo** (`city-core.json` e `city-terrain.bin`): confine, strade, superfici, griglia del terreno in Int16 a decimetri e, per ogni zona, il livello lontano: un prisma per isolato (unione delle impronte, altezza e tinta medie pesate sull'area) e il suolo a maglia di 60 m. È sempre residente.
+- **Nucleo** (`city-core.json` e `city-terrain.bin`): confine, strade, superfici, griglia del terreno in Int16 a decimetri, a riquadri di 64 celle (320 m) e solo dove toccano la terraferma più 100 m (`terrain.tile` e `terrain.tiles` nel nucleo; fuori vale quota 0), e, per ogni zona, il livello lontano: un prisma per isolato (unione delle impronte, altezza e tinta medie pesate sull'area) e il suolo a maglia di 60 m. È sempre residente.
 - **Zone** da 960 m (`city-zones/`, 4×4 settori): sagoma di ogni edificio, chiome, suolo a 15 m e impronte per le collisioni. Si caricano quando il lato lungo della vista scende sotto 3.200 m nel profilo compatto e 6.000 m su desktop, con isteresi del 9 %. Due zone uscite dalla vista restano in memoria, mostrate come livello lontano.
 - **Settori** da 240 m (`city-sectors/`): dettaglio, solo dentro una zona caricata, sotto circa 550 m di vista.
 

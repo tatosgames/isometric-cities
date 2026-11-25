@@ -3,13 +3,13 @@ import type { Bounds, Layers, RoofTones, Terrain } from '../../data/types.ts';
 import type { cityMaterials } from '../city-materials.ts';
 
 export interface WorkerConfig {
-  terrain: Terrain;
   compact: boolean;
   neutral: boolean;
   tones: RoofTones | null;
 }
 
-export type WorkerRequest = {config: WorkerConfig} | {layers: Layers};
+/** A build carries the heights under its own sector: the worker never holds the grid of the whole city. */
+export type WorkerRequest = {config: WorkerConfig} | {layers: Layers; terrain: Terrain};
 export interface AttributeData {
   array: TypedArray;
   size: number;

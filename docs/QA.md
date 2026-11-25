@@ -1185,3 +1185,26 @@ Il controllo di build confronta le finestre temporali di ogni cella calcolate in
 Le prove Playwright usano Chrome desktop e telefono emulato con richieste esterne bloccate. Verificano la partenza riproducibile a Vegueta, entrambe le soste, l’attivazione locale a Pedro Hidalgo, l’assenza di mezzi in Calle Coronel Rocha e la guida con un pacchetto mancante. Aprire la sola mappa genera zero richieste di dati guagua. [Link di prova e comandi](GUAGUAS.md).
 
 A Triana, su telefono emulato con partenza e input ripetuti, quattro corse alternate con e senza flotta danno un p90 di 16,8 ms per fotogramma in entrambe le configurazioni. I disegni WebGL per fotogramma al p90 passano da 62 a 69. Con sei bus attivi il p90 del lavoro CPU strumentato della flotta è 0,1 ms. Queste misure riguardano Chrome su questa macchina; il telefono fisico resta da misurare.
+
+## Terreno a riquadri · 25 novembre 2026
+
+Il terreno era una griglia unica sul rettangolo di ingombro della città (1.259 × 2.868 celle da 5 m), per il 60 % mare o campagna fuori confine, tenuta due volte: nella pagina e nel worker dei settori. Ora `sectors.py` pubblica solo i riquadri di 64 celle che toccano il confine allargato di 100 m (526 su 900) e il worker riceve con ogni settore la finestra di quote sotto i suoi oggetti, con 60 m di margine. Tutte le letture passano da `heightAt()` in `src/geometry.ts`.
+
+| Misura (Chrome, telefono emulato) | Prima | Dopo |
+|---|---|---|
+| `city-terrain.bin` | 7,22 MB | 4,31 MB |
+| Terreno nella pagina (`data.terrain`) | 6,9 MB | 4,1 MB |
+| Buffer del worker | 7,6 MB | 0,7 MB |
+| Istantanea dell'heap, da vicino in Vegueta | 46,5 MB | 43,8 MB |
+| Istantanea dell'heap, vista più ampia su Schamann | 57,0 MB | 54,2 MB |
+| `benchmark.mjs`, heap dopo la raccolta | 54,8 MB | 52,0 MB |
+
+Verifiche.
+
+- Quote: vecchia e nuova lettura confrontate su una maglia di 10 m, 362.131 punti dentro il confine: differenza massima 0. Fuori dal margine di 100 m la quota è 0 per scelta.
+- Finestra del worker: 200 finestre casuali lungo il confine, 400 punti ciascuna: differenza massima 8,5 × 10⁻¹¹ m. Su dieci viste del telefono emulato nessun settore ha letto quote fuori dalla propria finestra; nel caso peggiore (un modello dedicato) restano 33 m dei 60 di margine.
+- `sectors.py` rigenerato da capo cambia solo `city-core.json` e `city-terrain.bin`: zone e settori hanno gli stessi nomi di contenuto.
+- Catture a camera identica in quattro viste (Vegueta, La Isleta sulla costa, vista più ampia su Schamann, Pedro Hidalgo al bordo sud): le differenze tra versione precedente e nuova stanno dentro quelle tra due catture della stessa versione.
+- `typecheck`, `build`, `node scripts/qa.mjs`, `qa-ground`, `qa-boot`, `qa-recovery`, `qa-sectors`, `qa-drive-pose`: verdi.
+
+Limiti. Una vista spinta oltre 100 m dal confine legge quota 0 invece del rilievo: non provato a mano trascinando la mappa al bordo delle colline. Un modello dedicato che leggesse quote a più di 60 m dal proprio edificio prenderebbe la quota del bordo della finestra senza avviso. Una misura per vista; nessuna prova su telefono fisico.

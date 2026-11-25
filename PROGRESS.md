@@ -170,6 +170,8 @@ Fonti aggiuntive documentate in [docs/GEODATA_SOURCES.md](docs/GEODATA_SOURCES.m
 
 **Memoria dimezzata a mappa ferma · 25 novembre 2026.** Una misura per proprietario (`scripts/heap-profile.mjs`) ha mostrato che pesavano il mondo di guida tenuto a guida spenta e le geometrie mai disegnate. Ora la guida si costruisce al primo Play e ogni mesh è caricata sulla GPU all'arrivo: heap dopo la raccolta da 107 a 55 MB nel benchmark. Costo: primo Play da 0,3 a 0,6 s (da 1,3 a 5 s con CPU 6×). [Misure e limiti](docs/QA.md#memoria-guida-al-primo-play-e-geometrie-liberate--25-novembre-2026). Aperto: `qa-drive-lab.mjs` rosso già prima di questo passo; primo Play non provato su telefono fisico.
 
+**Terreno a riquadri · 25 novembre 2026.** Sul branch `terreno-a-riquadri`. Il terreno si pubblica a riquadri solo dove c'è terraferma e il worker riceve la finestra del settore: da 14,5 a 4,8 MB tra pagina e worker, quote identiche dentro il confine. Prepara l'espansione verso Marzagán e Tamaraceite, dove il rettangolo di ingombro triplica. [Misure e limiti](docs/QA.md#terreno-a-riquadri--25-novembre-2026). Prossimo: Cono Sur e Tafira bassa, poi Marzagán, poi Tamaraceite.
+
 ## Stato al 23 novembre 2026
 
 Città a 36,22 km², 28.748 parti di edificio, 29 luoghi, 75 zone e 805 settori.

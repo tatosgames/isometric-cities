@@ -17,8 +17,8 @@ scope.onmessage = async ({data}: MessageEvent<WorkerRequest>) => {
   }
   try {
     if (!config) throw new Error('Sector worker is not initialized');
-    const {terrain,compact,neutral,tones} = config;
-    const result = makeCity({...data.layers,boundary:[],terrain},neutral,tones,compact);
+    const {compact,neutral,tones} = config;
+    const result = makeCity({...data.layers,boundary:[],terrain:data.terrain},neutral,tones,compact);
     const transfer = new Set<Transferable>();
     const geometries: GeometryData[] = [];
     const ids = new Map<BufferGeometry,number>();

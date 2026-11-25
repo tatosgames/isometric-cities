@@ -4,11 +4,26 @@ import type { GroundMap } from '../ground-map.ts';
 import * as T from 'three';
 import { cityMaterials } from '../city-materials.ts';
 import { makeCity } from '../scene.ts';
+import { heightWindow } from '../../geometry.ts';
 
 function bitmapTexture(bitmap: ImageBitmap){
   const texture=new T.Texture(bitmap);
   texture.flipY=false;texture.colorSpace=T.SRGBColorSpace;texture.needsUpdate=true;
   return texture;
+}
+
+// Heights are read under ground, footprints, trees and objects, and a landmark model reads a few more beside its
+// building: metres of grid kept around all of them.
+const TERRAIN_MARGIN=60;
+function extent(layers: Layers): [number,number,number,number]{
+  let west=Infinity,south=Infinity,east=-Infinity,north=-Infinity;
+  const add=(x: number,y: number)=>{west=Math.min(west,x);east=Math.max(east,x);south=Math.min(south,y);north=Math.max(north,y);};
+  for(const ring of layers.ground)for(const [x,y] of ring)add(x,y);
+  for(const b of layers.buildings)for(const [x,y] of b.rings[0])add(x,y);
+  for(const [x,y] of layers.trees)add(x,y);
+  for(const prop of layers.props??[])add(prop[1],prop[2]);
+  // An empty sector reads no height: any window will do.
+  return west<=east?[west,south,east,north]:[0,0,0,0];
 }
 
 // The streamer serializes builds. A cancelled result is discarded before GPU upload.
@@ -18,8 +33,7 @@ export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean
   if(typeof OffscreenCanvas!=='undefined'){
     try {
       worker=new Worker(new URL('./sector-worker.ts',import.meta.url),{type:'module'});
-      const values=Array.isArray(terrain.values)?Float32Array.from(terrain.values):terrain.values.slice();
-      worker.postMessage({config:{terrain:{...terrain,values},compact,neutral,tones}} satisfies WorkerRequest,[values.buffer]);
+      worker.postMessage({config:{compact,neutral,tones}} satisfies WorkerRequest);
     } catch (error) {
       worker?.terminate();
       worker=null;
@@ -44,7 +58,8 @@ export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean
           reject(new Error(event.message));
         };
         activeWorker.onmessageerror=()=>reject(new Error('Invalid sector worker message'));
-        activeWorker.postMessage({layers} satisfies WorkerRequest);
+        const window=heightWindow(terrain,extent(layers),TERRAIN_MARGIN);
+        activeWorker.postMessage({layers,terrain:window} satisfies WorkerRequest,[window.values.buffer]);
       });
     } catch (error) {
       activeWorker.terminate();
