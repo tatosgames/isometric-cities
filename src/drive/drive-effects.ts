@@ -146,8 +146,11 @@ export function makeDriveEffects(group: T.Group,groundAt: Altitude){
       if(Math.hypot(wheels[0][0]-b.trail[0][0],wheels[0][2]-b.trail[0][2])<TRACK_STEP)return;
       const alpha=sliding?track.slide:track.roll,{r,g,b:blue}=track.colour;
       for(let k=0;k<2;k++){
-        const [ax,ay,az]=b.trail[k],[bx,by,bz]=wheels[k],w=track.half;
-        skidPositions.set([ax-w,ay,az,ax+w,ay,az,bx+w,by,bz,ax-w,ay,az,bx+w,by,bz,bx-w,by,bz],skidAt*18);
+        // The piece is as wide as the track across the way the wheel rolled: widened along x alone, a track
+        // laid east or west had no width and never showed.
+        const [ax,ay,az]=b.trail[k],[bx,by,bz]=wheels[k],length=Math.hypot(bx-ax,bz-az)||1;
+        const wx=-(bz-az)/length*track.half,wz=(bx-ax)/length*track.half;
+        skidPositions.set([ax-wx,ay,az-wz,ax+wx,ay,az+wz,bx+wx,by,bz+wz,ax-wx,ay,az-wz,bx+wx,by,bz+wz,bx-wx,by,bz-wz],skidAt*18);
         for(let v=0;v<6;v++)skidColours.set([r,g,blue,alpha],skidAt*24+v*4);
         if(skidFrom<0)skidFrom=skidAt;
         skidCount=Math.min(SKIDS,skidCount+1);

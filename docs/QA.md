@@ -1,5 +1,16 @@
 # Verifica locale · 21 novembre 2026
 
+## Tracce, fumo e strappi in guida · 25 novembre 2026
+
+Segnalazione: niente fumo né erba a schermo, e ogni tanto uno scatto di velocità attribuito a una superficie sbagliata. Verificato con guide registrate fotogramma per fotogramma in città (Avenida Marítima, La Minilla):
+
+- **La mappa delle superfici è giusta**: lungo l'asse di ogni strada carrabile legge sempre asfalto, e in 3.000 punti a caso l'asfalto coincide con la copertura delle carreggiate al 98%. Il passaggio asfalto ↔ pavimentazione al bordo strada non cambia la guida.
+- **Lo scatto era il bonus della derapata**: al rilascio restituiva in un solo passo da 1/120 s tutta la velocità persa, fino al limite della marcia; misurati +16, +20 e +26 km/h in un fotogramma, sull'asfalto come sul prato, e anche dopo un urto durante la derapata. Ora arriva in 0,2 s (`BONUS_RISE` in `drive-physics.ts`), sempre fino alla marcia; una frenata lo annulla. Nuova verifica in `qa-drive-handling.mjs`: nessun passo aggiunge più della quota di 0,2 s.
+- **Le tracce non comparivano verso est o verso ovest**: ogni pezzo era allargato solo lungo l'asse x del mondo, quindi una traccia percorsa lungo x aveva larghezza zero. Il difetto precedeva le superfici; ora la larghezza è presa di traverso alla direzione della ruota. Verificato in una scena di prova (tracce in quattro direzioni) e in gioco.
+- **Fumo**: la derapata del giocatore dava una sola raffica da 0,22 s all'inizio. Ora sull'asfalto e sulla pavimentazione fuma per tutta la derapata (uno sbuffo ogni 0,05 s). Le particelle (sette tipi) sono state verificate in una scena di prova.
+
+Resta vero che sulla pavimentazione (marciapiedi, piazze, vie pedonali, il 70% del tempo in una guida libera sul lungomare) non restano tracce, come richiesto.
+
 ## Superfici sotto le ruote · 25 novembre 2026
 
 Prima l'auto guidava allo stesso modo su asfalto, prati, piazze e spiaggia, e polvere e sgommate erano uguali ovunque. Ora ogni auto, pattuglie comprese, legge la superficie sotto di sé.

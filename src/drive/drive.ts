@@ -35,6 +35,8 @@ const HALF_BASE=.95,TILT_RATE=10,TILT_LIMIT=T.MathUtils.degToRad(22);
 // Off the road: tracks from 2 m/s, thrown turf or sand from 4 m/s at about one piece per 0.6 m rolled (twice as
 // sparse for patrols), a hop of 2 cm per m/s (up to 35 cm) on leaving or rejoining the road, the shake of the
 // body at full rumble (metres and radians) and the speed that reaches it.
+// A sliding player puffs smoke this often on asphalt and paving, on top of the burst when the slide starts.
+const DRIFT_SMOKE=.05;
 const TRACK_SPEED=2,DEBRIS_SPEED=4,DEBRIS_STEP=.6,KERB_HOP=.02,KERB_HOP_MAX=.35,KERB_SPEED=5;
 const SHAKE_LIFT=.05,SHAKE_ROLL=.025,SHAKE_PITCH=.02,SHAKE_SPEED=10;
 const feel=()=>({odo:0,rumble:0,shake:0,rough:false,debris:0,wheel2:1});
@@ -469,9 +471,14 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
         if(speed>DEBRIS_SPEED && b.debris<=0){b.debris=DEBRIS_STEP/speed*(isPlayer?1:2);spray(b,rough,fx,fy,scale,sliding);}
         continue;
       }
-      if(isPlayer)continue;
       b.puff-=dt;
-      if(b.puff<=0){b.puff=.07;puff(b.x-fx*1.3*scale,b.y-fy*1.3*scale);}
+      if(b.puff>0)continue;
+      if(isPlayer){
+        // The player's slide smokes all along, from one rear wheel and then the other.
+        b.puff=DRIFT_SMOKE;b.wheel2=-b.wheel2;
+        const side=.7*b.wheel2;
+        puff(b.x-(fx*1.3+fy*side)*scale,b.y+(-fy*1.3+fx*side)*scale,'drift');
+      }else{b.puff=.07;puff(b.x-fx*1.3*scale,b.y-fy*1.3*scale);}
     }
   }
   // Leaving the road or coming back onto it hops the car; the rumble of the surface follows it within 0.2 s.

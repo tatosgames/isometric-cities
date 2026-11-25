@@ -10,8 +10,11 @@ export interface Body {
   x: number; y: number; h: number; vx: number; vy: number;
   wayHold: number; dive: number; steer: number;
   slip: number; side: number; way: number; hitX: number; hitY: number;
-  /** Handling state: steering wheel rate, top speed of the current gear, seconds spent sliding, extra grip after a slide. */
-  wheel: number; gear: number; drifted: number; boost: number;
+  /**
+   * Handling state: steering wheel rate, top speed of the current gear, seconds spent sliding, extra grip after a
+   * slide, and the speed a slide still has to pay back.
+   */
+  wheel: number; gear: number; drifted: number; boost: number; surge: number;
   /** Surface under the car (an index into SURFACES) and the shares of speed and grip it allows, eased. */
   ground: number; pace: number; grip: number;
   slopeAccel?: number;
@@ -22,15 +25,17 @@ type Profile = typeof TUNE.player;
 // The shortest slide that earns a bonus returns this share of the longest one's (2.5 of 12.3 m/s by default),
 // and the extra grip it gives fades at this rate per second.
 const BONUS_START=2.5/12.3,BOOST_FADE=1;
+// The bonus is paid back over this time, not in one step: in one step it threw the car forward by up to 40 km/h.
+const BONUS_RISE=.2;
 // A change of surface takes effect over about 0.2 s, so a kerb does not jolt the car.
 const SURFACE_EASE=.07,MAX_SLIP=T.MathUtils.degToRad(80);
 type PhysicsTuning = Pick<typeof TUNE, 'player' | 'patrol' | 'brake' | 'deflect' | 'bounce' | 'treeRadius' | 'radius' | 'wallLoss' | 'scrapeRatio' | 'scrapeFriction' | 'slope' | 'surfaces' | 'roughDrag'>;
 
 /** A car at rest with its steering centred. */
 export function restBody(): Body{
-  return {x:0,y:0,h:0,vx:0,vy:0,wayHold:0,dive:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0,wheel:0,gear:0,drifted:0,boost:0,ground:0,pace:1,grip:1};
+  return {x:0,y:0,h:0,vx:0,vy:0,wayHold:0,dive:0,steer:0,slip:0,side:0,way:1,hitX:0,hitY:0,wheel:0,gear:0,drifted:0,boost:0,surge:0,ground:0,pace:1,grip:1};
 }
-export function resetSteering(b: Body){b.wheel=b.gear=b.drifted=b.boost=0;}
+export function resetSteering(b: Body){b.wheel=b.gear=b.drifted=b.boost=b.surge=0;}
 
 export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof makeRoadGrade>,surfaceAt?: (x: number,y: number)=>number){
   const scaled={...tune.player};
@@ -119,7 +124,12 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
       speed=Math.hypot(back,side);b.drifted=0;
     }else{
       const {slip,bonus}=followNose(b,p,turning,moving?wrap(drift+b.h-nose):0,Math.abs(drift),dt);
-      speed=paceCar(b,p,turning,brake,bonus?Math.max(before,Math.min(b.gear,before+bonus)):before,slope,dt);
+      if(bonus)b.surge=bonus;
+      if(brake)b.surge=0;
+      // The bonus arrives as a push over BONUS_RISE seconds, up to the gear.
+      const paid=Math.min(b.surge,(p.bonusMax/BONUS_RISE)*dt);
+      b.surge-=paid;
+      speed=paceCar(b,p,turning,brake,paid?Math.max(before,Math.min(b.gear,before+paid)):before,slope,dt);
       const travel=b.h-slip;
       b.vx=Math.cos(travel)*speed;b.vy=Math.sin(travel)*speed;
       side=-speed*Math.sin(slip);

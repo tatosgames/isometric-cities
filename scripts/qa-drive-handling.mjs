@@ -43,6 +43,15 @@ assert.equal(slide.h,nose,'The nose holds its direction with the wheel free');
 assert.ok(Math.abs(slip(slide))<.01,`Straight again 350 ms after the release, slip ${slip(slide).toFixed(2)}`);
 assert.ok(speed(slide)>=d.baseSpeed-.05,'The drift bonus returns the speed lost in the slide');
 
+// The bonus is a push over a fifth of a second, never a jump in one step.
+const kicked=body(d.baseSpeed),kicker=physics();
+run(kicker,kicked,1,1);
+kicked.vx*=.6;kicked.vy*=.6;
+let jump=0;
+for(let i=0;i<60;i++){const was=speed(kicked);kicker.steerPlayer(kicked,0,false,1/120);jump=Math.max(jump,speed(kicked)-was);}
+assert.ok(jump<d.bonusMax/.2/120+d.accel/120+.01,`The bonus adds at most ${(jump*3.6).toFixed(1)} km/h in one step`);
+assert.ok(speed(kicked)>d.baseSpeed*.6+3,`The bonus still arrives: ${(speed(kicked)*3.6).toFixed(0)} km/h from ${(d.baseSpeed*.6*3.6).toFixed(0)}`);
+
 // No bonus without a slide.
 const short=body(d.baseSpeed),shorter=physics();
 run(shorter,short,1,.1);run(shorter,short,0,1/120);
