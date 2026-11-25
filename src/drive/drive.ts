@@ -30,12 +30,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection,compact,onExit,zoning,police=true,handling}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
   const activeWorld=()=>required(world,"drive world");
-  const {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads));
+  const {steerPatrol,steerPlayer,collide,bump,resetPlayerSteering}=makeDrivePhysics(TUNE,makeRoadGrade(altitude,data.roads),handling);
   const playerPose=makeDrivePose(TUNE);
   const rig=makeDriveCamera(mapDirection);
   const button=el('drive-camera');
@@ -412,6 +412,29 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
     pop(c.x,c.y,TUNE.wreckBonus,'crash',false);gain(TUNE.wreckBonus);
   }
 
+  // The simulation runs at 120 Hz. Cars are drawn between their last two steps, so a 144 Hz
+  // screen, which gets one step on some frames and none on others, does not judder.
+  const STEP=1/120;
+  const previous=new WeakMap<Vehicle,{x: number;y: number;h: number}>();
+  function remember(){
+    for(const b of [player,...chasers]){
+      const p=previous.get(b);
+      if(p){p.x=b.x;p.y=b.y;p.h=b.h;}else previous.set(b,{x:b.x,y:b.y,h:b.h});
+    }
+  }
+  // Moves every car to its drawn pose and returns the simulated poses to put back after drawing.
+  // A respawn or restart is a jump, not motion: those cars are drawn where they are.
+  function between(alpha: number){
+    const saved: [Vehicle,number,number,number][]=[];
+    for(const b of [player,...chasers]){
+      const p=previous.get(b);
+      if(!p || Math.hypot(b.x-p.x,b.y-p.y)>4)continue;
+      saved.push([b,b.x,b.y,b.h]);
+      b.x=p.x+(b.x-p.x)*alpha;b.y=p.y+(b.y-p.y)*alpha;b.h=p.h+wrap(b.h-p.h)*alpha;
+    }
+    return saved;
+  }
+
   function frame(now: number){
     raf=requestAnimationFrame(frame);
     if(document.hidden){last=0;return;}
@@ -422,10 +445,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       if(freeze)advanceStop(dt);
       else if(state==='playing' && !held){
         acc+=dt;
-        for(;acc>=1/120 && state==='playing' && !freeze;acc-=1/120)step(1/120);
+        for(;acc>=STEP && state==='playing' && !freeze;acc-=STEP){remember();step(STEP);}
         if(freeze)acc=0;
       }
     }
+    const drawn=state==='playing' && !capture && !freeze && !held?between(acc/STEP):[];
     if(capture){
       // Use the part of the frame after the hit-stop for the result. Bound world motion on long frames.
       const stopped=Math.min(freeze,captureDt);
@@ -535,6 +559,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,altitude,gr
       const text=metres>=995?(metres/1000).toFixed(1)+'km':Math.round(metres/10)*10+'m';
       if(text!==goalText){goalText=text;goalLabel.textContent=text;}
     }
+    for(const [b,x,y,h] of drawn){b.x=x;b.y=y;b.h=h;}
     host.dataset.drive=[held?'held':state,score,player.x.toFixed(1),player.y.toFixed(1),wrap(player.h).toFixed(2),chasers.length,coins.length,nearest.toFixed(0),zoomNow.toFixed(3),renderer.info.programs?.length??0,stops,Math.hypot(kickX,kickY).toFixed(2),walking,clearance.toFixed(1)].join(',');
   }
 

@@ -92,8 +92,22 @@ const slidingPlayer={...body(13),vy:4},slidingPatrol={...slidingPlayer};
 steerPlayer(slidingPlayer,0,true,dt);
 steerPatrol(slidingPatrol,0,{near:()=>true},dt);
 const withoutDrag=13-27*dt;
-assert.equal(slidingPatrol.slip,slidingPlayer.slip);
-assert.ok(Math.abs((withoutDrag-slidingPatrol.vx)/(withoutDrag-slidingPlayer.vx)-1.5)<1e-9);
+// The player slides under braking; a braking patrol keeps its cornering grip.
+assert.ok(Math.abs(slidingPlayer.slip-4*Math.exp(-TUNE.player.brakeGrip*dt))<1e-9);
+assert.ok(Math.abs(slidingPatrol.slip-4*Math.exp(-TUNE.grip*dt))<1e-9);
+const dragRatio=TUNE.patrol.driftDrag/TUNE.player.driftDrag*slidingPatrol.slip/slidingPlayer.slip;
+assert.ok(Math.abs((withoutDrag-slidingPatrol.vx)/(withoutDrag-slidingPlayer.vx)-dragRatio)<1e-9);
+// Above 60 km/h the turn rate fades, down to 70% at top speed; town speeds keep the full rate.
+for(const [start,share] of [[25,1-TUNE.player.turnFade],[13,1]]){
+  const faded=body(start),full=body(start);
+  makeDrivePhysics(TUNE).steerPlayer(faded,1,false,dt);
+  makeDrivePhysics({...TUNE,player:{...TUNE.player,turnFade:0}}).steerPlayer(full,1,false,dt);
+  assert.ok(Math.abs(faded.h/full.h-share)<1e-9,`Turn share at ${start} m/s`);
+}
+// Braking while rolling back from a wall slows the car down instead of stopping it in one step.
+const rolling=body(-3);
+steerPlayer(rolling,0,true,dt);
+assert.ok(Math.abs(rolling.vx-(-3+27*dt))<1e-9);
 
 const car = body(13);
 function advance(steer, steps, brake = false) {

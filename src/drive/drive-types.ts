@@ -1,6 +1,6 @@
 import type * as T from 'three';
 import type { Altitude, CityData, Place, ZoneData } from '../data/types.ts';
-import type { Body } from './drive-physics.ts';
+import type { Body, DriveHandling } from './drive-physics.ts';
 import type { routesFrom } from './road-routing.ts';
 import type { Zoning } from './drive-world.ts';
 
@@ -18,6 +18,8 @@ export interface DriveOptions {
   compact: boolean;
   /** False leaves the streets without patrols: the run has no capture and goes on until the player leaves. */
   police?: boolean;
+  /** 'drift' swaps the player's handling for the drift-racer one. Patrols keep the standard handling. */
+  handling?: DriveHandling;
   onExit: () => void;
   /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
   zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};

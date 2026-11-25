@@ -4,9 +4,21 @@ import { carVisualScale } from './car-model.ts';
 
 // Every gameplay number lives here. Metres, seconds, radians.
 export const TUNE={
-  accel:11.574,accelTaperStart:60/3.6,accelTaperEnd:63/3.6,brake:27,brakeGrip:2.2,turn:2.6,grip:7.5,driftGrip:3.2,
-  player:{maxSpeed:90/3.6,cruiseAccel:1.957,driftDrag:.035,turnStart:.35,turnRamp:.14,releaseGrip:9.5,gripReleaseRate:10},
+  accel:11.574,accelTaperStart:60/3.6,accelTaperEnd:63/3.6,brake:27,turn:2.6,grip:7.5,driftGrip:3.2,
+  // turnFade: share of the turn rate lost between 60 km/h and top speed, so fast corners are wider and a tap at top speed is less twitchy.
+  // brakeGrip: side grip while braking. Patrols have none of their own and keep their cornering grip,
+  // so braking for a wall does not slide them into it.
+  player:{maxSpeed:90/3.6,cruiseAccel:1.957,driftDrag:.035,turnStart:.35,turnRamp:.14,turnFade:.3,releaseGrip:9.5,gripReleaseRate:10,brakeGrip:2.2},
   patrol:{maxSpeed:94/3.6,cruiseAccel:2.240,driftDrag:.0525,turn:.8,gripReleaseRate:6},
+  // Drift-racer handling (`?handling=drift`), from its car configuration at 24.4 px per metre (610 px/s = 90 km/h).
+  // turn: wheel rate at speed, turnLow: extra when slow, turnRamp: how fast the wheel builds, turnRelease: how fast it unwinds.
+  // recover: rate at which the travel follows the nose; driftRecover once the wheel is held; releaseRecover with the wheel free.
+  // bonus: speed returned after sliding past bonusSlip for bonusLeast to bonusTime seconds; bonusRecover: grip per m/s of bonus.
+  drift:{baseSpeed:90/3.6,topSpeed:116/3.6,gearAccel:.6,gearLoss:.8,accel:8.2,cruiseShare:.5,coast:.8,steerPush:2/3,
+    turn:T.MathUtils.degToRad(190),turnLow:T.MathUtils.degToRad(40),turnRamp:T.MathUtils.degToRad(600),turnRelease:5,
+    recover:T.MathUtils.degToRad(70),driftRecover:T.MathUtils.degToRad(50),releaseRecover:T.MathUtils.degToRad(200),
+    maxSlip:T.MathUtils.degToRad(60),boostFade:1,
+    bonusSlip:T.MathUtils.degToRad(20),bonusLeast:.3,bonusTime:2,bonusMin:2.5,bonusMax:12.3,bonusRecover:.426},
   slope:{deadZone:.02,gain:6,limit:.6,response:.18},
   deflect:4.5,
   // Juice: visual only, no effect on collisions.

@@ -442,7 +442,7 @@ async function start(){
     stopGesture();
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,police:!query.has('nopolice'),onExit:leaveDrive,
+  drive=makeDrive({scene,camera,renderer,host,data,locations,altitude,groundAt,view,mapDirection:direction,compact,police:!query.has('nopolice'),handling:query.get('handling')==='drift'?'drift':'standard',onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   function disablePlay(){

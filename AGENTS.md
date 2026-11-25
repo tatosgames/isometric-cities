@@ -30,7 +30,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `src/render/sea.ts` | Mare dalla costa OSM: fondali, onde con il vento e schiuma a riva da una texture di distanza |
 | `src/drive/drive.ts` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |
 | `src/drive/drive-world.ts` | Griglia degli ostacoli, visibilità e rete stradale della guida |
-| `src/drive/drive-physics.ts` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli |
+| `src/drive/drive-physics.ts` | Sterzo, derapata e risposta agli urti con ostacoli e veicoli; profilo alternativo `?handling=drift` (`TUNE.drift`, prova `scripts/qa-drive-drift.mjs`) |
 | `src/drive/pedestrians.ts` | Pedoni d'atmosfera della guida: percorsi, fuga dai veicoli, regola che impedisce di investirli |
 | `src/drive/drive-input.ts` | Comandi touch e tastiera, registrazione e rilascio degli input |
 | `src/render/sectors/sector-stream.ts`, `src/render/sectors/sector-builder.ts`, `src/render/sectors/sector-worker.ts`, `src/render/overview.ts` | Priorità e budget, costruzione fuori thread, panoramica |

@@ -1,5 +1,27 @@
 # Verifica locale · 21 novembre 2026
 
+## Guida alla drift-racer · 24 novembre 2026
+
+`?handling=drift` sostituisce la guida del giocatore con quella di drift-racer (Construct 3), riscritta in `steerDrift` di `drive-physics.ts` con i parametri in `TUNE.drift`. I valori vengono da `carconf.json` del gioco, a 24,4 px per metro (610 px/s = 90 km/h); le costanti che nell'originale valgono per tick (crescita dello sterzo e della derapata) sono convertite in valori al secondo.
+
+Il freno a mano dell'originale non c'è. La derapata nasce dal solo sterzo tenuto: la direzione di marcia insegue il muso a 70°/s, che scendono a 50°/s in 0,45 s di sterzo, mentre il muso gira fino a 190°/s; la deriva è limitata a 60°. Con lo sterzo libero la marcia torna sul muso a 200°/s. Premere i due lati insieme resta la frenata normale.
+
+`qa-drive-drift.mjs` (ora parte di `npm.cmd test`) misura a 120 Hz: velocità base di 90 km/h a **4,58 s**, punta di 116 km/h dopo un lungo rettilineo, ritorno alla marcia base dopo una frenata; un tocco di 100 ms gira il muso di **3,2°**; un secondo di sterzo a 90 km/h porta la deriva al limite di 60° perdendo meno di 1 m/s; 350 ms dopo il rilascio l'auto è dritta, il muso non si è mosso e la velocità è tornata a 90 km/h; un tocco breve non dà premio; fra 60 e 120 passi al secondo la sterzata cambia di 0,79°; dopo un rimbalzo all'indietro l'auto riparte in avanti; le pattuglie danno lo stesso risultato con i due profili.
+
+In Chrome, con `?handling=drift&nopolice`, la guida parte, raccoglie monete, sterza e tiene la direzione al rilascio, senza errori in console. Il feel non è stato giudicato: il pannello era nascosto e la prova è strumentata. Non portati dall'originale: penalità fuori pista, turbo, rimbalzo fisso a velocità negativa (restano gli urti di qui).
+
+## Fisica di guida · 24 novembre 2026
+
+**Interpolazione.** Prima di ogni passo da 1/120 s si salvano posizione e direzione di ogni auto. Il disegno le pone fra l'ultimo passo e il precedente, in proporzione al tempo rimasto nell'accumulatore; finito il disegno si rimettono le pose simulate. Le auto che saltano più di 4 m (ricomparsa, ripartenza) si disegnano dove sono. `data-drive` riporta le pose simulate, non quelle disegnate. Durante il fermo, la cattura e la pausa non si interpola.
+
+**Frenata all'indietro.** Con 3 m/s di rinculo, un passo di frenata porta la velocità a −2,775 m/s; prima la azzerava in un solo passo.
+
+**Sterzo ad alta velocità.** `turnFade` 0,3 entra con uno smoothstep fra 60 km/h e la velocità massima: a 13 m/s lo sterzo è identico (correzione nei primi 100 ms 2,58°, come prima); a 90 km/h vale il 70%. Con sterzo pieno da 90 km/h, un quarto di giro passa da 0,64 a 0,78 s con un raggio più largo; la velocità d'uscita resta circa la stessa (58,9 contro 57,9 km/h): a perdere velocità in curva è soprattutto l'aderenza laterale, non la rapidità dello sterzo.
+
+**Pattuglie in frenata.** Con 4 m/s di slittamento laterale, un passo di frenata lo riduce a 3,93 m/s per il giocatore (aderenza 2,2) e a 3,76 m/s per la pattuglia (aderenza 7,5).
+
+Le regressioni in `qa-drive-pose.mjs` coprono tutti e quattro i punti. Accelerazione, punta e frenata da 90 restano invariate (1,442 s, 5,442 s, 0,933 s / 11,5 m). Typecheck, build e prove mirate (`qa-drive-pose`, `qa-drive-camera`, `qa-drive-route`, `qa-drive-location`, `qa-pedestrians`) e suite `npm.cmd test` superati. In Chrome la guida parte, raccoglie monete e genera una pattuglia senza errori in console; con il pannello nascosto non si è potuto giudicare la fluidità frame per frame.
+
 ## Pendenza e ripresa
 
 A 120 Hz la ripresa da 60 a 90 km/h richiede **3,39 s** su una discesa costante all'8%, **4,00 s** sul piano e **4,88 s** su una salita all'8%. La regressione controlla frenata, limite della correzione su pendenze forti, inversione di marcia, transizione fra salita e discesa, neutralità vicino a ponti e strade a livelli diversi, e anticipo della frenata delle pattuglie in discesa.
