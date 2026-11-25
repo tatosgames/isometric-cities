@@ -1,32 +1,29 @@
 import * as T from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { applyPilotEdits, inPilot, isFixedBuilding, loadPilotBase, propKinds, readPilotEdits, readPilotFile } from '../data/pilot-edits.ts';
+import { applyPilotEdits, inPilot, isFixedBuilding, loadPilotBase, propKinds, readPilotFile } from '../data/pilot-edits.ts';
 import type { MapProp, PilotEdits, PropKind } from '../data/pilot-edits.ts';
 import { isRoofPalette, loadData } from '../data/load.ts';
 import { ringCenter } from '../data/sector-index.ts';
-import type { Point, Ring } from '../data/types.ts';
+import type { Point } from '../data/types.ts';
 import { required } from '../required.ts';
 import { GROUND_SURFACE } from '../render/ground-surface.ts';
-import { makeCity } from '../render/scene.ts';
 import { CAMERA_DISTANCE, GroundControls, fitPixels, makeMapCamera } from '../render/map-camera.ts';
-import type { BuildingRange } from '../render/scene.ts';
-import type { Building } from '../data/types.ts';
-import { previewBuilding } from './building-drag.ts';
-import { disposeMeshes, makeProp, poseProp } from './props.ts';
+import { makeCityView } from './city-view.ts';
+import { draftEdit, roundCoordinate as round, vertexList } from './edit-draft.ts';
+import { makeEditHistory } from './edit-history.ts';
+import { bindPointerEditing, type Selection } from './pointer-editing.ts';
+import { disposeMeshes, poseProp } from './props.ts';
 
-type Selection = { part: number } | { prop: string };
 type Mode = 'select' | 'move' | 'vertices' | 'rotate';
 const ui = <E extends HTMLElement>(id: string) => required(document.querySelector<E>('#'+id),id);
 const button = (id: string) => ui<HTMLButtonElement>(id);
 const message = ui('message');
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Could not complete the action.';
-const round = (value: number) => Math.round(value*1000)/1000;
 
 async function start() {
   const [base,{tones}] = await Promise.all([loadPilotBase(),loadData('roof-tones.json',isRoofPalette)]);
-  let edits: PilotEdits = { version: 1, base: base.hash, footprints: [], props: [] };
+  const history = makeEditHistory(base);
   let data = base.data;
-  const undo: PilotEdits[] = [], redo: PilotEdits[] = [];
   let selected: Selection | null = null, mode: Mode = 'move', vertex = 0, placing = false, importing = false;
   let handles: T.Mesh[] = [], outlines: T.Line[] = [];
   const host = ui('viewport'), catalog = ui<HTMLSelectElement>('catalog'), vertexSelect = ui<HTMLSelectElement>('vertex');
@@ -59,16 +56,9 @@ async function start() {
 
   const gizmo = new TransformControls(camera,canvas), anchor = new T.Object3D();
   gizmo.enabled = false;
-  const helpers = new T.Group(), props = new T.Group(), pickables = new T.Group();
-  const propModels = new Map<string,T.Object3D>();
-  const buildingRanges = new Map<Building['rings'],BuildingRange[]>();
-  let movingBuilding: ReturnType<typeof previewBuilding> | undefined;
-  let reshapedBuilding: T.Mesh | undefined;
+  const helpers = new T.Group(), view = makeCityView(scene,tones);
   let propOutline: T.BoxHelper | undefined;
-  const pointer = new T.Vector2(), ray = new T.Raycaster();
-  scene.add(gizmo.getHelper(),anchor,helpers,props);
-  let city: ReturnType<typeof makeCity>;
-  let sceneData: typeof data | undefined;
+  scene.add(gizmo.getHelper(),anchor,helpers);
   let frame = 0, fitted = false;
   function draw() {
     if (!frame) frame = requestAnimationFrame(() => {
@@ -94,53 +84,11 @@ async function start() {
 
   const overviewZoom = () => Math.min(host.clientWidth/980,host.clientHeight/790);
 
-  function extrude(rings: Ring[], height: number, altitude: number) {
-    const paths = rings.map(ring => ring.map(([x,y]) => new T.Vector2(x,y)));
-    const shape = new T.Shape(paths[0]);
-    shape.holes = paths.slice(1).map(ring => new T.Path(ring));
-    return new T.ExtrudeGeometry(shape,{ depth: height, bevelEnabled: false }).translate(0,0,altitude).rotateX(-Math.PI/2);
-  }
-
-  function rebuild() {
-    const previous = sceneData;
-    if (previous?.buildings.some((b,i) => b.rings !== data.buildings[i].rings) || !previous) {
-      if (previous) {
-        disposeMeshes(city.group);
-        city.groundMap?.texture.dispose();
-        disposeMeshes(pickables);
-        pickables.clear();
-      }
-      buildingRanges.clear();
-      city = makeCity(data,false,tones,false,null,buildingRanges);
-      scene.add(city.group);
-      const material = new T.MeshBasicMaterial({ side: T.DoubleSide });
-      data.buildings.forEach((building,part) => {
-        const z = city.altitude(...building.rings[0][0]);
-        const geometry = extrude(building.rings,building.heightOverride ?? building.height,z);
-        const mesh = new T.Mesh(geometry,material);
-        mesh.userData.part = part;
-        pickables.add(mesh);
-      });
-    }
-    sceneData = data;
-    disposeMeshes(props);
-    props.clear();
-    propModels.clear();
-    for (const prop of edits.props) {
-      const model = makeProp(prop,city.groundAt);
-      model.userData.prop = prop.id;
-      propModels.set(prop.id,model);
-      props.add(model);
-    }
-    scene.add(props);
-  }
-
   const propSelected = () => {
     const id = selected && 'prop' in selected ? selected.prop : undefined;
-    return edits.props.find(prop => prop.id === id);
+    return history.current.props.find(prop => prop.id === id);
   };
   const buildingSelected = () => selected && 'part' in selected ? data.buildings[selected.part] : undefined;
-  const vertexList = (rings: Ring[]) => rings.flatMap((ring,r) => ring.slice(0,-1).map((point,i) => ({ r,i,point })));
   const world = ([x,y]: Point,z: number) => new T.Vector3(x,z,-y);
   const azimuth = T.MathUtils.radToDeg;
   const angle = T.MathUtils.degToRad;
@@ -187,7 +135,7 @@ async function start() {
       ui('east-field').hidden = ui('north-field').hidden = east.disabled;
       ui('yaw-field').hidden = yaw.disabled;
       if (building) {
-        const z = city.altitude(...building.rings[0][0]) + (building.heightOverride ?? building.height) + .18;
+        const z = view.city.altitude(...building.rings[0][0]) + (building.heightOverride ?? building.height) + .18;
         for (const ring of building.rings) {
           const line = new T.Line(new T.BufferGeometry().setFromPoints(ring.map(p => world(p,z))),
             new T.LineBasicMaterial({ color: 0xd66438, depthTest: false }));
@@ -213,12 +161,12 @@ async function start() {
         } else anchor.position.copy(world(ringCenter(building.rings[0]),z));
         anchor.rotation.set(0,0,0);
       } else if (prop) {
-        const model = required(propModels.get(prop.id),'prop');
+        const model = required(view.propModel(prop.id),'prop');
         propOutline = new T.BoxHelper(model,0xd66438);
         propOutline.material.depthTest = false;
         propOutline.renderOrder = 3;
         helpers.add(propOutline);
-        poseProp(anchor,prop,city.groundAt);
+        poseProp(anchor,prop,view.city.groundAt);
         anchor.position.y += .45;
       }
       if (!fixed && !placing && (mode === 'move' || mode === 'rotate')) {
@@ -231,8 +179,8 @@ async function start() {
       }
       syncFields();
     }
-    button('undo').disabled = !undo.length;
-    button('redo').disabled = !redo.length;
+    button('undo').disabled = !history.canUndo;
+    button('redo').disabled = !history.canRedo;
     button('place').setAttribute('aria-pressed',String(placing));
     canvas.style.cursor = placing ? 'crosshair' : mode === 'move' ? 'grab' : 'default';
     draw();
@@ -244,61 +192,38 @@ async function start() {
     yaw.value = String(round(azimuth(anchor.rotation.y)));
   }
 
-  function show(next: PilotEdits) {
-    edits = next;
-    data = applyPilotEdits(base.data,next);
-    rebuild();
+  function show() {
+    data = applyPilotEdits(base.data,history.current);
+    view.rebuild(data,history.current.props);
     refreshSelection();
   }
 
   function commit(next: PilotEdits) {
-    clearPreview();
+    view.clearPreview();
     try {
-      const valid = readPilotEdits(base,next);
-      if (JSON.stringify(valid) !== JSON.stringify(edits)) {
-        undo.push(edits);
-        redo.length = 0;
-        show(valid);
-      } else refreshSelection();
+      if (history.commit(next)) show();
+      else refreshSelection();
       message.textContent = '';
     } catch (error) {
-      rebuild();
+      view.rebuild(data,history.current.props);
       refreshSelection();
       message.textContent = errorMessage(error);
     }
   }
 
   function draft(position: Point, yawValue: number): PilotEdits {
-    const prop = propSelected(), building = buildingSelected();
-    if (prop) return { ...edits, props: edits.props.map(entry => entry.id === prop.id ? {
-      ...entry, position: mode === 'rotate' ? entry.position : position, yaw: mode === 'rotate' ? yawValue : entry.yaw
-    } : entry) };
-    if (!building || !selected || !('part' in selected)) return edits;
-    const part = selected.part;
-    let rings: Ring[];
-    if (mode === 'vertices') {
-      const { r,i } = vertexList(building.rings)[vertex];
-      rings = building.rings.map((ring,index) => index === r ? ring.map((p,j) =>
-        j === i || (i === 0 && j === ring.length-1) ? position : p) : ring);
-    } else {
-      const [x,y] = ringCenter(building.rings[0]);
-      const dx = position[0]-x, dy = position[1]-y;
-      rings = building.rings.map(ring => ring.map(([east,north]) => [round(east+dx),round(north+dy)]));
-    }
-    const footprints = edits.footprints.filter(edit => edit.part !== part);
-    if (JSON.stringify(rings) !== JSON.stringify(base.data.buildings[part].rings)) footprints.push({ part,id: building.id,rings });
-    footprints.sort((a,b) => a.part-b.part);
-    return { ...edits, footprints };
+    const edits = history.current;
+    const prop = propSelected(), part = selected && 'part' in selected ? selected.part : undefined;
+    if (prop) return draftEdit(edits,mode === 'rotate'
+      ? { kind:'rotate-prop',id:prop.id,yaw:yawValue }
+      : { kind:'move-prop',id:prop.id,position },data.buildings,base.data.buildings);
+    if (part === undefined || !data.buildings[part]) return edits;
+    return draftEdit(edits,mode === 'vertices'
+      ? { kind:'move-vertex',part,vertex,position }
+      : { kind:'move-building',part,position },data.buildings,base.data.buildings);
   }
 
   const position = (): Point => [round(anchor.position.x),round(-anchor.position.z)];
-  function clearPreview() {
-    movingBuilding?.restore();
-    movingBuilding = undefined;
-    if (reshapedBuilding) disposeMeshes(reshapedBuilding);
-    reshapedBuilding = undefined;
-  }
-
   function updatePreview() {
     const part = selected && 'part' in selected ? selected.part : null;
     const next = draft(position(),anchor.rotation.y);
@@ -306,28 +231,13 @@ async function start() {
     if (prop) {
       const moved = next.props.find(entry => entry.id === prop.id);
       if (moved) {
-        poseProp(required(propModels.get(prop.id),'prop'),moved,city.groundAt);
+        view.poseProp(moved);
         propOutline?.update();
       }
     } else if (part !== null) {
       const building = data.buildings[part];
       const rings = next.footprints.find(edit => edit.part === part)?.rings ?? base.data.buildings[part].rings;
-      const origin = building.rings[0][0], target = rings[0][0];
-      const bottom = city.altitude(...target), height = building.heightOverride ?? building.height;
-      const top = bottom + height + .18;
-      movingBuilding ??= previewBuilding(buildingRanges.get(building.rings) ?? []);
-      if (mode === 'move') {
-        movingBuilding.move(target[0]-origin[0],bottom-city.altitude(...origin),origin[1]-target[1]);
-      } else {
-        if (!reshapedBuilding) {
-          movingBuilding.hide();
-          reshapedBuilding = new T.Mesh(extrude(rings,height,bottom),new T.MeshLambertMaterial({color:0xbc7958}));
-          scene.add(reshapedBuilding);
-        } else {
-          reshapedBuilding.geometry.dispose();
-          reshapedBuilding.geometry = extrude(rings,height,bottom);
-        }
-      }
+      const top = view.previewFootprint(building,rings,mode === 'move');
       for (const [i,line] of outlines.entries()) {
         line.geometry.setFromPoints(rings[i].map(p => world(p,top)));
         line.geometry.computeBoundingSphere();
@@ -338,23 +248,10 @@ async function start() {
     draw();
   }
 
-  gizmo.addEventListener('dragging-changed',event => { controls.enabled = !event.value; });
-  gizmo.addEventListener('objectChange',updatePreview);
-  gizmo.addEventListener('mouseUp',() => commit(draft(position(),anchor.rotation.y)));
-
-
-  function pointRay(event: PointerEvent) {
-    const rect = canvas.getBoundingClientRect();
-    pointer.set(2*(event.clientX-rect.left)/rect.width-1,1-2*(event.clientY-rect.top)/rect.height);
-    scene.updateMatrixWorld();
-    camera.updateMatrixWorld();
-    ray.setFromCamera(pointer,camera);
-  }
-
-  function pick() {
+  function pick(ray: T.Raycaster) {
     const vertexHit = ray.intersectObjects(handles,false)[0];
     if (vertexHit) return {selection:selected,vertex:handles.indexOf(vertexHit.object as T.Mesh),point:vertexHit.point};
-    const hit = ray.intersectObjects([...props.children,...pickables.children],true)[0];
+    const hit = view.pick(ray);
     if (!hit) return null;
     const part: unknown = hit.object.userData.part;
     const prop: unknown = hit.object.parent?.userData.prop;
@@ -362,24 +259,11 @@ async function start() {
     return {selection,vertex:null,point:hit.point};
   }
 
-  const plane = new T.Plane(new T.Vector3(0,1,0));
-  const planeHit = new T.Vector3();
-  let direct: { id: number; x: number; y: number; offset: T.Vector3; moved: boolean } | null = null;
-  let clickStart: { id: number; x: number; y: number; gizmo: boolean } | null = null;
-
-  canvas.addEventListener('pointerdown',event => {
-    if (!event.isPrimary || event.button !== 0 || placing || event.shiftKey || event.ctrlKey || event.metaKey) return;
-    pointRay(event);
-    if (gizmo.enabled) {
-      gizmo.pointerHover({x:pointer.x,y:pointer.y,button:event.button} as PointerEvent);
-      if (gizmo.axis) return;
-    }
-    const picked = pick();
-    if (!picked?.selection) return;
-    if (picked.vertex !== null) vertex = picked.vertex;
+  function selectPicked(selection: Selection, pickedVertex: number | null){
+    if (pickedVertex !== null) vertex = pickedVertex;
     else {
       const previous = selected;
-      selected = picked.selection;
+      selected = selection;
       const samePart = previous && 'part' in previous && 'part' in selected && previous.part === selected.part;
       if (mode === 'vertices' && !samePart) mode = 'move';
       if (!samePart) vertex = 0;
@@ -387,78 +271,37 @@ async function start() {
     message.textContent = '';
     refreshSelection();
     const fixed = selected && 'part' in selected && isFixedBuilding(data,selected.part);
-    if (fixed || (mode !== 'move' && picked.vertex === null)) return;
-    plane.constant = -picked.point.y;
-    if (!ray.ray.intersectPlane(plane,planeHit)) return;
-    direct = {id:event.pointerId,x:event.clientX,y:event.clientY,offset:anchor.position.clone().sub(planeHit),moved:false};
-    canvas.setPointerCapture(event.pointerId);
-    canvas.style.cursor = 'grabbing';
-    event.stopImmediatePropagation();
-  },{capture:true});
-
-  canvas.addEventListener('pointermove',event => {
-    if (direct?.id !== event.pointerId) return;
-    if (!direct.moved && Math.hypot(event.clientX-direct.x,event.clientY-direct.y) < 4) return;
-    pointRay(event);
-    if (!ray.ray.intersectPlane(plane,planeHit)) return;
-    direct.moved = true;
-    host.dataset.dragging = 'true';
-    anchor.position.copy(planeHit.add(direct.offset));
-    updatePreview();
-  });
-
-  function stopDirect() {
-    if (!direct) return false;
-    const {id,moved} = direct;
-    direct = null;
-    delete host.dataset.dragging;
-    if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
-    canvas.style.cursor = mode === 'move' ? 'grab' : 'default';
-    return moved;
+    return !fixed && (mode === 'move' || pickedVertex !== null);
   }
 
-  function cancelDrag() {
-    if (!direct && !gizmo.dragging) return;
-    stopDirect();
-    gizmo.dragging = false;
-    gizmo.axis = null;
-    clearPreview();
-    const prop = propSelected();
-    if (prop) poseProp(required(propModels.get(prop.id),'prop'),prop,city.groundAt);
-    refreshSelection();
-  }
-
-  canvas.addEventListener('pointerup',event => {
-    if (direct?.id !== event.pointerId) return;
-    if (stopDirect()) commit(draft(position(),anchor.rotation.y));
-    event.stopImmediatePropagation();
-  },{capture:true});
-
-  canvas.addEventListener('pointerdown',event => {
-    if (!event.isPrimary || event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey) return;
-    clickStart = {x:event.clientX,y:event.clientY,id:event.pointerId,gizmo:gizmo.dragging};
-  });
-  canvas.addEventListener('pointercancel',() => { clickStart = null; cancelDrag(); });
-  canvas.addEventListener('lostpointercapture',event => { if (direct?.id === event.pointerId) cancelDrag(); });
-  window.addEventListener('blur',cancelDrag);
-
-  canvas.addEventListener('pointerup',event => {
-    const start = clickStart;
-    clickStart = null;
-    if (!start || start.id !== event.pointerId || start.gizmo
-      || Math.hypot(event.clientX-start.x,event.clientY-start.y) > 5) return;
-    pointRay(event);
+  function clickScene(ray: T.Raycaster){
     if (placing) {
-      const hit = ray.intersectObject(city.group,true).find(({object,face}) =>
+      const hit = ray.intersectObject(view.city.group,true).find(({object,face}) =>
         object instanceof T.Mesh && face && object.geometry.getAttribute('surface')?.getX(face.a) === GROUND_SURFACE);
       const position: Point | null = hit ? [round(hit.point.x),round(-hit.point.z)] : null;
       if (!position || !inPilot(data,position)) { message.textContent = 'Choose a point inside the map.'; return; }
       const prop: MapProp = {id:crypto.randomUUID(),kind:catalog.value as PropKind,position,yaw:0};
       selected = {prop:prop.id}; placing = false; mode = 'move';
-      commit({...edits,props:[...edits.props,prop]});
-    } else if (!pick()) {
+      commit({...history.current,props:[...history.current.props,prop]});
+    } else if (!pick(ray)) {
       selected = null;
       message.textContent = '';
+      refreshSelection();
+    }
+  }
+
+  const pointerEditing = bindPointerEditing({
+    host,canvas,scene,camera,controls,gizmo,anchor,pick,
+    isPlacing: () => placing,
+    idleCursor: () => mode === 'move' ? 'grab' : 'default',
+    select: selectPicked,
+    click: clickScene,
+    preview: updatePreview,
+    commit: () => commit(draft(position(),anchor.rotation.y)),
+    restore(){
+      view.clearPreview();
+      const prop = propSelected();
+      if (prop) view.poseProp(prop);
       refreshSelection();
     }
   });
@@ -480,7 +323,7 @@ async function start() {
 
   function frameSelection() {
     if (!selected) return;
-    const target = 'part' in selected ? pickables.children[selected.part] : propModels.get(selected.prop);
+    const target = 'part' in selected ? view.buildingMesh(selected.part) : view.propModel(selected.prop);
     if (!target) return;
     const box = new T.Box3().setFromObject(target), size = box.getSize(new T.Vector3());
     showView(box.getCenter(new T.Vector3()),camera.position.clone().sub(controls.target),
@@ -494,30 +337,31 @@ async function start() {
   button('overview').onclick = () => showView(overviewTarget,overviewOffset,overviewZoom());
   vertexSelect.onchange = () => { vertex = Number(vertexSelect.value); refreshSelection(); };
   button('place').onclick = () => { placing = !placing; refreshSelection(); };
-  button('remove').onclick = () => { const prop = propSelected(); if (prop) commit({ ...edits, props: edits.props.filter(p => p.id !== prop.id) }); };
+  button('remove').onclick = () => {
+    const prop = propSelected(), edits = history.current;
+    if (prop) commit({ ...edits, props: edits.props.filter(p => p.id !== prop.id) });
+  };
   ui<HTMLFormElement>('coordinates').onsubmit = event => {
     event.preventDefault();
     commit(draft(mode === 'rotate' ? position() : [east.valueAsNumber,north.valueAsNumber],angle(yaw.valueAsNumber)));
   };
-  function step(from: PilotEdits[], to: PilotEdits[]) {
-    const next = from.pop();
-    if (!next) return;
-    to.push(edits);
-    show(next);
+  function step(direction: 'undo' | 'redo') {
+    if (!history[direction]()) return;
+    show();
     message.textContent = '';
   }
-  button('undo').onclick = () => step(undo,redo);
-  button('redo').onclick = () => step(redo,undo);
+  button('undo').onclick = () => step('undo');
+  button('redo').onclick = () => step('redo');
   window.addEventListener('keydown',event => {
     if (event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
     if (event.key === 'Escape') {
-      if (direct || gizmo.dragging) { cancelDrag(); return; }
+      if (pointerEditing.active) { pointerEditing.cancel(); return; }
       if (placing) placing = false;
       else selected = null;
       refreshSelection();
       return;
     }
-    if (direct || gizmo.dragging) return;
+    if (pointerEditing.active) return;
     if (!event.ctrlKey && !event.metaKey && !event.altKey) {
       const tools = {q:'select',w:'move',v:'vertices',e:'rotate'} as const;
       const key = event.key.toLowerCase();
@@ -526,7 +370,7 @@ async function start() {
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault();
-      if (event.shiftKey) step(redo,undo); else step(undo,redo);
+      step(event.shiftKey ? 'redo' : 'undo');
     }
   });
   button('open').onclick = () => file.click();
@@ -544,12 +388,12 @@ async function start() {
     finally { file.value = ''; importing = false; button('open').disabled = false; }
   };
   button('save').onclick = () => {
-    const href = URL.createObjectURL(new Blob([JSON.stringify(edits,null,2)+'\n'],{ type:'application/json' }));
+    const href = URL.createObjectURL(new Blob([JSON.stringify(history.current,null,2)+'\n'],{ type:'application/json' }));
     const link = document.createElement('a');
     link.download = 'las-palmas-pilot-edits.json'; link.href = href; link.click();
     setTimeout(() => URL.revokeObjectURL(href),1000);
   };
-  show(edits);
+  show();
   message.textContent = '';
 }
 

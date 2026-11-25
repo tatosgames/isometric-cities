@@ -1,5 +1,7 @@
 # Checkpoint
 
+Il viewer ha moduli dedicati per il caricamento iniziale e i calcoli della camera. L'editor separa cronologia, bozza, mesh e gesti. Le prove dell'editor coprono anche l'annullamento del trascinamento alla perdita del focus o della cattura del puntatore. [Verifica locale](docs/QA.md).
+
 **A · Santa Ana.** Quadrato 650 × 650 m. Acquisiti 1.059 record comunali, vie OSM e MDT05. Primo confronto neutro/stilizzato completato. Il massimo dell’intero fabbricato nascondeva le torri della cattedrale. Divisi i volumi in base all’impronta della chiesa e ripetute le catture. Per Casa de Colón sono stati esclusi i cortili prima di collocare il punto.
 
 **B · Vegueta–Triana.** Acquisiti 1.047 record comunali nel rettangolo di ricerca finale. Dopo il ritaglio e la separazione dei volumi si disegnano 828 parti di edificio, 388 tratti stradali, 95 superfici e 684 alberi. Sei POI verificati, scena locale, controlli e build testati. [Rapporto e immagini](docs/QA.md).

@@ -1,11 +1,12 @@
-import { isCity, isPlaces, isRoofPalette, isSea, isSectorIndex, loadCore, loadData, parseViewState } from './data/load.ts';
-import { validateSectorIndex } from './data/sector-index.ts';
+import { parseViewState } from './data/load.ts';
 import type { ViewState, ZoneData } from './data/types.ts';
 import { element as el } from './map/dom.ts';
 import { required } from './required.ts';
 import { lodTransition } from './render/sectors/lod-transition.ts';
 import { streamCity } from './render/sectors/sector-stream.ts';
 import { createPlacesUI } from './map/places-ui.ts';
+import { loadStartupData } from './map/load-startup-data.ts';
+import { coastWindow, measureCoast, sampleFlight, type DragSample, type Flight } from './map/motion.ts';
 import * as T from 'three';
 import { makeCity } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
@@ -16,21 +17,10 @@ import { propObstacles } from './render/port-props.ts';
 import { makeMapFraming, normalizeTurn } from './map/framing.ts';
 import { approach, wrapAngle } from './geometry.ts';
 import { CAMERA_DISTANCE, GroundControls, fitPixels, makeMapCamera, mapViewDirection, screenOffsetOnGround } from './render/map-camera.ts';
-import { bootError, bootEvent, bootPaint, bootPhase, bootProgress, booting, startup } from './boot.ts';
-
-interface Flight {
-  start: number; duration: number;
-  from: T.Vector3; to: T.Vector3;
-  z0: number; z1: number;
-  turn0: number; turn1: number;
-  /** Where the target sits on screen, in pixels from the centre: beside an open place card. */
-  s0: T.Vector2; s1: T.Vector2;
-  driveOrbit: T.Spherical | undefined;
-}
+import { bootError, bootEvent, bootPaint, bootPhase, bootProgress, booting, openingFrame, startup } from './boot.ts';
 
 const turnDuration=300;
-// After a drag the map glides on at the speed of the last 100 ms of the gesture and slows by this rate per second.
-const coastRate=6,coastWindow=100;
+const coastRate=6;
 const map=el('map');
 
 async function start(){
@@ -44,33 +34,10 @@ async function start(){
   const {signal}=startup;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
   const stage=query.get('area')==='stress'?'stress':'city';
-  const withSea=!pilot && !neutral && stage==='city';
-  const tasks=(pilot?2:3)+Number(!neutral)+Number(withSea);
-  let completed=0;
-  const waiting=new Set<string>();
-  const downloading=()=>bootPhase(waiting.size?'Descargando: '+[...waiting].join(', '):'Datos recibidos');
-  function track<T>(job: Promise<T>,label: string){
-    waiting.add(label);downloading();
-    return job.then(result=>{
-      waiting.delete(label);downloading();
-      bootProgress(12+Math.round(34*++completed/tasks));
-      return result;
-    });
-  }
-  function startupData<T>(file: string, valid: (value: unknown)=>value is T){
-    return track(loadData(file,valid,signal,true),file.replace(/\.\w+$/,''));
-  }
-  const pilotPreview=pilot && query.has('editorPreview')
-    ? track(import('./editor/pilot-preview.ts').then(({loadEditedPilot})=>loadEditedPilot(el('status'),signal,
-      waiting=>bootEvent(waiting?'picker':'resume'))),'editor') : null;
-  const [core,single,poi,{tones},index,sea,edited]=await Promise.all([
-    pilot?null:track(loadCore(stage,signal),'ciudad y terreno'),pilot&&!pilotPreview?startupData('pilot.json',isCity):null,startupData('poi.geojson',isPlaces),
-    neutral?{tones:null}:startupData('roof-tones.json',isRoofPalette),pilot?null:startupData(stage+'-index.json',isSectorIndex),
-    withSea?startupData('sea.json',isSea):null,pilotPreview
-  ]);
+  const {data,core,poi,tones,index,sea,edited}=await loadStartupData({
+    pilot,editorPreview:query.has('editorPreview'),neutral,stage,signal
+  });
   signal.throwIfAborted();
-  const data=required(core??single??edited?.data,'map data');
-  if(index)validateSectorIndex(index);
   performance.mark('atlas:startup-data');
   bootPhase('Preparando la ciudad');
   await bootPaint();
@@ -120,11 +87,12 @@ async function start(){
   let flight: Flight | null=null;
   // The glide after a drag: ground velocity in metres per second, and where the gesture went lately.
   let coasting=false,coastTime=0;
-  const coastVelocity=new T.Vector3(),trail: {t: number;x: number;z: number;zoom: number}[]=[];
+  const coastVelocity=new T.Vector3(),trail: DragSample[]=[];
   const shift=new T.Vector2(),toCamera=new T.Vector3(),centre=new T.Vector3();
   let lastView: ViewState | null=null;
   let drive: ReturnType<typeof makeDrive> | null=null,awaitingZone=false;
-  let openingDeadline=0,openingTimer=0,playRequestedAt=0;
+  const openingView=openingFrame(draw);
+  let playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
   const places=createPlacesUI(locations,altitude,(_id,point,frame)=>{
@@ -170,16 +138,10 @@ async function start(){
     while(trail.length>2 && t-trail[1].t>coastWindow)trail.shift();
   }
   function launch(){
-    const now=inputTime,last=trail.at(-1);
-    // The moves of the last 100 ms, or the last two when a long frame left only one in that window.
-    let first=trail.find(p=>now-p.t<=coastWindow && p.zoom===last?.zoom);
-    const previous=trail.at(-2);
-    if(first===last && previous && previous.zoom===last?.zoom && last.t-previous.t<=3*coastWindow)first=previous;
+    const measured=measureCoast(trail,inputTime,coastVelocity);
     trail.length=0;
     // A finger that rested before lifting, or a pinch, leaves the map where it is.
-    if(!last || !first || last===first || now-last.t>80)return;
-    coastVelocity.set(last.x-first.x,0,last.z-first.z).divideScalar((last.t-first.t)/1000);
-    if(coastVelocity.length()*camera.zoom<60)return;
+    if(!measured || coastVelocity.length()*camera.zoom<60)return;
     coasting=true;coastTime=0;draw();
   }
   function view(target: T.Vector3,zoom: number,offset=mapDirection(mapTurn)){
@@ -260,7 +222,7 @@ async function start(){
   }
   const status=el('status');
   signal.addEventListener('abort',()=>{
-    clearTimeout(openingTimer);
+    openingView.cancel();
     cancelAnimationFrame(frame);
     streamed?.suspend();
     controls.dispose();
@@ -335,12 +297,11 @@ async function start(){
       if(coastVelocity.length()*camera.zoom<8){coasting=false;settle();}else draw();
     }
     if(flight){
-      const t=T.MathUtils.clamp((time-flight.start)/flight.duration,0,1),ease=t*t*(3-2*t);
+      const {t,ease,turn,zoom}=sampleFlight(flight,time);
       if(!flight.s0.equals(flight.s1) || !shift.equals(flight.s1)){
         shift.lerpVectors(flight.s0,flight.s1,ease);fitPixels(camera,host.clientWidth,host.clientHeight,shift);
       }
-      mapTurn=t>=1?normalizeTurn(flight.turn1):T.MathUtils.lerp(flight.turn0,flight.turn1,ease);
-      const zoom=flight.z0===flight.z1?flight.z0:Math.exp(T.MathUtils.lerp(Math.log(flight.z0),Math.log(flight.z1),ease));
+      mapTurn=turn;
       let offset=mapDirection(mapTurn);
       const orbit=flight.driveOrbit;
       if(orbit && t<1){
@@ -387,27 +348,7 @@ async function start(){
     places.project(camera);
     if(map.dataset.boot==='ready'){
       host.dataset.view=[middle.x,middle.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
-    }else if(opening){
-      const now=performance.now();
-      if(!openingDeadline){
-        performance.mark('atlas:startup-base-frame');
-        openingDeadline=now+4000;
-        openingTimer=window.setTimeout(draw,4000);
-        bootProgress(84);
-        bootPhase('Cargando el barrio');
-      }
-      if(level?.zoneReady)bootProgress(92);
-      // The map opens on the silhouettes of the quarter: the detail of the first sector fades in over them a moment
-      // later, as it does everywhere else, instead of holding the start.
-      const streamReady=!level || level.zoneReady;
-      if(streamReady || now>=openingDeadline){
-        clearTimeout(openingTimer);
-        performance.mark(streamReady?'atlas:startup-stream-ready':'atlas:startup-stream-fallback');
-        performance.mark('atlas:startup-ready-frame');
-        bootProgress(100);
-        bootEvent('reveal');
-      }
-    }
+    }else if(opening)openingView.painted(level?.zoneReady);
   }
   // Wind and cloud shadows keep moving while the view rests. A resting map repaints at 30 frames a second
   // at most, with the camera, sectors and pins left as the last full frame set them; a hidden tab stops
@@ -463,7 +404,7 @@ async function start(){
       return;
     }
     flight=null;places.close();required(document.querySelector('nav'),'navigation').classList.remove('open');
-    beforeDrive={target:controls.target.clone(),zoom:camera.zoom};coasting=false;
+    beforeDrive={target:controls.target.clone(),zoom:camera.zoom};
     controls.enabled=false;controls.maxZoom=Infinity;map.classList.add('driving');
   }
   play.onclick=()=>{

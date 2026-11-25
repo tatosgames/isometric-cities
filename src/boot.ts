@@ -43,6 +43,33 @@ export function bootProgress(percent: number){
   progress.style.setProperty('--boot-progress',String(percent));
   progress.setAttribute('aria-valuenow',String(percent));
 }
+export function openingFrame(draw: () => void){
+  let deadline=0,timer=0;
+  const cancel=()=>clearTimeout(timer);
+  return {
+    cancel,
+    painted(zoneReady: boolean | undefined){
+      const now=performance.now();
+      if(!deadline){
+        performance.mark('atlas:startup-base-frame');
+        deadline=now+4000;
+        timer=window.setTimeout(draw,4000);
+        bootProgress(84);
+        bootPhase('Cargando el barrio');
+      }
+      if(zoneReady)bootProgress(92);
+      // The silhouettes can appear while sector detail is still loading.
+      const ready=zoneReady!==false;
+      if(ready || now>=deadline){
+        cancel();
+        performance.mark(ready?'atlas:startup-stream-ready':'atlas:startup-stream-fallback');
+        performance.mark('atlas:startup-ready-frame');
+        bootProgress(100);
+        bootEvent('reveal');
+      }
+    }
+  };
+}
 export function bootError(error: unknown){
   if(startup.signal.aborted)return;
   console.error(error);

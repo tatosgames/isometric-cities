@@ -1,5 +1,13 @@
 # Verifica locale · 21 novembre 2026
 
+## Avvio del viewer e modifiche del pilota · 25 novembre 2026
+
+Il viewer carica i dati iniziali in `load-startup-data.ts`. La decisione di apertura usa l'esito dello streaming dopo il disegno del frame. `motion.ts` calcola la velocità al rilascio e l'interpolazione del volo, con la posa applicata dal viewer.
+
+L'editor separa cronologia, bozza, mesh del pilota e gestione del puntatore. `qa-editor.mjs` verifica anche che la perdita del focus o della cattura durante un trascinamento scarti l'anteprima e che un commit equivalente o invalido consenta ancora il redo.
+
+Verificati TypeScript, build con controllo dei dati, suite completa desktop e mobile emulato, `qa-editor` in sviluppo e sulla build, `qa-boot`, `qa-map-camera`, `qa-main-lod`, `qa-drive-lab` e `qa-recovery`. Controllate le catture di apertura desktop e di Triana con la scheda aperta su mobile.
+
 ## Guida unica e laboratorio di taratura · 25 novembre 2026
 
 La guida della drift-racer è l'unica: `?handling` è stato tolto insieme al modello precedente. `steerCar` in `drive-physics.ts` serve giocatore e pattuglie con due profili della stessa forma, `TUNE.player` e `TUNE.patrol`; lo stato di sterzo (volante, marcia, tempo di derapata, aderenza extra) sta in ogni auto. La sezione qui sotto descrive il modello; dove cita `?handling=drift`, `steerDrift`, `TUNE.drift` e `qa-drive-drift.mjs` vale questa.

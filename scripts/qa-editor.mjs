@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {launchBrowser} from './qa-browser.mjs';
 import { BufferGeometry, Float32BufferAttribute, Mesh, OrthographicCamera, Vector3 } from 'three';
 import { previewBuilding } from '../src/editor/building-drag.ts';
+import { makeEditHistory } from '../src/editor/edit-history.ts';
 import { createServer } from 'vite';
 import { applyPilotEdits, isFixedBuilding, readPilotEdits } from '../src/data/pilot-edits.ts';
 import { ringCenter } from '../src/data/sector-index.ts';
@@ -140,6 +141,22 @@ try {
   assert.equal((await save(page)).footprints.length,0);
 
   await directMove();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.mouse.up();
+  assert.equal((await save(page)).footprints.length,0,'Blurring during a drag discards the preview');
+
+  await page.evaluate(() => {
+    window.addEventListener('pointerdown',event => { window.editorTestPointer = event.pointerId; },{capture:true,once:true});
+  });
+  await directMove();
+  await page.evaluate(() => document.querySelector('canvas').releasePointerCapture(window.editorTestPointer));
+  // The browser delivers lostpointercapture before processing the next pointer event.
+  await page.mouse.move(...chosen.grab);
+  await page.locator('#viewport:not([data-dragging])').waitFor();
+  await page.mouse.up();
+  assert.equal((await save(page)).footprints.length,0,'Losing pointer capture discards the preview');
+
+  await directMove();
   await page.mouse.up();
   const directlyMoved = (await save(page)).footprints[0];
   assert.ok(Math.abs(ringCenter(directlyMoved.rings[0])[0]-start[0]-8) < .15);
@@ -211,6 +228,16 @@ try {
   assert.deepEqual(patch.footprints[0].rings[1][0],chosen.point);
   assert.deepEqual(patch.footprints[0].rings[1].at(-1),chosen.point);
   assert.deepEqual(patch.props.map(p => p.kind),['planter']);
+
+  const history = makeEditHistory(base);
+  assert.equal(history.commit(patch),true);
+  assert.equal(history.undo(),true);
+  assert.equal(history.commit(empty),false);
+  assert.throws(() => history.commit({...patch,base:'other'}),/different version/);
+  assert.deepEqual(history.current,empty);
+  assert.equal(history.canUndo,false);
+  assert.equal(history.redo(),true,'No-op and invalid commits preserve redo');
+  assert.deepEqual(history.current,patch);
 
   const fresh = await browser.newPage({ viewport:{width:1400,height:950} });
   observe(fresh);
