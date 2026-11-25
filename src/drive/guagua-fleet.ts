@@ -10,10 +10,23 @@ interface Bundle {paths:GuaguaData['path'][];runs:{path:number;stops:GuaguaData[
 type Clock=ReturnType<typeof busTimetable>;
 interface Bus {
   id:string;line:string;direction:string;state:BusState;
-  clock:Clock; age:number; next:BusState; ahead:BusState;
+  clock:Clock; progress:number; waiting:number; next:BusState; ahead:BusState;
 }
 const ACQUIRE=300,RELEASE=450,MAX_BUSES=6;
+const CRUISE_SPEED=6;
 const dist2=(x:number,y:number,p:BusState)=>(x-p.x)**2+(y-p.y)**2;
+
+function circuitLength(clock:Clock){return clock.loop?clock.length:2*clock.length;}
+
+function sampleMotion(clock:Clock,progress:number,out:BusState){
+  const offset=progress%circuitLength(clock);
+  const returning=offset>=clock.length;
+  clock.sampleAtDistance(returning?2*clock.length-offset:offset,out);
+  if(returning)out.h=Math.atan2(-Math.sin(out.h),-Math.cos(out.h));
+  out.speed=CRUISE_SPEED;
+  out.stopped=0;
+  out.braking=false;
+}
 
 export function validFleetIndex(value:unknown):value is Index{
   if(!value || typeof value!=='object')return false;
@@ -146,7 +159,11 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
         if(age>clock.duration+.00001)continue;
         const state=clock.sample(age,emptyBusState());
         if(dist2(px,py,state)>ACQUIRE**2 || (!initial && visible(state.x,state.y)) || occupied(state.x,state.y,state.h))continue;
-        candidates.set(id,{id,line:ref.line,direction:ref.direction,clock,age,state,next:emptyBusState(),ahead:emptyBusState()});
+        // Published time intervals select the entering pose. Once admitted, the
+        // vehicle continues along the polyline without timetable dwells.
+        const progress=state.distance;
+        sampleMotion(clock,progress,state);
+        candidates.set(id,{id,line:ref.line,direction:ref.direction,clock,progress,state,waiting:0,next:emptyBusState(),ahead:emptyBusState()});
       }
     }
     const sorted=[...candidates.values()].sort((a,b)=>dist2(px,py,a.state)-dist2(px,py,b.state)||a.id.localeCompare(b.id));
@@ -184,16 +201,19 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
   function step(dt:number,x:number,y:number){
     if(disposed || !directory || dt<=0)return;
     elapsed+=dt;px=x;py=y;
-    for(const b of active)b.clock.sample(b.age+1.25,b.ahead);
+    for(const b of active)sampleMotion(b.clock,b.progress+CRUISE_SPEED*1.25,b.ahead);
     // Following applies across line numbers. At crossings reserve the approach for
     // the nearer vehicle; use its passage ID when both are equally far from entry.
     for(let i=0;i<active.length;i++){
       const bus=active[i],pose=bus.state;
-      if(bus.age>=bus.clock.duration || dist2(x,y,pose)>RELEASE**2){
+      const advance=CRUISE_SPEED*dt;
+      let progress=bus.progress+advance;
+      const endOfLeg=Math.floor(progress/bus.clock.length)>Math.floor(bus.progress/bus.clock.length);
+      if(endOfLeg || dist2(x,y,pose)>RELEASE**2){
         if(!visible(pose.x,pose.y) && !occupied(pose.x,pose.y,pose.h)){active.splice(i--,1);continue;}
       }
-      bus.clock.sample(bus.age+dt,bus.next);
-      const blocked=active.some(other=>{
+      sampleMotion(bus.clock,progress,bus.next);
+      let blocked=active.some(other=>{
         if(other===bus || dist2(pose.x,pose.y,other.state)>24**2)return false;
         if(overlap(bus.next,other.state) || overlap(bus.ahead,other.state))return true;
         if(!overlap(bus.ahead,other.ahead))return false;
@@ -202,10 +222,26 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
         const theirs=-dx*Math.cos(other.state.h)-dy*Math.sin(other.state.h);
         return approach>theirs+.1 || (Math.abs(approach-theirs)<=.1 && bus.id>other.id);
       });
+      // Two buses can meet on the same stretch after a turnaround. Let a
+      // yielding bus take the other direction if it has room behind it.
+      if(blocked && !bus.clock.loop && bus.waiting>=2){
+        const length=circuitLength(bus.clock),retreat=(length-bus.progress+advance)%length;
+        sampleMotion(bus.clock,retreat,bus.next);
+        if(!active.some(other=>other!==bus && overlap(bus.next,other.state))){
+          progress=retreat;
+          blocked=false;
+        }
+      }
       if(blocked){
+        bus.waiting+=dt;
         pose.speed=0;pose.braking=true;
       }else{
-        bus.age+=dt;Object.assign(pose,bus.next);
+        bus.waiting=0;
+        // A step can straddle a turnaround. Face the actual displacement
+        // until the sampled path tangent and travel direction agree again.
+        const dx=bus.next.x-pose.x,dy=bus.next.y-pose.y;
+        if(dx*Math.cos(bus.next.h)+dy*Math.sin(bus.next.h)<0)bus.next.h=Math.atan2(dy,dx);
+        bus.progress=progress%circuitLength(bus.clock);Object.assign(pose,bus.next);
       }
     }
     if(elapsed>=nextScan){nextScan=elapsed+.5;void select(false);}

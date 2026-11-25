@@ -56,13 +56,19 @@ export function busTimetable(data:GuaguaData){
       else if(braking){speed=BRAKE*(leg.arrive-time);d=leg.to-.5*speed*(leg.arrive-time);}
       else{speed=leg.peak;d=leg.from+speed*(t-leg.accelerating/2);}
     }
-    const i=Math.max(1,firstAtLeast(ends,d)),a=data.path[i-1],b=data.path[i];
-    const u=(d-ends[i-1])/(ends[i]-ends[i-1]);
-    out.x=a[0]+(b[0]-a[0])*u;out.y=a[1]+(b[1]-a[1])*u;
-    out.h=Math.atan2(b[1]-a[1],b[0]-a[0]);out.distance=d;out.speed=speed;
+    sampleAtDistance(d,out);
+    out.speed=speed;
     out.stopped=time>=leg.arrive?Math.min(DWELL,Math.max(0,leg.leave-time)):0;out.braking=braking;
     return out;
   }
-  return {timeAt,sample,length,duration:depart};
+  function sampleAtDistance(d:number,out:BusState){
+    const i=Math.max(1,firstAtLeast(ends,d)),a=data.path[i-1],b=data.path[i];
+    const u=(d-ends[i-1])/(ends[i]-ends[i-1]);
+    out.x=a[0]+(b[0]-a[0])*u;out.y=a[1]+(b[1]-a[1])*u;
+    out.h=Math.atan2(b[1]-a[1],b[0]-a[0]);out.distance=d;
+    return out;
+  }
+  const first=data.path[0],last=data.path[data.path.length-1];
+  return {timeAt,sample,sampleAtDistance,length,duration:depart,loop:first[0]===last[0] && first[1]===last[1]};
 }
 export const emptyBusState=():BusState=>({x:0,y:0,h:0,distance:0,speed:0,stopped:0,braking:false});

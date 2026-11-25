@@ -1127,7 +1127,7 @@ npm.cmd test
 node scripts/qa-guagua-browser.mjs
 ```
 
-La prova browser dedicata parte vicino alla prima fermata, con le richieste esterne bloccate, su desktop e telefono emulato. Osserva entrambe le soste e ripartenze e riporta la partita all'inizio. Le catture della prima sosta sono in `.cache/qa-guaguas/`. Per una prova manuale aprire `index.html?lab=guida&area=pilot&start=-60,-818` e scegliere la vista aerea con il pulsante della camera.
+La prova browser dedicata parte vicino alla prima fermata, con le richieste esterne bloccate, su desktop e telefono emulato. Verifica il passaggio in movimento oltre entrambe le fermate e riporta la partita all'inizio. Le catture del primo passaggio sono in `.cache/qa-guaguas/`. Per una prova manuale aprire `index.html?lab=guida&area=pilot&start=-60,-818` e scegliere la vista aerea con il pulsante della camera.
 
 [Guagua e auto alla prima fermata, vista aerea del pilota](screenshots/guagua-vegueta.png).
 
@@ -1178,11 +1178,15 @@ Limiti. `qa-drive-lab.mjs` fallisce sull'URL dei valori (`t=player.baseSpeed:30`
 
 ## Guaguas locali in Conducir · rete cittadina
 
+La prova `qa-guagua-local.mjs` verifica che la stessa guagua continui a muoversi dopo più inversioni in vista, passi le fermate e riparta dopo un incontro frontale. La prova `qa-guagua-browser.mjs` segue la linea 13 oltre entrambe le fermate sul desktop e sul telefono emulato.
+
+Una simulazione di 90 s con i dati pubblicati a Hoya de La Plata, visuale fissa su `-296,-3975` e raggio di 90 m, ha registrato un’attesa massima di 2,02 s per precedenza. Nei 18.059 campioni con spostamento il muso ha seguito la direzione di marcia.
+
 Il feed del 25 novembre produce 117 varianti di servizio su 111 tracciati. La città ammette 666,6 degli 822,1 km GTFS interni, contando ciascuna variante; serve 534 fermate distinte di 46 linee. Nel pilota risultano 9,7 km su 13,4, con 12 linee e 12 fermate. La verifica usa la carreggiata del plastico e l’intero ingombro del veicolo nelle curve. Gli 8.299 tratti cittadini terminano anche dove la verifica interrompe una corsa. Originare due reti dallo stesso ZIP e dagli stessi estratti OSM ha dato file identici. [Rapporto per linea, direzione e lacune per barrio](../public/data/guaguas/city/coverage.json).
 
 Il controllo di build confronta le finestre temporali di ogni cella calcolate in Python con l’orologio TypeScript e verifica la copertura continua delle distanze. Le prove di simulazione verificano sosta di tre secondi, code fra linee diverse, precedenza a un incrocio, limite di sei bus, riapparizione fuori campo, annullamento dei caricamenti e zero aggiornamenti di un bus rilasciato. Un archivio invalido e un’interruzione durante lo scambio dei manifest lasciano utilizzabile la rete precedente.
 
-Le prove Playwright usano Chrome desktop e telefono emulato con richieste esterne bloccate. Verificano la partenza riproducibile a Vegueta, entrambe le soste, l’attivazione locale a Pedro Hidalgo, l’assenza di mezzi in Calle Coronel Rocha e la guida con un pacchetto mancante. Aprire la sola mappa genera zero richieste di dati guagua. [Link di prova e comandi](GUAGUAS.md).
+Le prove Playwright usano Chrome desktop e telefono emulato con richieste esterne bloccate. Verificano la partenza riproducibile a Vegueta, l’attivazione locale a Pedro Hidalgo, l’assenza di mezzi in Calle Coronel Rocha e la guida con un pacchetto mancante. Aprire la sola mappa genera zero richieste di dati guagua. [Link di prova e comandi](GUAGUAS.md).
 
 A Triana, su telefono emulato con partenza e input ripetuti, quattro corse alternate con e senza flotta danno un p90 di 16,8 ms per fotogramma in entrambe le configurazioni. I disegni WebGL per fotogramma al p90 passano da 62 a 69. Con sei bus attivi il p90 del lavoro CPU strumentato della flotta è 0,1 ms. Queste misure riguardano Chrome su questa macchina; il telefono fisico resta da misurare.
 

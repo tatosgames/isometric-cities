@@ -135,15 +135,31 @@ async function twoBuses(paths){
 {
   const queue=await twoBuses({front:[[[0,0],[100,0]],[{id:'stop',name:'Stop',position:[30,0],distance:30}]],
                              rear:[[[-12,0],[90,0]],[]]});
-  let waited=false;
   for(let i=0;i<14*120;i++){
     queue.step(1/120,0,0);
     const front=queue.active.find(b=>b.line==='front').state,rear=queue.active.find(b=>b.line==='rear').state;
     assert.ok(front.x-rear.x>=7.2,'Queued buses touch');
-    if(rear.distance>0 && rear.speed===0 && rear.braking)waited=true;
+    assert.equal(front.stopped,0,'The service stop should never cause a dwell in Conducir');
   }
-  assert.ok(waited && queue.active.find(b=>b.line==='rear').state.x>30,'Queue should yield and clear the stop');
+  assert.ok(queue.active.find(b=>b.line==='rear').state.x>30,'Both buses should clear the stop');
   queue.dispose();
+}
+{
+  const route=pieceData(0,24,[{id:'s1',name:'Stop',position:[12,0],distance:12}]);
+  const fixture=makeFixture({cells:{'0_0':[['p',0,24]]},files:{'p.json':route}});
+  const fleet=makeLocalFleet('pilot',()=>true,noOccupancy,fixture.fetcher);
+  await fleet.reset(0,0);
+  const bus=fleet.active[0];
+  for(let i=1;i<=12;i++){
+    const before=bus.state.x;
+    fleet.step(1,0,0);
+    assert.equal(fleet.active[0],bus,'Keep the same bus through visible turnarounds');
+    assert.equal(bus.state.x,24-Math.abs((i*6)%48-24));
+    assert.equal(bus.state.speed,6);
+    assert.equal(bus.state.stopped,0);
+    assert.equal(Math.sign(Math.cos(bus.state.h)),Math.sign(bus.state.x-before));
+  }
+  fleet.dispose();
 }
 {
   const crossing=await twoBuses({east:[[[-20,0],[50,0]],[]],north:[[[0,-20],[0,50]],[]]});
@@ -154,6 +170,30 @@ async function twoBuses(paths){
   }
   assert.ok(crossing.active.every(b=>b.state.distance>40),'Both routes should clear the intersection');
   crossing.dispose();
+}
+{
+  const fleet=await twoBuses({east:[[[0,0],[100,0]],[]],west:[[[100,0],[0,0]],[]]});
+  let crossedHeadings=false,resumed=false;
+  for(let i=0;i<15*120;i++){
+    fleet.step(1/120,0,0);
+    const east=fleet.active.find(b=>b.line==='east').state,west=fleet.active.find(b=>b.line==='west').state;
+    assert.ok(west.x-east.x>=7.2,'Head-on buses must not touch');
+    if(east.speed===0 && west.speed===0)crossedHeadings=true;
+    if(crossedHeadings && east.speed>0 && west.speed>0)resumed=true;
+  }
+  assert.ok(resumed,'Head-on buses should find room to turn and clear the blockage');
+  fleet.dispose();
+}
+{
+  const route={...pieceData(0,24,[]),path:[[0,0],[12,0],[12,12],[0,12],[0,0]]};
+  const fixture=makeFixture({cells:{'0_0':[['p',0,48]]},files:{'p.json':route}});
+  const fleet=makeLocalFleet('pilot',()=>true,noOccupancy,fixture.fetcher);
+  await fleet.reset(0,0);
+  const bus=fleet.active[0];
+  for(let i=0;i<9;i++)fleet.step(1,0,0);
+  assert.equal(fleet.active[0],bus);
+  assert.deepEqual([bus.state.x,bus.state.y,bus.state.h],[6,0,0],'Closed routes continue forward across the seam');
+  fleet.dispose();
 }
 async function resumeOnReturn(){
   const fixture=makeFixture();
@@ -199,4 +239,4 @@ await resumeOnReturn();
   assert.equal(fixture.calls.filter(url=>url.endsWith('/p.json')).length,1);
   fleet.dispose();
 }
-console.log('Guagua local fleet QA passed (dwell, cap, crossings, zone transition, offscreen return and disposal)');
+console.log('Guagua local fleet QA passed (continuous motion, turnarounds, crossings, zone transition, offscreen return and disposal)');

@@ -188,6 +188,8 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 
 **Rete guaguas in Conducir.** Entrando in guida si caricano indice e strade del quartiere. Fino a sei bus percorrono i tratti verificati di 46 linee nella città, con numeri reali sul display e frequenze di gioco. Su 822,1 km GTFS interni al plastico, contando separatamente le varianti, 666,6 km sono utilizzabili e 534 fermate sono servite. Nel pilota sono attive 12 linee. Le interruzioni per geometria o carreggiata sono localizzate nei rapporti. [Prova Vegueta, Pedro Hidalgo e Triana](docs/GUAGUAS.md) · [Copertura cittadina](public/data/guaguas/city/coverage.json).
 
+**Guaguas in movimento continuo.** In Conducir i bus passano le fermate senza sostare. Un percorso chiuso continua in avanti, su un tratto aperto il bus visibile gira e ripercorre la strada. Le precedenze fra autobus possono rallentare la marcia.
+
 **Cielo sperimentale.** Gabbiani sopra Parque Doramas e Santa Catalina e nubi mosse dallo stesso vento delle ombre. Attivi di default, disattivabili con `?sky=0`. [Controlli e guida tecnica in inglese](docs/SKY_EFFECTS.md).
 
 **Blocco sud.** La Montañeta, Marzagán, Tafira e Los Hoyos per intero, con i «Diseminado» di raccordo: città a 62,67 km², 36.321 parti di edificio, 72 barrios con nome, 110 zone e 1.290 settori. Terreno a riquadri, altezze LiDAR per 998 edifici, rete delle guaguas rigenerata. Heap dopo la raccolta 62,5 MB. Restano Tamaraceite, Almatriche, San Lorenzo, Los Giles e Tenoya a nord-ovest. [Misure e limiti](docs/QA.md#blocco-sud--25-novembre-2026)

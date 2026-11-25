@@ -27,14 +27,13 @@ try {
     await page.keyboard.down('ArrowDown');
     for(const [index,stop] of routeData.stops.entries()){
       await page.waitForFunction(target=>{
-        const bus=document.querySelector('#scene').dataset.guagua.split(',').map(Number);
-        return bus[2]===target && bus[3]===0 && bus[4]>0 && bus[5]===1;
-      },stop.distance,{timeout:150000});
+        const bus=document.querySelector('#scene').dataset.guagua?.split(',').map(Number);
+        return bus && bus[2]>=target && bus[3]>0 && bus[4]===0;
+      },stop.distance+1,{timeout:60000});
       if(index===0){
         const path=fileURLToPath(new URL(mobile?'guagua-mobile.png':'guagua-desktop.png',dir));
         await page.screenshot({path,style:'#drive-lab{visibility:hidden}'});
       }
-      await page.waitForFunction(target=>Number(document.querySelector('#scene').dataset.guagua.split(',')[2])>target+1,stop.distance,{timeout:45000});
     }
     await page.keyboard.up('ArrowDown');
     const restart=page.getByRole('button',{name:'Back to start'});
