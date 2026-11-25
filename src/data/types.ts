@@ -17,6 +17,8 @@ export interface Building {
   /** False for large public buildings: windows without the projecting balconies of housing. */
   balconies?: boolean;
   landmark?: string;
+  /** Not housing: `hall` is a shed, market or shopping centre, `block` a hospital, school or office. */
+  kind?: 'hall' | 'block';
 }
 
 export interface Road {
@@ -39,6 +41,8 @@ export interface Surface {
   id: string;
   kind: string;
   paved?: boolean;
+  /** What the area is made of, when it differs from its kind: a key of `color` in road-style.json. */
+  ground?: string;
   rings: Ring[];
 }
 

@@ -578,18 +578,18 @@
       "wallColor": "#efe4c8"
     },
     "41435": {
-      "heightOverride": 19,
-      "wallColor": "#eadfc6",
+      "wallColor": "#a8a9a7",
+      "windows": false,
       "roofFurniture": false,
       "split": {
-        "polygon": [[82.3, -158.9], [101.3, -185.9], [121.7, -171.5], [102.7, -144.5], [82.3, -158.9]],
+        "polygon": [[81.1, -159.8], [104.6, -193.3], [127.5, -177.2], [103.9, -143.6], [81.1, -159.8]],
         "inside": {
           "landmark": "teatro-perez-galdos",
-          "heightOverride": 27,
-          "wallColor": "#eadfc6",
+          "heightOverride": 17,
+          "wallColor": "#f1ead2",
           "windows": false,
           "roofFurniture": false,
-          "toneSuffix": "-escena"
+          "toneSuffix": "-sala"
         }
       }
     },
@@ -645,13 +645,15 @@
     "16440": {
       "wallColor": "#f1efe9",
       "balconies": false,
-      "roofFurniture": false
+      "roofFurniture": false,
+      "kind": "block"
     },
     "39612:-315:-2492": {
       "wallColor": "#f1efe9",
       "balconies": false,
       "roofFurniture": false,
-      "landmark": "hospital-insular"
+      "landmark": "hospital-insular",
+      "kind": "block"
     },
     "41117": {
       "landmark": "casa-de-colon",
@@ -705,6 +707,37 @@
           "toneSuffix": "-pistas"
         }
       }
+    },
+    "40994:-19:-1295": {
+      "landmark": "ciudad-de-la-justicia",
+      "heightOverride": 10,
+      "wallColor": "#e4e2dc",
+      "windows": false,
+      "roofFurniture": false
+    },
+    "40993": {
+      "footprint": "osm"
+    },
+    "17363": {
+      "footprint": "osm"
+    },
+    "15495": {
+      "footprint": "osm"
+    },
+    "20053": {
+      "footprint": "osm"
+    },
+    "2034": {
+      "footprint": "osm"
+    },
+    "39610": {
+      "kind": "block",
+      "wallColor": "#eceae4"
+    },
+    "39613": {
+      "kind": "hall",
+      "wallColor": "#bdb9b0",
+      "roofFurniture": false
     }
   },
   "osmBuildings": [
@@ -748,12 +781,12 @@
     {
       "osm": "way/259777939",
       "landmark": "quiosco-de-la-musica",
-      "height": 6.5,
-      "heightOverride": 0.6,
-      "wallColor": "#cfc8bb",
+      "height": 8,
+      "heightOverride": 1.4,
+      "wallColor": "#77736c",
       "windows": false,
       "roofFurniture": false,
-      "note": "Chiosco della musica del Parque de San Telmo (building=roof): basamento estruso, colonne e tetto ottagonale verde disegnati da landmarks.ts. Altezza stimata, da misurare con il LiDAR."
+      "note": "Chiosco della musica del Parque de San Telmo (building=roof): basamento in pietra estruso, colonne e tetto ottagonale a campana disegnati da landmarks.ts. Altezza stimata, da misurare con il LiDAR."
     },
     {
       "osm": "way/259777937",
@@ -794,6 +827,40 @@
       "windows": false,
       "roofFurniture": false,
       "note": "Seconda tenda bianca del Parque Antiguo Estadio Insular (amenity=shelter). Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/584044810",
+      "landmark": "estacion-san-telmo",
+      "height": 1.6,
+      "wallColor": "#b3aca0",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Estación de Guaguas de San Telmo (amenity=bus_station): il modello del terreno contiene già il rialzo della piazza di copertura, il corpo estruso ne è solo il bordo. Lucernari, piramide blu, pista e balaustre disegnati da landmarks.ts. Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/209186908",
+      "landmark": "barco-pirata",
+      "height": 0.3,
+      "wallColor": "#5f93b4",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Area giochi «Barco Pirata» del Parque de San Telmo (leisure=playground): pavimento in gomma estruso, nave disegnata da landmarks.ts sull'ortofoto. Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/434815204",
+      "height": 3,
+      "wallColor": "#eeebe4",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Padiglione del Parque de San Telmo (building=public). Altezza stimata, da misurare con il LiDAR."
+    },
+    {
+      "osm": "way/434815206",
+      "height": 3,
+      "wallColor": "#eeebe4",
+      "windows": false,
+      "roofFurniture": false,
+      "note": "Padiglione del Parque de San Telmo accanto all'area giochi (building=public). Altezza stimata, da misurare con il LiDAR."
     }
   ],
   "pavedParks": [
@@ -801,6 +868,9 @@
     "168978301",
     "251673532"
   ],
+  "grounds": {
+    "251657541": "asphalt"
+  },
   "coverage": {
     "bounds": [
       -15.47,

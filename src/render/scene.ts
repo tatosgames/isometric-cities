@@ -153,6 +153,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
   const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
+  // Buildings that are not housing (`kind`): the plain shells of sheds and shopping centres, the pale fronts of
+  // hospitals, schools and offices.
+  const halls=['#d8d5cd','#cdd2d1','#e2ded4','#c6c2b8'],blocks=['#ece9e2','#dedcd5','#e6dccb','#d3d9d8'];
   // A window or ledge on a party wall is buried in the neighbour. Index the footprints to ask what stands just
   // outside a wall, and up to which height. The editor moves buildings apart, so there every wall keeps its detail.
   const LOT=32,lots=new Map<string,{rings: Ring[];top: number}[]>();
@@ -185,10 +188,25 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const n=Math.abs(b.id);
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
     const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2+RIM,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
-    addBuilding(g,b.wallColor??walls[n%walls.length],x,y,0,z);
+    const hall=b.kind==='hall',block=b.kind==='block';
+    addBuilding(g,b.wallColor??(hall?halls[n%halls.length]:block?blocks[n%blocks.length]:walls[n%walls.length]),x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
     addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[n%roofs.length],x,y,4);
-    if(b.roofFurniture!==false && n%6!==1){
+    if(hall && b.roofFurniture!==false){
+      // Rooflights on a 12 m grid along the longest wall, where the roof reaches 4 m around them.
+      const o=b.rings[0];let far=0,hx=1,hy=0;
+      for(let j=1;j<o.length;j++){const l=Math.hypot(o[j][0]-o[j-1][0],o[j][1]-o[j-1][1]);if(l>far){far=l;hx=(o[j][0]-o[j-1][0])/l;hy=(o[j][1]-o[j-1][1])/l;}}
+      const us=o.map(p=>p[0]*hx+p[1]*hy),vs=o.map(p=>p[1]*hx-p[0]*hy),u1=Math.max(...us),v1=Math.max(...vs);
+      const inside=(px: number,py: number)=>pointInRing(o,px,py) && !b.rings.slice(1).some(ring=>pointInRing(ring,px,py));
+      let left=compact?24:60;
+      for(let u=Math.min(...us)+6;u<u1 && left;u+=12)for(let v=Math.min(...vs)+6;v<v1 && left;v+=12){
+        const px=u*hx-v*hy,py=u*hy+v*hx;
+        if(![[0,0],[4,0],[-4,0],[0,4],[0,-4]].every(([du,dv])=>inside(px+du*hx-dv*hy,py+du*hy+dv*hx)))continue;
+        addBuilding(new T.BoxGeometry(2.6,.6,2.6).rotateY(Math.atan2(hy,hx)).translate(px,top+.3,-py),'#e9eef0',x,y);
+        left--;
+      }
+    }
+    if(b.roofFurniture!==false && !hall && n%6!==1){
       const {radius,rx,ry}=roofClearance(roof);
       if(radius>2.1){
         const size=Math.min(5,radius),angle=Math.atan2(b.rings[0][1][1]-y,b.rings[0][1][0]-x);
@@ -212,7 +230,21 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       const count=Math.floor(len/4.2);
       // What stands along the whole edge: a taller neighbour swallows the ledges below its roof and the parapet.
       const shared=Math.min(...[.2,.5,.8].map(t=>buriedTo(a+(e-a)*t+nx*.5,c+(f-c)*t+ny*.5,b.rings)));
-      if(b.windows!==false && len<95){
+      // A strip on the wall between two distances along the edge and two heights: ribbon windows, doors, fascias.
+      const strip=(out: number[],s0: number,s1: number,y0: number,y1: number)=>{
+        const lx=a+ux*s0+nx*.07,ly=c+uy*s0+ny*.07,rx=a+ux*s1+nx*.07,ry=c+uy*s1+ny*.07;
+        out.push(lx,y0,-ly, rx,y0,-ry, lx,y1,-ly, lx,y1,-ly, rx,y0,-ry, rx,y1,-ry);
+      };
+      if(block && b.windows!==false && len>=4){
+        // Offices, schools and hospitals: one continuous band of glass per floor, no balconies.
+        for(let floor=3;floor<h-1.5;floor+=3.6)if(z+floor+1.6>shared)strip(windows,.8,len-.8,z+floor,z+floor+1.6);
+      }
+      if(hall && b.windows!==false && len>=14 && shared<=z+1){
+        // Sheds and shopping centres: a blank wall with a wide door every 16 m and a pale fascia under the roof.
+        if(h>5.5)for(let door=0,doors=Math.floor(len/16);door<doors;door++){const at=(door+.5)*len/doors;strip(windows,at-2.2,at+2.2,z,z+4);}
+        if(h>7)strip(sills,0,len,top-1.5,top-.5);
+      }
+      if(!hall && !block && b.windows!==false && len<95){
         for(let bay=0;bay<count;bay++){
           const cx=a+(bay+.5)*(e-a)/count+nx*.07;
           const cy=c+(bay+.5)*(f-c)/count+ny*.07;
@@ -244,7 +276,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           }
         }
       }
-      if(!compact && b.windows!==false && count>=2 && len<65){
+      if(!compact && !hall && !block && b.windows!==false && count>=2 && len<65){
         const rot=Math.atan2(f-c,e-a);
         for(let level=3;level<h-2;level+=3.6){
           if(z+level<=shared)continue;

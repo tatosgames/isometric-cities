@@ -1,5 +1,6 @@
 import type { Altitude, Building, Ring } from '../data/types.ts';
 import * as T from 'three';
+import { pointInRing } from '../geometry.ts';
 
 type AddBuilding = (geometry: T.BufferGeometry, color: string, x: number, y: number) => void;
 
@@ -348,17 +349,35 @@ function eaves(add: AddBuilding,building: Building,z: number,depth: number,rise:
   add(mesh(v),color,x,y);
 }
 
-// Theatre of 1888 by the mouth of the Guiniguada. The catalogue lowers the auditorium and splits off the stage
-// house; this model closes the stage house with the hipped roof of the 2024 orthophoto, up to the municipal
-// height, and marks the entrance front at the opposite end: three arched doors under two cornices.
-function teatroPerezGaldos(add: AddBuilding,altitude: Altitude,stage: Building){
-  const {cx,cy,angle,length,width}=bounds(stage);
-  roof(add,cx,cy,angle,length+.8,width+.8,top(altitude,stage),crest(stage,2),'#9a6250',width*.42);
-  const stone='#f4ecd9',front=facade(add,69.1,-119.4,-19.2,-14.2,altitude(69.1,-119.4));
-  for(const u of [-5,0,5]){
-    front(arch(3.6,4.2),u,.3,.25,stone);front(arch(2.8,4),u,.3,.32,'#4a4743');front(arch(2.2,2.6),u,8.8,.3,'#59615f');
+// Theatre of 1888 by the mouth of the Guiniguada. The catalogue splits the municipal footprint: the tall modern
+// stage house behind keeps the municipal height, this part is the historic hall, lowered to its cornice (an
+// estimate). The model adds the hipped roof of the 2024 orthophoto and the facades: arched doors and windows in
+// three rows between stone bands, five bays on the entrance front and eight on each side.
+function teatroPerezGaldos(add: AddBuilding,altitude: Altitude,hall: Building){
+  const base=altitude(hall.rings[0][0][0],hall.rings[0][0][1]),wall=hall.heightOverride??hall.height;
+  // The entrance front looks south-east, away from the stage house (heading from the 2024 orthophoto); the porch in
+  // front of it has a flat roof.
+  const turn=-55.2*Math.PI/180,hx=Math.cos(turn),hy=Math.sin(turn),ax=-hy,ay=hx,porch=4.5;
+  let u0=Infinity,u1=-Infinity,v0=Infinity,v1=-Infinity;
+  for(const [x,y] of hall.rings[0]){
+    const u=x*hx+y*hy,v=x*ax+y*ay;
+    u0=Math.min(u0,u);u1=Math.max(u1,u);v0=Math.min(v0,v);v1=Math.max(v1,v);
   }
-  for(const h of [7.6,13.4])front(new T.BoxGeometry(22,.5,1),0,h,.3,stone);
+  const length=u1-u0,width=v1-v0,cx=(u0+u1)/2*hx+(v0+v1)/2*ax,cy=(u0+u1)/2*hy+(v0+v1)/2*ay;
+  roof(add,cx-hx*porch/2,cy-hy*porch/2,turn,length-porch+.8,width+.8,base+wall,4.5,'#8d6f63',width*.48);
+  const stone='#b9b3a6',dark='#474d52';
+  const sides=[[cx+hx*length/2,cy+hy*length/2,ax,ay,width,5],[cx+ax*width/2,cy+ay*width/2,-hx,-hy,length,8],[cx-ax*width/2,cy-ay*width/2,hx,hy,length,8]];
+  sides.forEach(([x,y,dx,dy,span,bays],n)=>{
+    const place=facade(add,x,y,dx,dy,base),step=(span-4)/bays;
+    for(let i=0;i<bays;i++){
+      const u=(i-(bays-1)/2)*step;
+      place(arch(2.4,3.2),u,.5,.2,n?dark:'#6b4a33');
+      place(arch(2,3),u,6.6,.2,dark);
+      place(new T.PlaneGeometry(1.6,1.8),u,13.4,.2,dark);
+    }
+    for(const h of [5.6,11.6,wall-.5])place(new T.BoxGeometry(span+.6,.5,.8),0,h,.15,stone);
+    place(new T.BoxGeometry(span+.3,1,.5),0,.5,.1,stone);
+  });
 }
 
 // Market of 1854: a low ring of stalls around three raised halls. The halls, their headings and sizes come from
@@ -391,15 +410,22 @@ const pitched=(color: string,hip: number)=>(add: AddBuilding,altitude: Altitude,
   roof(add,cx,cy,angle,length+.6,width+.6,top(altitude,body),crest(body,1.5),color,hip*width);
 };
 
-// Bandstand of the Parque de San Telmo, on its OpenStreetMap outline: thin iron columns and the green octagonal roof.
+// Bandstand of the Parque de San Telmo, on its OpenStreetMap outline: thin iron columns on the stone plinth (the
+// extruded footprint) and the green octagonal roof, bell-shaped, under its finial.
 function quioscoDeLaMusica(add: AddBuilding,altitude: Altitude,kiosk: Building){
-  const ring=kiosk.rings[0].slice(0,-1),{cx,cy}=bounds(kiosk),base=altitude(cx,cy),eave=base+4.2,peak=base+kiosk.height,v: number[]=[];
+  const ring=kiosk.rings[0].slice(0,-1),{cx,cy}=bounds(kiosk),floor=top(altitude,kiosk),peak=altitude(cx,cy)+kiosk.height,eave=peak-2.6,waist=eave+.9,v: number[]=[];
+  // The outline may run either way round: the roof faces must look up.
+  let area=0;
+  ring.forEach(([x,y],i)=>{const [nx,ny]=ring[(i+1)%ring.length];area+=x*ny-nx*y;});
+  if(area<0)ring.reverse();
   ring.forEach(([x,y],i)=>{
     const [nx,ny]=ring[(i+1)%ring.length],px=cx+(x-cx)*.82,py=cy+(y-cy)*.82;
-    v.push(cx,peak,-cy,x,eave,-y,nx,eave,-ny);
-    add(new T.CylinderGeometry(.14,.14,eave-base,6).translate(px,base+(eave-base)/2,-py),'#3f5f52',px,py);
+    const ex=cx+(x-cx)*1.12,ey=cy+(y-cy)*1.12,fx=cx+(nx-cx)*1.12,fy=cy+(ny-cy)*1.12,mx=cx+(x-cx)*.5,my=cy+(y-cy)*.5,ox=cx+(nx-cx)*.5,oy=cy+(ny-cy)*.5;
+    v.push(ex,eave,-ey,fx,eave,-fy,ox,waist,-oy, ex,eave,-ey,ox,waist,-oy,mx,waist,-my, mx,waist,-my,ox,waist,-oy,cx,peak,-cy);
+    add(new T.CylinderGeometry(.14,.14,eave-floor,6).translate(px,(floor+eave)/2,-py),'#3f5f52',px,py);
   });
   add(mesh(v),'#4f8a68',cx,cy);
+  add(new T.ConeGeometry(.22,1.2,5).translate(cx,peak+.5,-cy),'#3f5f52',cx,cy);
 }
 // Art nouveau kiosk of 1923 at the corner of the park: a projecting eave and the dark red dome of the orthophoto.
 function quioscoModernista(add: AddBuilding,altitude: Altitude,kiosk: Building){
@@ -430,6 +456,103 @@ function hospitalInsular(add: AddBuilding,altitude: Altitude,hospital: Building)
   for(const [u,w,l] of [[-2.2,1,7],[2.2,1,7],[0,4.4,1]])add(new T.BoxGeometry(w,.08,l).translate(x+u,z+.58,-y),'#f2f2ee',x+u,y);
 }
 
+// Ciudad de la Justicia: four parallel bars on a common base. The municipal record extrudes the whole plot to the
+// height of the bars; the catalogue lowers it to the base (an estimate) and the bars stand where the 2024
+// orthophoto shows them, at the municipal height: a white core between two glazed galleries, floor by floor.
+function ciudadDeLaJusticia(add: AddBuilding,altitude: Altitude,base: Building){
+  const z=top(altitude,base),rise=base.height-(base.heightOverride??0),turn=-26.2*Math.PI/180,hx=Math.cos(turn),hy=Math.sin(turn);
+  for(let k=0;k<4;k++){
+    const x=77.8-20.6*k,y=-1167.8-33.7*k;
+    block(add,x,y,turn,67,15,z,rise,'#f1f2ef');
+    block(add,x,y,turn,64,21,z,rise-3,'#7f888d');
+    for(const side of [1,-1]){
+      const place=facade(add,x-hy*10.5*side,y+hx*10.5*side,-hx*side,-hy*side,z);
+      for(let level=3.2;level<rise-4;level+=3.8)place(new T.PlaneGeometry(64,.7),0,level,.06,'#e9ebe8');
+    }
+  }
+}
+
+// A closed outline moved `d` metres to the left of its direction of travel.
+function aside(ring: number[][],d: number){
+  return ring.map(([x,y],i)=>{
+    const [px,py]=ring[(i+ring.length-1)%ring.length],[nx,ny]=ring[(i+1)%ring.length];
+    const a=Math.atan2(y-py,x-px),b=Math.atan2(ny-y,nx-x),ox=-Math.sin(a)-Math.sin(b),oy=Math.cos(a)+Math.cos(b),l=Math.hypot(ox,oy)||1;
+    return [x+d*ox/l,y+d*oy/l];
+  });
+}
+
+// Estación de Guaguas de San Telmo. The terrain model already carries the raised roof square, unevenly: the model
+// lays one flat deck over the OpenStreetMap outline, just above the highest ground inside it, and hides the
+// extruded footprint. On the deck, placed after OpenStreetMap and the 2024 orthophoto: the six glazed
+// stair canopies, the blue pyramid with its white cross, the skating track, the round light well and the glazed
+// canopy over the entrance on Avenida Rafael Cabrera. By the park, the white balustrades of the way down.
+function estacionSanTelmo(add: AddBuilding,altitude: Altitude,station: Building){
+  const ring=station.rings[0].slice(0,-1),[x0,y0]=ring[0],glass='#6d8894',skirt: number[]=[],floor=new T.Shape();
+  let z=0;
+  for(let x=-110;x<=-10;x+=10)for(let y=360;y<=510;y+=10)if(pointInRing(ring,x,y))z=Math.max(z,altitude(x,y)+.3);
+  ring.forEach(([x,y],i)=>i?floor.lineTo(x,y):floor.moveTo(x,y));
+  add(new T.ShapeGeometry(floor).rotateX(-Math.PI/2).translate(0,z,0),'#c9c2b6',x0,y0);
+  // The square stands above streets that fall away around it: carry the rim down to them.
+  ring.forEach(([x,y],i)=>{
+    const [nx,ny]=ring[(i+1)%ring.length],a=z,b=z-8;
+    skirt.push(x,a,-y,nx,a,-ny,nx,b,-ny, x,a,-y,nx,b,-ny,x,b,-y);
+  });
+  add(mesh(skirt),station.wallColor??'#b3aca0',x0,y0);
+  for(const [x,y,deg] of [[-78,453.7,-69.5],[-50.9,464,-69.5],[-59.6,411.3,-67.3],[-22.3,398.4,-69.5],[-32.4,422.6,-67.3],[-61.4,488.8,-69.5]]){
+    const angle=deg*Math.PI/180;
+    block(add,x,y,angle,14.8,7,z,1.3,'#465157');
+    roof(add,x,y,angle,14.8,7,z+1.3,1.5,glass);
+  }
+  block(add,-88,424,-64.4*Math.PI/180,51,5,z-1.3,.25,glass);
+  // Blue pyramid: a square on its corner, a white band down the middle of each face.
+  const cx=-101.2,cy=478.6,rise=4,v: number[]=[],w: number[]=[];
+  const corner=[0,1,2,3].map(k=>{const a=(146+k*90)*Math.PI/180;return [cx+9.6*Math.cos(a),cy+9.6*Math.sin(a)];});
+  corner.forEach(([x,y],k)=>{
+    const [nx,ny]=corner[(k+1)%4],l=Math.hypot(nx-x,ny-y),ex=(nx-x)/l*.8,ey=(ny-y)/l*.8,mx=(x+nx)/2,my=(y+ny)/2,lift=z+.15;
+    v.push(x,z,-y,nx,z,-ny,cx,z+rise,-cy);
+    w.push(mx-ex,lift,-(my-ey),mx+ex,lift,-(my+ey),cx+ex,lift+rise,-(cy+ey), mx-ex,lift,-(my-ey),cx+ex,lift+rise,-(cy+ey),cx-ex,lift+rise,-(cy-ey));
+  });
+  add(mesh(v),'#5b82c9',cx,cy);add(mesh(w),'#f1f1ee',cx,cy);
+  // Skating track around the square (OpenStreetMap way 519309910, 6 m wide).
+  const lane=[[-46.7,477.2],[-12.5,396.9],[-11.8,391.3],[-15.1,385.9],[-21.4,381.5],[-29.8,379.7],[-40.4,381.9],[-60.1,395.9],[-66.5,403.3],[-87.7,455.2],[-87.7,459.8],[-85.3,464.8],[-78.8,469.8],[-58,478.5],[-53.3,478.7]];
+  const left=aside(lane,3),right=aside(lane,-3),t: number[]=[],h=z+.12;
+  lane.forEach((_,i)=>{
+    const k=(i+1)%lane.length;
+    t.push(right[i][0],h,-right[i][1],right[k][0],h,-right[k][1],left[k][0],h,-left[k][1], right[i][0],h,-right[i][1],left[k][0],h,-left[k][1],left[i][0],h,-left[i][1]);
+  });
+  add(mesh(t),'#a9bcc3',lane[0][0],lane[0][1]);
+  add(new T.CylinderGeometry(8.7,8.7,1.1,24,1,true).translate(-58.1,z+.55,-377.7),'#8d6f5c',-58.1,377.7);
+  add(new T.CircleGeometry(5.5,20).rotateX(-Math.PI/2).translate(-58.1,z+.12,-377.7),'#e4e1da',-58.1,377.7);
+  for(const [ax,ay,bx,by] of [[-108.1,467.3,-101.9,451],[-118.2,407.6,-101.9,368.6],[-134,456.2,-97.8,370.1],[-139,455.3,-122.5,416.9]]){
+    const length=Math.hypot(bx-ax,by-ay),pieces=Math.ceil(length/20),angle=Math.atan2(by-ay,bx-ax);
+    for(let i=0;i<pieces;i++){
+      const u=(i+.5)/pieces,x=ax+(bx-ax)*u,y=ay+(by-ay)*u;
+      block(add,x,y,angle,length/pieces,.35,altitude(x,y),1,'#f0ede6');
+    }
+  }
+}
+
+// «Barco Pirata», the playground ship of the Parque de San Telmo, where the 2024 orthophoto shows it on its blue
+// rubber floor (the extruded footprint): hull, two castles, two masts with their yards and the bowsprit.
+function barcoPirata(add: AddBuilding,altitude: Altitude,floor: Building){
+  const cx=-144,cy=365,angle=12*Math.PI/180,cs=Math.cos(angle),sn=Math.sin(angle),z=top(altitude,floor),wood='#7b5539',dark='#5c3e2a';
+  const hull=new T.Shape();
+  [[-7,-1.6],[-5,-2.6],[2,-2.6],[5.5,-1.4],[7.5,0],[5.5,1.4],[2,2.6],[-5,2.6],[-7,1.6]].forEach(([u,w],i)=>i?hull.lineTo(u,w):hull.moveTo(u,w));
+  hull.closePath();
+  const place=(geometry: T.BufferGeometry,u: number,height: number,color: string)=>{
+    const x=cx+u*cs,y=cy+u*sn;
+    add(geometry.rotateY(angle).translate(x,z+height,-y),color,x,y);
+  };
+  place(new T.ExtrudeGeometry(hull,{depth:1.7,bevelEnabled:false}).rotateX(-Math.PI/2),0,0,wood);
+  place(new T.BoxGeometry(3.4,1.3,4.6),-4.6,2.35,dark);
+  place(new T.BoxGeometry(2.4,.8,3),4,2.1,dark);
+  for(const u of [-1.4,2.2]){
+    place(new T.CylinderGeometry(.16,.2,6.5,5),u,4.95,dark);
+    place(new T.BoxGeometry(.18,.18,3.6),u,6.4,dark);
+  }
+  place(new T.CylinderGeometry(.1,.16,5,5).rotateZ(.35-Math.PI/2),9.2,3,dark);
+}
+
 const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, building: Building) => void>>={'santa-ana':santaAna,'gabinete-literario':gabineteLiterario,'castillo-de-la-luz':castilloDeLaLuz,
   'mercado-del-puerto':mercadoDelPuerto,'auditorio-alfredo-kraus':auditorioAlfredoKraus,
   'castillo-de-mata':castilloDeMata,'estadio-de-gran-canaria':estadioDeGranCanaria,
@@ -439,7 +562,8 @@ const models: Partial<Record<string,(add: AddBuilding, altitude: Altitude, build
   'santo-domingo':santoDomingo,'parroquia-san-cristobal':parroquiaSanCristobal,
   'ermita-de-san-telmo':pitched(tile,0),'iglesia-san-francisco-javier':pitched(tile,.35),
   'quiosco-de-la-musica':quioscoDeLaMusica,'quiosco-modernista':quioscoModernista,'el-obelisco':elObelisco,
-  'las-arenas':lasArenas,'hospital-insular':hospitalInsular};
+  'las-arenas':lasArenas,'hospital-insular':hospitalInsular,
+  'estacion-san-telmo':estacionSanTelmo,'ciudad-de-la-justicia':ciudadDeLaJusticia,'barco-pirata':barcoPirata};
 
 // The camera always looks down on the city: a face that looks straight down (the underside of a box, a cornice
 // or a cylinder) is never on screen. Dropping those faces changes no pixel.

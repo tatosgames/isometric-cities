@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
 from shapely.geometry import Polygon, LineString, Point, shape, mapping, box, MultiPoint
 from shapely.ops import transform, unary_union, polygonize, nearest_points
-from shapely import make_valid
+from shapely import make_valid, maximum_inscribed_circle
 from shapely.strtree import STRtree
 from geo import from_crs, origin, to_crs
 import numpy as np
@@ -194,12 +194,33 @@ tanks=[Point(nodes[e.get('id')]) for e in osm.findall('node') if tags(e).get('ma
 tanks+=[LineString(v).centroid for t,v in ways.values() if t.get('man_made') in ('storage_tank','silo') and len(v)>1]
 tank_index=STRtree(tanks) if tanks else None
 tank_style=dict(windows=False,roofFurniture=False,wallColor='#e3e3dc')
+# What a building is, when its plan or its OpenStreetMap tags say it is not housing. `hall`: sheds, markets,
+# shopping centres, sports halls. `block`: hospitals, schools, offices and public buildings.
+HALL={'industrial','warehouse','retail','supermarket','commercial','hangar','garage','garages','parking','sports_centre','sports_hall','service'}
+BLOCK={'hospital','school','university','college','office','public','civic','government','government_office','fire_station'}
+def osm_kind(t):
+    b=t.get('building')
+    return ('hall' if b in HALL or t.get('shop') in ('mall','supermarket','department_store')
+        else 'block' if b in BLOCK or t.get('amenity') in ('hospital','school','university','college','courthouse','police','townhall','library') else None)
+mapped=[(make_valid(Polygon(v)),osm_kind(t)) for t,v in ways.values() if t.get('building') not in (None,'roof','carport') and len(v)>3 and v[0]==v[-1]]
+mapped_index=STRtree([p for p,_ in mapped])
+def kind_of(p,height):
+    best,kind=0,None
+    for i in mapped_index.query(p):
+        a=mapped[i][0].intersection(p).area
+        if mapped[i][1] and a>.5*p.area and a>best: best,kind=a,mapped[i][1]
+    # A plan deeper than any dwelling under a low roof is a hall, whatever the map says.
+    if not kind and p.area>=1200 and height<=16 and maximum_inscribed_circle(p).length>=15: kind='hall'
+    return kind
 for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))
     h=f['properties']['MAX_BLDGHEIGHT_1']
     clipped=g.intersection(area)
     style=catalog['buildings'].get(str(f['properties']['OBJECTID']),{}).copy()
     split=style.pop('split',None)
+    if style.pop('footprint',None)=='osm':
+        # The municipal record is a whole plot: keep only what OpenStreetMap maps as buildings inside it.
+        clipped=clipped.intersection(unary_union([mapped[i][0] for i in mapped_index.query(g) if mapped[i][0].intersection(g).area>.5*mapped[i][0].area]))
     sections=[(clipped,style)]
     if split:
         # The dividing outline is an OSM way, or a ring in local metres traced on the 20 cm orthophoto.
@@ -219,6 +240,11 @@ for f in features:
         # One municipal record can hold several separate bodies: the catalogue may style a single one by the same key.
         look={**style,**catalog['buildings'].get(key,{})}
         if tank_index is not None and 'wallColor' not in look and any(p.contains(tanks[i]) for i in tank_index.query(p)): look={**tank_style,**look}
+        # An archetype only where the catalogue says nothing: a curated building keeps its look.
+        if not look:
+            kind=kind_of(p,height)
+            if kind: look={'kind':kind}
+        elif look.get('kind')=='housing': look={k:v for k,v in look.items() if k!='kind'}
         buildings.append(dict(id=f['properties']['OBJECTID'],**look,rings=outline,height=height,source=origin))
 # Monuments the municipal layer leaves out: OSM footprint, catalogue height (see scripts/osm_buildings.py).
 buildings+=osm_buildings(catalog,place_polygon,area,parts,rings)
@@ -230,6 +256,11 @@ def underground(t):
     return bool(t.get('tunnel')) or below
 # Where a street goes under ground it ends square, as a portal, instead of on a round cap.
 portals={tuple(v) for t,vs in ways.values() if t.get('highway') and underground(t) for v in (vs[0],vs[-1]) if vs}
+def cover(t):
+    """What an area is made of, from its OSM `surface` tag; None keeps the colour of its kind."""
+    v=t.get('surface')
+    return ('asphalt' if v=='asphalt' else 'earth' if v in ('sand','dirt','ground','earth','fine_gravel','gravel','compacted','unpaved')
+        else 'grass' if v in ('grass','artificial_turf') else 'rubber' if v in ('rubber','tartan','acrylic') else None)
 for i,(t,vs) in ways.items():
     if len(vs)<2: continue
     road=t.get('highway')
@@ -238,19 +269,23 @@ for i,(t,vs) in ways.items():
     beach=t.get('natural')=='beach' and t.get('surface','sand')=='sand'
     # Swimming pools and ponds are painted on the ground as water; the sea comes from the coast instead.
     water=t.get('leisure')=='swimming_pool' or t.get('natural')=='water'
+    # Playgrounds and sports pitches at street level are ground of their own; those on a roof are not.
+    play=t.get('leisure') in ('playground','pitch') and t.get('layer','0') in ('0','-1')
     if vs[0]==vs[-1] and len(vs)>3 and (beach or water):
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
             if p.area>50 if beach else 4<p.area<20000: surfaces.append(dict(id=i,kind='beach' if beach else 'water',rings=rings(p)))
-    elif vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road):
+    elif vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road or play or t.get('place')=='square'):
+        # The ground of the area: the catalogue first, then the `surface` tag, then what a playground or a pitch is made of.
+        made=catalog.get('grounds',{}).get(i) or cover(t) or ('rubber' if t.get('leisure')=='playground' else 'pitch' if play else None)
         for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
-            surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p)))
+            surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p),**({'ground':made} if made and not (green and made=='grass') else {})))
     elif road and road not in ('construction','proposed','elevator') and not underground(t):
         for l in parts(LineString(vs).intersection(area),'LineString'):
             grade={key:t[key] for key in ('bridge','layer') if key in t}
             if any(tuple(l.coords[k]) in portals for k in (0,-1)): grade['portal']=True
             roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords),**grade))
-# Water is painted last, over the park or square it lies in.
-surfaces.sort(key=lambda s:s['kind']=='water')
+# Painted from the largest to the smallest, so a flower bed shows on the paved park around it; water last.
+surfaces.sort(key=lambda s:(s['kind']=='water',-Polygon(s['rings'][0]).area))
 for e in osm.findall('node'):
     if tags(e).get('natural')=='tree' and area.contains(Point(nodes[e.get('id')])):
         trees+=coords([nodes[e.get('id')]])

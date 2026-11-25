@@ -944,6 +944,71 @@ Aggiunte 26 schede: 30 luoghi su 31 del catalogo hanno ora testo e link, 21 anch
 
 `check:data` e build superati. In Chromium, a 1280 × 800, tutte le 29 voci del menu aperte una per una: 28 schede con testo, foto dove prevista e dominio del link corretto, una pillola (Iglesia San Francisco Javier), nessun errore in pagina né richiesta fallita. A 390 × 844 controllate una scheda senza foto e una con foto. Nessuna prova su telefono fisico. I testi non sono stati riletti da una persona del posto.
 
+## Archetipi di edificio ed eccezioni a catalogo (25 novembre 2026)
+
+Richiesto da Luca con cinque schermate del sito: Ciudad de la Justicia, Hospital Insular e Materno Infantil, il supermercato accanto a San Francisco Javier, San Cristóbal. Domanda: servono archetipi diversi o bastano eccezioni?
+
+**Diagnosi.** Ogni edificio comunale era trattato da abitazione: colore pastello, finestre a campate, balconi, cabina sul tetto. Tre casi non reggono:
+
+1. capannoni, mercati e centri commerciali (pianta profonda, niente finestre);
+2. ospedali, scuole e uffici (finestre a nastro, niente balconi);
+3. record comunali che sono un lotto intero estruso all'altezza massima (cortili, piazzali e perfino un campo sportivo diventano un blocco pieno).
+
+**Scelta: due archetipi dai dati più eccezioni a catalogo.** OpenStreetMap copre solo una parte (su 617 edifici oltre 1.500 m², 219 non hanno alcun edificio OSM e 213 hanno solo `building=yes`), quindi un sistema ampio di archetipi dai soli tag non è affidabile. Il campo `kind` nasce in `data.py` così:
+
+- **`hall`**: tag OSM `building` industrial, warehouse, retail, supermarket, commercial, hangar, garage, parking, sports_centre, sports_hall, service, oppure `shop` mall, supermarket, department_store; oppure, senza tag, pianta con cerchio inscritto di raggio almeno 15 m, almeno 1.200 m² e altezza fino a 16 m. Resa: pareti neutre senza finestre, una porta larga ogni 16 m, fascia chiara sotto il tetto, lucernari su griglia di 12 m (stilizzazione, come la cabina delle case).
+- **`block`**: tag OSM hospital, school, university, college, office, public, civic, government, fire_station, o `amenity` hospital, school, university, college, courthouse, police, townhall, library. Resa: pareti chiare, una fascia continua di vetro per piano, niente balconi.
+- L'archetipo si assegna solo agli edifici senza voce di catalogo; il catalogo può imporlo (`kind`) o negarlo (`kind: "housing"`).
+
+Risultato in città: 655 `hall`, 247 `block`, 27.918 abitazioni (28.820 parti).
+
+**Eccezioni a catalogo.**
+
+- **`footprint: "osm"`** per i lotti estrusi per intero: resta solo ciò che OSM mappa come edificio dentro il record, all'altezza comunale. Applicato dopo verifica sull'ortofoto a 40993 (sette blocchi a croce e commissariato accanto alla Justicia), 17363 (era un campo sportivo reso come edificio di 12,7 m), 15495, 20053, 2034 (Cementerio de San Lázaro, file di nicchie). Non automatico: dove OSM è incompleto cancellerebbe edifici veri.
+- **Ciudad de la Justicia (40994).** Modello `ciudad-de-la-justicia`: basamento abbassato a 10 m (stima), quattro stecche di 67 x 21 m misurate sull'ortofoto, all'altezza comunale (51,7 m), con gallerie vetrate sui lati lunghi.
+- **Materno Infantil (39610)** `block`; **parcheggio a rampe (39613)** `hall` senza lucernari; **Negrín e Insular** `block`.
+
+**Limiti dichiarati.** I pezzi di un lotto con `footprint: "osm"` hanno tutti l'altezza massima del record. La regola geometrica non vede i capannoni alti più di 16 m senza tag OSM. Gli altri lotti estrusi per intero (circa 25 candidati oltre 1.500 m² con meno del 60% coperto da edifici OSM) vanno verificati uno a uno sull'ortofoto. San Cristóbal e San Francisco Javier non sono stati toccati.
+
+**Misure e prove.**
+
+```
+typecheck, build: ok
+npm test: si ferma a scripts/qa.mjs:181 (attesa del pinch), come su main
+frame-profile 35,-1160,1.59 (Justicia): mediana 16,7 ms, p95 16,8, 120 draw
+frame-profile 167,5372,1.59 (zona industriale): 16,7 / 16,8, 85 draw
+frame-profile 167,5372,0.352: 16,7 / 16,9, 270 draw
+frame-profile -270,-2600,1.59 (ospedali): 16,7 / 16,8, 94 draw
+```
+
+## San Telmo nel suo insieme, Teatro Pérez Galdós e tipi di suolo (25 novembre 2026)
+
+Richiesto da Luca dopo il primo passaggio: il parco aveva solo i due chioschi e l'ermita, mancava la composizione della zona; il teatro non somigliava all'originale. Fonti: ortofoto SITCAN 20 cm, OpenStreetMap dagli estratti in cache, modello del terreno. Le foto di Google Maps, Street View e Tripadvisor indicate da Luca sono servite solo da riferimento visivo: nessuna è nel progetto.
+
+**Parque de San Telmo.**
+
+- **Estación de Guaguas (way 584044810).** Mancava del tutto: la piazza di copertura era un vuoto. Ora è un `osmBuilding`. Il modello del terreno contiene già il rialzo della piazza (7-8 m contro i 4 m di Avenida Rafael Cabrera): il corpo estruso è solo il bordo (1,6 m, stima). Sopra, dal modello `estacion-san-telmo`: i sei lucernari vetrati delle scale (way 519309916-21, 14,8 x 7 m), la piramide blu con la croce bianca (way 584054251), la pista di pattinaggio (way 519309910, 6 m), il pozzo di luce rotondo (way 584051421) e la pensilina vetrata dell'ingresso, misurata sull'ortofoto. Altezze di lucernari, piramide e pensilina: stime.
+- **Balaustre.** I quattro muri bianchi della discesa dal parco alla stazione (way 761736871, 76, 77, 78), alti 1 m (stima).
+- **Barco Pirata (way 209186908).** Il pavimento blu dell'area giochi e la nave dove la mostra l'ortofoto: scafo, due castelli, due alberi, bompresso. Proporzioni dalla pianta, altezze stimate.
+- **Quiosco de la Música.** Basamento in pietra a 1,4 m, colonne, tetto a campana con puntale; colmo a 8 m (stima, era 6,5).
+- **Due padiglioni** (way 434815204 e 434815206, `building=public`), 3 m stimati.
+- **Aiuole.** Il parco è un'area lastricata (`pavedParks`) e copriva le proprie aiuole: le superfici ora si dipingono dalla più grande alla più piccola, quindi i giardini mappati dentro il parco tornano verdi. Vale per tutta la città.
+- **Non modellati:** monumenti e sculture mappati come punto (Cruceiro, Don Cristóbal del Castillo, Espiral del Viento), la capanna rotonda sotto gli alberi (way 521049353), i bagni, i campi sul tetto della stazione.
+
+**Teatro Pérez Galdós (41435).** Il primo passaggio aveva invertito i corpi. L'ortofoto mostra il tetto a padiglione sulla sala storica, verso il mare, e tetti piani scuri sul corpo scenico moderno, verso nord-ovest; l'ombra conferma che il corpo alto è quello moderno. Ora: corpo scenico grigio all'altezza comunale (30,6 m), senza finestre; sala storica separata con `split.polygon`, abbassata a 17 m al cornicione (stima), tetto a padiglione fino a 21,5 m con la tinta dell'ortofoto, facciate con tre ordini di aperture ad arco tra fasce di pietra, cinque campate sul fronte d'ingresso e otto sui lati (numero di campate e quote delle fasce: stima da conoscenza generale e dalle foto di riferimento). Il corpo basso tra sala e torre resta all'altezza della torre.
+
+**Tipi di suolo.** Una superficie può dichiarare di cosa è fatta (`ground`): `grass`, `asphalt`, `earth`, `rubber`, `pitch`, colori in `src/data/road-style.json`. `data.py` lo ricava dal tag OSM `surface`, dal tipo (`leisure=playground` è gomma, `leisure=pitch` è campo sportivo, solo a livello strada) o dalla voce `grounds` del catalogo; entrano come superfici anche le aree `place=square`. Plaza de Stagno, davanti al teatro, è asfalto scuro da catalogo, come nell'ortofoto.
+
+**Misure e prove.**
+
+```
+Profilo dei fotogrammi a San Telmo (node scripts/frame-profile.mjs -110,420,1.59, telefono emulato): mediana 18,0 ms, p95 18,1 ms, 102 draw call, 126.651 triangoli.
+Modelli: estacion-san-telmo 607 triangoli, barco-pirata 115, quiosco-de-la-musica 173, teatro-perez-galdos 882; i 26 modelli insieme 8.966.
+Dati: 805 settori, 28.767 parti di edificio; superfici con tipo di suolo: 380 campi sportivi, 134 aree giochi, 15 erba, 12 terra, 7 asfalto.
+npm.cmd run typecheck e npm.cmd run build passano. npm.cmd test si ferma a scripts/qa.mjs:181 (attesa del pinch), come su main prima di queste modifiche.
+Schermate a camera identica prima e dopo (node scripts/shot.mjs) per San Telmo e il teatro; controllo a vista di Doramas, Estadio Insular, Metropole e Real Club Nautico per i nuovi suoli.
+```
+
 ## Passaggio sui luoghi senza modello (25 novembre 2026)
 
 Richiesto da Luca: verificare tutti i luoghi del catalogo che non avevano un modello e dare a ciascuno una sagoma a pochi poligoni più fedele. Fonti: ortofoto SITCAN 20 cm letta a finestra (un ritaglio per luogo, con le impronte comunali sovrapposte), tag e geometrie di OpenStreetMap dagli estratti in cache, altezze comunali. Nessuna tessera LiDAR su questa macchina: ogni altezza che non viene dal Comune o da OSM è una stima dichiarata. Nessuna fotografia riprodotta.

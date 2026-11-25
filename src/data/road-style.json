@@ -3,6 +3,7 @@
   "main": ["primary", "secondary", "trunk"],
   "width": {"pedestrian": 2.2, "main": 8, "street": 4.5},
   "targetWidth": {"main": 9, "street": 5},
-  "color": {"pedestrian": "#c6bdb6", "street": "#626575", "beach": "#e4cf9d", "water": "#58b4d6"},
+  "color": {"pedestrian": "#c6bdb6", "street": "#626575", "beach": "#e4cf9d", "water": "#58b4d6",
+    "grass": "#728157", "asphalt": "#8c8b8e", "earth": "#cbb894", "rubber": "#6f9db5", "pitch": "#7d9c8b"},
   "promenade": {"names": ["Paseo Las Canteras"], "width": 9, "color": "#b9755c", "band": "#d9cdbd"}
 }
