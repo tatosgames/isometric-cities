@@ -185,3 +185,5 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 [Guaguas in drive mode · English maintenance guide](docs/GUAGUAS.md).
 
 **Rete guaguas in Conducir.** Entrando in guida si caricano indice e strade del quartiere. Fino a sei bus percorrono i tratti verificati di 46 linee nella città, con numeri reali sul display e frequenze di gioco. Su 822,1 km GTFS interni al plastico, contando separatamente le varianti, 666,6 km sono utilizzabili e 534 fermate sono servite. Nel pilota sono attive 12 linee. Le interruzioni per geometria o carreggiata sono localizzate nei rapporti. [Prova Vegueta, Pedro Hidalgo e Triana](docs/GUAGUAS.md) · [Copertura cittadina](public/data/guaguas/city/coverage.json).
+
+**Cielo sperimentale.** Gabbiani sopra Parque Doramas e Santa Catalina e nubi mosse dallo stesso vento delle ombre. Prova opzionale con ?sky=1. [Controlli e guida tecnica in inglese](docs/SKY_EFFECTS.md).

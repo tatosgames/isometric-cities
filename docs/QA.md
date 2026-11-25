@@ -1174,6 +1174,8 @@ Verifiche: `typecheck`, `build`, `node scripts/qa.mjs`, `qa-boot`, `qa-recovery`
 
 Limiti. `qa-drive-lab.mjs` fallisce sull'URL dei valori (`t=player.baseSpeed:30`) anche sulla build precedente: non dipende da questo passo e non è diagnosticato. Chi gioca torna ai valori di prima finché la pagina resta visibile. Le impronte delle zone caricate (4-10 MB) restano in memoria per il Play seguente. Una misura per vista; memoria della GPU non misurata; il primo Play più lento non è stato provato su telefono fisico.
 
+**Cielo opzionale a Parque Doramas.** La prova in `scripts/qa-sky.mjs` confronta la stessa camera con e senza `sky=1`, conta i disegni WebGL dei due effetti e verifica la riattivazione, il recupero del contesto e l’ingresso in guida. L’osservazione dura 20 secondi per formato. [Cattura desktop](screenshots/sky-doramas.png) · [Controlli da URL e codice](SKY_EFFECTS.md).
+
 ## Guaguas locali in Conducir · rete cittadina
 
 Il feed del 25 novembre produce 117 varianti di servizio su 111 tracciati. La città ammette 666,6 degli 822,1 km GTFS interni, contando ciascuna variante; serve 534 fermate distinte di 46 linee. Nel pilota risultano 9,7 km su 13,4, con 12 linee e 12 fermate. La verifica usa la carreggiata del plastico e l’intero ingombro del veicolo nelle curve. Gli 8.299 tratti cittadini terminano anche dove la verifica interrompe una corsa. Originare due reti dallo stesso ZIP e dagli stessi estratti OSM ha dato file identici. [Rapporto per linea, direzione e lacune per barrio](../public/data/guaguas/city/coverage.json).

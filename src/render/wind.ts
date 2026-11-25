@@ -35,6 +35,11 @@ function cloudTexture(){
   return texture;
 }
 
+export const cloudDensityGLSL=`vec2 windDrift=windDir*windTime;
+      float cloud=texture2D(windClouds,(vWind-windDrift*14.)/1500.).r*.7+texture2D(windClouds,(vWind.yx-windDrift.yx*9.)/830.+.37).r*.3;`;
+
+export function windCloudTexture(){return wind.clouds.value??=cloudTexture();}
+
 const header='uniform vec2 windDir; uniform float windTime; varying vec2 vWind;\n';
 const sways: Record<Sway,string>={
   none:'',
@@ -64,7 +69,7 @@ export function breezy<M extends T.Material>(material: M,sway: Sway='none'): M {
   const inner=material.onBeforeCompile;
   material.onBeforeCompile=(shader,renderer)=>{
     inner.call(material,shader,renderer);
-    wind.clouds.value??=cloudTexture();
+    windCloudTexture();
     shader.uniforms.windTime=wind.time;shader.uniforms.windDir=wind.dir;shader.uniforms.windClouds=wind.clouds;
     const surface=sway==='frond' && !shader.vertexShader.includes('attribute float surface')?'attribute float surface;\n':'';
     shader.vertexShader=header+surface+shader.vertexShader
@@ -76,8 +81,7 @@ export function breezy<M extends T.Material>(material: M,sway: Sway='none'): M {
         #endif
         vWind=(modelMatrix*windPosition).xz;`);
     shader.fragmentShader='uniform sampler2D windClouds;\n'+header+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-      vec2 windDrift=windDir*windTime;
-      float cloud=texture2D(windClouds,(vWind-windDrift*14.)/1500.).r*.7+texture2D(windClouds,(vWind.yx-windDrift.yx*9.)/830.+.37).r*.3;
+      ${cloudDensityGLSL}
       diffuseColor.rgb*=mix(vec3(1.),vec3(.80,.84,.92),smoothstep(.54,.72,cloud));`);
   };
   material.customProgramCacheKey=()=>'wind:'+sway+':'+inner.toString();
