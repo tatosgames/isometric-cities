@@ -873,9 +873,9 @@
   },
   "coverage": {
     "bounds": [
-      -15.47,
-      28.02,
-      -15.39,
+      -15.48,
+      28.0,
+      -15.38,
       28.19
     ],
     "lattice": 0.01,
@@ -1145,8 +1145,184 @@
         "municipal": 9,
         "entity": 50,
         "name": "El Secadero"
+      },
+      {
+        "id": "salto-del-negro",
+        "municipal": 2,
+        "entity": 49,
+        "name": "Salto del Negro"
+      },
+      {
+        "id": "la-montaneta",
+        "municipal": 1,
+        "entity": 49,
+        "name": "La Montañeta"
+      },
+      {
+        "id": "san-francisco-de-paula",
+        "municipal": 3,
+        "entity": 49,
+        "name": "San Francisco de Paula"
+      },
+      {
+        "id": "diseminado-la-montaneta",
+        "municipal": 99,
+        "entity": 49
+      },
+      {
+        "id": "diseminado-marzagan",
+        "municipal": 99,
+        "entity": 19
+      },
+      {
+        "id": "lomo-del-sabinal",
+        "municipal": 5,
+        "entity": 19,
+        "name": "Lomo del Sabinal"
+      },
+      {
+        "id": "llano-de-las-nieves",
+        "municipal": 3,
+        "entity": 19,
+        "name": "Llano de las Nieves"
+      },
+      {
+        "id": "llanos-de-la-barrera",
+        "municipal": 4,
+        "entity": 19,
+        "name": "Llanos de la Barrera"
+      },
+      {
+        "id": "santa-margarita",
+        "municipal": 9,
+        "entity": 19,
+        "name": "Santa Margarita"
+      },
+      {
+        "id": "montequemado",
+        "municipal": 8,
+        "entity": 19,
+        "name": "Montequemado"
+      },
+      {
+        "id": "marzagan",
+        "municipal": 6,
+        "entity": 19,
+        "name": "Marzagán"
+      },
+      {
+        "id": "cuesta-ramon",
+        "municipal": 1,
+        "entity": 19,
+        "name": "Cuesta Ramón"
+      },
+      {
+        "id": "mercalaspalmas",
+        "municipal": 7,
+        "entity": 19,
+        "name": "Mercalaspalmas"
+      },
+      {
+        "id": "jinamar",
+        "municipal": 2,
+        "entity": 19,
+        "name": "Jinámar"
+      },
+      {
+        "id": "diseminado-tafira",
+        "municipal": 99,
+        "entity": 50
+      },
+      {
+        "id": "lomo-blanco",
+        "municipal": 5,
+        "entity": 50,
+        "name": "Lomo Blanco"
+      },
+      {
+        "id": "lomo-verdejo",
+        "municipal": 6,
+        "entity": 50,
+        "name": "Lomo Verdejo"
+      },
+      {
+        "id": "campus-universitario",
+        "municipal": 2,
+        "entity": 50,
+        "name": "Campus Universitario"
+      },
+      {
+        "id": "zurbaran",
+        "municipal": 12,
+        "entity": 50,
+        "name": "Zurbarán"
+      },
+      {
+        "id": "pico-viento",
+        "municipal": 8,
+        "entity": 50,
+        "name": "Pico Viento"
+      },
+      {
+        "id": "tafira-baja",
+        "municipal": 11,
+        "entity": 50,
+        "name": "Tafira Baja"
+      },
+      {
+        "id": "la-cantera",
+        "municipal": 3,
+        "entity": 50,
+        "name": "La Cantera"
+      },
+      {
+        "id": "monte-luz",
+        "municipal": 7,
+        "entity": 50,
+        "name": "Monte Luz"
+      },
+      {
+        "id": "el-fondillo",
+        "municipal": 4,
+        "entity": 50,
+        "name": "El Fondillo"
+      },
+      {
+        "id": "tafira-alta",
+        "municipal": 10,
+        "entity": 50,
+        "name": "Tafira Alta"
+      },
+      {
+        "id": "la-calzada",
+        "municipal": 1,
+        "entity": 50,
+        "name": "La Calzada"
+      },
+      {
+        "id": "diseminado-los-hoyos",
+        "municipal": 99,
+        "entity": 14
+      },
+      {
+        "id": "lomo-de-enmedio",
+        "municipal": 3,
+        "entity": 14,
+        "name": "Lomo de Enmedio"
+      },
+      {
+        "id": "la-data",
+        "municipal": 1,
+        "entity": 14,
+        "name": "La Data"
+      },
+      {
+        "id": "los-hoyos",
+        "municipal": 2,
+        "entity": 14,
+        "name": "Los Hoyos"
       }
     ],
-    "minimumLandM2": 5000000
+    "minimumLandM2": 60000000
   }
 }

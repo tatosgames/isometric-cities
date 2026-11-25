@@ -1208,3 +1208,26 @@ Verifiche.
 - `typecheck`, `build`, `node scripts/qa.mjs`, `qa-ground`, `qa-boot`, `qa-recovery`, `qa-sectors`, `qa-drive-pose`: verdi.
 
 Limiti. Una vista spinta oltre 100 m dal confine legge quota 0 invece del rilievo: non provato a mano trascinando la mappa al bordo delle colline. Un modello dedicato che leggesse quote a più di 60 m dal proprio edificio prenderebbe la quota del bordo della finestra senza avviso. Una misura per vista; nessuna prova su telefono fisico.
+
+## Blocco sud · 25 novembre 2026
+
+Entrano per intero quattro entità del servizio comunale «Barrios»: La Montañeta (49), Marzagán (19), Tafira (50) e Los Hoyos (14), 26 barrios con nome più i quattro «Diseminado» che li raccordano, coperti e senza etichetta. I barrios di Tafira bassa da soli non toccavano l'area coperta e avrebbero lasciato buchi: l'area resta un solo anello solo prendendo le entità intere. La finestra passa a −15,48 / 28,00 / −15,38 / 28,19: a sud e a est perché la costa acquisita chiuda il mare sotto Jinámar, a ovest per La Calzada.
+
+| | Prima | Dopo |
+|---|---:|---:|
+| Area | 36,22 km² | 62,67 km² |
+| Parti di edificio | 28.748 | 36.321 |
+| Zone / settori | 75 / 805 | 110 / 1.290 |
+| Barrios con nome | 46 | 72 |
+| `city-core.json` + `city-terrain.bin` | 4,3 + 4,3 MB | 6,8 + 6,7 MB |
+| Heap dopo la raccolta (`benchmark.mjs`, telefono emulato) | 52,0 MB | 62,5 MB |
+
+- Terreno: 819 riquadri su 1.430 del rettangolo (1.619 × 3.490 celle). Come griglia unica sarebbero 11,3 MB per copia.
+- LiDAR: 27 tessere sul blocco sud, 5.928 edifici misurati; 998 edifici senza altezza comunale prendono quella misurata, 70 parti basse e 3 alte corrette. Scarto mediano LiDAR meno comunale −0,43 m, 85 % entro 5 m.
+- Rete delle guaguas rigenerata sulle strade nuove: 9.200 tratti in 498 celle, 117 schemi.
+- `typecheck`, `build` (con `check-data`), `node scripts/qa.mjs`, `test_guagua_index.py`: verdi. `benchmark.mjs`: p95 16,8 ms da vicino e 17 ms da lontano.
+- Sei catture desktop (Jinámar, Marzagán, Tafira Alta, Campus, Los Hoyos, Salto del Negro): suolo, strade ed edifici continui sui raccordi con l'area precedente, nessun buco.
+
+Limiti. Mancano tre tessere LiDAR marginali (455-3103, 456-3105, 459-3104) e quelle a ovest di x = 455 km per Tafira Alta e Los Hoyos: in tutta la città 975 edifici senza dato comunale né misura restano a 9 m stimati. Il bordo sud segue il confine comunale, con il dito di Montequemado e la rientranza verso Telde. Le zone rurali hanno suolo e strade ma poca vegetazione. Nessun luogo o scheda nei quartieri nuovi. `heap-profile.mjs` e il passaggio di `PERFORMANCE.md` sui settori più pesanti non sono stati rifatti; nessuna prova su telefono fisico.
+
+`qa-sectors.mjs`: il giro tra i luoghi passa (memoria di dettaglio entro il budget, 58–60 MiB); il controllo sul punto di partenza della guida fallisce allo stesso modo anche sullo stato precedente all'espansione, quindi viene dalle modifiche alla guida già presenti su `main` e resta da sistemare.
