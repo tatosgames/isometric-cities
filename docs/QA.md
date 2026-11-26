@@ -1479,6 +1479,14 @@ The build, typecheck, and general suite (`npm test`) moved to Chromium, includin
 
 The city test compares the exact indices of the frames where the controller changes levels with a trace collected before extraction. The sequence includes calibration, rest, loading, smooth movement, and slowing down. Ten transitions coincide on the compact profile and four on the desktop. The copied folder alone in a temporary directory passes three tests with Node 24, using a particle profile and no dependencies installed. To repeat the test run `node --test adaptive-quality.test.mjs` from the copy.
 
+### Quality at rest
+
+`node scripts/qa-quality-idle.mjs dist idle-drop` runs the desktop map in Chromium with synthetic refresh timestamps. A 40 Hz display sustains the ambient cadence near 30 FPS and keeps solar shadows. At 20 FPS the still map switches to static shadows after about three seconds and turns them off after about three more. The quality panel reports a 30 FPS target for those decisions.
+
+`node scripts/qa-dynamic-quality.mjs` also checks that a brief slowdown or a single long stall leaves the current level in place, that steady 30 FPS at rest leaves the confirmed level in place, and that moving starts a fresh measurement. The existing Chromium calibration checks passed at simulated 30 and 60 Hz.
+
+Typecheck, production build and the full `npm test` suite passed.
+
 ## Piper
 
 In three synthetic scenarios, the simulation reproduced 9.28 s of stopping in front of a 14 m out-of-cover swath, an elevation change from 582 to 460 m over a cliff, and a 110 m high façade between the Piper and the chamber. The regressions test for movement along the boundary, constant altitude in level flight, and line of sight to the tail. A fourth test measures the rise of the chamber during the dive and the return to the vertical cruising distance when the control is released.
@@ -1498,6 +1506,8 @@ Passed simulated 30 and 60 Hz Chromium typecheck, build and calibrations. The fu
 ### Controller decisions and WebGL buffers
 
 The portable test checks event order, target and p95 slowdown, input interruption, loading and expiration during preparation. The city test tests the transition between screens at DPR 1 and 2, in both directions. The lab's browser test compares the panel with `drawingBufferWidth` and `drawingBufferHeight` of the WebGL context and changes the DPR while leaving the CSS viewport the same.
+
+`node scripts/qa-quality-idle.mjs dist idle-drop` verifies the pixels in the first frame at DPR 0.85 and 0.70. Before the fix, both frames were transparent with a live WebGL context because the resize ran after rendering. After the fix, both frames contain the map. The test also forces WebGL context loss and recovery, checks both diagnostics, and checks that the camera view is preserved. Typecheck, build and the full `npm test` suite passed.
 
 The controller review covers four regressions with deterministic tests: a single callback to reset during a test, calibration consistent with the maximum allowed, distinct reason for the neutral FPS band, and discarding timestamps out of order. The city comparison continues to check the frames of the 14 reference transitions.
 

@@ -230,6 +230,10 @@ The Piper's game feel transition makes the propeller speed, the reentry flare an
 
 **Quality diagnostics.** The Rendering quality lab shows the reasons for the last four decisions and compares the actual buffer size before and after a DPR change. On the compact profile the last level becomes available only if it produces more pixels than FXAA at scale 1.
 
+**Quality at rest.** With the camera still, the ground profile lowers quality one level after about three seconds below 24 FPS. The ambient loop targets 30 FPS across display refresh rates. [Verification](docs/QA.md#quality-at-rest).
+
+**Drawing buffer transitions.** Adaptive quality applies the new DPR before rendering the frame. The quality lab reports WebGL context loss and restoration. [Regression test](docs/QA.md#controller-decisions-and-webgl-buffers).
+
 **Quality controller review.** Direct reset during a test, calibration management when available cap changes, and separate justification for promotions without sufficient margin. The comparison of the DPR reads the profiles of the city.
 
 ## Piper flight performance

@@ -26,6 +26,7 @@ export interface QualityProfile<T> {
   baseIndex: number;
   calibrate?: boolean;
   detect30Fps?: boolean;
+  adaptWhileResting?: boolean;
   onDecision?: (event:QualityDecision<T>)=>void;
   /** Applies the initial level, each transition (including rollback), and reset. */
   applyLevel?: (level:T)=>void;
@@ -33,7 +34,7 @@ export interface QualityProfile<T> {
 
 /** Levels are ordered from cheapest to most expensive. Timestamps are in milliseconds. */
 export function createAdaptiveQuality<T extends NonNullable<unknown>>({
-  levels, initialIndex, baseIndex, calibrate=false, detect30Fps=false, applyLevel, onDecision
+  levels, initialIndex, baseIndex, calibrate=false, detect30Fps=false, adaptWhileResting=false, applyLevel, onDecision
 }: QualityProfile<T>){
   for(const index of [initialIndex,baseIndex]){
     if(!Number.isInteger(index) || index<0 || index>=levels.length)
@@ -57,8 +58,16 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
   const intervals:number[]=[];
   let windowLoading=false;
   function clearWindow(){previous=null;windowLoading=false;total=0;intervals.length=0;goodMs=badMs=trialMs=fastMs=steady30Ms=0;}
+  function currentTarget(){return mode==='resting' && adaptWhileResting?30:targetFps;}
   function notify(action:QualityDecision<T>['action'],reason:DecisionReason,from=index){
-    onDecision?.({action,reason,from:levels[from],to:levels[index],targetFps,fps:lastFps,p95Ms:lastP95});
+    onDecision?.({action,reason,from:levels[from],to:levels[index],targetFps:currentTarget(),fps:lastFps,p95Ms:lastP95});
+  }
+  function reduce(){
+    index--;
+    if(mode!=='resting')reducedForLoad=true;
+    clearWindow();
+    notify('reduce','slow',index+1);
+    return applyCurrentLevel();
   }
   function cancel(reason:DecisionReason){
     const active=(pending && canCalibrate()) || trial || probeStart!==null;
@@ -90,15 +99,13 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     if(probing && input.mode!=='calibration')return cancel(input.mode);
     if(probing && !input.ready)return cancel('loading');
     if(probing && probeAge>=6000)return cancel(timeoutReason);
-    if(input.mode==='resting'){
-      if(mode!=='resting'){
-        mode='resting';
-        if(trial)return cancel('resting');
-        clearWindow();
-      }
-      return null;
+    const resting=input.mode==='resting';
+    if(mode!==input.mode){
+      mode=input.mode;
+      if(resting && trial)return cancel('resting');
+      clearWindow();
     }
-    if(mode!==input.mode){clearWindow();mode=input.mode;}
+    if(resting && !adaptWhileResting)return null;
     // Loading keeps measuring: its hitches count towards a reduction, but a window with any loading frame
     // never counts towards a promotion or a 30 Hz cadence. A trial still waits for the scene it is judged on.
     if(trial && (!input.ready || input.preparing)){clearWindow();return null;}
@@ -110,27 +117,31 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     if(last===null)return null;
     const dt=now-last;
     intervals.push(dt);total+=dt;
-    backoff=Math.max(0,backoff-dt);
+    if(!resting)backoff=Math.max(0,backoff-dt);
     // Half-second windows keep decisions comparable on 30, 60 and 120 Hz screens.
     if(total+0.01<(probing?2000:500))return null;
     intervals.sort((a,b)=>a-b);
     const p95=intervals[Math.ceil(intervals.length*.95)-1],fps=1000*intervals.length/total;
     lastFps=fps;lastP95=p95;
+    const elapsed=total, loading=windowLoading;
+    const p05=intervals[Math.floor((intervals.length-1)*.05)];
+    total=0;intervals.length=0;windowLoading=false;
+    if(resting){
+      // The 30 FPS cap can alternate short and long gaps on displays such as 50 Hz.
+      badMs=fps<24?badMs+Math.min(elapsed,500):0;
+      return badMs+.01>=3000 && index>0?reduce():null;
+    }
     const fast=fps>=57 && p95<=22;
-    const elapsed=total;
     fastMs=fast?fastMs+elapsed:0;
     if(fastMs+.01>=2000){targetFps=60;observedFast=true;reducedForLoad=false;}
     // Infer a 30 Hz cadence only on a light profile, outside a quality trial.
     // A 60 Hz session first tries a cheaper frame before accepting a new cadence.
-    const p05=intervals[Math.floor((intervals.length-1)*.05)];
     const steady30=fps>=29 && fps<=31.5 && p05>=29 && p95<=36;
-    const loading=windowLoading;
     const canLearn30=detect30Fps && !loading && !trial && targetFps===60 && index<=baseIndex && (!observedFast || reducedForLoad || index===0);
     steady30Ms=canLearn30 && steady30?steady30Ms+elapsed:0;
     if(steady30Ms+.01>=(observedFast?4000:2000)){targetFps=30;observedFast=false;}
     const good=targetFps===60?fast:fps>=29 && p95<=38;
     const bad=targetFps===60?fps<54 || p95>25:fps<27 || p95>42;
-    total=0;intervals.length=0;windowLoading=false;
     if(trial){
       trialMs+=elapsed;
       goodMs=good?goodMs+elapsed:0;
@@ -141,9 +152,7 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     goodMs=good && !loading?goodMs+elapsed:0;
     badMs=bad && steady30Ms===0?badMs+elapsed:0;
     if(probing && !good)return cancel(bad?'slow':'insufficient-headroom');
-    if(!probing && badMs+.01>=2000 && index>0){
-      index--;reducedForLoad=true;clearWindow();notify('reduce','slow',index+1);return applyCurrentLevel();
-    }
+    if(!probing && badMs+.01>=2000 && index>0)return reduce();
     if(goodMs+.01>=(probing?2000:8000) && backoff===0 && index<maxIndex){
       index++;trial=true;trialDeadline=now+6000;clearWindow();notify('trial','stable',index-1);return applyCurrentLevel();
     }
@@ -153,7 +162,7 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
   return {
     get level(){return levels[index];},
     get state(){
-      return {index,level:levels[index],targetFps,fps:lastFps,p95Ms:lastP95,
+      return {index,level:levels[index],targetFps:currentTarget(),fps:lastFps,p95Ms:lastP95,
         trial,cooldownMs:backoff};
     },
     get calibrationPending(){return pending && canCalibrate();},

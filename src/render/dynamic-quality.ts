@@ -85,7 +85,7 @@ export function makeDynamicQuality({compact,losses=0,preview,sky=true,onDecision
     return createAdaptiveQuality({
       levels:safe?levels.slice(0,baseIndex+1):levels,
       initialIndex:air||compact||safe?baseIndex:levels.length-1,baseIndex,
-      calibrate:!air && calibrate && compact && !safe && !fixed,detect30Fps:air || compact,
+      calibrate:!air && calibrate && compact && !safe && !fixed,detect30Fps:air || compact,adaptWhileResting:!air,
       ...(onDecision && {onDecision:(event:QualityDecision<CityQualityLevel>)=>onDecision({...event,mode:kind})})
     });
   }

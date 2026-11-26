@@ -59,11 +59,11 @@ async function start(){
   const labOutput=query.get('lab')==='qualita' && (!query.has('preview') || query.has('diagnostics'))
     ? document.createElement('output'):null;
   const decisions:string[]=[];
-  let bufferReport='', cadenceReport='';
+  let bufferReport='', cadenceReport='', contextReport='WebGL active';
   const frameGaps:number[]=[];
   let lastDprChange='';
   function showQualityLab(){
-    if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,...decisions].filter(Boolean).join('\n');
+    if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,contextReport,...decisions].filter(Boolean).join('\n');
   }
   if(labOutput){
     labOutput.id='quality-diagnostics';
@@ -327,7 +327,9 @@ async function start(){
   },{once:true});
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
-    event.preventDefault();lost=true;streamed?.forget();losses++;flight=null;coasting=false;drive?.suspend();
+    event.preventDefault();lost=true;losses++;
+    contextReport=`WebGL context lost · losses ${losses}`;showQualityLab();
+    streamed?.forget();flight=null;coasting=false;drive?.suspend();
     cancelAnimationFrame(frame);frame=0;gesture=false;interruptProbe('context-lost');
     controls.enabled=false;controls.disconnect();
     remember();
@@ -357,6 +359,7 @@ async function start(){
   }
   renderer.domElement.addEventListener('webglcontextrestored',()=>{
     if(signal.aborted)return;
+    contextReport=`WebGL context restored · losses ${losses}`;showQualityLab();
     lost=false;controls.connect(renderer.domElement);controls.enabled=map.dataset.boot==='ready'&&!drive?.active;
     applyQuality(quality.restore(losses));
     renderer.shadowMap.needsUpdate=true;
@@ -373,7 +376,11 @@ async function start(){
     if(document.hidden){interruptProbe('hidden');if(!flight?.driveOrbit)flight=null;coasting=false;stopGesture();remember();}
     else if(!lost)syncSize();
   });
-  function paint(time: number){
+  const ambientInterval=1000/30;
+  let nextAmbientPaint=0;
+  function paint(time: number, capped=false){
+    // Keep the deadline on the 30 Hz cadence even if a display callback arrives late.
+    nextAmbientPaint=capped?Math.max(nextAmbientPaint+ambientInterval,time):time+ambientInterval;
     // A screen change can leave the CSS viewport unchanged. Reuse the live loop.
     if(time>=nextDisplayCheck){
       nextDisplayCheck=time+1000;
@@ -383,7 +390,7 @@ async function start(){
         const gaps=frameGaps.splice(0).sort((a,b)=>a-b);
         const span=gaps.reduce((sum,gap)=>sum+gap,0);
         const now=gaps.length?`Now ${(1000*gaps.length/span).toFixed(0)} FPS · p95 ${gaps[Math.ceil(gaps.length*.95)-1].toFixed(1)} ms`
-          +(moving()?'':' · resting, 30 FPS cap')+(streamBusy?' · loading':''):'Now —';
+          +(capped?' · resting, 30 FPS cap':'')+(streamBusy?' · loading':''):'Now —';
         const {targetFps,fps,p95Ms,trial}=quality.state;
         cadenceReport=`${now}\nController target ${targetFps} FPS`
           +(fps===null?' · no window yet':` · last window ${fps.toFixed(0)} FPS`)
@@ -403,17 +410,18 @@ async function start(){
     scene.fog=airborne?flightHaze:null;
     sky.update(lens,airborne?.target??controls.target,!!drive?.active);
     if(patchLook && time-lookPatched>400){lookPatched=time;patchLook(scene);}
-    stats?.begin();
-    output.render(scene,lens);
-    stats?.end();
     if(map.dataset.boot==='ready' && !document.hidden){
       const changed=quality.sample(time,{
         mode:moving()?'moving':quality.calibrating?'calibration':'resting',
         ready:airborne?!drive?.flightWaiting:!streamBusy,
         preparing:flightPreparing || (streamed?.shadowsPending??pilotMask?.pending??false)
       });
+      // Resizing clears the drawing buffer, so render into the new buffer in this frame.
       if(changed)applyQuality(changed);
     }
+    stats?.begin();
+    output.render(scene,lens);
+    stats?.end();
     if(!document.hidden)setDesaturation(drive?.desaturation??0);
   }
   function draw(){
@@ -508,8 +516,9 @@ async function start(){
     if(quality.calibrationPending && !streamBusy && !moving()){
       quality.beginCalibration(time);
     }
-    if(!quality.calibrating && !moving() && time-painted<31)return;
-    paint(time);
+    const capped=!quality.calibrating && !moving();
+    if(capped && time+.01<nextAmbientPaint)return;
+    paint(time,capped);
   }
   requestAnimationFrame(ambient);
   function zoom(k: number){fly(flight?.to??controls.target,T.MathUtils.clamp((flight?.z1??camera.zoom)*k,controls.minZoom,controls.maxZoom),300);}

@@ -45,6 +45,21 @@ for(const reason of ['input','busy','timeout','slow']){
   assert.equal(run(60,6).stage,1);
 }
 const desktop=device(false);
+const idleDesktop=device(false);
+assert.equal(idleDesktop.run(30,10,'resting').shadows,'solar');
+assert.equal(idleDesktop.policy.state.targetFps,30);
+assert.equal(idleDesktop.run(20,2.4,'resting').shadows,'solar');
+assert.equal(idleDesktop.run(30,2,'resting').shadows,'solar','a smooth interval clears the slowdown');
+assert.equal(idleDesktop.run(20,2.5,'resting').shadows,'solar');
+assert.equal(idleDesktop.run(45,1).shadows,'solar','movement starts a fresh measurement');
+assert.equal(idleDesktop.policy.state.targetFps,60);
+assert.equal(idleDesktop.run(20,3.2,'resting').shadows,'static');
+assert.equal(idleDesktop.run(20,3.2,'resting').shadows,'off');
+assert.equal(idleDesktop.run(30,15,'resting').shadows,'off','idle can lower quality only');
+const idleStall=device(false);
+idleStall.policy.sample(0,{mode:'resting',ready:true});
+idleStall.policy.sample(4000,{mode:'resting',ready:true});
+assert.equal(idleStall.policy.config.shadows,'solar','a single stalled frame is not sustained low FPS');
 const capped=device();
 capped.probe();
 assert.equal(capped.run(30,5.5,'calibration').shadows,'static');

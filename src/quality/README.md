@@ -36,6 +36,8 @@ Indices are zero-based. `initialIndex` selects the initial quality level. `baseI
 
 Use `moving` while the game is active and `resting` for ambient updates. Set `ready: false` while loading and `preparing: true` while a trial effect prepares its resources. Loading frames still count towards a downgrade, because streaming hitches are what the player feels, but never towards a promotion or a 30 FPS cadence; a trial pauses until loading ends. The cooldown timer pauses while resting.
 
+For ambient loops capped at 30 FPS, set `adaptWhileResting: true` to drop one level after three consecutive seconds below 24 FPS. Resting uses its own measurement window and only supports downgrades. The city enables this option for its ground profile.
+
 For initial calibration, set `calibrate: true` and start the game at the baseline level. Once the scene is ready and idle, call `beginCalibration(time)` when `calibrationPending` is true. While `calibrating` is true, render without an idle frame cap and pass `mode: 'calibration'`. An input event or a hidden page can interrupt calibration with `interrupt()`. Use `reset()` to start over. Reset applies the initial profile in one step, within the device's quality ceiling, even during a trial. If you apply levels manually, apply a returned level when it is not `null`.
 
 With `detect30Fps`, the controller can detect a stable 30 FPS cadence at the baseline or a lower level. While moving, an upgrade requires 8 seconds of smooth performance followed by a 2-second trial. A failed trial starts a 30-second active cooldown. For diagnostics, `state` exposes the index, level, FPS target, most recent FPS and p95 in milliseconds, trial status, and remaining cooldown.
