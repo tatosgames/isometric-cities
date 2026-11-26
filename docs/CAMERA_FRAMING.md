@@ -1,70 +1,70 @@
-# Contratto di inquadratura
+# Framing contract
 
-Cosa deve garantire la camera in ogni stato del viewer. È solo presentazione: l'inquadratura non cambia mai geometria, collisioni, percorsi o esiti di gioco. Sul modello di `CAMERA_FRAMING.md` di Smash Royale, adattato a una camera ortografica isometrica.
+What the camera must guarantee in each viewer state. It's just presentation: the camera never changes geometry, collisions, paths or game outcomes. Modeled after `CAMERA_FRAMING.md` from Smash Royale, adapted to an isometric orthographic chamber.
 
-I valori citati sono quelli del codice al 24 novembre 2026. Se cambiano nel codice, vale il codice e questo file va aggiornato.
+The values ​​cited are those of the code as of November 24, 2026. If they change in the code, the code applies and this file must be updated.
 
-## Regole comuni
+## Common rules
 
-1. **Mappa e guida condividono la camera ortografica.** La camera ortografica nasce da `makeMapCamera()` in `src/render/map-camera.ts`, la stessa di editor e laboratori, con bordi in pixel (`fitPixels`), distanza dal bersaglio `CAMERA_DISTANCE` (1500 m) e angolo `mapViewDirection()`. Solo `src/main.ts` la sposta, con la funzione `view(target, zoom, offset)`: la guida chiede un'inquadratura chiamando `view`.
-2. **Orientamento.** La mappa ruota a scatti attorno alla verticale mantenendo l'inclinazione isometrica. La vista Isométrica in guida riprende l'orientamento all'ingresso. Le altre viste di guida orientano la stessa camera ortografica lungo la traiettoria.
-3. **Lo zoom è in pixel per metro.** I bordi della camera sono in pixel CSS, quindi `camera.zoom` dice quanti pixel occupa un metro. Tutte le soglie si ragionano così.
-4. **Il bersaglio resta dentro il perimetro.** `draw()` riporta il bersaglio nel riquadro del confine a ogni frame e la camera a 1500 m da esso: lo zoom verso il cursore la fa scivolare nel proprio piano, e in proiezione ortografica la distanza non cambia l'immagine.
-5. **Niente salti.** Ogni cambio di inquadratura è un volo o una rincorsa smorzata. Gli smorzamenti sono esponenziali in secondi (`approach` in `src/geometry.ts`), quindi uguali a 30, 60 o 120 fotogrammi al secondo. I pulsanti `+`, `−` e panoramica animano per 300 ms. Un taglio netto è ammesso solo al ripristino dopo la perdita del contesto, dove si torna all'ultima vista salvata.
+1. **Map and guide share the orthographic camera.** The orthographic camera is born from `makeMapCamera()` in `src/render/map-camera.ts`, the same as editors and laboratories, with edges in pixels (`fitPixels`), distance from the target `CAMERA_DISTANCE` (1500 m) and angle `mapViewDirection()`. Only `src/main.ts` moves it, with the `view(target, zoom, offset)` function: the guide asks for a shot by calling `view`.
+2. **Orientation.** The map rotates jerkily around the vertical while maintaining the isometric inclination. The Isométrica view while driving resumes the orientation at the entrance. The other driving views orient the same orthographic camera along the trajectory.
+3. **Zoom is in pixels per meter.** The camera borders are in CSS pixels, so `camera.zoom` says how many pixels a meter occupies. All thresholds are thought like this.
+4. **The target remains inside the perimeter.** `draw()` brings the target back into the border box at each frame and the camera 1500 m from it: zooming towards the cursor makes it slide in its own plane, and in orthographic projection the distance does not change the image.
+5. **No jumps.** Every change of shot is a flight or a muffled run-up. The dampings are exponential in seconds (`approach` in `src/geometry.ts`), therefore equal to 30, 60 or 120 frames per second. The `+`, `−` and pan buttons animate for 300 ms. A clean break is only permitted when restoring after context loss, where you return to the last saved view.
 
-## Mappa
+## Map
 
-- **Apertura:** dettaglio sul luogo indicato da `data.focus`, non la panoramica.
-- **Panoramica** (mirino o tasto Inizio): mantiene l'orientamento e inquadra tutto il perimetro con un margine (`fitAt`).
-- **Trascinamento:** il terreno resta sotto il puntatore, uno a uno, col mouse e col dito, anche in verticale (`GroundControls` in `src/render/map-camera.ts`). Nessuno smorzamento durante il gesto. Al rilascio la mappa prosegue alla velocità degli ultimi 100 ms del gesto, misurata sui tempi degli eventi del puntatore, e rallenta di `coastRate` 6 al secondo. Un dito fermo per più di 80 ms prima di sollevarsi e un pizzico non fanno scivolare. Un nuovo tocco, un pulsante o Play fermano la scivolata.
-- **Rotellina e pizzico:** lo zoom va verso il punto indicato, non verso il centro.
-- **Pulsanti zoom:** `+`, `−` e panoramica interpolano bersaglio e zoom in 300 ms; nuovi input sostituiscono il volo in corso partendo dalla vista corrente.
-- **Pulsanti di rotazione:** ±90° attorno al bersaglio, a zoom e inclinazione costanti. Uno scatto dura 300 ms. I clic ravvicinati si sommano e ripartono dalla posa visibile.
-- **Limiti di zoom interattivo:** minimo di 0,8 × il minore dei livelli di panoramica, massimo di 12 × il maggiore con un minimo di 4 px/m e spazio per lo zoom di apertura.
-- **Luogo selezionato:** volo di 320 ms con zoom tale che il lato corto copra circa 245 m. Il luogo diventa il bersaglio e un offset della vista (`setViewOffset`) lo porta al centro della parte che la scheda lascia libera: a destra del pannello sugli schermi larghi, sopra il foglio sul telefono in verticale (`frame()` in `src/map/place-card.ts`). Con la sola pillola il marker va al centro. Con la scheda aperta zoom e rotazione girano attorno al luogo, che resta nella parte libera.
-- **Chiusura o piegatura della scheda:** il bersaglio torna al centro dello schermo e l'offset sparisce senza che l'immagine si muova. La vista salvata e `data-view` riportano sempre il punto al centro dello schermo.
-- **Rotazione dello schermo e ridimensionamento:** bersaglio, zoom, orientamento e offset in pixel restano invariati.
-- **Marker:** proiettati a ogni frame, nascosti quando escono dallo schermo.
+- **Opening:** detail on the place indicated by `data.focus`, not the overview.
+- **Panorama** (viewfinder or Start button): maintains orientation and frames the entire perimeter with a margin (`fitAt`).
+- **Dragging:** the ground remains under the pointer, one by one, with the mouse and with the finger, even vertically (`GroundControls` in `src/render/map-camera.ts`). No dampening during the gesture. Upon release, the map continues at the speed of the last 100 ms of the gesture, measured on the times of the pointer events, and slows down by `coastRate` 6 per second. A finger still for more than 80 ms before lifting and a pinch does not cause slipping. A new tap, button or Play stops the slide.
+- **Wheel and pinch:** the zoom goes towards the indicated point, not towards the center.
+- **Zoom buttons:** `+`, `−` and pan interpolate target and zoom in 300 ms; new inputs replace the current flight starting from the current view.
+- **Rotation buttons:** ±90° around the target, at constant zoom and tilt. A shot lasts 300 ms. Close clicks add up and restart from the visible pose.
+- **Interactive zoom limits:** minimum of 0.8 × the smallest of the pan levels, maximum of 12 × the largest with a minimum of 4 px/m and room for aperture zoom.
+- **Selected location:** 320 ms flight with zoom such that the short side covers approximately 245 m. The place becomes the target and an offset of the view (`setViewOffset`) brings it to the center of the part that the card leaves free: to the right of the panel on wide screens, above the sheet on the phone in portrait (`frame()` in `src/map/place-card.ts`). With the pill alone the marker goes to the center. With the tab open, zoom and rotation rotate around the place, which remains in the free part.
+- **Closing or folding the card:** the target returns to the center of the screen and the offset disappears without the image moving. The saved view and `data-view` always return the point to the center of the screen.
+- **Screen rotation and scaling:** target, zoom, orientation and pixel offset remain unchanged.
+- **Markers:** projected every frame, hidden when they go off screen.
 
-## Guida
+## Help
 
-1. **L'auto è il soggetto.** La camera insegue l'auto in modo stretto (`followRate` 9): l'auto resta quasi ferma sullo schermo, è il mondo a scorrere.
-2. **Si vede dove si sta andando.** Il bersaglio avanza lungo la direzione di marcia da 0 m da fermo a 5 m a 10 km/h, poi cresce fino a 12 m a 90 km/h e resta entro quel limite. L'anticipo è smorzato a parte (`leadRate` 2,4). Il colpo di camera segue la propria molla (punto 6).
-3. **Campo visivo di base:** il lato corto dello schermo copre 62 m su telefono e 95 m su desktop (`viewSpanCompact`, `viewSpanWide`). A 390 px di larghezza sono circa 6,3 px/m, con l'auto intorno ai 25 px.
-4. **Zoom dinamico lento e piccolo.** Si allarga fino al 10% a 90 km/h e fino all'8% con una pattuglia entro 45 m, e si stringe del 14% alla cattura. I due ingressi sono filtrati (`paceRate` 0,7) e lo zoom li insegue con `zoomRate` 1,1. `followRate`, `leadRate`, `paceRate` e `zoomRate` sono tassi esponenziali al secondo.
-5. **Ingresso e uscita in planata.** Entrando in guida la camera raggiunge l'auto in circa un secondo e mezzo. All'uscita, la stessa camera torna in 1,5 s al punto, allo zoom e all'orientamento della mappa prima di Play. Dalle viste mobili torna all'angolo isometrico lungo l'arco più breve.
-6. **Spinta direzionale, mai tremolio.** Per urti oltre 6 m/s, spinte di pattuglie, rottami entro 40 m e cattura, il bersaglio scatta verso ciò che ha colpito e torna con una molla smorzata (`kick` 36, `kickStiff` 220, `kickDamp` 22). Un colpo pieno sposta la vista di circa 1 m e rientra in 0,28 s; il limite è `kickMax` 1,2 m. Non c'è alcuno spostamento casuale. Mai mentre si è fermi in attesa del primo tocco. Dettagli in [JUICE.md](JUICE.md).
-7. **Nessun limite di zoom della mappa.** In guida `controls.maxZoom` è infinito; all'uscita tornano i limiti della mappa e l'inquadratura di prima.
+1. **The car is the subject.** The camera follows the car closely (`followRate` 9): the car remains almost stationary on the screen, the world passes by.
+2. **You can see where you are going.** The target advances along the direction of travel from 0 m from rest to 5 m at 10 km/h, then grows to 12 m at 90 km/h and stays within that limit. The advance is damped separately (`leadRate` 2.4). The chamber shot follows its own spring (point 6).
+3. **Basic field of view:** The short side of the screen covers 62m on phone and 95m on desktop (`viewSpanCompact`, `viewSpanWide`). At 390px wide it's about 6.3px/m, with the car around 25px.
+4. **Slow and small dynamic zoom.** Widens up to 10% at 90 km/h and up to 8% with a patrol within 45 m, and narrows by 14% on capture. The two inputs are filtered (`paceRate` 0.7) and the zoom follows them with `zoomRate` 1.1. `followRate`, `leadRate`, `paceRate`, and `zoomRate` are exponential rates per second.
+5. **Entry and exit when gliding.** When entering drive the camera reaches the car in about a second and a half. Upon exit, the same camera returns in 1.5 s to the point, zoom and orientation of the map before Play. From moving views, return to the isometric angle along the shortest arc.
+6. **Directional push, never flicker.** For impacts over 6 m/s, patrol pushes, wreckage within 40 m and capture, the target dashes towards what it hit and returns with a dampened spring (`kick` 36, `kickStiff` 220, `kickDamp` 22). A full shot moves the view about 1 m and retracts in 0.28 s; the limit is `kickMax` 1.2 m. There is no random shift. Never while standing still waiting for the first touch. Details in [JUICE.md](JUICE.md).
+7. **No map zoom limit.** When driving `controls.maxZoom` is infinite; upon exit, the limits of the map and the previous shot return.
 
-Il pulsante camera e il tasto C alternano Isométrica, Aérea (65°) e Seguimiento (48°, scala 1,22×). Il gioco ricorda la scelta sul dispositivo. La transizione dura mezzo secondo. Le viste mobili ruotano lungo il percorso angolare più breve, fino a 100°/s. Nei vicoli verificano la visuale verso la cabina, salgono fino a 85° e attendono mezzo secondo di visuale libera prima di tornare alla quota normale.
+The camera button and C key alternate between Isométrica, Aérea (65°) and Continuamiento (48°, 1.22× scale). The game remembers your choice on your device. The transition lasts half a second. The moving views rotate along the shortest angular path, up to 100°/s. In the alleys they check the view towards the cabin, climb up to 85° and wait half a second of clear view before returning to normal altitude.
 
-## Cosa deve restare visibile in guida
+## What must remain visible in the guide
 
-- La parte nascosta dell’auto si legge come sagoma sulla facciata o sul tetto. La freccia segue il muso quando il centro della cabina è coperto.
-- Le prossime monete della scia lungo la direzione di marcia.
-- Una pattuglia che si avvicina, prima che arrivi a contatto: è la ragione dell'allargamento del punto 4.
-- La destinazione: sulla scena con il fascio di luce, o sul bordo dello schermo con la goccia turchese della distanza quando è fuori campo.
-- L'attribuzione in basso.
+- The hidden part of the car can be read as a silhouette on the facade or roof. The arrow follows the nose when the center of the cabin is covered.
+- The next coins in the trail along the direction of travel.
+- A patrol approaching, before it reaches contact: this is the reason for the enlargement of point 4.
+- The destination: on the scene with the light beam, or on the edge of the screen with the turquoise distance drop when out of view.
+- Attribution below.
 
-L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita in alto a destra, zone tattili negli angoli in basso. La ficha della destinazione non entra nella fascia delle statistiche né in quella delle zone tattili.
+The interface stays outside these zones: statistics at the top left, exit at the top right, touch zones in the bottom corners. The destination card does not enter the statistics band or the tactile zones band.
 
-## Da non fare
+## Don't do it
 
-- In derapata, usare la direzione di marcia smorzata per orientare le viste mobili. Sotto 2 m/s conservare la direzione.
-- Rimettere uno spostamento casuale della camera.
-- Legare lo zoom a eventi istantanei (urto, moneta, comparsa di una pattuglia). Passa sempre dai due ingressi filtrati.
-- Risolvere un problema di leggibilità di una singola zona cambiando i valori globali di campo visivo. Si interviene sulla scena o sulla sagoma dell’auto.
-- Attivare due camere nello stesso fotogramma. Il renderer seleziona la camera in `src/main.ts`.
+- When drifting, use the damped direction of travel to orient the moving views. Below 2 m/s maintain direction.
+- Reset a random camera shift.
+- Link zoom to instantaneous events (bump, coin, appearance of a patrol). Always pass through the two filtered inputs.
+- Solve a single area readability problem by changing the global field of view values. We intervene on the scene or on the shape of the car.
+- Activate two cameras in the same frame. The renderer selects the camera in `src/main.ts`.
 
-## Verifica
+## Verify
 
-- `node scripts/qa-map-camera.mjs` (incluso in `npm.cmd test`) controlla zoom verso il cursore, scivolata dopo il trascinamento, luogo accanto alla scheda dopo rotazione e zoom, chiusura senza salto, e la geometria dell'offset.
-- `npm.cmd test` controlla anche il ciclo di quattro scatti, la panoramica ai quattro angoli e il ripristino della posa dopo ridimensionamento, uscita dalla guida e perdita del contesto.
-- Dopo una modifica alla camera di guida, campionare lo zoom ogni mezzo secondo per una decina di secondi (nono campo di `data-drive` su `#scene`) e confrontarlo con i valori del punto 4.
-- Guardare almeno uno screenshot a 390×844 e uno a 1440×900 con l'auto in una via stretta.
-- Su telefono fisico la sensazione di movimento non è stata ancora provata.
+- `node scripts/qa-map-camera.mjs` (included in `npm.cmd test`) controls zoom to cursor, slide after dragging, place next to tab after rotate and zoom, close without jumping, and offset geometry.
+- `npm.cmd test` also controls four-shot looping, four-corner panning, and pose recovery after resizing, exiting guidance, and losing context.
+- After a change to the guidance camera, sample the zoom every half second for about ten seconds (ninth field of `data-drive` on `#scene`) and compare it with the values of point 4.
+- Look at at least one screenshot at 390×844 and one at 1440×900 with the car in a narrow street.
+- On a physical phone the sensation of movement has not yet been tested.
 
-## Volo
+## Flight
 
-Il Piper usa una camera prospettica da 54°, dietro la coda e leggermente sopra le ali. In verticale la distanza cresce per mantenere visibili entrambe le estremità alari. L’orizzonte resta livellato mentre le ali seguono il comando di virata. Decollo e rientro raccordano la vista stradale alla quota di volo. Le ombre e lo streaming seguono la posizione del Piper. All’impatto la camera trattiene il punto dell’esplosione.
-La camera di volo verifica il segmento fra la coda e la posizione inseguita con campioni distanti al massimo 1,5 m. Quando una facciata attraversa la visuale, la camera si avvicina e si alza. Quando il segmento torna libero riprende la distanza con lo smorzamento della rincorsa. In picchiata la camera sale rispetto alla coda e punta verso la traiettoria in discesa.
+The Piper uses a 54° perspective camera, behind the tail and slightly above the wings. Vertically the distance increases to keep both wingtips visible. The horizon remains level while the wings follow the turn command. Takeoff and return connect the street view to the flight altitude. The shadows and streaming follow the Piper's position. Upon impact the chamber holds the point of the explosion.
+The flight camera checks the segment between the tail and the tracked position with samples a maximum of 1.5 m apart. When a facade crosses the view, the camera moves closer and rises. When the segment becomes free it resumes the distance with the damping of the run-up. When diving, the camera rises above the tail and points towards the downward trajectory.

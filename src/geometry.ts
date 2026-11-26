@@ -46,7 +46,7 @@ interface HeightGrid {
   values: ArrayLike<number>;scale?: number;tile?: number;slots?: ArrayLike<number>;
 }
 /** The stored value of one cell. A square the grid does not keep reads as sea level. */
-function cellOf({w,values,tile,slots}: HeightGrid){
+export function cellOf({w,values,tile,slots}: HeightGrid){
   if(!tile || !slots)return (col: number,row: number)=>values[row*w+col];
   const across=Math.ceil(w/tile);
   return (col: number,row: number)=>{

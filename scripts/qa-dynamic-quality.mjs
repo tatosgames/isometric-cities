@@ -130,3 +130,62 @@ display.policy.updateViewport(390,844,2);
 assert.equal(display.run(60,12).stage,3,'retina display makes the next step available');
 display.policy.updateViewport(390,844,1);
 assert.equal(display.policy.config.stage,2,'changing back to DPR 1 clamps only the redundant step');
+
+// A desktop may be fast at street level and reach a stable 30 Hz over the city.
+const recorded=[];
+const air=makeDynamicQuality({compact:false,onDecision:e=>recorded.push(e)});
+let airNow=0;
+function airFrames(fps,seconds,options={}){
+  for(let i=0;i<Math.ceil(seconds*fps);i++)
+    air.sample(airNow+=1000/fps,{mode:'moving',ready:true,...options});
+}
+air.updateViewport(3840,2160,1);
+const onStreet=air.config;
+assert.equal(air.setFlight(true).flight.detailRadius,240);
+assert.equal(renderPixelRatio(air.config,1),.5,'UHD CSS viewport produces a 1080p flight buffer');
+assert.equal(air.setFlight(true),null);
+airFrames(30,3);
+assert.equal(air.state.targetFps,30);
+assert.equal(air.config.stage,0);
+airFrames(30,7);
+assert.equal(air.state.trial,true);
+assert.equal(air.config.stage,1);
+airFrames(18,3);
+assert.equal(air.config.stage,0);
+assert.ok(recorded.some(e=>e.mode==='flight' && e.action==='cancel' && e.reason==='slow'));
+airFrames(20,4.5);
+assert.equal(air.config.dprScale,.7);
+const airborne=air.config;
+assert.deepEqual(air.setFlight(false),onStreet);
+airFrames(60,2);
+airNow+=900000;
+assert.deepEqual(air.setFlight(true),airborne);
+airFrames(60,.6);
+assert.equal(air.config.stage,-2);
+assert.ok(air.state.p95Ms<18,'the inactive interval is not a drawn frame');
+air.restore(1);
+assert.equal(air.config.flight.detailRadius,240);
+assert.deepEqual(air.setFlight(false),onStreet);
+airFrames(45,2.6);
+assert.equal(air.config.stage,1);
+air.setFlight(true);
+air.restore(1);
+assert.equal(air.setFlight(false).stage,1,'context recovery in flight preserves the ground decision');
+airFrames(60,8.6);
+assert.equal(air.state.trial,true);
+air.setFlight(true);
+air.setFlight(false);
+assert.equal(air.config.stage,1,'takeoff cancels a ground promotion before returning to the street');
+
+const preparingFlight=device(false);
+preparingFlight.policy.setFlight(true);
+preparingFlight.run(60,8.5);
+assert.ok(preparingFlight.policy.state.trial);
+preparingFlight.policy.sample(16000,{mode:'moving',ready:true,preparing:true});
+assert.equal(preparingFlight.policy.config.stage,0,'incomplete horizon resources roll back a trial');
+preparingFlight.policy.restore(2);
+assert.equal(preparingFlight.run(60,45).stage,0,'safe recovery limits both flight and ground');
+assert.equal(preparingFlight.policy.setFlight(false).shadows,'off');
+fixed.setFlight(true);
+assert.equal(fixed.config.shadows,'off','safe recovery takes priority over a fixed preview');
+console.log('Flight quality: 1080p cap, 30 Hz, trial rollback, reduction, mode isolation and WebGL recovery passed.');

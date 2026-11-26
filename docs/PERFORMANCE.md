@@ -1,93 +1,109 @@
-# Ottimizzazioni che non toccano la resa
+# Optimizations that do not affect performance
 
-Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica. Va riletto dopo ogni quartiere nuovo: quasi tutti valgono per l'intera città senza altro lavoro, ma vanno rimisurati dove gli isolati sono più densi o più alti. I numeri completi sono in [QA.md](QA.md).
+Catalog of tricks already applied to the model, with the measure that justifies them. It must be reread after each new neighborhood: almost all of them are valid for the entire city without further work, but they must be remeasured where the blocks are denser or higher. Full numbers are in [QA.md](QA.md).
 
-## Passaggio da fare dopo ogni quartiere
+## Step to do after each neighborhood
 
-1. Trova i settori più pesanti del quartiere: i file più grandi in `public/data/city-sectors/`.
-2. Misura da vicino e alla distanza massima sopra quei settori, non solo sui luoghi del menu:
-   `node scripts/frame-profile.mjs <x,y,zoom>` (metri locali; sul telefono emulato 1.59 è la vista di un luogo, 0.352 la più ampia). Leggi triangoli, draw call, mediana e p90.
-3. Se i triangoli superano quelli dei quartieri già ottimizzati, conta cosa li compone in un settore (muri, tetti, parapetti, finestre, alberi) prima di toccare il codice. L'intuizione sbaglia: nei quartieri del nord pesavano i parapetti, non le finestre.
-4. Dopo la modifica confronta schermate a camera identica, poi `typecheck`, `build`, `npm.cmd test`, `node scripts/qa-sectors.mjs` e `node scripts/benchmark.mjs dist`.
-5. Misura su una macchina libera. Un altro processo pesante raddoppia fotogrammi a caso e rende inutile il confronto.
+1. Find the heaviest sectors in the neighborhood: the largest files in `public/data/city-sectors/`.
+2. Measure closely and at maximum distance over those sectors, not just menu places:
+   `node scripts/frame-profile.mjs <x,y,zoom>` (local meters; on the emulated phone 1.59 is the view of a place, 0.352 the widest). Read triangles, draw calls, medians and p90.
+3. If the triangles exceed those of the already optimized neighborhoods, count what makes them up in a sector (walls, roofs, parapets, windows, trees) before touching the code. Intuition is wrong: in the northern neighborhoods the parapets were heavy, not the windows.
+4. After editing compare identical camera screenshots, then `typecheck`, `build`, `npm.cmd test`, `node scripts/qa-sectors.mjs` and `node scripts/benchmark.mjs dist`.
+5. Measure on a free machine. Another heavy process doubles frames at random and makes comparison useless.
 
-## Dati (pipeline)
+## Data (pipeline)
 
-| Trucco | Dove | Effetto misurato |
+| Makeup | Where | Measured effect |
 |---|---|---|
-| Impronte senza i vertici entro 0,1 m da un muro dritto (la precisione dei dati). Il primo vertice resta primo, perché ancora l'edificio al terreno. | `lighter()` in `scripts/sectors.py`; `city.json` resta intatto | −22 % di vertici d'impronta in città; settori −5 % e zone −10 % in byte; meno muri, parapetti e triangoli di tetto |
-| Livello lontano a isolati fusi: unione delle impronte, contorno semplificato a 3 m, altezza e tinta medie pesate sull'area | `far_blocks()` in `sectors.py` | La città intera resta residente in 1,6 MB |
-| Terreno in binario Int16 a decimetri invece che in JSON | `city-terrain.bin` | Niente analisi di una lista di numeri all'apertura |
-| Terreno tenuto in Int16 anche in memoria (`Terrain.scale`) | `coreWithTerrain()` in `load.ts` | 6 MB invece di 12 |
-| Terreno a riquadri di 64 celle, pubblicati solo dove toccano la terraferma più 100 m; il worker riceve con ogni settore la sola finestra di quote che gli serve (60 m di margine) | `terrain_tiles()` in `sectors.py`, `heightAt()` e `heightWindow()` in `geometry.ts`, `sector-builder.ts` | Terreno da 6,9 a 4,1 MB nella pagina e da 7,6 a 0,7 MB nel worker; file da 7,2 a 4,3 MB. Non cresce più con il mare e la campagna dentro il rettangolo |
-| Copertura stradale ritagliata per zona; nell'indice solo una copia semplificata a 1,5 m per la mappa lontana | `sectors.py`, `sector-stream.ts` | Scatto dopo il ripristino da 176 a 36 ms; indice da 1,74 a 0,48 MB; heap a vista ferma da 98 a 86 MB |
-| Nei settori da 240 edifici in su, lista `fused` per il profilo compatto: vicini con tetti e suolo entro 1,5 m e tinta vicina, fusi in gruppi di al massimo 4. Il desktop, le zone e le collisioni usano la lista completa | `fused()` in `sectors.py`, `sector-stream.ts` | 10 settori da 3.148 a 2.207 edifici; circa −9 % di triangoli nel nucleo di La Isleta oltre al parapetto. Costo: tetti livellati e un colore per gruppo, visibile da molto vicino; +0,83 MB nei file di settore |
-| Tre livelli: nucleo, zone da 960 m, settori da 240 m, con nomi derivati dal contenuto | `sectors.py` | Il viewer non scarica più la città intera; la cache del browser resta valida tra una versione e l'altra |
+| Footprints without vertices within 0.1 m of a straight wall (data accuracy). The first vertex remains first, because it anchors the building to the ground. | `lighter()` to `scripts/sectors.py`; `city.json` remains intact | −22% of footprint vertices in the city; sectors −5 % and zones −10 % in bytes; fewer walls, parapets and roof triangles |
+| Far level at fused blocks: footprint union, simplified contour at 3 m, area-weighted average height and hue | `far_blocks()` to `sectors.py` | The entire city remains resident in 1.6 MB |
+| Land in binary Int16 in decimeters instead of JSON | `city-terrain.bin` | No analysis of a list of numbers at the opening |
+| Ground held in Int16 also in memory (`Terrain.scale`) | `coreWithTerrain()` to `load.ts` | 6 MB instead of 12 |
+| Terrain in boxes of 64 cells, published only where they touch the mainland plus 100 m; the worker receives with each sector the only quota window he needs (60 m of margin) | `terrain_tiles()` to `sectors.py`, `heightAt()` and `heightWindow()` to `geometry.ts`, `sector-builder.ts` | Terrain from 6.9 to 4.1 MB in the page and from 7.6 to 0.7 MB in the worker; files from 7.2 to 4.3 MB. It no longer grows with the sea and the countryside inside the rectangle |
+| Road coverage cut out by area; in the index only a simplified copy at 1.5 m for the distant map | `sectors.py`, `sector-stream.ts` | Shooting after reset 176 to 36 ms; index from 1.74 to 0.48 MB; heap at sight stops from 98 to 86 MB |
+| In sectors with 240 buildings and up, list `fused` for the compact profile: neighbors with roofs and soil within 1.5 m and close color, merged into groups of up to 4. Desktop, zones and collisions use the full list | `fused()` to `sectors.py`, `sector-stream.ts` | 10 sectors from 3,148 to 2,207 buildings; approximately −9 % of triangles in the core of La Isleta in addition to the parapet. Cost: Level roofs and one color per group, visible from very close up; +0.83 MB in sector files |
+| Three levels: core, 960 m zones, 240 m sectors, with names derived from the content | `sectors.py` | The viewer no longer downloads the entire city; browser cache remains valid between versions |
 
-## Geometria (viewer)
+## Geometry (viewer)
 
-| Trucco | Dove | Effetto misurato |
+| Makeup | Where | Measured effect |
 |---|---|---|
-| Estrusione senza fondo e coperchio: uno è interrato, l'altro sta sotto il tetto | `wallsOnly()` in `src/render/scene.ts` | Con i parapetti a tre facce: Santa Ana da 359.000 a 264.000 triangoli |
-| Parapetto a una faccia nel profilo compatto: il muro sale di 0,56 m (`RIM`) e fa da faccia esterna, il parapetto è solo la striscia in cima. Niente coperchio delle cabine sul tetto e niente davanzali semplici | `parapet()` e `scene.ts` | Con tre facce, poi due, poi una: nucleo di La Isleta da 325.000 a 258.000 a 208.000 triangoli con la fusione; Santa Catalina da 233.000 a 208.000 con il solo parapetto. Costo: bordo dei tetti più sottile sul lato lontano e fascia sotto il bordo del colore del muro |
-| Niente finestre, cornici e parapetti sepolti in un edificio adiacente più alto. Si chiede cosa c'è 0,5 m fuori dal muro e fino a che quota. Disattivato nell'editor, dove gli edifici si spostano. | `buriedTo()` in `scene.ts` | Insieme alle impronte semplificate: da −8 a −21 % di triangoli negli isolati densi |
-| Modelli dedicati senza le facce rivolte in basso (fondo di scatole, cornici, cilindri e coni): la camera guarda sempre dall'alto e non le inquadra mai. Vale per ogni modello, anche futuro. | `seen()` in `src/render/landmarks.ts` | I 24 modelli da 8.614 a 7.520 triangoli (−12,7 %); Santa Ana 1.905 → 1.657, Castillo de Mata 1.332 → 1.110, Mercado del Puerto 1.170 → 978. Schermate a camera identica: differenze solo da vento e nuvole (0,02-1,2 % dei pixel, sparse su tutto il quadro). |
-| Finestre e davanzali come rettangoli piatti; cornici di piano solo su desktop | `scene.ts` | — |
-| Chiome a icosaedro senza suddivisione e 4 per albero invece di 7; palme a 8 fronde invece di 13, nel profilo compatto | `scene.ts` | — |
-| Geometrie fuse per cella di 120 m e materiale; alberi istanziati per cella di 320 m | `add()`, `instance()` | 85-150 draw call per fotogramma da vicino |
-| Normali in Int8, colori in Uint8, niente UV | `add()` | Meno memoria per vertice |
+| Extrusion without bottom and lid: one is underground, the other is under the roof | `wallsOnly()` to `src/render/scene.ts` | With three-sided railings: Santa Ana from 359,000 to 264,000 triangles |
+| Single-sided parapet in the compact profile: the wall rises 0.56 m (`RIM`) and acts as the external face, the parapet is only the strip at the top. No roof cabin covers and no simple window sills | `parapet()` and `scene.ts` | With three faces, then two, then one: La Isleta core from 325,000 to 258,000 to 208,000 triangles with the merger; Santa Catalina from 233,000 to 208,000 with the parapet only. Cost: thinner roofs edge on the far side and band under the edge of the wall color |
+| No windows, frames and parapets buried in a taller adjacent building. He wonders what is 0.5 m outside the wall and to what height. Disabled in the editor, where buildings move. | `buriedTo()` to `scene.ts` | Together with the simplified footprints: −8 to −21 % of triangles in dense isolates |
+| Dedicated models without faces facing downwards (bottom of boxes, frames, cylinders and cones): the camera always looks from above and never frames them. This applies to every model, including the future. | `seen()` to `src/render/landmarks.ts` | The 24 models from 8,614 to 7,520 triangles (−12.7%); Santa Ana 1,905 → 1,657, Castillo de Mata 1,332 → 1,110, Mercado del Puerto 1,170 → 978. Identical camera screens: differences only from wind and clouds (0.02-1.2 % of pixels, scattered across the entire picture). |
+| Windows and sills as flat rectangles; piano frames only on desktop | `scene.ts` | — |
+| Icosahedron crowns without subdivision and 4 per tree instead of 7; palm trees with 8 fronds instead of 13, in a compact profile | `scene.ts` | — |
+| Fused geometries for 120 m cell and material; trees instantiated per 320 m cell | `add()`, `instance()` | 85-150 draw calls per frame up close |
+| Normals in Int8, colors in Uint8, no UV | `add()` | Less memory per vertex |
 
-## Luce e pixel
-
-| Trucco | Dove | Effetto |
+## Light and pixels
+| Makeup | Where | Effect |
 |---|---|---|
-| Profilo compatto iniziale (può aggiungere maschere statiche dopo la calibrazione): ombra di contatto dipinta nella texture del suolo, occlusione alla base dei muri nei colori dei vertici, macchia d'ombra piatta sotto gli alberi | `main.ts`, `ground-map.ts`, `scene.ts` | Un solo passaggio di disegno |
-| Su desktop la shadow map si aggiorna solo quando serve (`autoUpdate=false`) | `main.ts` | — |
-| Qualità adattiva condivisa da mappa e guida. Il telefono parte con DPR massimo 1, poi prova sagome statiche, FXAA e DPR massimo 1,25 | `src/render/dynamic-quality.ts` | Calibrazione iniziale fino a 6 s. Le successive promozioni richiedono almeno 8 s di movimento fluido. Sul profilo compatto il controller può riconoscere 30 FPS regolari al livello base o inferiore. Sotto i 27 FPS o con p95 oltre 42 ms per due secondi riduce la qualità. |
-| Ciclo a 30 fps a mappa ferma per vento e nuvole | `src/render/wind.ts` | — |
+| Initial compact profile (can add static masks after calibration): contact shadow painted in ground texture, occlusion at base of walls in vertex colors, flat shadow patch under trees | `main.ts`, `ground-map.ts`, `scene.ts` | One step drawing |
+| On desktop the shadow map updates only when needed (`autoUpdate=false`) | `main.ts` | — |
+| Adaptive quality shared by map and guide. The phone starts with maximum DPR 1, then tries static silhouettes, FXAA and maximum DPR 1.25 | `src/render/dynamic-quality.ts` | Initial calibration up to 6 s. Subsequent promotions require at least 8 s of smooth movement. On the compact profile the controller can recognize a smooth 30 FPS at the base level or lower. Below 27 FPS or with p95 over 42 ms for two seconds reduces quality. |
+| 30 fps cycle with map still for wind and clouds | `src/render/wind.ts` | — |
 
 ## Streaming
 
-| Trucco | Dove | Effetto misurato |
+| Makeup | Where | Measured effect |
 |---|---|---|
-| Budget di dettaglio 58 MiB compatto, 115 MiB desktop; le zone si contano a parte | `sector-stream.ts` | Memoria stabile sul circuito ripetuto di `qa-sectors.mjs` |
-| Una richiesta resta valida 600 ms dopo l'uscita dalla vista, come lo stato «in vista» | `sector-stream.ts` | Fine del carica-e-scarta al bordo dello schermo: p95 da oltre 100 ms a 17-35 ms |
-| Settori dello stesso tipo non si espellono a vicenda; un settore di dimensione nota si scarica solo se c'è posto | `sector-stream.ts` | Vedi sopra |
-| Vista più ampia limitata a 3.000 m (desktop) e 2.400 m (compatto) | `farthest()` in `main.ts` | Ogni edificio è sempre disegnato; gli isolati fusi compaiono solo durante un caricamento |
-| Una zona caricata tiene solo impronte, alberi e oggetti: piastrelle di suolo e copertura stradale si rilasciano dopo il disegno. Attenzione alle funzioni di rilascio che condividono l'ambito con i dati scaricati: li tengono vivi quanto la zona | `loadZoneLevel()` in `sector-stream.ts` | Con le due righe sotto: heap da 145 a 104 MB alla vista più ampia su Schamann, da 128 a 101 MB nel benchmark |
-| Niente normali per vertice nella vista intermedia e lontana del profilo compatto: materiali a ombreggiatura piatta e nessuna shadow map | `overview.ts` | 12 byte su 27 per vertice; buffer di geometria da 66 a 41 MB alla vista più ampia |
-| Contorni del livello lontano rilasciati dopo averne fatto la geometria | `streamCity()` | Circa 4 MB |
-| Silhouette del livello lontano senza copia in memoria dopo l'upload; i contorni degli isolati restano in array tipizzati (1,6 MB) e servono solo a ridisegnarle dopo la perdita del contesto WebGL. Il suolo lontano resta in memoria: il campionatore delle quote ne legge i triangoli | `packBlocks()`, `farSilhouettes()` e `forget()` in `sector-stream.ts` | Su tutto il comune: heap del benchmark da 77,1 a 67,5 MB; buffer da 29,1 a 21,5 MB da vicino e da 32,6 a 24,1 MB alla vista più ampia. Resa identica (differenze dentro il rumore di vento e nuvole) |
-| Copia in memoria delle geometrie liberata dopo l'upload sulla GPU; alla perdita del contesto WebGL zone e settori si ricaricano dai file | `gpuOnly()` e `forget()` in `sector-stream.ts` | Heap da 104 a 89 MB alla vista più ampia, da 101 a 79 MB nel benchmark |
-| Ogni mesh di zona e di settore disegnata una volta all'arrivo, anche fuori vista: senza il primo disegno non c'è upload e la copia in memoria non si libera mai | `gpuOnly()` in `sector-stream.ts` | Heap da 88 a 73 MB da vicino, da 113 a 100 MB alla vista più ampia; la quota passa alla GPU |
-| Mondo di guida (rete stradale, muri, pedoni) costruito al primo Play, a passi, e liberato quando la pagina è nascosta senza partita | `build()` e `release()` in `drive.ts`, `play.onclick` in `main.ts` | Heap da 73 a 46 MB da vicino, da 100 a 56 MB alla vista più ampia, 107 → 55 MB nel benchmark. Costo: primo Play da 0,3 a 0,6 s, da 1,3 a 5 s con CPU 6× |
-| Guida: grafo stradale globale, muri e alberi per zona; una zona non caricata vale come piena | `drive-world.ts` | L'indice degli ostacoli non cresce con la città |
-| Confine della città indicizzato per fasce di 25 m: un punto incontra solo i lati della propria fascia | `ringIndex()` in `drive-world.ts` | −2,7 s all'apertura con la costa di La Isleta (2.451 lati) |
+| Detail budget 58 MiB compact, 115 MiB desktop; the zones are counted separately | `sector-stream.ts` | Stable memory on the repeating circuit of `qa-sectors.mjs` |
+| A request remains valid 600 ms after leaving the view, like the "in view" state | `sector-stream.ts` | End of load-and-discard at the edge of the screen: p95 from over 100 ms to 17-35 ms |
+| Sectors of the same type do not expel each other; a sector of known size is downloaded only if there is room | `sector-stream.ts` | See above |
+| Wider view limited to 3,000m (desktop) and 2,400m (compact) | `farthest()` to `main.ts` | Each building is always designed; merged isolates only appear during a load |
+| A loaded area only holds footprints, trees and objects: ground tiles and road cover drop after drawing. Beware of release functions that share scope with the downloaded data - they keep it as alive as the | zone `loadZoneLevel()` to `sector-stream.ts` | With the two lines below: heap from 145 to 104 MB at the widest view on Schamann, from 128 to 101 MB in the benchmark |
+| No normals per vertex in the middle and far view of the compact profile: flat-shaded materials and no shadow map | `overview.ts` | 12 out of 27 bytes per vertex; geometry buffer from 66 to 41 MB at largest view |
+| Far layer contours released after doing geometry | `streamCity()` | Approximately 4 MB |
+| Far layer silhouette without copy in memory after upload; the outlines of the blocks remain in typed arrays (1.6 MB) and serve only to redraw them after the loss of the WebGL context. The distant ground remains in memory: the elevation sampler reads the triangles | `packBlocks()`, `farSilhouettes()` and `forget()` to `sector-stream.ts` | Overall: Benchmark heap 77.1 to 67.5 MB; buffer 29.1 to 21.5 MB at close range and 32.6 to 24.1 MB at widest view. Identical rendering (differences in wind and cloud noise) |
+| Distant-level silhouette without an in-memory copy after upload; block outlines remain in typed arrays (1.6 MB) and are used only to redraw them after WebGL context loss. The distant ground remains in memory: the elevation sampler reads its triangles | `packBlocks()`, `farSilhouettes()` and `forget()` in `sector-stream.ts` | Across the city: benchmark heap from 77.1 to 67.5 MB; buffers from 29.1 to 21.5 MB up close and from 32.6 to 24.1 MB at the widest view. Identical output (differences within wind and cloud noise) |
+| Copy in memory of the geometries freed after uploading to the GPU; when the WebGL context is lost, zones and sectors are reloaded from the | `gpuOnly()` and `forget()` to `sector-stream.ts` | Heap from 104 to 89 MB at widest view, 101 to 79 MB in benchmark |
+| Each zone and sector mesh drawn once upon arrival, even out of sight: without the first drawing there is no upload and the copy in memory is never free | `gpuOnly()` to `sector-stream.ts` | Heap 88 to 73 MB up close, 113 to 100 MB at widest view; the share passes to the GPU |
+| Driving world (road network, walls, pedestrians) built on first Play, in steps, and released when the page is hidden without playing | `build()` and `release()` to `drive.ts`, `play.onclick` to `main.ts` | Heap 73 to 46 MB up close, 100 to 56 MB at widest view, 107 → 55 MB in benchmark. Cost: first Play from 0.3 to 0.6 s, from 1.3 to 5 s with 6× CPU |
+| Guide: global road graph, walls and trees by zone; an unloaded area is considered full | `drive-world.ts` | The obstacle index does not grow with the city |
+| City boundary indexed by 25m bands: a point only meets the sides of its own band | `ringIndex()` to `drive-world.ts` | −2.7 s at the opening with the coast of La Isleta (2,451 sides) |
 
-## Cose provate che non servono
+## Proven things that are useless
 
-- Togliere i davanzali (−11 % di triangoli) non elimina i fotogrammi doppi a Santa Ana.
-- Fusione con soglie strette (tetti entro 0,6 m, tinta entro 26): nel settore più denso unisce solo 14 edifici su 385, perché i tetti vicini differiscono quasi sempre di più. Senza livellare i tetti la fusione non rende.
-- Alleggerire i settori non riduce in proporzione i triangoli a schermo: il budget si riempie con più settori precaricati. Conta il numero per settore, non solo quello per fotogramma.
-- I fotogrammi doppi (uno su dieci, 35 ms) negli isolati più densi restano con 220.000 come con 300.000 triangoli. Il thread principale è scarico (2-4 ms): il costo è nella GPU integrata e non è diagnosticato.
-- Ridurre ancora i modelli dedicati non sposta la cadenza: tutti insieme sono 7.520 triangoli contro 80.000-280.000 a schermo, e le loro parti finiscono già nella mesh unica degli edifici (nessuna draw call in più). Meno segmenti su cupole e archi si vedrebbe da vicino.
+- Removing sills (−11 % of triangles) does not eliminate double frames in Santa Ana.
+- Merging with narrow thresholds (roofs within 0.6 m, tint within 26): in the densest sector merges only 14 buildings out of 385, because neighboring roofs almost always differ more. Without leveling the roofs, fusion is not profitable.
+- Lightening the sectors does not proportionally reduce the triangles on the screen: the budget fills with more preloaded sectors. Count the number per sector, not just the number per frame.
+- Double frames (one in ten, 35 ms) in the densest blocks remain with 220,000 as with 300,000 triangles. The main thread is unloaded (2-4 ms): the cost is in the integrated GPU and is not diagnosed.
+- Reducing the dedicated models further does not change the cadence: all together there are 7,520 triangles against 80,000-280,000 on the screen, and their parts already end up in the single mesh of the buildings (no extra draw calls). Fewer segments on domes and arches would be seen up close.
 
 
-## Idee non ancora provate
+## Ideas not yet tested
 
-- Avvio su telefono (con CPU 6× più lenta: 14-25 s). Voci maggiori nel profilo: `WebGLRenderer.setSize` e primo uso degli shader (3,6 s insieme, attesa della GPU dopo l'upload della texture di suolo dell'intera città), `makeGroundMap` del livello lontano (1,4 s), mondo di guida e pedoni costruiti prima della prima immagine (circa 1,2 s), validazione dei JSON. Fatto: guida e pedoni dopo l'apertura, apertura sul quartiere senza attendere il dettaglio (da 13,4 a 10,6 s). Candidati rimasti: texture di suolo lontana dipinta nel worker o più piccola, lettura e validazione dei JSON nel worker.
-- Budget di dettaglio espresso anche in triangoli, non solo in byte: i settori densi pesano sulla GPU più di quanto dica la loro dimensione.
-- Impronte delle zone caricate tenute per la guida anche a guida spenta; strade, superfici e copertura dell'intera città sempre residenti.
-- Dopo il passo sulla guida restano, a mappa ferma: geometrie del livello lontano e suolo delle zone (12-13 MB), terreno (6,9 MB più 7,6 nel worker), impronte delle zone (4-10 MB), strade e superfici (6 MB). Si rimisura con `node scripts/heap-profile.mjs`.
-- Primo Play più rapido: rete stradale in array tipizzati o calcolata in `sectors.py`, muri delle sole zone attorno alla partenza.
-- Per trovare cosa occupa l'heap: istantanea con `HeapProfiler.takeHeapSnapshot` via CDP, somma di `self_size` per tipo e nome di nodo. `JSArrayBufferData` sono i buffer, `(object elements)` e `Array` sono le coordinate dei JSON.
-- Un oggetto dato a ogni zona non deve contenere la città intera: controlla cosa viene ridisegnato o ricopiato a ogni caricamento prima di cercare altrove uno scatto.
+- Boot on phone (with 6× slower CPU: 14-25 s). Major entries in profile: `WebGLRenderer.setSize` and first use of shaders (3.6 s together, waiting for GPU after uploading full city ground texture), `makeGroundMap` of far layer (1.4 s), driving world and pedestrians built before first image (about 1.2 s), JSON validation. Done: driving and pedestrians after opening, opening onto the neighborhood without waiting for the detail (from 13.4 to 10.6 s). Remaining candidates: distant ground texture painted in the worker or smaller, reading and validating JSON in the worker.
+- Detail budget also expressed in triangles, not just in bytes: dense sectors weigh more on the GPU than their size indicates.
+- Imprints of the loaded areas kept for driving even when driving is off; streets, surfaces and coverage of the entire city always residents.
+- After the step on the guide, with the map stopped, the following remain: geometries of the far and ground levels of the areas (12-13 MB), terrain (6.9 MB plus 7.6 in the worker), footprints of the areas (4-10 MB), roads and surfaces (6 MB). It is remeasured with `node scripts/heap-profile.mjs`.
+- Faster First Play: road network in typed arrays or calculated in `sectors.py`, walls of the areas around the start only.
+- To find what occupies the heap: snapshot with `HeapProfiler.takeHeapSnapshot` via CDP, sum of `self_size` by node type and name. `JSArrayBufferData` are the buffers, `(object elements)` and `Array` are the coordinates of the JSON.
+- An object given to each zone does not have to contain the entire city: check what is redrawn or copied with each load before looking elsewhere for a shot.
 
-- Muri interamente sepolti tra due edifici adiacenti (2 triangoli per lato).
-- Un solo parapetto dove due tetti alla stessa quota condividono il lato.
-- Dettaglio ridotto (senza finestre) per i settori precaricati fuori dallo schermo.
-- Misura su un telefono reale: tutte le cifre vengono da Chrome con emulazione mobile su GPU integrata Intel UHD.
+- Walls entirely buried between two adjacent buildings (2 triangles per side).
+- A single parapet where two roofs at the same height share the side.
+- Reduced detail (no windows) for preloaded sectors outside the screen.
+- Measurement on a real phone: All figures are from Chrome with mobile emulation on Intel UHD integrated GPU.
 
-### Guaguas in Conducir
+### Guaguas in Driving
 
-Il catalogo geografico iniziale della città pesa 2.010 byte. Gli indici da 960 m contengono intervalli di tempo e di distanza per celle da 240 m. La guida scarica geometrie solo per i quartieri con passaggi candidati e le riusa fra linee e varianti. La simulazione a 120 Hz aggiorna al massimo sei bus. A Triana la prova A/B sul telefono emulato misura 16,8 ms al p90 sia con sia senza autobus e 0,1 ms al p90 per la CPU della flotta. [Misura, limiti e riproduzione](QA.md#guaguas-locali-in-conducir--rete-cittadina).
+The initial geographic catalog of the city weighs 2,010 bytes. The 960 m indices contain time and distance intervals for 240 m cells. The guide downloads geometries only for neighborhoods with candidate passages and reuses them between lines and variants. Simulation at 120 Hz updates a maximum of six buses. In Triana the A/B test on the emulated phone measures 16.8 ms at p90 both with and without buses and 0.1 ms at p90 for the fleet CPU. [Misura, limiti e riproduzione](QA.md#local-guaguas-in-conducir--city-network).
+
+## Piper flight profile
+
+The flight uses a dedicated [adaptive quality](../src/quality/README.md) system monitor. Enter at basic level the first time. The camera also uses the level's sight distance for haze. Nearby buildings and roadways maintain the geometry of the sector. The sector selection updates after 6 m of movement, a turn of approximately 2° or a maximum of 160 ms. Data arrivals and fades update the selection before expiration.
+
+| Level | Detail close | Zones | Visibility | Buffer Scale | Shadows |
+|---|---:|---:|---:|---:|---|
+| −2 | 120 m | 360 m | 1,300 m | 70% | Off |
+| −1 | 180 m | 480 m | 1,700 m | 85% | Off |
+| Basic | 240 m | 640 m | 2,200 m | 100% | Off |
+| +1 | 320 m | 800 m | 3,000 m | 100% | Off |
+| +2 | 400 m | 960 m | 4,000 m | 100% | Statics |
+
+100% in flight has a ceiling of 1920×1080, even vertically with the axes reversed. The monitor receives frames during ordinary streaming. The measurement is suspended when the Piper has to wait for the collision tracks or the landing road. During a promotion also waits for the visible details required by the new layer and the preparation of the shadows. Returning to the car recovers the confirmed terrestrial level.
+
+To repeat the urban route at 1080p run `node scripts/benchmark-flight.mjs dist` after the build. The `?lab=qualita` lab shows mode, level, effective buffer, FPS and p95.

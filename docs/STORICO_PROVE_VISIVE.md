@@ -1,25 +1,25 @@
-# Storico delle prove visive di Las Palmas
+# Las Palmas visual evidence history
 
-Il 22 novembre 2026 i cinque preset elencati sotto sono stati ritirati dopo la valutazione visiva. Il laboratorio resta disponibile per prove indipendenti. Il gioco usa la sua resa ordinaria. La scelta per le strade resta aperta.
+On November 22, 2026 the five presets listed below were retired after visual evaluation. The laboratory remains available for independent tests. The game uses its ordinary rendering. The choice for the streets remains open.
 
-| Esperimento archiviato | Cosa si confrontava |
+| Archived experiment | What was compared |
 |---|---|
-| Suolo | Materiali OSM e segni dei gradini su una texture di terreno |
-| Facciate | Ritmo delle campate sul fronte strada e aperture coperte da edifici adiacenti |
-| Tetti | Campiture PNOA sulle grandi coperture e arredi procedurali |
-| Pendio | Base degli edifici aderente al terreno e profilo di contatto |
-| Verde | Variazione illustrativa delle chiome in filari e gruppi |
+| Soil | OSM materials and step marks on a ground texture |
+| Facades | Rhythm of the spans on the street front and openings covered by adjacent buildings |
+| Roofs | PNOA backgrounds on large covers and procedural furnishings |
+| Slope | Base of buildings adhering to the ground and contact profile |
+| Green | Illustrative variation of canopies in rows and groups |
 
-## Prova stradale al Mercado de Vegueta
+## Road test at the Mercado de Vegueta
 
-Le tre rese condividevano il percorso dell’auto da Calle Pelota a Calle de Mendizábal e Lugar Mercadillos Municipales. Texture pulita e geometria usavano la stessa larghezza illustrativa e lo stesso colore di asfalto.
+The three returns shared the car's route from Calle Pelota to Calle de Mendizábal and Lugar Mercadillos Municipales. Clean texture and geometry used the same illustrative width and asphalt color.
 
-| Resa | p95 desktop | p95 mobile emulato | Memoria del suolo attivo stimata |
+| Yield | p95 desktop | p95 mobile emulated | Estimated Active Ground Memory |
 |---|---:|---:|---:|
-| Attuale | 18,2 ms | 18,2 ms | 0,90 MiB |
-| Texture pulita a 4 px/m | 18,3 ms | 18,3 ms | 4,49 MiB |
-| Carreggiata geometrica | 18,3 ms | 18,2 ms | 0,97 MiB |
+| Current | 18.2 ms | 18.2 ms | 0.90 MiB |
+| Clean texture at 4 px/m | 18.3 ms | 18.3 ms | 4.49 MiB |
+| Geometric roadway | 18.3 ms | 18.2 ms | 0.97 MiB |
 
-Mediane di tre passaggi per configurazione su Chrome con GPU Intel UHD. Il profilo mobile era emulato sullo stesso computer. Nel campione la geometria aggiungeva 1.045 triangoli e una draw call. Sul rettilineo il bordo geometrico appariva più netto e le diagonali mostravano piccoli scalini. Entrambe le alternative cambiavano anche la continuità dell’asfalto agli incroci. Restavano da valutare la resa su telefono fisico e il passaggio tra settori.
+Medians of three passes per configuration on Chrome with Intel UHD GPU. The mobile profile was emulated on the same computer. In the sample the geometry added 1,045 triangles and one draw call. On the straight the geometric edge appeared clearer and the diagonals showed small steps. Both alternatives also changed the continuity of the asphalt at the intersections. The performance on physical telephone and the transition between sectors remained to be evaluated.
 
-Il codice, le ricette e i campioni originali sono consultabili nella [revisione archiviata](https://github.com/tatosgames/isometric-cities/tree/4d6dc949023b60befe00f26b7d2b4c1245552ba3).
+The code, recipes and original samples can be found in [revisione archiviata](https://github.com/tatosgames/isometric-cities/tree/4d6dc949023b60befe00f26b7d2b4c1245552ba3).

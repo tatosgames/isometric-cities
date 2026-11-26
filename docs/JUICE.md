@@ -1,130 +1,130 @@
-# Game feel della guida
+# Game feel of the guide
 
-Cosa risponde a cosa nella modalità «Conducir», con quali valori e con quali limiti. Va letto prima di aggiungere o ritoccare un effetto. Sul modello di `doc/JUICE.md` di Butter Run e delle regole di juice di Smash Royale, tenendo solo ciò che serve a una guida arcade vista dall'alto.
+What responds to what in the «Conducir» mode, with what values and with what limits. It should be read before adding or tweaking an effect. Modeled after Butter Run's `doc/JUICE.md` and Smash Royale's juice rules, keeping only what is needed for an arcade guide seen from above.
 
-I valori sono quelli di `TUNE` in `src/drive/drive-tune.ts` al 25 novembre 2026; si provano dal vivo nel laboratorio `index.html?lab=guida&area=pilot`. Se cambiano nel codice, vale il codice e questo file va aggiornato. Per l'interfaccia vedi [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), per l'inquadratura [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
+The values ​​are those of `TUNE` in `src/drive/drive-tune.ts` as of November 25, 2026; they are tested live in the `index.html?lab=guida&area=pilot` laboratory. If they change in the code, the code applies and this file must be updated. For the interface see [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), for the shot [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
 
-## Regole
+## Rules
 
-1. **Gli effetti sono presentazione.** Nessun effetto cambia collisioni, percorsi o punteggio. L'unica eccezione è l'hit-stop, che ferma il tempo di gioco per tutti allo stesso modo.
-2. **Un evento, una risposta riconoscibile.** Ogni evento ha la sua combinazione di segnali e non la condivide con un altro. Due segnali che dicono la stessa cosa sono rumore: se ne toglie uno.
-3. **La forza segue l'evento.** Strisciare lungo un muro non produce quasi nulla, un urto frontale produce tutto. La cattura è l'evento più forte della partita e niente altro la eguaglia.
-4. **Mai due volte di fila.** Gli effetti che interrompono (hit-stop) hanno un intervallo minimo. Quelli continui (polvere, segni) non ne hanno.
-5. **Niente caso nella camera.** La camera si sposta solo in una direzione che ha un significato. Il tremolio casuale è stato tolto.
-6. **Stesso comportamento su ogni dispositivo.** Gli effetti non si spengono né si attenuano in base alle preferenze di movimento del sistema (regola di `AGENTS.md`). Per questo devono restare piccoli e brevi per tutti.
-7. **Si spegne da solo.** Gli effetti di gioco tornano a riposo in meno di mezzo secondo. La sequenza finale mantiene la scena in bianco e nero fino al retry o al ritorno alla mappa.
+1. **Effects are presentation.** No effects change collisions, paths, or scores. The only exception is the hit-stop, which stops the game time for everyone equally.
+2. **One event, one recognizable response.** Each event has its own combination of signals and does not share it with another. Two signals that say the same thing are noise: one is removed.
+3. **Force follows the event.** Crawling along a wall produces almost nothing, a head-on collision produces everything. The capture is the strongest event of the game and nothing else rivals it.
+4. **Never twice in a row.** Hit-stop effects have a minimum interval. The continuous ones (dust, marks) have none.
+5. **No case in the chamber.** The chamber only moves in a direction that has meaning. The random flickering has been removed.
+6. **Same behavior on every device.** Effects do not turn off or dim based on system motion preferences (`AGENTS.md` rule). This is why they must remain small and short for everyone.
+7. **Turns itself off.** Game effects return to sleep in less than half a second. The final sequence keeps the scene in black and white until the retry or return to the map.
 
-## Catalogo
+## Catalogue
 
-| Evento | Simulazione | Camera | Auto e scena | Interfaccia | Vibrazione |
+| Event | Simulation | Room | Cars and scene | Interface | Vibration |
 |---|---|---|---|---|---|
-| Moneta raccolta | – | – | La moneta è attirata entro 6 m | «+1» che sale dal punto, pillola delle monete che pulsa | 8 ms |
-| Accelerazione | 90 km/h in 4,58 s, poi fino a 116 km/h in rettilineo | Zoom lento con la velocità | Muso che si solleva fino a 6° | – | – |
-| Sterzata e derapata | Risposta dal 35% al pieno in 140 ms | Zoom lento con la velocità | Scocca fino a 28° verso l'interno, puff all'innesco, due tracce durante la scivolata | Zona tattile accesa | – |
-| Frenata | 27 m/s², grip da freno prioritario | – | Muso che si abbassa fino a 8°, effetti di derapata se slitta | Entrambe le zone accese | – |
-| Strisciata laterale contro una facciata | La velocità lungo il muro perde il 12% della velocità in entrata | – | Fino a tre scintille brevi dal contatto del giocatore | – | – |
-| Urto leggero (oltre 3 m/s) | – | – | Saltello dell'auto | – | – |
-| Urto medio (oltre 6 m/s) | – | Spinta verso il muro, in proporzione | Saltello | – | 18 ms |
-| Urto forte (oltre 11 m/s) | Fermo di 110 ms | Spinta verso il muro | Saltello | – | 18 ms |
-| Spinta di una pattuglia (oltre 6 m/s) | – | Spinta verso la pattuglia, al 70% | – | – | – |
-| Schianto di una pattuglia | – | Spinta verso il rottame entro 40 m, più debole da lontano | Rottame scuro che gira, fumo per 3 s | «+2» con icona dell'urto | – |
-| Pedone vicino a un veicolo in arrivo | – | – | Il pedone scatta di lato a 6,2 m/s per 0,9 s, saltellando; se un muro non lascia spazio salta sopra l'auto | – | – |
-| Arrivo a destinazione | Fermo di 100 ms | – | Corona di polvere, nuovo fascio di luce | «+10» grande; la goccia della nuova meta vola dall'auto al suo posto in 0,45 s | 40 ms |
-| Cattura | Fermo di 220 ms, poi fine partita | Spinta piena verso la pattuglia; dopo il fermo, avvicinamento lento del 14% | Polvere al rilascio | Pannello dopo altri 420 ms, record che pulsa se battuto | 140 ms |
+| Collected coin | – | – | The coin is attracted within 6 m | «+1» rising from the point, coin pill pulsing | 8 ms |
+| Acceleration | 90 km/h in 4.58 s, then up to 116 km/h in a straight line | Slow zoom with speed | Muzzle rising up to 6° | – | – |
+| Steering and drifting | Response from 35% to full in 140 ms | Slow zoom with speed | Shoots up to 28° inwards, puff on trigger, two tracks during the slide | Touch zone on | – |
+| Braking | 27 m/s², priority brake grip | – | Nose that lowers up to 8°, skid effects if it skids | Both zones on | – |
+| Side swipe against a facade | The speed along the wall loses 12% of the incoming speed | – | Up to three short sparks from player contact | – | – |
+| Light impact (over 3 m/s) | – | – | Car hopping | – | – |
+| Medium shock (over 6 m/s) | – | Push towards the wall, in proportion | Hop | – | 18 ms |
+| Strong impact (over 11 m/s) | Freeze 110 ms | Pushed towards the wall | Hop | – | 18 ms |
+| Thrust of a patrol (over 6 m/s) | – | Push towards the patrol, at 70% | – | – | – |
+| Crash of a patrol | – | Thrust towards the wreckage within 40 m, weaker from afar | Dark wreck spinning, smoke for 3 s | «+2» with impact icon | – |
+| Pedestrian near an oncoming vehicle | – | – | The pedestrian dashes sideways at 6.2 m/s for 0.9 s, hopping; if a wall leaves no room, jump over the car | – | – |
+| Arrival at destination | Freeze 100 ms | – | Crown of dust, new beam of light | «+10» large; the drop of the new goal flies from the car to its place in 0.45 s | 40 ms |
+| Capture | Stopped for 220 ms, then end of game | Full push towards the patrol; after the shutdown, slow approach of 14% | Powder on release | Panel after another 420 ms, record that pulsates if broken | 140 ms |
 
-## Sterzata e derapata
+## Steering and drifting
 
-- Giocatore e pattuglie guidano lo stesso modello (`steerCar`): il muso gira con lo sterzo e la direzione di marcia lo insegue, così una derapata cambia direzione quasi senza costare velocità. La spinta è 8,2 m/s² fino a metà della velocità base e 4,1 m/s² oltre. La velocità base è 90 km/h per il giocatore e 94 per le pattuglie; in rettilineo la punta sale piano fino a 116 e 120 km/h e torna alla base sterzando o frenando.
-- Il giocatore scivola fino a 60° e, dopo una derapata lunga, al rilascio riprende la velocità persa; le pattuglie scivolano fino a 20° e non hanno premio. Le pattuglie frenano anche prima dei muri, con un controllo da 4 m fino alla distanza di arresto più il raggio dell'auto, circa 13,8 m a 94 km/h.
-- Per la cattura vale la soglia di 4,5 m/s. Per le monete il raggio di richiamo è 6 m e la trazione è 25 m/s.
-- La pendenza lungo la marcia frena la ripresa in salita e la aiuta in discesa. È neutra fino al 2%, poi applica 0,06 m/s² per ogni punto percentuale aggiuntivo fino a 0,6 m/s². La stessa correzione aiuta il freno in salita e lo riduce in discesa. I limiti in avanti restano 90 e 94 km/h.
-- A ogni cambio di lato la rampa ricomincia dal 35%. Al rilascio il peso della derapata cala di 10 al secondo e il coefficiente di aderenza laterale tende a 9,5 s⁻¹. La frenata usa il proprio coefficiente di 2,2 s⁻¹.
-- La posa si aggiorna a 120 Hz. La risposta allo sterzo cresce tra 2 e 10 m/s. A pieno sterzo la rotazione aggiuntiva va da 10,5° a 21° e il rollio da 14° a 28°, secondo lo slittamento. Quando amplifica lo slittamento, la rotazione aggiuntiva porta il muso fino a 45° dalla direzione di marcia.
-- Le ruote seguono l'orientamento e l'altezza dell'auto. La sola scocca si inclina. La variazione di velocità prima degli urti determina l'inclinazione longitudinale, che torna neutra in crociera. Lo smorzamento copre il 90% del percorso in 85 ms all'ingresso, 170 ms al rilascio e 40 ms durante l'inversione della posa; nel codice un solo valore, `poseRelease`, da cui gli altri due derivano. Sulle strade in pendenza l'auto intera prende l'inclinazione della strada lungo il muso, fino a 22°, e la scocca del giocatore si piega di un altro 50% (`slopeLean`).
-- Tre particelle bianco caldo compaiono dietro le ruote per 220 ms quando lo slittamento laterale supera 2,5 m/s durante una manovra senza contatti. Il puff si riarma sotto 1,5 m/s. Le due tracce partono da 4 m/s. Sagoma, freccia, tracce e puff seguono l'orientamento visivo. Camera e collisioni usano la simulazione.
-- L'ombra di contatto delle auto è un rettangolo di 4,15 × 2,5 m con opacità 0,38. Ruota con l'auto e resta a terra durante rollio e saltelli.
+- Player and patrols drive the same model (`steerCar`): the nose turns with the steering and the direction of travel follows it, so a drift changes direction almost without costing speed. Thrust is 8.2 m/s² up to half base speed and 4.1 m/s² beyond. The base speed is 90 km/h for the player and 94 for the patrols; on a straight line the tip rises slowly up to 116 and 120 km/h and returns to the base by steering or braking.
+- The player slides up to 60° and, after a long slide, regains the lost speed upon release; the patrols slide up to 20° and have no reward. The patrols also brake before the walls, with a check from 4 m up to the stopping distance plus the radius of the car, approximately 13.8 m at 94 km/h.
+- For capture, the threshold of 4.5 m/s applies. For coins the recall radius is 6 m and the traction is 25 m/s.
+- The slope along the route slows down the uphill recovery and helps it downhill. It is neutral up to 2%, then applies 0.06 m/s² for each additional percentage point up to 0.6 m/s². The same correction helps the braking uphill and reduces it downhill. The forward limits remain 90 and 94 km/h.
+- At each change of side the ramp starts again from 35%. Upon release, the weight of the slide drops by 10 per second and the lateral grip coefficient tends to 9.5 s⁻¹. Braking uses its own coefficient of 2.2 s⁻¹.
+- The pose updates at 120 Hz. The steering response increases between 2 and 10 m/s. At full steering the additional rotation ranges from 10.5° to 21° and the roll from 14° to 28°, depending on the slip. When amplifying the slip, the additional rotation brings the nose up to 45° from the direction of travel.
+- The wheels follow the orientation and height of the car. The body alone tilts. The variation in speed before the impacts determines the longitudinal inclination, which returns to neutral during cruising. Damping covers 90% of the path in 85 ms upon entry, 170 ms upon release, and 40 ms during pose reversal; in the code only one value, `poseRelease`, from which the other two derive. On sloping roads the entire car takes the inclination of the road along the nose, up to 22°, and the player's body leans another 50% (`slopeLean`).
+- Three warm white particles appear behind the wheels for 220 ms when lateral slip exceeds 2.5 m/s during a non-contact maneuver. The puff rearms below 1.5 m/s. The two traces start at 4 m/s. Silhouette, arrow, tracks and puffs follow the visual orientation. Camera and collisions use simulation.
+- The cars contact shadow is a 4.15 × 2.5 m rectangle with opacity 0.38. Rotates with the car and stays on the ground during rolls and hops.
 
-Il campionamento della pendenza usa la griglia del terreno a 6 m dietro e a 6 m davanti. Segue la velocità di marcia e usa il muso sotto 2 m/s. Il filtro ha costante di tempo di 180 ms. Entro 11 m dai tracciati OSM marcati come ponte o a un altro livello, la correzione torna a zero perché la quota del suolo può differire da quella della carreggiata. Le pattuglie usano la stessa correzione per calcolare da quanto lontano iniziare la frenata.
+Slope sampling uses the 6m back and 6m front terrain grid. It follows the running speed and uses the nose below 2 m/s. The filter has a time constant of 180 ms. Within 11 m of OSM alignments marked as a bridge or at another level, the correction returns to zero because the ground elevation may differ from that of the roadway. Patrols use the same correction to calculate how far away to start braking.
 
-## Superfici
+## Surfaces
 
-Un fatto, più indicatori coerenti: fuori dall'asfalto l'auto rallenta e scivola di più, e lo si vede senza testi.
+One fact, more consistent indicators: off the asphalt the car slows down and slides more, and you can see it without texts.
 
-- **Tracce**: sull'asfalto solo in derapata, nere; sul prato, sulla terra e sulla sabbia sempre in movimento (opacità 0,3–0,35, 0,5–0,55 in derapata), più larghe e del colore del terreno; sulla pavimentazione nessuna.
-- **Detriti**: dalle ruote posteriori, oltre 4 m/s, un pezzo ogni 0,6 m percorsi (la metà per le pattuglie): zolle verdi e marroni sul prato, una nuvola bassa sulla terra, spruzzo chiaro sulla sabbia, di lato in derapata. La derapata fuori strada lancia una raffica del terreno invece del fumo bianco.
-- **Tremolio**: quota, rollio e beccheggio della scocca, da un rumore che dipende dai metri percorsi (fermo con l'auto, uguale su ogni dispositivo), pieno da 10 m/s; ampiezza per superficie (`rumble`: pavimentazione 0,25, prato 1, terra 0,8, sabbia 0,6).
-- **Fumo di derapata**: sull'asfalto e sulla pavimentazione, oltre alla raffica d'inizio, uno sbuffo ogni 0,05 s da una ruota posteriore e poi dall'altra finché l'auto scivola.
-- **Bonus della derapata**: la velocità restituita arriva in 0,2 s, non in un passo solo: prima un rilascio poteva dare +20–26 km/h in un fotogramma, e sembrava uno strappo.
-- **Cordolo**: lasciando la strada o tornandoci oltre 5 m/s, un saltello di 2 cm per m/s (al massimo 35 cm) e una vibrazione di 12 ms sul telefono.
+- **Tracks**: on the asphalt only when skidding, black; on the lawn, on the earth and on the sand always in movement (opacity 0.3–0.35, 0.5–0.55 in drift), wider and of the color of the ground; none on the flooring.
+- **Debris**: from the rear wheels, over 4 m/s, one piece for every 0.6 m traveled (half for patrols): green and brown clods on the lawn, a low cloud on the ground, clear spray on the sand, sideways in a skid. Drifting off-road launches a barrage of terrain instead of white smoke.
+- **Tremoration**: altitude, roll and pitch of the body, from a noise that depends on the meters traveled (stationary with the car, the same on each device), full from 10 m/s; width per surface (`rumble`: pavement 0.25, lawn 1, earth 0.8, sand 0.6).
+- **Drift smoke**: on asphalt and pavement, in addition to the initial burst, a puff every 0.05 s from one rear wheel and then from the other until the car slides.
+- **Slide bonus**: The returned speed comes in 0.2 s, not in one step: previously a release could give +20–26 km/h in one frame, and it felt like a jerk.
+- **Curb**: leaving or returning to the road over 5 m/s, a 2 cm bounce per m/s (maximum 35 cm) and a 12 ms vibration on the phone.
 
-## Strisciata contro una facciata
-
-- Quando la componente verso il muro vale al massimo metà della componente lungo il muro, il contatto annulla la prima e riduce la seconda del 12% di quanto è stato annullato. Il muso si riallinea verso la tangente e il veicolo può continuare lungo la facciata.
-- Da 5 m/s lungo il muro, il contatto del giocatore può produrre tre scintille di 160 ms, con almeno 75 ms fra emissioni separate. La strisciata esclude saltello, vibrazione, colpo di camera e hit-stop. Per gli urti più diretti, il bordo della mappa, gli alberi e le altre auto si usa la risposta d'urto abituale.
+## Crawled against a facade
+- When the component towards the wall is worth at most half of the component along the wall, the contact cancels the first and reduces the second by 12% of what was cancelled. The nose realigns towards the tangent and the vehicle can continue along the face.
+- From 5 m/s along the wall, player contact can produce three 160 ms sparks, with at least 75 ms between separate emissions. The swipe excludes skip, vibration, camera shot and hit-stop. For more direct impacts, the edge of the map, trees and other cars, the usual crash response is used.
 
 ## Hit-stop
 
-Per alcuni fotogrammi la simulazione non avanza: auto, pattuglie, monete e cronometro restano fermi. Polvere, saltello, camera e interfaccia continuano, così lo schermo non sembra bloccato.
+For some frames the simulation does not advance: cars, patrols, coins and stopwatch remain stationary. Dust, hopping, camera and interface continue, so the screen doesn't seem frozen.
 
-Il saltello del giocatore arriva fino a 0,9 m e rientra in circa 0,41 s alla massima altezza. Un secondo urto più debole lascia finire il saltello in corso. L'ombra resta a terra.
+The player's hop reaches up to 0.9 m and returns in approximately 0.41 s to maximum height. A second, weaker impact ends the current hop. The shadow remains on the ground.
 
-- **Eventi:** urto forte contro un muro o un albero, arrivo a destinazione, cattura. Lo schianto di una pattuglia non lo usa (scelta di Luca, 22 novembre 2026).
-- **Durate:** `hitStop` 0,11 s per l'urto; l'arrivo ne usa 0,1 s e la cattura 0,22 s, ricavati dallo stesso valore. A 60 fotogrammi al secondo sono circa 7, 6 e 13 fotogrammi. Raddoppiate su richiesta di Luca il 23 novembre 2026: alla metà non si notavano sul telefono.
-- **Soglia dell'urto:** `hardImpact` 11 m/s di velocità nella direzione dell'ostacolo; la stessa soglia distrugge una pattuglia. Le strisciate nelle vie strette restano sotto.
-- **Intervallo minimo:** `stopGap` 0,6 s tra due fermi da urto. Arrivo e cattura non hanno intervallo perché non possono ripetersi.
-- **Fermi sovrapposti:** vale il più lungo, non si sommano.
-- **Alla cattura** il contatto blocca punteggio e cronometro. Dopo 110 ms, camera, polvere, pedoni e vento rallentano al 30%. Auto e pattuglia si assestano per un secondo con l'inerzia residua, limitata da ostacoli e superficie disponibile.
-- La saturazione scende a zero in 850 ms con un filtro CSS sulla scena e sul suo sfondo. «ATRAPADO» e i tre valori compaiono dopo 300 ms di rallentatore. I pulsanti a icona compaiono dopo 600 ms. Il tempo dell'esito avanza mentre la scheda è visibile e il contesto WebGL è disponibile. L'inerzia e la camera usano un delta limitato per evitare salti.
-- Il tempo fermo non conta nel cronometro. Dopo il fermo la simulazione riparte da dove era, senza recuperare i passi saltati.
+- **Events:** strong impact against a wall or a tree, arrival at destination, capture. The crash of a patrol does not use it (Luca's choice, November 22, 2026).
+- **Durations:** `hitStop` 0.11 s for the impact; the arrival uses 0.1 s and the capture 0.22 s, derived from the same value. At 60 frames per second it is approximately 7, 6 and 13 frames. Doubled at Luca's request on November 23, 2026: at half they were not noticeable on the phone.
+- **Crash threshold:** `hardImpact` 11 m/s speed in the direction of the obstacle; the same threshold destroys a patrol. The crawls in the narrow streets remain below.
+- **Minimum interval:** `stopGap` 0.6 s between two impact stops. Arrival and capture have no interval because they cannot be repeated.
+- **Overlapping stops:** the longest counts, they do not add.
+- **Upon capture** contact freezes score and clock. After 110 ms, camera, dust, pedestrians and wind slow to 30%. Cars and patrol settle for a second with residual inertia, limited by obstacles and available surface.
+- Saturation drops to zero in 850ms with a CSS filter on the scene and its background. «ATRAPADO» and the three values ​​appear after 300 ms of slow motion. The icon buttons appear after 600 ms. The outcome time advances while the tab is visible and WebGL context is available. Inertia and chamber use limited delta to avoid jumps.
+- Stopped time does not count in the stopwatch. After the stop, the simulation restarts from where it was, without recovering the skipped steps.
 
-## Colpo di camera
+## Camera shot
+## Camera kick
+The camera shoots **towards what it hit** and returns to rest with a dampened spring. A bumped wall pulls her towards the wall, a pushing patrol pulls her towards the patrol. It says which way the shot came, which the previous tremor didn't do.
 
-La camera scatta **verso ciò che ha colpito** e torna a riposo con una molla smorzata. Un muro urtato la tira verso il muro, una pattuglia che spinge la tira verso la pattuglia. Dice da che parte è arrivato il colpo, cosa che il tremolio di prima non faceva.
+- **Force:** proportional to the impact speed, full at 14 m/s. `kick` 36 is the launch speed of a full shot.
+- **Spring:** `kickStiff` 220; the damping results with a ratio of 0.74 (22 at this stiffness). It barely exceeds zero on the way back, only once.
+- **Measurements:** a full shot moves the view a maximum of 0.99 m and returns below 3 cm in 0.28 s; a half-force shot reaches 0.49 m. On phone (6.3 px per meter) it's about 6 and 3 pixels. At 20 frames per second the peak is 0.93 m.
+- **Limit:** `kickMax` 1.2 m, even with multiple shots at the same time.
+- The direction of hitting walls comes from physics (`hitX`, `hitY` in `src/drive/drive-physics.ts`), not from the speed of the car.
+- The spring only moves the chamber target. It does not affect the zoom or the advance along the gear.
 
-- **Forza:** proporzionale alla velocità d'urto, piena a 14 m/s. `kick` 36 è la velocità di lancio di un colpo pieno.
-- **Molla:** `kickStiff` 220; lo smorzamento ne deriva con rapporto 0,74 (22 a questa rigidità). Supera di poco lo zero al ritorno, una volta sola.
-- **Misure:** un colpo pieno sposta la vista di 0,99 m al massimo e rientra sotto i 3 cm in 0,28 s; un colpo a metà forza arriva a 0,49 m. Su telefono (6,3 px per metro) sono circa 6 e 3 pixel. A 20 fotogrammi al secondo il picco è 0,93 m.
-- **Limite:** `kickMax` 1,2 m, anche con più colpi nello stesso istante.
-- La direzione dell'urto contro i muri viene dalla fisica (`hitX`, `hitY` in `src/drive/drive-physics.ts`), non dalla velocità dell'auto.
-- La molla sposta solo il bersaglio della camera. Non tocca lo zoom né l'anticipo lungo la marcia.
+## Pedestrians
 
-## Pedoni
+Simple figures without legs, a colored body and a head, which move in hops: they stretch when climbing and are crushed when landing. I am atmosphere: no points, no penalties, no signals in the interface (Luca's choice, November 22, 2026). They only appear in the guide.
 
-Figure semplici senza gambe, un corpo colorato e una testa, che si muovono a saltelli: si allungano salendo e si schiacciano atterrando. Sono atmosfera: nessun punto, nessuna penalità, nessun segnale nell'interfaccia (scelta di Luca, 22 novembre 2026). Compaiono solo in guida.
-
-- **Dove:** ai bordi delle strade carrabili, sulle vie pedonali di OSM e lungo corde interne a piazze e parchi. Non attraversano. Sono 40 su desktop e 26 su telefono, riciclati tra 42 e 82 m dall'auto, di preferenza davanti alla direzione di marcia.
-- **Fuga:** un veicolo in avvicinamento li allarma entro 6 m più 0,6 m per ogni m/s di velocità (circa 16 m a velocità massima). Scappano di lato rispetto alla traiettoria, dal giocatore come dalle pattuglie.
-- **Mai investiti:** a ogni fotogramma un pedone a meno di 2,3 m dal centro di un veicolo viene spostato fuori; se un muro lo impedisce resta in aria finché il veicolo è passato. Lo verifica `node scripts/qa-pedestrians.mjs`.
-- Durante un hit-stop restano fermi come il resto della simulazione. Camminano prima della partenza e continuano al rallentatore dopo la cattura.
+- **Where:** at the edges of driveways, on the pedestrian streets of OSM and along internal ropes in squares and parks. They don't cross. There are 40 on desktop and 26 on phone, recycled between 42 and 82 m from the car, preferably in front of the direction of travel.
+- **Escape:** an approaching vehicle alerts them within 6 m plus 0.6 m for every m/s of speed (approximately 16 m at maximum speed). They run away to the side of the trajectory, from the player as well as from the patrols.
+- **Never hit:** in each frame a pedestrian within 2.3 m of the center of a vehicle is moved out; if a wall prevents it, it remains in the air until the vehicle has passed. `node scripts/qa-pedestrians.mjs` verifies it.
+- During a hit-stop they remain still like the rest of the simulation. They walk before departure and continue in slow motion after capture.
+- Values ​​are in `PEDESTRIANS` in `src/drive/pedestrians.ts`.
 - I valori sono in `PEDESTRIANS` in `src/drive/pedestrians.ts`.
 
-## Da non fare
+## Don't do it
 
-- Rimettere il tremolio casuale, anche piccolo, o sommarlo alla spinta.
-- Usare l'hit-stop per le monete o per ogni contatto: diventa uno scatto continuo e sembra un calo di prestazioni.
-- Allungare un fermo oltre 0,12 s. Oltre quella soglia si legge come blocco del gioco.
-- Rallentatori, lampi a tutto schermo, bordi colorati, aberrazioni o sfocature. I primi due cambierebbero il carattere del plastico, gli altri chiedono un passaggio di post-elaborazione che il progetto non ha.
-- Legare lo zoom a un evento istantaneo: lo vieta il contratto di camera.
-- Aggiungere un effetto senza una riga nel catalogo qui sopra.
+- Reset the random tremor, even a small one, or add it to the thrust.
+- Use hit-stop for coins or every contact - it becomes a continuous stutter and feels like a performance hit.
+- Stretch a stop beyond 0.12 s. Beyond that threshold the game is read as blocked.
+- Slow motion, full-screen flashes, colored edges, aberrations or blurring. The first two would change the character of the model, the others require a post-processing step that the project does not have.
+- Linking the zoom to an instant event: the room contract prohibits it.
+- Add an effect without a line in the catalog above.
 
-## Non deciso
+## Not decided
 
-- **Audio.** La guida è muta per scelta (Luca, 21 e 22 novembre 2026). Se si riapre, la proposta è effetti sintetizzati con Web Audio, senza file, avviati solo dopo il primo tocco e con un comando a icona per silenziare.
-- **Hit-stop allo schianto di una pattuglia.** Escluso per ora. Con molte pattuglie potrebbe scattare spesso; se lo si prova, va limitato agli schianti vicini e con lo stesso intervallo minimo degli urti.
-- **Sensazione su telefono fisico.** Durate e ampiezze sono tarate su Chrome da scrivania e sul profilo mobile emulato. Vibrazione e fermi vanno provati in mano.
+- **Audio.** The guide is silent by choice (Luca, 21 and 22 November 2026). If it reopens, the proposal is effects synthesized with Web Audio, without files, started only after the first touch and with an icon command to silence.
+- **Hit-stop to patrol crash.** Ruled out for now. With many patrols he could sprint often; if it is attempted, it should be limited to crashes close together and with the same minimum interval as the impacts.
+- **Sensation on physical phone.** Durations and amplitudes are calibrated on desktop Chrome and on the emulated mobile profile. Vibration and stops must be tested in your hand.
 
-## Verifica
+## Check
 
-- `npm.cmd test` controlla che la cattura produca almeno un fermo e che la spinta della camera torni a zero. I due valori sono l'undicesimo e il dodicesimo campo di `data-drive` su `#scene`: numero di fermi dall'ingresso in guida e spostamento attuale della camera in metri.
-- Dopo aver cambiato la molla, ricalcolare picco e tempo di rientro e aggiornare le misure di questo file.
-- Provare a mano una via stretta: strisciando lungo i muri non deve mai scattare un fermo.
+- `npm.cmd test` checks that the capture produces at least one stop and that the chamber thrust returns to zero. The two values ​​are the eleventh and twelfth fields of `data-drive` on `#scene`: number of stops since entry into the guide and current movement of the camera in meters.
+- After changing the spring, recalculate peak and retraction time and update the measurements in this file.
+- Try a narrow street by hand: crawling along the walls must never trigger a stop.
+## Transformation and plane crash
 
-## Trasformazione e incidente aereo
+During assisted take-off the opening of the wings accompanies the climb. On the way back they close again in the last metres. Upon impact the plane disappears in an orange flash with rising smoke and falling fragments. Summary uses the same times as street capture.
 
-Durante il decollo assistito l’apertura delle ali accompagna la salita. Al rientro si richiudono negli ultimi metri. All’impatto l’aereo sparisce in un lampo arancio con fumo ascendente e frammenti in caduta. Il riepilogo usa gli stessi tempi della cattura stradale.
+### Piper attitude and trails
 
-### Assetto e scie del Piper
-
-- Al decollo l’elica passa dal 18% al regime di crociera in mezzo secondo. Il muso si alza fino a 11° e si riallinea in 1,45 s. Nella discesa assistita il muso richiama fino a 7,4° e l’elica perde giri mentre si richiudono le ali.
-- Oltre 23° di inclinazione compaiono due scie sottili che seguono le posizioni attraversate dalle estremità alari. Arrivano alla massima intensità a 40°. Otto campioni a 30 Hz conservano circa un quarto di secondo di traiettoria. In volo livellato l’opacità torna a zero in meno di mezzo secondo.
-- All’impatto i frammenti metallici hanno una componente iniziale in avanti di 16 m/s, che si esaurisce entro 4 m lungo la rotta. Il fumo continua a salire dal punto dell’urto.
+- At takeoff the propeller goes from 18% to cruising speed in half a second. The nose raises up to 11° and realigns in 1.45 s. During assisted descent the nose pulls back up to 7.4° and the propeller loses revolutions as the wings close.
+- Above 23° of inclination two thin trails appear that follow the positions crossed by the wingtips. They reach maximum intensity at 40°. Eight samples at 30 Hz preserve about a quarter of a second of trajectory. In level flight the opacity returns to zero in less than half a second.
+- Upon impact the metal fragments have an initial forward component of 16 m/s, which ends within 4 m along the route. Smoke continues to rise from the point of impact.
+- On impact, metal fragments receive an initial forward velocity of 16 m/s, which dissipates within 4 m along the route. Smoke continues to rise from the impact point.

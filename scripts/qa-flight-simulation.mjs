@@ -4,6 +4,8 @@ import {Group,OrthographicCamera,Scene} from 'three';
 import {makeWingTrails} from '../src/flight/wing-trails.ts';
 import {makeFlightControls} from '../src/flight/controls.ts';
 import {makeFlightArea} from '../src/flight/flight-area.ts';
+import {makeTerrainCeiling} from '../src/flight/terrain-ceiling.ts';
+import {buildDriveWorld} from '../src/drive/drive-world.ts';
 import {makeFlight} from '../src/flight/flight.ts';
 
 class Host extends EventTarget {
@@ -35,10 +37,10 @@ function tick(flight,seconds,observe=()=>{}){
 function emit(node,type,properties){node.dispatchEvent(Object.assign(new Event(type,{cancelable:true}),properties));}
 function press(key){emit(window,'keydown',{key});}
 function release(key){emit(window,'keyup',{key});}
-function setup({ground=()=>0,roof=()=>-Infinity,covered=()=>true}={}){
+function setup({ground=()=>0,roof=()=>-Infinity,covered=()=>true,ceiling}={}){
   const host=new Host(),scene=new Scene(),source=new OrthographicCamera(-100,100,100,-100,.1,5000);
   source.position.set(120,200,160);source.lookAt(0,0,0);source.updateMatrixWorld();
-  const flight=makeFlight(host,scene,ground,roof,()=>{},covered);
+  const flight=makeFlight(host,scene,ground,roof,()=>{},covered,ceiling);
   function launch(inspect){
     flight.start(0,0,0,source);
     assert.equal(flight.phase,'launch');
@@ -112,10 +114,41 @@ for(const fps of [30,120]){
   flight.stop();
   assert.equal(scene.children.length,0);
 }
+// A coastal tile can be covered by a long ground triangle whose high vertex is outside
+// the tile. A wider streamed ring must invalidate the ceiling already cached here.
+{
+  const terrain={origin:[0,64],step:16,stepY:8,w:12,h:10,values:new Int16Array(120),scale:.1};
+  terrain.values[9]=900;
+  const region=makeTerrainCeiling(terrain,-.9);
+  assert.ok(region.ceiling(15,33,35,50)<1);
+  region.include([[[0,64],[144,64],[0,0]]]);
+  assert.ok(region.ceiling(15,33,35,50)>=90);
+  assert.ok(region.ceiling(950,950,980,980)<1);
+}
+// Rooftop bounds track unloading, height overrides and footprints crossing their owner's cell.
+{
+  const square=(a,b)=>[[a,a],[b,a],[b,b],[a,b],[a,a]];
+  const world=buildDriveWorld({boundary:square(-100,100),roads:[],trees:[],buildings:[]},()=>6,{treeRadius:0,treeClearance:0});
+  world.addZone('new',[{rings:[square(-3,25),square(0,4)],height:8,heightOverride:70}],[]);
+  assert.equal(world.roofCeiling(20,20,23,23),76);
+  assert.equal(world.roofAt(1,1),-Infinity);
+  assert.equal(world.roofCeiling(-50,-50,-45,-45),-Infinity);
+  world.removeZone('new');
+  assert.equal(world.roofCeiling(20,20,23,23),-Infinity);
+}
+// At cruise altitude on open terrain only the exact camera endpoint needs sampling.
+{
+  let groundReads=0,roofReads=0;
+  const {flight,launch}=setup({ground:()=>{groundReads++;return 0;},roof:()=>{roofReads++;return -Infinity;},ceiling:()=>0});
+  launch();groundReads=roofReads=0;
+  assert.equal(tick(flight,1),undefined);
+  assert.ok(groundReads<=60 && roofReads<=60);
+  flight.stop();
+}
 // Only the outer right wing overlaps this roof. The nose, wheels and opposite wing stay clear.
 {
   const roof=(x,y)=>x>=78 && x<=82 && y>=4.65 && y<=5.4?55:-Infinity;
-  const {flight,scene,launch}=setup({roof});
+  const {flight,scene,launch}=setup({roof,ceiling:(w,s,e,n)=>e>=78 && w<=82 && n>=4.65 && s<=5.4?55:0});
   launch();
   assert.equal(tick(flight,3),'impact');
   assert.equal(flight.phase,'crash');
@@ -128,7 +161,7 @@ for(const fps of [30,120]){
 }
 // Controlled descent into the Atlantic and elevated terrain must produce the same single crash event.
 for(const elevation of [-.9,48]){
-  const {flight,launch}=setup({ground:()=>elevation});
+  const {flight,launch}=setup({ground:()=>elevation,ceiling:()=>elevation});
   launch();
   press('s');
   assert.equal(tick(flight,5),'impact');
@@ -186,7 +219,7 @@ for(const elevation of [-.9,48]){
 // A tall facade between the chase camera and the Piper must not hide the aircraft.
 {
   const roof=(x,y)=>x>-19 && x<-13 && Math.abs(y)<10?110:-Infinity;
-  const {flight,launch}=setup({roof});launch();
+  const {flight,launch}=setup({roof,ceiling:(w,s,e,n)=>e>-19 && w< -13 && n>-10 && s<10?110:0});launch();
   for(let i=0;i<20;i++){
     const {position}=flight.camera,p=flight.target;
     for(let j=1;j<=80;j++){

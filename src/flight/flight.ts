@@ -5,6 +5,8 @@ import {makeFlightControls} from './controls.ts';
 import {makeWingTrails} from './wing-trails.ts';
 import {makeBurst} from './burst.ts';
 
+import type {FlightCeiling} from './terrain-ceiling.ts';
+
 type Phase='off'|'launch'|'fly'|'return'|'crash';
 type Sample=(x:number,y:number)=>number;
 const CRUISE=32,SPAN=10.7;
@@ -13,7 +15,7 @@ const clamp=T.MathUtils.clamp;
 
 /** Simulation coordinates are easting, northing and absolute elevation. The model points along local +X. */
 export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sample,
-  onExit:()=>void,covered:(x:number,y:number)=>boolean){
+  onExit:()=>void,covered:(x:number,y:number)=>boolean,ceiling?:FlightCeiling){
   const camera=new T.PerspectiveCamera(54,1,.35,6200),target=new T.Vector3();
   const trails=makeWingTrails();
   const plane=makePiper(),burst=makeBurst(),controls=makeFlightControls(host,onExit);
@@ -61,8 +63,11 @@ export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sam
     const nx=x+c*distance,ny=y+s*distance;
     if(covered(nx,ny)){x=nx;y=ny;}
     // A lower valley can put us above the local climb limit. Only constrain further ascent.
-    const climbLimit=Math.max(z,ground(x,y)+460);
-    z=Math.min(z+CRUISE*dt*Math.sin(pitch),climbLimit);
+    const rise=CRUISE*dt*Math.sin(pitch);
+    z=rise>0?Math.min(z+rise,Math.max(z,ground(x,y)+460)):z+rise;
+    const half=SPAN/2;
+    const lowest=z+Math.min(-.95,3*Math.sin(pitch),.82-half*Math.abs(Math.sin(bank)));
+    if(ceiling && lowest>ceiling(x-half,y-half,x+half,y+half))return true;
     // Each substep advances at most 35 cm. Sweep the nose, wheels and banked high wing.
     if(z-.95<=surface(x,y) || z+3*Math.sin(pitch)<=surface(x+c*3,y+s*3))return false;
     for(let i=-9;i<=9;i++){
@@ -108,7 +113,10 @@ export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sam
       // Test the smoothed boom: both ends can be clear while a facade cuts across its middle.
       const dx=camera.position.x-x,dz=camera.position.z+y,dy=camera.position.y-z;
       const length=Math.hypot(dx,dz),samples=Math.ceil(length/1.5);
-      for(let i=1;i<=samples;i++){
+      const endX=x+dx,endY=y-dz;
+      const clearBoom=ceiling && length<120 && Math.min(z,camera.position.y)>
+        ceiling(Math.min(x,endX),Math.min(y,endY),Math.max(x,endX),Math.max(y,endY))+.65;
+      for(let i=1;!clearBoom && i<=samples;i++){
         const t=i/samples;
         if(z+dy*t>surface(x+dx*t,y-dz*t)+.65)continue;
         const clear=Math.max(0,(i-2)/samples);

@@ -1,4 +1,4 @@
-import {cityDetail} from '../dynamic-quality.ts';
+import {cityDetail,type FlightRenderRange} from '../dynamic-quality.ts';
 import type { Building, CityCore, FarBlock, Layers, Point, Prop, Ring, RoofTones, SectorIndex, Zone, ZoneData } from '../../data/types.ts';
 import { ringCenter, sectorOwner, zoneOfSector } from '../../data/sector-index.ts';
 import { isLayers, isZone, loadData } from '../../data/load.ts';
@@ -18,6 +18,12 @@ export interface SectorLod {
   attach?:(low:T.Group, detail:Pick<ReturnType<typeof makeCity>,'group'|'materials'>, overview:ReturnType<typeof makeGroundMap>)=>{step:(show:boolean,now:number,covered?:boolean)=>boolean;dispose:()=>void};
   observe?:(id:string,show:boolean)=>void;
 }
+
+function groundDistanceSq(box:T.Box3,p:T.Vector3){
+  const dx=Math.max(box.min.x-p.x,0,p.x-box.max.x),dz=Math.max(box.min.z-p.z,0,p.z-box.max.z);
+  return dx*dx+dz*dz;
+}
+
 interface StreamOptions {
   lod?:SectorLod;
   data: CityCore & SectorIndex;
@@ -32,6 +38,7 @@ interface StreamOptions {
   loadLayers?:(s:{id:string;file:string},signal:AbortSignal)=>Promise<Layers>;
   loadZone?:(z:Zone,signal:AbortSignal)=>Promise<ZoneData>;
   /** Footprints of a zone arrive with `data`, and leave with `null`. Collision follows the same residency. */
+  onGroundRings?:(rings:Ring[])=>void;
   onZone?:(id:string,data:ZoneData|null)=>void;
 }
 
@@ -142,7 +149,7 @@ function unpackBlocks({points,ends,heights,tones}: PackedBlocks): FarBlock[] {
 
 // Three levels. Far: merged blocks of every zone, always resident. Zone: one silhouette per building, on demand.
 // Sector: full detail inside a loaded zone, within the byte budget. Zones are bounded by the view and counted apart.
-export function streamCity({data,stage='city',neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,loadZone,onZone,lod}: StreamOptions){
+export function streamCity({data,stage='city',neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,loadZone,onZone,onGroundRings,lod}: StreamOptions){
   const detailProfile=cityDetail(compact);
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
   const streetPriority=!!data.carriageways&&!legacyRoads,coverage=legacyRoads?undefined:data.roadCoverage;
@@ -203,7 +210,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   function sampleGround(x: number,y: number,east=x,north=y){
     const zone=zoneAt(east,north);
     if(!zone)return undefined;
-    if(zone.far.visible)return zone.farGroundAt(x,y);
+    if(!zone.group?.visible)return zone.farGroundAt(x,y);
     // Zone and detail use the same ground triangles throughout the fade.
     return sectorById.get(owner(east,north))?.groundAt?.(x,y);
   }
@@ -245,6 +252,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   }
   let demanded: ResidentZone | undefined;
   let near=false,mid=false,activeFades=0;
+  // Nearby flight requests are deliberately wider than the displacement between selections.
+  // Frustum culling by the renderer still uses the live camera every frame.
+  const selectedTarget=new T.Vector3(),selectedEye=new T.Vector3(),selectedRotation=new T.Quaternion();
+  let selectedAt=-Infinity,selectedProjection=0,selectedDetail=0,selectedZone=0,selectedRange=0;
+  let previousFlight:FlightRenderRange|undefined;
+  let trialZones:ResidentZone[]=[],trialSectors:ResidentSector[]=[];
+  const preparingFlight=()=>trialZones.length>0 || trialSectors.length>0;
   const transitions=new Map<string,ReturnType<NonNullable<SectorLod['attach']>>>();
   const displayed=new Set<string>(), lastVisible=new Map<string,number>();
   let pending: {s: ResidentSector;controller: AbortController} | null=null;
@@ -282,6 +296,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const source=required(data.zones.find(zone=>zone.id===z.id),'zone '+z.id);
       let content: ZoneData | null=await (loadZone?loadZone(source,controller.signal):loadData(stage+'-zones/'+z.file,isZone,controller.signal));
       if(controller.signal.aborted || !requestedZones.includes(z))return;
+      onGroundRings?.(content.ground);
       const [west,south,east,north]=source.bounds;
       // The zone paints its own ground, so its sharpness does not depend on the size of the city.
       const map=neutral?null:makeGroundMap({...data,buildings:content.buildings,textureBounds:[west-5,south-5,east+5,north+5]},
@@ -338,7 +353,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         setTimeout(()=>{if(requestedZones.includes(z))refresh();},z.retry-performance.now()+10);
       }
     }finally{
-      pendingZone=null;refresh();
+      pendingZone=null;selectedAt=-Infinity;refresh();
     }
   }
 
@@ -388,11 +403,11 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         setTimeout(()=>{if(requested.includes(s))refresh();},s.retry-performance.now()+10);
       }
     }finally{
-      pending=null;refresh();
+      pending=null;selectedAt=-Infinity;refresh();
     }
   }
   function suspend(){
-    requested=[];requestedZones=[];demanded=undefined;for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
+    selectedAt=-Infinity;requested=[];requestedZones=[];demanded=undefined;for(const z of zones)z.wanted=-Infinity;for(const s of sectors)s.wanted=-Infinity;pending?.controller.abort();pendingZone?.controller.abort();
   }
   // The graphics context was lost: buffers without a copy in memory cannot be sent again. Zones and sectors are
   // dropped and the next update loads them anew, over the far level. The drive keeps its footprints meanwhile.
@@ -412,14 +427,30 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   function demand(x: number,y: number){
     const z=zoneAt(x,y);
     if(z!==demanded){
-      demanded=z;
+      demanded=z;selectedAt=-Infinity;
       if(z && !z.assets)refresh();
     }
     return !z || !!z.assets;
   }
-  function update(camera: T.OrthographicCamera|T.PerspectiveCamera,target: T.Vector3,driving=false,opening?:'covered'|'revealing'){
+  function update(camera: T.OrthographicCamera|T.PerspectiveCamera,target: T.Vector3,driving=false,opening?:'covered'|'revealing',flight?:FlightRenderRange){
     tick++;
     const airborne=camera instanceof T.PerspectiveCamera;
+    const now=performance.now();
+    const expanding=flight && previousFlight && flight.detailRadius>previousFlight.detailRadius;
+    if(flight!==previousFlight){trialZones=[];trialSectors=[];}
+    previousFlight=flight;
+    if(airborne && flight && !opening){
+      const projection=camera.projectionMatrix.elements[0];
+      const steady=now-selectedAt<160 && activeFades===0 &&
+        selectedProjection===projection && selectedDetail===flight.detailRadius &&
+        selectedZone===flight.zoneRadius && selectedRange===flight.visibility &&
+        selectedTarget.distanceToSquared(target)<36 && selectedEye.distanceToSquared(camera.position)<36 &&
+        Math.abs(selectedRotation.dot(camera.quaternion))>.99985;
+      if(steady)return {zoneReady:true,flightPreparing:preparingFlight(),busy:!!pending || !!pendingZone};
+      selectedAt=now;selectedProjection=projection;selectedDetail=flight.detailRadius;
+      selectedZone=flight.zoneRadius;selectedRange=flight.visibility;
+      selectedTarget.copy(target);selectedEye.copy(camera.position);selectedRotation.copy(camera.quaternion);
+    }else selectedAt=-Infinity;
     const width=airborne?0:(camera.right-camera.left)/camera.zoom;
     const height=airborne?0:(camera.top-camera.bottom)/camera.zoom;
     const span=Math.min(width,height),long=Math.max(width,height);
@@ -428,11 +459,12 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     lastTarget.copy(target);aheadPoint.copy(target).addScaledVector(ahead,driving?data.sectorSize*.5:0);
     // In perspective the horizon can contain the entire city. Use the full frustum for culling,
     // but reserve detailed geometry and the zone footprint cache for the flight corridor.
-    const horizontalGap=(box:T.Box3,p:T.Vector3)=>Math.hypot(Math.max(box.min.x-p.x,0,p.x-box.max.x),
-      Math.max(box.min.z-p.z,0,p.z-box.max.z));
+    const detailRadius=flight?.detailRadius??data.sectorSize*2,zoneRadius=flight?.zoneRadius??data.zoneSize;
+    const detailSq=detailRadius*detailRadius,zoneSq=zoneRadius*zoneRadius;
+    const aheadSq=Math.min(data.sectorSize,detailRadius*.5)**2;
+    const rangeSq=flight?flight.visibility**2:Infinity;
     const underPlane=airborne?zoneAt(target.x,-target.z):undefined;
     const aheadZone=airborne?zoneAt(aheadPoint.x,-aheadPoint.z):undefined;
-    const now=performance.now();
     near=driving || (lod?.stable?(near?span<=580:span<=520):span<=550);
     mid=driving || long<=(mid?zoneSpan*1.09:zoneSpan);
     const openingZone=opening && mid?zoneAt(target.x,-target.z):undefined;
@@ -443,8 +475,8 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       if(distance<closest){openingSector=s;closest=distance;}
     }
     for(const z of zones)if(z===openingZone || z===openingSector?.zone || z===demanded || (mid && (airborne?
-      (horizontalGap(z.bounds,aheadPoint)<data.sectorSize ||
-        (horizontalGap(z.bounds,target)<data.zoneSize && frustum.intersectsBox(z.prefetch))):
+      (groundDistanceSq(z.bounds,aheadPoint)<data.sectorSize**2 ||
+        (groundDistanceSq(z.bounds,target)<zoneSq && frustum.intersectsBox(z.prefetch))):
       (frustum.intersectsBox(z.prefetch) ||
         (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize)))))z.wanted=now;
     requestedZones=opening
@@ -455,20 +487,27 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     requestedZones.sort((a,b)=>zoneRank(a)-zoneRank(b));
     if(staticEnabled)syncShadowMasks();
     for(const z of requestedZones)if(z.assets)z.used=tick;
-    // A zone kept for a quick return shows the far level, so one view never mixes the two.
-    for(const z of zones)if(z.group){z.group.visible=requestedZones.includes(z);z.far.visible=!z.group.visible;}
     const idle=zones.filter(z=>z.assets&&!requestedZones.includes(z)).sort((a,b)=>b.used-a.used);
     for(const z of idle.slice(idleZones))releaseZone(z);
-    if(near)for(const s of sectors){
+    // Outside the flight horizon even resident overview blocks don't reach the renderer.
+    // Demand can still load the landing road outside that horizon.
+    for(const z of zones){
+      const withinRange=!flight || groundDistanceSq(z.bounds,camera.position)<=rangeSq;
+      if(z.group)z.group.visible=withinRange && requestedZones.includes(z);
+      z.far.visible=withinRange && !z.group?.visible;
+    }
+    // Unloaded sectors have neither an overview nor detail to select, display or fade.
+    const candidates=flight?zones.filter(z=>z.assets).flatMap(z=>z.sectors):sectors;
+    if(near)for(const s of candidates){
       const visible=frustum.intersectsBox(s.prefetch);
-      const wanted=airborne?horizontalGap(s.bounds,aheadPoint)<data.sectorSize ||
-        (visible && horizontalGap(s.bounds,target)<data.sectorSize*2):
+      const wanted=airborne?groundDistanceSq(s.bounds,aheadPoint)<aheadSq ||
+        (visible && groundDistanceSq(s.bounds,target)<detailSq):
         visible || (driving && s.bounds.distanceToPoint(aheadPoint)<data.sectorSize);
       if(wanted)s.wanted=now;
     }
     requested=opening
       ? openingSector?.low?[openingSector]:[]
-      : sectors.filter(s=>s.low && requestedZones.includes(s.zone) && now-s.wanted<linger);
+      : candidates.filter(s=>s.low && requestedZones.includes(s.zone) && now-s.wanted<linger);
     // Come back once the lingering requests have expired, even if the camera stays still.
     if(!lingerTimer && (requestedZones.some(z=>z.wanted!==now) || requested.some(s=>s.wanted!==now))){
       lingerTimer=window.setTimeout(()=>{lingerTimer=0;refresh();},linger+20);
@@ -480,12 +519,12 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       return (visible?0:1e10)+projected.distanceToSquared(aheadPoint)-(retained?3600:0);
     }
     // The same grace as the requests: a sector on the edge of the screen keeps one answer while its download runs.
-    for(const s of sectors){if(frustum.intersectsBox(s.bounds))s.seen=now;s.inView=now-s.seen<linger;}
+    for(const s of candidates){if(frustum.intersectsBox(s.bounds))s.seen=now;s.inView=now-s.seen<linger;}
     requested.sort((a,b)=>rank(a)-rank(b));
     let fading=0;
-    for(const s of sectors){
+    for(const s of candidates){
       if(!s.low)continue;
-      const show=requested.includes(s)&&!!s.detail;
+      const show=requested.includes(s)&&!!s.detail && (!flight || groundDistanceSq(s.bounds,camera.position)<=rangeSq);
       if(lod){
         if(show!==displayed.has(s.id)){
           if(show)displayed.add(s.id);else displayed.delete(s.id);
@@ -496,6 +535,17 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       s.low.visible=!show;
       if(s.detail){s.detail.visible=show;if(show)s.used=tick;}
       if(transitions.get(s.id)?.step(show,now,opening==='covered' && s===openingSector))fading++;
+      // Detail is attached directly to the scene and can still be fading on leaving the range.
+      if(flight && s.detail && groundDistanceSq(s.bounds,camera.position)>rangeSq)s.detail.visible=false;
+    }
+    // A promotion waits for the visible resources at the instant its range expands.
+    // Later corridor requests belong to continuous flight and do not prolong that trial.
+    if(expanding){
+      trialZones=requestedZones.filter(z=>!z.assets && frustum.intersectsBox(z.bounds));
+      trialSectors=requested.filter(s=>!s.detail && frustum.intersectsBox(s.bounds));
+    }else{
+      if(trialZones.length)trialZones=trialZones.filter(z=>!z.assets && requestedZones.includes(z));
+      if(trialSectors.length)trialSectors=trialSectors.filter(s=>!s.detail && requested.includes(s));
     }
     if(fading || activeFades)refresh();
     activeFades=fading;
@@ -514,11 +564,11 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         void load(s);break;
       }
     }
-    host.dataset.sectors=JSON.stringify({near,mid,fading,loaded:sectors.filter(s=>s.detail).length,
-      visible:sectors.filter(s=>s.detail?.visible).length,zones:zones.filter(z=>z.assets).map(z=>z.id),
+    host.dataset.sectors=JSON.stringify({near,mid,fading,loaded:candidates.filter(s=>s.detail).length,
+      visible:candidates.filter(s=>s.detail?.visible).length,zones:zones.filter(z=>z.assets).map(z=>z.id),
       zoneBytes,bytes,budget,shadowBytes,shadowBudget,evictions,
       pending:pending?.s.id??pendingZone?.z.id??null});
-    return {zoneReady:!openingZone || !!openingZone.assets,busy:!!pending || !!pendingZone || fading>0};
+    return {flightPreparing:preparingFlight(),zoneReady:!openingZone || !!openingZone.assets,busy:!!pending || !!pendingZone || fading>0};
   }
   return {...base,groundAt,update,suspend,forget,demand,
     setStaticShadows(enabled:boolean){
@@ -528,5 +578,5 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     },
     get shadowsPending(){return staticEnabled && (requestedZones.length?requestedZones.some(z=>masks.get(z.id)?.pending):!!farMask?.pending);},
     disposeShadows(){farMask?.dispose();for(const mask of masks.values())mask.dispose();},
-    undemand(){demanded=undefined;}};
+    undemand(){if(demanded){demanded=undefined;selectedAt=-Infinity;}}};
 }

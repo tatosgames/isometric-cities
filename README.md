@@ -1,27 +1,26 @@
 # Las Palmas · Atlas insular
 
-Plastico urbano interattivo di Las Palmas de Gran Canaria, in Three.js, TypeScript e Vite. I dati elaborati sono inclusi in `public/data`. Il browser legge tutti gli asset dall’origine locale.
+Interactive urban model of Las Palmas de Gran Canaria, in Three.js, TypeScript and Vite. The processed data is included in `public/data`. The browser reads all assets from the local source.
 
-## Avvio su Windows
+## Start on Windows
 
-Dalla cartella del progetto, con Node 24 e Chrome con WebGL2:
+From the project folder, with Node 24 and Chrome with WebGL2:
 
 ```powershell
 npm.cmd ci
 npm.cmd run dev -- --host 127.0.0.1 --port 5197
 ```
+Open http://127.0.0.1:5197/ . Drag to move, use wheel or pinch to zoom. The index and markers open the place card. With the focus on the map, use arrows, +, − and Home. The viewfinder resets the overview.
 
-Aprire http://127.0.0.1:5197/ . Trascinare per spostarsi, usare rotella o pinch per ingrandire. L’indice e i marker aprono la scheda del luogo. Con il focus sulla mappa, usare frecce, +, − e Home. Il mirino ripristina la panoramica.
-
-La pagina iniziale apre un dettaglio di Triana a tutto schermo. Il menu in alto a sinistra raccoglie 25 luoghi, da Vegueta e Triana fino a La Isleta, Ciudad Alta, i riscos e l'anello sud. Il mirino in alto a destra mostra l’intera area. Usare `/?area=pilot` per il quadrato di Santa Ana e aggiungere `&neutral` per il confronto a camera identica. Con `?nopolice` la modalità «Conducir» parte senza pattuglie: niente cattura, la corsa dura finché si esce.
+The home page opens a full-screen view of Triana. The menu at the top left lists 25 places, from Vegueta and Triana to La Isleta, Ciudad Alta, the cliffs, and the southern ring. The viewfinder at the top right shows the entire area. Use `/?area=pilot` for Santa Ana Square and add `&neutral` for an identical room comparison. With `?nopolice`, the "Drive" mode starts without patrols: no captures, and the race lasts until you exit.
 
 ## Editor del pilota
 
-L’editor si apre su [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) o in locale su `http://127.0.0.1:5197/editor.html`. Scarica le correzioni in JSON e ricaricale nell’editor oppure in **Test Drive**. Il browser legge il file dal dispositivo.
+The editor opens on [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) or locally on `http://127.0.0.1:5197/editor.html`. Download the fixes in JSON and reload them in the editor or in **Test Drive**. The browser reads the file from the device.
 
-## Riprodurre i dati
+## Replay the data
 
-La visione richiede solo Node. Per ricostruire i dati, dalla radice con Python 3.13 e curl:
+Vision requires only Node. To reconstruct the data, from the root with Python 3.13 and curl:
 
 ```powershell
 python -m pip install --target .cache/pylib -r scripts/requirements.txt
@@ -31,13 +30,13 @@ python scripts/roof-colours.py
 python scripts/sectors.py
 ```
 
-La superficie terrestre giocabile è di 3,041 km². La pipeline genera un indice e 80 settori da 240 m. Il primo passaggio salva le risposte pubbliche in `.cache/sources` con una chiave derivata dalla richiesta completa. Le rigenerazioni leggono le copie locali. Per una nuova acquisizione conservare separatamente la vecchia cache e usare una directory di progetto pulita. La cache e le credenziali sono escluse da Git.
+The playable land surface is 3,041 km². The pipeline generates an index and 80 240m sectors. The first step saves public responses to `.cache/sources` with a key derived from the complete request. Regenerations read local copies. For a new acquisition, keep the old cache separately and use a clean project directory. Cache and credentials are excluded from Git.
 
 ## Struttura del runtime
 
-`src/main.ts` collega la mappa, il rendering e la guida. `src/data/` contiene i contratti dei geodati, `src/map/` i marker e i controlli dei luoghi, `src/render/` la scena e lo streaming, `src/drive/` la simulazione. Vite prepara la build e `npm.cmd run typecheck` controlla tutto `src/` in modalità rigorosa.
+`src/main.ts` links the map, rendering and driving. `src/data/` contains the geodata contracts, `src/map/` the location markers and controls, `src/render/` the scene and streaming, `src/drive/` the simulation. Vite prepares the build and `npm.cmd run typecheck` checks everything `src/` in strict mode.
 
-## Verifiche
+## Verification
 
 ```powershell
 npm.cmd run typecheck
@@ -49,37 +48,37 @@ node scripts/qa-drive-route.mjs
 node scripts/qa-recovery.mjs
 ```
 
-I test avviano un server temporaneo della build e lo chiudono alla fine. Richiedono Chrome installato. `MAP_URL` permette di puntare a un server già avviato.
+The tests start a temporary build server and shut it down at the end. Require Chrome installed. `MAP_URL` allows you to point to an already started server.
 
 ## Riutilizzo nel gioco
 
-Le scene JSON contengono edifici identificati dal record comunale, strade con ID OSM, nome e classe, superfici pedonali, verde, alberi e griglia delle quote. Gli anelli comprendono i cortili. Più parti possono condividere l’ID dell’edificio originale. Unità in metri, coordinate locali est/nord rispetto a [-15.415, 28.105] in WGS84 proiettate in UTM 28N. Three.js usa (est, quota, −nord). Confini e dieci POI sono disponibili anche in GeoJSON WGS84. I marker sono elementi interattivi proiettati dalla camera.
+The JSON scenes contain buildings identified from the municipal record, streets with OSM ID, name and class, pedestrian surfaces, greenery, trees and elevation grid. The rings include the courtyards. Multiple parties can share the original building ID. Units in meters, local coordinates east/north relative to [-15.415, 28.105] in WGS84 projected into UTM 28N. Three.js uses (east, elevation, −north). Boundaries and ten POIs are also available in GeoJSON WGS84. Markers are interactive elements projected from the camera.
 
-Il modello mantiene la separazione geodati/scena e l’origine fissa del progetto [IsometricWorld alla revisione consultata](https://github.com/krasun/isometricworld/tree/8f9e3bb9f9533bcc5dfb3c6481ec0a1306e5ca3a). Acquisizione locale e renderer sono specifici della versione 3D live.
+The model maintains the geodata/scene separation and the fixed origin of the project [IsometricWorld at the inspected revision](https://github.com/krasun/isometricworld/tree/8f9e3bb9f9533bcc5dfb3c6481ec0a1306e5ca3a). Local capture and renderer are specific to the live 3D version.
 
-[Fonti](docs/DATA_SOURCES.md) · [Prove e screenshot](docs/QA.md) · [Checkpoint](PROGRESS.md)
+[Sources](docs/DATA_SOURCES.md) · [Tests and screenshots](docs/QA.md) · [Checkpoint](PROGRESS.md)
 
 
 
-## Aggiungere un luogo
+## Add a place
 
-Inserisci in `content/las-palmas.json` una voce in `places` con un ID stabile, nome, riferimento OSM, aree di appartenenza e altezza del marker in metri. Rigenera i dati con i comandi della sezione precedente. Menu, marker e scheda leggono lo stesso elenco. Mantieni gli ID quando riordini o rinomini i luoghi per conservare le selezioni salvate.
+Insert in `content/las-palmas.json` an entry in `places` with a stable ID, name, OSM reference, areas to which it belongs and marker height in meters. Regenerate the data with the commands from the previous section. Menu, marker and tab read the same list. Preserve IDs when reordering or renaming places to preserve saved selections.
 
-Il catalogo contiene anche il centro del pilota e le personalizzazioni degli edifici comunali. I modelli procedurali dedicati si trovano in `src/render/landmarks.ts`, i controlli dei luoghi in `src/map/places-ui.ts`.
+The catalog also contains the pilot center and municipal building customizations. Dedicated procedural templates are found in `src/render/landmarks.ts`, location controls in `src/map/places-ui.ts`.
 
-Per estendere il perimetro, aggiornare le acquisizioni o preparare una nuova città, segui la [guida alla generazione e all’espansione](docs/EXPAND_CITY.md).
+To extend your perimeter, update your acquisitions, or prepare a new city, follow the [generation and expansion guide](docs/EXPAND_CITY.md).
 
 ## Modo «Conducir»
 
-El botón 🚗 de las herramientas abre una persecución arcade sobre la maqueta, inspirada en Pako. El coche acelera solo.
+The 🚗 button on the tools opens an arcade chase on the model, inspired by Pako. The car accelerates on its own.
 
-- Táctil: pulsar la mitad izquierda o derecha para girar, ambas a la vez para frenar. Un deslizamiento horizontal equivale al lado hacia el que se desliza.
-- Teclado: flechas izquierda/derecha o A/D, ambas a la vez (o Espacio / flecha abajo) para frenar, Escape para salir.
-- Las monedas marcan la ruta por las calles hasta uno de los lugares; al llegar hay un bono y aparece otra ruta.
-- Las patrullas aumentan cada 18 s. Te atrapan si te alcanzan cuando vas despacio; a plena velocidad solo empujan. El récord se guarda en el navegador.
+- Touch: press the left or right half to turn, both at the same time to brake. A horizontal slide is equivalent to the side you slide toward.
+- Keyboard: left/right arrows or A/D, both at the same time (or Space / down arrow) to brake, Escape to exit.
+- The coins mark the route through the streets to one of the places; When you arrive there is a bonus and another route appears.
+- Patrols increase every 18 seconds. They catch you if they catch up with you when you're going slow; At full speed they only push. The record is saved in the browser.
 
-La interfaz del juego no usa texto: iconos para monedas y tiempo durante la partida, y el récord en el resumen final; dos zonas táctiles animadas enseñan a girar y, tras unos segundos, a frenar con ambas; una gota turquesa con la distancia en línea recta (4.3km, luego 850m) apunta al destino desde el borde de la pantalla y sale volando del coche cada vez que cambia; un haz de luz del mismo color lo marca en la maqueta. Una flecha dentro del círculo del coche señala el morro solo cuando un edificio tapa la cabina. Los nombres se anuncian solo a lectores de pantalla.
+The game interface does not use text: icons for coins and time during the game, and the record in the final summary; two animated touch zones teach you how to turn and, after a few seconds, how to brake with both; a turquoise blob with straight-line distance (4.3km, then 850m) points to the destination from the edge of the screen and flies out of the car every time it changes; a beam of light of the same color marks it on the model. An arrow inside the car's circle points to the nose only when a building blocks the cabin. Names are announced to screen readers only.
 
-Toda la física y el ritmo se ajustan en el objeto `TUNE` al inicio de `src/drive/drive.ts`.
+All physics and pacing are set in the `TUNE` object at the start of `src/drive/drive.ts`.
 
-La mappa e la guida usano sempre le stesse animazioni, indipendentemente dalle preferenze di sistema. La camera accompagna la selezione dei luoghi e in guida reagisce a velocità, urti e vicinanza delle pattuglie.
+The map and guide always use the same animations, regardless of system preferences. The camera accompanies the selection of places and reacts to speed, impacts and proximity of patrols while driving.

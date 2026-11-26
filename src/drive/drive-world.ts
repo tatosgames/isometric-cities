@@ -8,7 +8,7 @@ import { routesFrom, indexRoadNodes } from './road-routing.ts';
 import * as T from 'three';
 
 export type Segment = [ax: number,ay: number,bx: number,by: number,facade: boolean];
-interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[]}
+interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[];roofCeiling:number}
 
 
 const CELL=20;
@@ -68,7 +68,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     const cell=(cx: number,cy: number)=>{
       const k=cx+','+cy;
       let entry=grid.get(k);
-      if(!entry){entry={segs:[],trees:[],blocks:[]};grid.set(k,entry);}
+      if(!entry){entry={segs:[],trees:[],blocks:[],roofCeiling:-Infinity};grid.set(k,entry);}
       return entry;
     };
     function wall(ring: Ring,facade: boolean){
@@ -86,7 +86,9 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
       const base=altitude(...b.rings[0][0]);
       const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height)};
       highestRoof=Math.max(highestRoof,block.top);
-      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).blocks.push(block);
+      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){
+        const entry=cell(cx,cy);entry.blocks.push(block);entry.roofCeiling=Math.max(entry.roofCeiling,block.top);
+      }
     }
     if(boundary)wall(boundary,false);
     for(const ring of water)wall(ring,false);
@@ -206,6 +208,16 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     return true;
   }
   function nearestNode(x: number,y: number){return roadIndex.nearest(x,y);}
+  function roofCeiling(west:number,south:number,east:number,north:number){
+    let top=-Infinity;
+    for(let cx=Math.floor(west/CELL);cx<=Math.floor(east/CELL);cx++){
+      for(let cy=Math.floor(south/CELL);cy<=Math.floor(north/CELL);cy++){
+        const key=cx+','+cy;
+        for(const grid of stack)top=Math.max(top,grid.get(key)?.roofCeiling??-Infinity);
+      }
+    }
+    return top;
+  }
   // Roof elevation at a sampled airframe point. Courtyards have no roof.
   function roofAt(x:number,y:number){
     const key=Math.floor(x/CELL)+','+Math.floor(y/CELL);
@@ -297,7 +309,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   return {
     nodes,validNodes:roadIndex.valid,roadSegments,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
-    roofAt,landingCandidates,landingHeading,footprintsReady:(x:number,y:number)=>!unloaded(x,y),
+    roofAt,roofCeiling,landingCandidates,landingHeading,footprintsReady:(x:number,y:number)=>!unloaded(x,y),
     patrolRoutesFrom:(source:number)=>routesFrom(nodes,source,patrolLink,480),
     routesFrom:(source: number)=>routesFrom(nodes,source)
   };

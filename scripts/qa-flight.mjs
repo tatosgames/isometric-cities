@@ -20,6 +20,7 @@ async function launch(page,touch){
   const button=page.locator('#drive-flight');
   if(touch)await button.tap();else await button.click();
   await phase(page,'fly');
+  await page.waitForSelector('#scene[data-quality-mode="flight"]',{timeout});
   assert.equal(await button.getAttribute('aria-label'),'Volver al coche');
 }
 async function waitForTurn(page,heading){
@@ -78,6 +79,7 @@ try{
       assert.equal(await page.locator('#hud-coins').textContent(),score,'Coins stay frozen in flight');
       if(run.touch)await button.tap();else await button.click();
       await page.waitForSelector('#scene:not([data-flight])[data-drive^="playing,"]',{timeout});
+      await page.waitForSelector('#scene[data-quality-mode="ground"]',{timeout});
       assert.equal(await button.getAttribute('aria-label'),'Volar');
       assert.ok(Number(await page.locator('#hud-coins').textContent())>=Number(score),'Landing preserves coins');
       assert.equal(await page.locator('#over').isHidden(),true);

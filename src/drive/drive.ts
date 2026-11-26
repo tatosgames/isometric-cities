@@ -55,7 +55,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,flightTerrainCeiling,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
@@ -268,6 +268,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   const clock=(s: number)=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
   const guide=el('guide'),zones={left:required(guide.querySelector('.left'),'left guide'),right:required(guide.querySelector('.right'),'right guide')};
   const over=el('over'),actions=el('over-actions'),again=el('again');
+  let flightWaiting=false;
   let aircraft:ReturnType<typeof makeFlight>|undefined;
   const flightButton=el('drive-flight') as HTMLButtonElement;
   const flightIcon=required(flightButton.querySelector('use'),'flight icon');
@@ -281,6 +282,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   }
   function endFlight(){
     if(!aircraft || aircraft.phase==='off')return;
+    flightWaiting=false;
     aircraft.stop();releaseLanding();candidates=undefined;group.visible=true;
     flightButtonState(false);
     delete host.dataset.flight;
@@ -295,7 +297,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       }
     }else if(group.visible){
       go();controls.deactivate();acc=0;
-      aircraft??=makeFlight(host,scene,flightGround,(x,y)=>activeWorld().roofAt(x,y),onExit,flightArea);
+      aircraft??=makeFlight(host,scene,flightGround,(x,y)=>activeWorld().roofAt(x,y),onExit,flightArea,
+        (w,s,e,n)=>Math.max(flightTerrainCeiling(w,s,e,n),activeWorld().roofCeiling(w,s,e,n)));
       aircraft.start(player.x,player.y,player.h,camera);
       group.visible=false;flightButtonState(true);flightButton.disabled=true;
     }
@@ -324,7 +327,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       world.footprintsReady(x+5.4*s,y-5.4*c) && world.footprintsReady(x-5.4*s,y+5.4*c);
     const needsZone=aircraft.phase==='fly' && (!corridorReady(aircraft.x,aircraft.y) ||
       !corridorReady(aircraft.x+12*c,aircraft.y+12*s));
-    const event=aircraft.step(needsZone || candidates?0:dt);
+    flightWaiting=needsZone || !!candidates;
+    const event=aircraft.step(flightWaiting?0:dt);
     if(event==='landed'){
       const {x,y,h}=aircraft;
       endFlight();
@@ -1035,6 +1039,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   el('leave').onclick=()=>onExit();
   let policing=police,fixedStart: Point | undefined;
   return {
+    get flightWaiting(){return flightWaiting;},
     get flightView(){return aircraft && aircraft.phase!=='off'?aircraft:undefined;},
     get active(){return state!=='off';},
     /** The player's body and the patrols on the road, for the lab's readout. */

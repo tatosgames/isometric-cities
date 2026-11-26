@@ -1,10 +1,10 @@
-# Qualità grafica adattiva a flag
+# Flag-Based Adaptive Graphics Quality
 
-Copia questa cartella nel progetto. Con Node 24 puoi eseguire `node --test adaptive-quality.test.mjs` dalla cartella copiata.
+Copy this folder into your project. With Node 24, run `node --test adaptive-quality.test.mjs` from the copied folder.
 
-## Configurare i livelli
+## Configure quality levels
 
-Dichiara una riga completa per livello, dal più leggero al più costoso. Ogni campo può essere un flag, un valore numerico o una modalità. Collega ciascun campo al suo effetto in un unico callback. Nell’esempio, il livello intermedio abilita le ombre e quello superiore aggiunge FXAA. Per anticipare FXAA al livello intermedio basta cambiare il secondo valore di `fxaa` in `true`.
+Declare one complete entry per level, ordered from lowest to highest quality. Each field can be a flag, number, or mode. Connect each field to its effect in a single callback. In this example, the middle level enables shadows and the top level adds FXAA. To enable FXAA at the middle level, change the second `fxaa` value to `true`.
 
 ```ts
 import {createAdaptiveQuality} from './adaptive-quality.ts';
@@ -24,41 +24,41 @@ const quality = createAdaptiveQuality({
   }
 });
 
-// Nel ciclo di rendering esistente, una volta per frame disegnato:
+// In the existing render loop, once per rendered frame:
 quality.sample(time, {mode: moving ? 'moving' : 'resting', ready: !loading});
 ```
 
-Il callback viene chiamato subito alla creazione, a ogni passaggio di livello (anche il ritorno dopo una prova fallita) e al reset. Crea gli effetti prima del controller. Omettendo il callback puoi applicare i livelli restituiti manualmente.
+The callback runs immediately when the controller is created, on every level change (including rollback after a failed trial), and on reset. Create effects before the controller. If you omit the callback, apply returned levels manually.
 
-Gli indici partono da zero. `initialIndex` sceglie il primo livello visibile. `baseIndex` indica il profilo leggero di riferimento per la calibrazione e il riconoscimento dei 30 FPS. Puoi inserire livelli più economici prima della base, ad esempio con una risoluzione ridotta. Per aggiungere un effetto, assegna il suo valore in ogni riga e collegalo una volta in `applyLevel`.
+Indices are zero-based. `initialIndex` selects the initial quality level. `baseIndex` defines the baseline for calibration and 30 FPS detection. You can add lower-quality levels before the baseline, for example with reduced resolution. To add an effect, set its value in every entry and connect it once in `applyLevel`.
 
-## Collegare il ciclo di rendering
+## Connect the render loop
 
-Usa `moving` per il gioco attivo e `resting` per il ciclo ambientale. Passa `ready: false` durante il caricamento e `preparing: true` mentre un effetto in prova prepara le sue risorse. Nei periodi di riposo il cooldown conserva il tempo residuo.
+Use `moving` while the game is active and `resting` for ambient updates. Set `ready: false` while loading and `preparing: true` while a trial effect prepares its resources. The cooldown timer pauses while resting.
 
-Per la prova iniziale, configura `calibrate: true` e avvia il gioco al livello base. Quando la scena è pronta e ferma, chiama `beginCalibration(time)` se `calibrationPending` è vero. Finché `calibrating` è vero, disegna a cadenza libera e passa `mode: 'calibration'`. Un input o la sospensione della pagina può interrompere la prova con `interrupt()`. Per ricominciare usa `reset()`. Anche durante una prova, il reset applica il profilo iniziale in un solo passaggio, entro il massimo consentito dal dispositivo. Con applicazione manuale, applica il livello restituito se diverso da `null`.
+For initial calibration, set `calibrate: true` and start the game at the baseline level. Once the scene is ready and idle, call `beginCalibration(time)` when `calibrationPending` is true. While `calibrating` is true, render without an idle frame cap and pass `mode: 'calibration'`. An input event or a hidden page can interrupt calibration with `interrupt()`. Use `reset()` to start over. Reset applies the initial profile in one step, within the device's quality ceiling, even during a trial. If you apply levels manually, apply a returned level when it is not `null`.
 
-Con `detect30Fps` il controller può riconoscere 30 FPS regolari sul profilo base o su uno più leggero. Durante il movimento una promozione richiede 8 secondi fluidi e una prova di 2 secondi. Una prova fallita avvia 30 secondi di attesa attiva. Per la diagnostica, `state` espone indice, livello, target FPS, ultimi FPS e p95 in millisecondi, prova in corso e cooldown residuo.
+With `detect30Fps`, the controller can detect a stable 30 FPS cadence at the baseline or a lower level. While moving, an upgrade requires 8 seconds of smooth performance followed by a 2-second trial. A failed trial starts a 30-second active cooldown. For diagnostics, `state` exposes the index, level, FPS target, most recent FPS and p95 in milliseconds, trial status, and remaining cooldown.
 
-## Come viene scelto il livello
+## How the level is chosen
 
-| Obiettivo | Condizioni per provare il livello superiore | Condizioni per scendere di un livello |
+| Target | Conditions to try the next level | Conditions to drop one level |
 |---|---|---|
-| 60 FPS | Almeno 57 FPS e p95 ≤ 22 ms | Meno di 54 FPS oppure p95 > 25 ms |
-| 30 FPS | Almeno 29 FPS e p95 ≤ 38 ms | Meno di 27 FPS oppure p95 > 42 ms |
+| 60 FPS | At least 57 FPS and p95 ≤ 22 ms | Below 54 FPS or p95 > 25 ms |
+| 30 FPS | At least 29 FPS and p95 ≤ 38 ms | Below 27 FPS or p95 > 42 ms |
 
-Il p95 è il tempo entro cui si completa il 95% dei frame misurati. In movimento servono due secondi consecutivi sotto soglia per scendere. Nella fascia intermedia il livello resta stabile.
+p95 is the frame time within which 95% of measured frames complete. While moving, the game must remain below the downgrade threshold for two consecutive seconds to drop a level. Quality stays unchanged inside the neutral band.
 
-## Diagnostica delle decisioni
+## Decision diagnostics
 
-Passa `onDecision(event)` a `createAdaptiveQuality` per ricevere eventi di calibrazione, prova, conferma, riduzione, annullamento e reset. Ogni evento riporta `action`, `reason`, i profili `from` e `to`, `targetFps`, `fps` e `p95Ms`. Le misure si riferiscono all’ultima finestra completata e possono essere `null` all’avvio. Ad esempio, `cancel / input` indica un’interruzione esplicita con `interrupt('input')`; `cancel / preparing` indica che alla scadenza della prova l’effetto era ancora in preparazione.
+Pass `onDecision(event)` to `createAdaptiveQuality` to receive calibration, trial, confirmation, downgrade, cancellation, and reset events. Each event includes `action`, `reason`, the `from` and `to` profiles, `targetFps`, `fps`, and `p95Ms`. Measurements refer to the latest completed sample window and can be `null` at startup. For example, `cancel / input` indicates an explicit interruption using `interrupt('input')`. `cancel / preparing` means the effect was still preparing when the trial timed out.
 
-Una prova annullata con `insufficient-headroom` non ha soddisfatto i requisiti per la promozione. Se l’ultima finestra supera la soglia di rallentamento, il motivo è `slow`.
+A trial cancelled with `insufficient-headroom` did not meet the requirements for promotion. If the latest window exceeds the slowdown threshold, the reason is `slow`.
 
-L’adattatore può chiamare `setMaxIndex(indice)` per aggiornare il livello massimo disponibile quando cambia il dispositivo di uscita. Abbassare il massimo sotto il livello corrente applica subito il livello consentito ed emette `reduce / capability`. Alzarlo rende di nuovo possibile una prova attraverso le normali soglie.
+The adapter can call `setMaxIndex(index)` to update the highest available level when the output device changes. Lowering the ceiling below the current level immediately applies the allowed level and emits `reduce / capability`. Raising it allows trials again under the normal thresholds.
 
-Nel progetto Isometric Cities apri **Rendering quality** da `lab.html`, oppure `?lab=qualita`. Il pannello mostra le ultime quattro decisioni e le dimensioni del buffer WebGL in pixel. Per vedere il pannello anche con una preview fissa, aggiungi `&diagnostics`.
+In Isometric Cities, open **Rendering quality** from `lab.html` or visit `?lab=qualita`. The panel shows the four latest decisions and the WebGL drawing-buffer dimensions in pixels. To keep the panel visible with a fixed preview, add `&diagnostics`.
 
-## Riferimenti
+## References
 
-La sequenza a priorità segue l’idea di [Babylon SceneOptimizer](https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/Misc/sceneOptimizer.ts). I passi discreti con nuova misura dopo ogni cambio riprendono [model-viewer](https://github.com/google/model-viewer/blob/5cc277a497f6e13fc75ff4821da73164a12570c9/packages/model-viewer/src/three-components/Renderer.ts). La fascia neutra e la distinzione tra misura e applicazione seguono [Drei PerformanceMonitor](https://github.com/pmndrs/drei/blob/master/src/core/PerformanceMonitor.tsx).
+The priority-ordered levels follow the approach in [Babylon SceneOptimizer](https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/Misc/sceneOptimizer.ts). Discrete steps with a fresh measurement after each change follow [model-viewer](https://github.com/google/model-viewer/blob/5cc277a497f6e13fc75ff4821da73164a12570c9/packages/model-viewer/src/three-components/Renderer.ts). The neutral band and separation of measurement from application follow [Drei PerformanceMonitor](https://github.com/pmndrs/drei/blob/master/src/core/PerformanceMonitor.tsx).

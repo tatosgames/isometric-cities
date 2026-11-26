@@ -26,6 +26,7 @@ export interface DriveOptions {
   endless?: boolean;
   flightArea: (x:number,y:number)=>boolean;
   flightGround: Altitude;
+  flightTerrainCeiling:import('../flight/terrain-ceiling.ts').FlightCeiling;
   redraw: () => void;
   demandLanding: (x:number,y:number)=>boolean;
   releaseLanding: ()=>void;

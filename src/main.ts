@@ -1,3 +1,4 @@
+import {makeTerrainCeiling} from './flight/terrain-ceiling.ts';
 import { cityFillLight, citySun, sunOffset } from './render/city-light.ts';
 import { parseViewState } from './data/load.ts';
 import type { ViewState, ZoneData } from './data/types.ts';
@@ -56,10 +57,10 @@ async function start(){
   const labOutput=query.get('lab')==='qualita' && (!query.has('preview') || query.has('diagnostics'))
     ? document.createElement('output'):null;
   const decisions:string[]=[];
-  let bufferReport='';
+  let bufferReport='', cadenceReport='';
   let lastDprChange='';
   function showQualityLab(){
-    if(labOutput)labOutput.textContent=[bufferReport,...decisions].filter(Boolean).join('\n');
+    if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,...decisions].filter(Boolean).join('\n');
   }
   if(labOutput){
     labOutput.id='quality-diagnostics';
@@ -69,13 +70,13 @@ async function start(){
   }
   const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',
     preview:query.get('lab')==='qualita'?query.get('preview'):null,
-    ...(labOutput && {onDecision({action,reason,from,to,targetFps,fps,p95Ms}){
+    ...(labOutput && {onDecision({mode,action,reason,from,to,targetFps,fps,p95Ms}){
       const metrics=fps===null || p95Ms===null?'':` · ${fps.toFixed(0)} FPS · p95 ${p95Ms.toFixed(1)} ms`;
       const effect=(entry:typeof from)=>`L${entry.stage} ${entry.shadows}/${entry.antialias}`;
       const detail=reason==='preparing'?'effect preparation timed out':reason;
       const before=effect(from), after=effect(to);
       const transition=before===after?after:`${before} → ${after}`;
-      decisions.push(`${action} (${detail}) · ${transition} · target ${targetFps}${metrics}`);
+      decisions.push(`${mode} · ${action} (${detail}) · ${transition} · target ${targetFps}${metrics}`);
       if(decisions.length>4)decisions.shift();
       showQualityLab();
     }})});
@@ -86,7 +87,11 @@ async function start(){
   renderer.shadowMap.autoUpdate=false;
   host.append(renderer.domElement);
   const residentZones=new Map<string,ZoneData>();
+  const flightTerrain=makeTerrainCeiling(data.terrain,SEA_LEVEL);
+  flightTerrain.include(data.ground);
+  if(core)for(const far of Object.values(core.far))flightTerrain.include(far.ground);
   const streamed=index&&core?streamCity({data:{...core,...index},stage,neutral,tones,compact,host,
+    onGroundRings:flightTerrain.include,
     onZone(id,content){
       // The driving world knows trees as point obstacles: crane legs and chimneys join them.
       const solid=content?.props?.length?{...content,trees:[...content.trees,...propObstacles(content.props)]}:content;
@@ -100,8 +105,19 @@ async function start(){
   scene.add(group);
   const pilotMask=!streamed && city.groundMap?makeStaticGroundShadow(city.groundMap.bounds,()=>data.buildings,draw):null;
   pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
+  let flightRange:DynamicQualityConfig['flight'];
   function applyQuality(config:DynamicQualityConfig){
     const {shadows,antialias:aa}=config;
+    flightRange=config.flight;
+    const flightCamera=drive?.flightView?.camera;
+    if(flightRange && flightCamera){
+      flightHaze.near=flightRange.visibility*.4;
+      flightHaze.far=flightRange.visibility;
+      flightCamera.far=flightRange.visibility;
+      flightCamera.updateProjectionMatrix();
+    }
+    host.dataset.qualityMode=flightRange?'flight':'ground';
+    host.dataset.qualityStage=String(config.stage);
     const gl=labOutput?renderer.getContext():null;
     const before=gl?`${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`:'';
     const ratio=renderPixelRatio(config);
@@ -119,7 +135,7 @@ async function start(){
     if(gl){
       const after=`${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`;
       if(before!==after)lastDprChange=`\nLast DPR change: ${before} → ${after} px`;
-      bufferReport=`Buffer ${after} px · DPR ${ratio.toFixed(2)} · shadows ${shadows} · AA ${aa}${lastDprChange}`;
+      bufferReport=`Buffer ${after} px · ${host.dataset.qualityMode} L${config.stage} · DPR ${ratio.toFixed(2)} · shadows ${shadows} · AA ${aa}${lastDprChange}`;
       showQualityLab();
     }
   }
@@ -253,7 +269,7 @@ async function start(){
     const next=step<0?Math.ceil(turn)-1:Math.floor(turn)+1;
     fly(flight?.to??controls.target,flight?.z1??camera.zoom,turnDuration,next);
   }
-  let gesture=false, streamBusy=true;
+  let gesture=false, streamBusy=true, flightPreparing=false;
   const moving=()=>gesture || coasting || !!flight || !!drive?.active;
   function interruptProbe(reason:'input'|'context-lost'|'hidden'){
     const changed=quality.interrupt(reason);
@@ -353,6 +369,13 @@ async function start(){
     if(time>=nextDisplayCheck){
       nextDisplayCheck=time+1000;
       if(devicePixelRatio!==physicalDpr)syncSize();
+      if(labOutput){
+        const {targetFps,fps,p95Ms,trial}=quality.state;
+        cadenceReport=`Target ${targetFps} FPS`+(fps===null?'':` · ${fps.toFixed(0)} FPS`)
+          +(p95Ms===null?'':` · p95 ${p95Ms.toFixed(1)} ms`)+(trial?' · trial':'')
+          +(flightRange?` · detail ${flightRange.detailRadius} m · horizon ${flightRange.visibility} m`:'');
+        showQualityLab();
+      }
     }
     const speed=drive?.visualTimeScale??1;
     const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
@@ -365,7 +388,11 @@ async function start(){
     sky.update(lens,airborne?.target??controls.target,!!drive?.active);
     output.render(scene,lens);
     if(map.dataset.boot==='ready' && !document.hidden){
-      const changed=quality.sample(time,{mode:moving()?'moving':quality.calibrating?'calibration':'resting',ready:!streamBusy,preparingShadows:streamed?.shadowsPending??pilotMask?.pending??false});
+      const changed=quality.sample(time,{
+        mode:moving()?'moving':quality.calibrating?'calibration':'resting',
+        ready:airborne?!drive?.flightWaiting:!streamBusy,
+        preparing:flightPreparing || (streamed?.shadowsPending??pilotMask?.pending??false)
+      });
       if(changed)applyQuality(changed);
     }
     if(!document.hidden)setDesaturation(drive?.desaturation??0);
@@ -417,6 +444,8 @@ async function start(){
     camera.position.copy(controls.target).addScaledVector(toCamera,CAMERA_DISTANCE);
     camera.updateMatrixWorld();
     const airborne=drive?.flightView;
+    const changed=quality.setFlight(!!airborne);
+    if(changed)applyQuality(changed);
     const subject=airborne?.target??controls.target;
     if(airborne)airborne.camera.updateMatrixWorld();
     if(renderer.shadowMap.enabled){
@@ -427,7 +456,8 @@ async function start(){
       }
     }
     const opening=booting();
-    const level=streamed?.update(airborne?.camera??camera,subject,drive?.active,opening?'covered':map.dataset.boot==='revealing'?'revealing':undefined);
+    const level=streamed?.update(airborne?.camera??camera,subject,drive?.active,opening?'covered':map.dataset.boot==='revealing'?'revealing':undefined,flightRange);
+    flightPreparing=level?.flightPreparing??false;
     streamBusy=level?.busy??false;
     if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(beginDrive);
     paint(time);
@@ -443,7 +473,7 @@ async function start(){
       host.dataset.mapAngle=(lastView.turn*90).toFixed(2);
     }
     host.dataset.moving=String(!!flight || coasting);
-    places.project(camera);
+    if(!airborne)places.project(camera);
     if(map.dataset.boot==='ready'){
       host.dataset.view=[middle.x,middle.z,camera.zoom].map(v=>v.toFixed(2)).join(',');
     }else if(opening)openingView.painted(level?.zoneReady);
@@ -455,6 +485,7 @@ async function start(){
     if(signal.aborted)return;
     requestAnimationFrame(ambient);
     if(map.dataset.boot!=='ready' || document.hidden || lost || frame || !painted || time===painted)return;
+    if(!!drive?.flightView!==!!flightRange){draw();return;}
     if(quality.calibrationPending && !streamBusy && !moving()){
       quality.beginCalibration(time);
     }
@@ -487,7 +518,7 @@ async function start(){
     stopGesture();
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,...flightArea,redraw:draw,
+  drive=makeDrive({scene,camera,renderer,host,data,locations,...flightArea,flightTerrainCeiling:flightTerrain.ceiling,redraw:draw,
     demandLanding:(x,y)=>streamed?.demand(x,y)??true,releaseLanding:()=>streamed?.undemand(),
     ...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});

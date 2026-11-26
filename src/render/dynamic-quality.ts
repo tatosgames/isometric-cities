@@ -1,6 +1,12 @@
 import {createAdaptiveQuality, type QualityMode, type QualityDecision, type InterruptReason} from '../quality/adaptive-quality.ts';
 export type {QualityMode} from '../quality/adaptive-quality.ts';
+export interface FlightRenderRange {
+  detailRadius:number;
+  zoneRadius:number;
+  visibility:number;
+}
 export interface DynamicQualityConfig {
+  flight?:FlightRenderRange;
   shadows: 'off' | 'static' | 'solar';
   antialias: 'off' | 'fxaa' | 'native';
   dprCap: number;
@@ -31,7 +37,7 @@ export function cityDetail(compact:boolean){return compact?compactDetail:standar
 // The authoring viewport uses a fixed resolution for precise placement at any device size.
 export const editorQuality={antialias:'native',dprCap:2,dprScale:1} as const;
 
-export type CityQualityLevel=Pick<DynamicQualityConfig,'stage'|'shadows'|'antialias'|'dprScale'>;
+export type CityQualityLevel=Pick<DynamicQualityConfig,'stage'|'shadows'|'antialias'|'dprScale'|'flight'>;
 
 const compactLevels: readonly CityQualityLevel[] = [
   {stage:-2, shadows:'off', antialias:'off', dprScale:.7},
@@ -50,23 +56,42 @@ const desktopLevels: readonly CityQualityLevel[] = [
   {stage:3, shadows:'solar', antialias:'native', dprScale:1}
 ];
 
+// The buffers under the base reduce pixels only after trimming the distant geometry.
+function flightLevels(compact:boolean):CityQualityLevel[]{
+  const antialias=compact?'off':'native';
+  return [
+    {stage:-2,shadows:'off',antialias,dprScale:.70,flight:{detailRadius:120,zoneRadius:360,visibility:1300}},
+    {stage:-1,shadows:'off',antialias,dprScale:.85,flight:{detailRadius:180,zoneRadius:480,visibility:1700}},
+    {stage:0,shadows:'off',antialias,dprScale:1,flight:{detailRadius:240,zoneRadius:640,visibility:2200}},
+    {stage:1,shadows:'off',antialias,dprScale:1,flight:{detailRadius:320,zoneRadius:800,visibility:3000}},
+    {stage:2,shadows:'static',antialias,dprScale:1,flight:{detailRadius:400,zoneRadius:960,visibility:4000}}
+  ];
+}
+
+type GraphicsMode='ground'|'flight';
+export type CityQualityDecision=QualityDecision<CityQualityLevel> & {mode:GraphicsMode};
+
 export function makeDynamicQuality({compact,losses=0,preview,sky=true,onDecision}:{
-  compact:boolean;losses?:number;preview?:string|null;sky?:boolean;onDecision?:(event:QualityDecision<CityQualityLevel>)=>void;
+  compact:boolean;losses?:number;preview?:string|null;sky?:boolean;onDecision?:(event:CityQualityDecision)=>void;
 }){
-  const levels=compact?compactLevels:desktopLevels;
-  const baseIndex=levels.findIndex(entry=>entry.stage===0);
+  const groundLevels=compact?compactLevels:desktopLevels;
+  const airLevels=flightLevels(compact);
   const fixed=preview==='base'||preview==='static'||preview==='fxaa';
-  let safe=losses>=2, skyAllowed=true;
-  function controller(calibrate:boolean){
+  const groundCap=compact?1:1.75;
+  let safe=losses>=2, skyAllowed=true, mode:GraphicsMode='ground',flightCap=groundCap;
+  function controller(kind:GraphicsMode,calibrate:boolean){
+    const air=kind==='flight',levels=air?airLevels:groundLevels;
+    const baseIndex=levels.findIndex(entry=>entry.stage===0);
     return createAdaptiveQuality({
       levels:safe?levels.slice(0,baseIndex+1):levels,
-      initialIndex:compact||safe?baseIndex:levels.length-1,baseIndex,
-      calibrate:calibrate && compact && !safe && !fixed,detect30Fps:compact,...(onDecision && {onDecision})
+      initialIndex:air||compact||safe?baseIndex:levels.length-1,baseIndex,
+      calibrate:!air && calibrate && compact && !safe && !fixed,detect30Fps:air || compact,
+      ...(onDecision && {onDecision:(event:QualityDecision<CityQualityLevel>)=>onDecision({...event,mode:kind})})
     });
   }
-  let monitor=controller(true);
-  function config(entry=monitor.level):DynamicQualityConfig{
-    const result={...entry,dprCap:compact?1:1.75,dprScale:entry.dprScale*(safe?.75:1),sky:sky && skyAllowed};
+  const monitors={ground:controller('ground',true),flight:controller('flight',false)};
+  function config(entry=monitors[mode].level):DynamicQualityConfig{
+    const result={...entry,dprCap:entry.flight?flightCap:groundCap,dprScale:entry.dprScale*(safe?.75:1),sky:sky && skyAllowed};
     if(fixed && !safe){
       result.shadows=preview==='base'?'off':'static';
       if(preview==='fxaa')result.antialias='fxaa';
@@ -76,33 +101,47 @@ export function makeDynamicQuality({compact,losses=0,preview,sky=true,onDecision
   return {
     nativeAntialias:!compact,
     get config(){return config();},
-    get calibrationPending(){return monitor.calibrationPending;},
-    get calibrating(){return monitor.calibrating;},
-    beginCalibration(now:number){monitor.beginCalibration(now);},
-    sample(now:number,{mode,ready,preparingShadows=false}:{mode:QualityMode;ready:boolean;preparingShadows?:boolean}){
+    get state(){return monitors[mode].state;},
+    get calibrationPending(){return monitors[mode].calibrationPending;},
+    get calibrating(){return monitors[mode].calibrating;},
+    setFlight(active:boolean){
+      const next=active?'flight':'ground';
+      if(next===mode)return null;
+      // Discard the old window, rolling a trial back before leaving its scene.
+      monitors[mode].interrupt();
+      mode=next;
+      return config();
+    },
+    beginCalibration(now:number){monitors[mode].beginCalibration(now);},
+    sample(now:number,{mode:activity,ready,preparing=false,preparingShadows=false}:{
+      mode:QualityMode;ready:boolean;preparing?:boolean;preparingShadows?:boolean
+    }){
       if(fixed && !safe)return null;
-      const change=monitor.sample(now,{mode,ready,preparing:preparingShadows});
+      const change=monitors[mode].sample(now,{mode:activity,ready,preparing:preparing || preparingShadows});
       return change && config(change);
     },
     updateViewport(width:number,height:number,physical:number){
-      if(!compact || safe || fixed || width<=0 || height<=0)return;
-      const top=levels.length-1;
-      const previous=config(levels[top-1]), highest=config(levels[top]);
-      const low=renderPixelRatio(previous,physical), high=renderPixelRatio(highest,physical);
+      if(width<=0 || height<=0)return;
+      flightCap=Math.min(groundCap,1920/Math.max(width,height),1080/Math.min(width,height));
+      if(!compact || safe || fixed)return;
+      const top=groundLevels.length-1;
+      const previous=config(groundLevels[top-1]),highest=config(groundLevels[top]);
+      const low=renderPixelRatio(previous,physical),high=renderPixelRatio(highest,physical);
       const identical=previous.shadows===highest.shadows && previous.antialias===highest.antialias
         && Math.floor(width*high)===Math.floor(width*low) && Math.floor(height*high)===Math.floor(height*low);
-      monitor.setMaxIndex(identical?top-1:top);
+      monitors.ground.setMaxIndex(identical?top-1:top);
     },
     interrupt(reason?:InterruptReason){
-      const change=monitor.interrupt(reason);
+      const change=monitors[mode].interrupt(reason);
       return change && config(change);
     },
     restore(lossCount:number){
-      const from=config();
+      const from=config(),wasSafe=safe;
       safe=lossCount>=2;
-      monitor=controller(false);
+      if(mode==='ground' || safe!==wasSafe)monitors.ground=controller('ground',false);
+      if(mode==='flight' || safe!==wasSafe)monitors.flight=controller('flight',false);
       const to=config();
-      onDecision?.({action:'reset',reason:'context-restored',from,to,targetFps:60,fps:null,p95Ms:null});
+      onDecision?.({mode,action:'reset',reason:'context-restored',from,to,targetFps:60,fps:null,p95Ms:null});
       return to;
     },
     allowSky(allowed:boolean){skyAllowed=allowed;return sky && skyAllowed;}

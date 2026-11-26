@@ -1,85 +1,85 @@
-# Regole UI contro i pattern generici
+# UI rules against generic patterns
 
-Catalogo dei pattern di interfaccia da non usare in questo progetto e di cosa fare al loro posto. Va letto prima di toccare HUD, pannelli, guida ai comandi, schede dei luoghi o schermate di avvio e di errore. Ogni volta che Luca scarta un pattern, si aggiunge una voce: così non torna.
+Catalog of interface patterns not to be used in this project and what to do instead. It should be read before touching the HUD, panels, control guide, location cards, or startup and error screens. Every time Luca discards a pattern, a voice is added: so it doesn't come back.
 
-Adattato da `UI_ANTI_SLOP.md` di Soso Mart (`C:\Projects\GitHub\3dcombinisimulator\docs\`), tenendo solo ciò che vale per una mappa isometrica con una modalità di guida. Le regole di `AGENTS.md` hanno la precedenza.
+Adapted from `UI_ANTI_SLOP.md` by Soso Mart (`C:\Projects\GitHub\3dcombinisimulator\docs\`), keeping only what applies to an isometric map with a driving mode. `AGENTS.md` rules take precedence.
 
-La causa comune dei pattern scartati è sempre la stessa: abitudini da dashboard (schede, titoli, sottotitoli che spiegano, indicatori doppi) applicate a un gioco. Lo schermo di gioco deve sembrare parte del plastico, mostrare solo ciò che serve in quel momento e dire ogni cosa una volta sola.
+The common cause of discarded patterns is always the same: dashboard habits (cards, titles, explaining subtitles, double indicators) applied to a game. The game screen must look like part of the model, show only what is needed at that moment and say everything only once.
 
-## Principi
+## Principles
 
-1. **Un fatto, un indicatore.** Se un valore è già a schermo (monete, tempo, direzione dell'auto) non si ripete come testo, seconda barra o etichetta.
-2. **Insegnare con gli oggetti, non con le frasi.** Il gioco normale e la prima partita funzionano con icone, numeri, movimento e risposta al tocco. Niente frasi di istruzioni. Restano validi i nomi accessibili (`aria-label`, regione `role="status"`), gli errori brevi di recupero e i nomi dei luoghi, che sono contenuto.
-3. **Niente narrazione degli interni.** Quale dato si sta caricando o quale settore è in arrivo va in console, non a schermo. A schermo va solo ciò che il giocatore può usare.
-4. **Niente schede attorno a stati a tutto schermo.** Avvio, errore e perdita del contesto occupano lo schermo; non sono pannelli arrotondati con ombra sopra un gradiente.
-5. **Niente titoli ridondanti.** Uno schermo la cui identità è già data dalla scena, dall'icona o dal contesto non ha un titolo di testo.
-6. **Perdere il focus non è una pausa.** Cambiare scheda o finestra non mette un pannello "In pausa" sopra il gioco. Si annullano i tocchi in corso e basta. Una pausa chiesta dal giocatore con un comando è un'altra cosa.
-7. **Icone disegnate, un solo tratto.** SVG propri nello sprite di `index.html`, tratto 2, estremità arrotondate, `currentColor`. Niente emoji o glifi Unicode al posto delle icone.
-8. **La scena resta visibile.** Nessun elemento dell'interfaccia copre l'auto, le prossime monete o la pattuglia più vicina. Vedi il [contratto di camera](CAMERA_FRAMING.md).
-9. **Il feedback risponde a una domanda.** Ogni effetto dice una cosa precisa: ho preso la moneta, ho urtato, sono in pericolo, sono arrivato. Due segnali per la stessa cosa sono rumore: se ne toglie uno.
+1. **One fact, one indicator.** If a value is already on the screen (coins, time, direction of the car) it is not repeated as text, second bar or label.
+2. **Teach with objects, not sentences.** The regular game and the first game work with icons, numbers, movement and touch response. No instruction sentences. Accessible names (`aria-label`, region `role="status"`), short recovery errors and place names, which are contained, remain valid.
+3. **No internal narration.** Which data is being loaded or which sector is arriving goes on the console, not on the screen. Only what the player can use goes on the screen.
+4. **No tabs around full-screen states.** Startup, error, and context loss take up the screen; they are not rounded panels with a shadow over a gradient.
+5. **No redundant titles.** A screen whose identity is already given by the scene, icon or context does not have a text title.
+6. **Losing focus is not pausing.** Switching tabs or windows does not place a "Paused" panel over the game. You cancel the touches in progress and that's it. A pause requested by the player with a command is another thing.
+7. **Icons drawn, one stroke.** Own SVG in `index.html` sprite, stroke 2, rounded ends, `currentColor`. No emojis or Unicode glyphs instead of icons.
+8. **The scene remains visible.** No interface element covers the car, the next coins or the nearest patrol. See [contratto di camera](CAMERA_FRAMING.md).
+9. **Feedback answers a question.** Each effect says one precise thing: I took the coin, I bumped, I'm in danger, I've arrived. Two signals for the same thing are noise: one is removed.
 
-## Catalogo
+## Catalogue
 
-### Mappa: scheda del luogo (Luca, 24 novembre 2026)
+### Map: location profile (Luca, 24 November 2026)
 
-La pillola con il solo nome diventa una scheda per i luoghi che hanno un blocco `card` nel catalogo: foto, numero e quartiere, nome, testo in spagnolo di 400–600 caratteri, un link esterno con il dominio scritto accanto. Pannello a sinistra su schermi larghi e sul telefono in orizzontale (dove apre già il menu), foglio dal basso sul telefono in verticale. I luoghi senza `card` tengono la pillola.
+The pill with just the name becomes a card for the places that have a `card` block in the catalog: photo, number and neighborhood, name, Spanish text of 400–600 characters, an external link with the domain written next to it. Panel on the left on wide screens and on the phone in landscape (where the menu already opens), sheet from the bottom on the phone in portrait. Places without `card` hold the pill.
 
-Regole fissate con Luca: curata e animata, ma senza elementi superflui. Per questo niente icone decorative, etichette, pulsanti pieni o ombre multiple: una superficie avorio, una foto, un titolo in Georgia come i nomi dei quartieri, un filo sopra il link. Il lavoro è nel movimento, in un solo gesto coordinato: il pannello entra, la foto si scopre dall'alto mentre rientra dallo zoom, il nome sale parola per parola da dietro una maschera, testo e link seguono. Una sola curva per tutto. Niente GSAP: bastano le animazioni native del browser (`element.animate`), senza dipendenze.
+Rules established with Luca: neat and animated, but without superfluous elements. For this reason, no decorative icons, labels, solid buttons or multiple shadows: an ivory surface, a photo, a title in Georgia such as the names of the neighborhoods, a thread above the link. The work is in the movement, in a single coordinated gesture: the panel enters, the photo is revealed from above as it comes back from the zoom, the name rises word by word from behind a mask, text and links follow. One curve for everything. No GSAP: native browser animations are enough (`element.animate`), without dependencies.
 
-Sul telefono il foglio si piega nella pillola quando si trascina la foto verso il basso o si muove la mappa, e si riapre con un tocco. La scheda non compare in Conducir. Il credito della foto (autore e licenza, con link alla pagina di origine) è sempre sulla foto.
+On the phone the sheet folds into the pill when you drag the photo down or move the map, and reopens with a touch. The tab does not appear in Conducir. Photo credit (author and license, with link to source page) is always on the photo.
 
-### Guida: cambio di vista
+### Guide: change of view
 
-Il pulsante usa un occhio per indicare il cambio di punto di vista. La fotocamera faceva pensare a uno scatto.
+The button uses an eye to indicate the change of point of view. The camera looked like a snapshot.
 
-### Guida: via e quartiere
+### Guide: street and neighborhood
 
-Il nome della via e il titolo del quartiere stanno direttamente sul plastico. Il contorno scuro segue le lettere e le rende leggibili sui tetti chiari.
+The name of the street and the title of the neighborhood are directly on the model. The dark outline follows the letters and makes them legible on light roofs.
 
-### Guida: testi nell'HUD (Luca, 21 novembre 2026)
+### Guide: Texts in the HUD (Luca, November 21, 2026)
 
-La prima versione mostrava «12 monedas · 23.4 s · Récord 30», «→ Teatro Pérez Galdós», un suggerimento di una riga («Toca izquierda o derecha…») e un pannello «¡Atrapado!» con due pulsanti di testo. Scartato: troppo da leggere mentre si guida.
+The first version showed «12 monedas · 23.4 s · Récord 30», «→ Teatro Pérez Galdós», a one-line suggestion (“Toca izquierda o derecha…”) and a panel «¡Atrapado!» with two text buttons. Discarded: Too much to read while driving.
 
-Al loro posto: pillole con icona e numero; due zone tattili che pulsano e si accendono al tocco; il numero del luogo su una ficha che punta al traguardo; i punti che saltano fuori dove si guadagnano. I nomi vanno alla regione per i lettori di schermo.
+In their place: pills with icon and number; two tactile zones that pulsate and light up when touched; the location number on a chip pointing to the finish line; the points that pop up where they are earned. The names go to the region for screen readers.
 
-### Guida: numero del luogo sulla ficha (Luca, 23 novembre 2026)
+### Guide: location number on the card (Luca, November 23, 2026)
 
-La ficha della destinazione era un cerchio giallo con il numero del luogo nel menu («01») e una freccetta staccata. Non si capiva: il numero richiede di ricordare il menu, il cerchio sembrava un pulsante e il giallo era quello delle monete. Ora è una goccia turchese, colore usato solo da lei e dal fascio di luce, la cui punta indica il luogo (verso il basso, sul fascio, quando è inquadrato). Dentro c'è la distanza in linea d'aria, «4.3km» e sotto i 995 m «850m» a passi di 10 m. Una distanza lungo le strade è stata provata e scartata: saltava di oltre un chilometro quando l'auto si avvicinava a un'altra strada. A ogni nuova meta la goccia parte dall'auto e vola al suo posto.
+The destination card was a yellow circle with the location number in the menu ("01") and a little arrow broken off. It wasn't clear: the number requires you to remember the menu, the circle looked like a button and the yellow was that of coins. Now it is a turquoise drop, a color used only by her and the light beam, whose tip indicates the place (downwards, on the beam, when it is framed). Inside there is the distance as the crow flies, «4.3km» and below 995 m «850m» in steps of 10 m. A distance along the roads was tried and discarded: it jumped by more than a kilometer when the car approached another road. At each new destination the drop leaves the car and flies to its place.
 
-### Guida: schermata di cattura
+### Help: Screen capture
 
-«ATRAPADO» è l'unica scritta dell'esito. Le tre icone con i valori di monete, tempo e record stanno in una riga sotto il titolo, mentre l'HUD di guida sparisce. I pulsanti a icona per riprovare e tornare alla mappa stanno sotto l'auto. Titolo e comandi sono appoggiati direttamente sulla scena, che resta visibile al rallentatore e in bianco e nero.
+«ATRAPADO» is the only writing on the result. The three icons with coin, time and record values ​​are in a row under the title, while the driving HUD disappears. The icon buttons to try again and return to the map are under the car. Title and controls are placed directly on the scene, which remains visible in slow motion and in black and white.
 
-### Guida: indicatore tattile del freno (Luca, 22 novembre 2026)
+### Driving: tactile brake indicator (Luca, November 22, 2026)
 
-Rimosso il pulsante centrale col simbolo del freno e la relativa animazione didattica. La frenata resta attiva tenendo premuti entrambi i lati, oppure con Spazio/Freccia giù.
+Removed the central button with the brake symbol and the related educational animation. Braking remains active by holding down both sides, or with Space/Down Arrow.
 
-### Guida: icona emoji sul pulsante (21 novembre 2026)
+### Help: Emoji icon on button (November 21, 2026)
 
-Il pulsante per entrare in guida usava 🚗. Le emoji cambiano aspetto da un sistema all'altro e non seguono il tratto delle altre icone. Sostituita da un'icona SVG propria.
+The button to enter help used 🚗. Emojis change appearance from one system to another and do not follow the lines of other icons. Replaced by its own SVG icon.
 
-### Guida: bordo rosso di allarme e sirena nel pannello finale (Luca, 21 novembre 2026)
+### Guide: Red alarm and siren border in the final panel (Luca, November 21, 2026)
 
-Il bordo dello schermo pulsava di rosso con una pattuglia vicina e il pannello di cattura mostrava una sirena lampeggiante. Rimossi entrambi: la pattuglia si vede già in scena con i suoi lampeggianti, e la sirena ripeteva ciò che il pannello dice con la sua sola comparsa (principio 1).
+The edge of the screen pulsed red with a nearby patrol, and the capture panel showed a flashing siren. Both removed: the patrol can already be seen on scene with its flashing lights, and the siren repeated what the panel says with its mere appearance (principle 1).
 
-### Guida: record sempre a schermo (Luca, 21 novembre 2026)
+### Guide: records always on screen (Luca, 21 November 2026)
 
-La coppa con il record stava accanto a monete e tempo durante la partita. Ora compare solo a fine partita: mentre si guida non serve a nessuna decisione.
+The cup with the record stood next to coins and time during the game. Now it only appears at the end of the game: while driving it is of no use in making any decisions.
 
-### Guida: alone senza direzione (Luca, 21 novembre 2026)
+### Guidance: directionless halo (Luca, November 21, 2026)
 
-La parte dell’auto coperta da un edificio appare in giallo sulla sua superficie. Quando sparisce anche il centro della cabina, la freccia segue il muso durante la derapata.
+The part of the car covered by a building appears yellow on its surface. When the center of the cabin also disappears, the arrow follows the nose during the slide.
 
-## Prima di consegnare un'interfaccia
+## Before delivering an interface
 
-- Si capisce senza leggere? Coprire i testi e provare.
-- Ogni valore compare una volta sola?
-- A 390×844 e in orizzontale compatto, auto, prossime monete e pattuglia più vicina restano scoperte?
-- I comandi a sola icona hanno un nome accessibile, e l'esito (destinazione, cattura) arriva alla regione `role="status"`?
-- Aree di tocco di almeno 40 px, contrasto di testo e numeri di almeno 4,5:1 sullo sfondo reale.
-- Durante il caricamento il piè di pagina mostra solo la fase in corso; le attribuzioni compaiono a mappa aperta, sulla prima vista, fino al primo comando. Dopo, sono consultabili in «Licencias de datos» nel menu dei luoghi. La barra di avvio non ricompare durante la navigazione, la guida o il recupero WebGL.
-- I tocchi sulla mappa e sulla guida non selezionano testo, non aprono menu contestuali e non trascinano la pagina. Il menu dei luoghi resta scorrevole.
+- Can you understand without reading? Cover the lyrics and try.
+- Does each value appear only once?
+- At 390×844 and in compact landscape, cars, next coins and closest patrol remain uncovered?
+- Do icon-only commands have an accessible name, and does the outcome (destination, capture) reach the `role="status"` region?
+- Touch areas of at least 40 px, contrast of text and numbers of at least 4.5:1 on the real background.
+- During loading the footer shows only the current phase; the attributions appear with the map open, on the first view, up to the first command. Afterwards, they can be consulted in «Licencias de Datos» in the places menu. The launch bar does not reappear while browsing, driving, or fetching WebGL.
+- Taps on the map and guide do not select text, open context menus, or drag the page. The location menu remains scrollable.
 
-## Non deciso
+## Not decided
 
-- Nessuna voce aperta.
+- No open entries.
