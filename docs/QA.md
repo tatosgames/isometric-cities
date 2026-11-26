@@ -1,5 +1,25 @@
 # Verifica locale · 21 novembre 2026
 
+## Rettifili della città e visibilità delle pattuglie
+
+La prova usa la città completa in Chromium, in verticale a 390 × 844 px. Ogni partenza ripristina posizione, direzione, livello e velocità iniziale di 90 km/h. Si percorrono entrambi i sensi di cinque strade con volante diritto e guaguas disabilitate. Si conteggia il tempo a 72 km/h o più nel corridoio della strada. Una pattuglia deve essere operativa e visibile dalla camera per almeno 0,3 s consecutivi. Il risultato per ciascun percorso è il più lungo intervallo consecutivo che soddisfa queste condizioni di guida senza una pattuglia visibile.
+
+La progressione delle stelle rimane attiva dopo la partenza. La tabella riporta il peggior intervallo senza pattuglia visibile, in secondi, tra andata e ritorno. Il confronto usa gli stessi due seed e le stesse condizioni iniziali per ogni coppia prima/dopo. La distribuzione dipende anche dal caricamento dei settori.
+
+| Quartiere e strada | Partenza 2 stelle, prima → dopo | Partenza 4 stelle, prima → dopo |
+|---|---:|---:|
+| Schamann · Calle Doña Perfecta | 29,7 → 8,6 | 22,4 → 8,9 |
+| Ciudad del Mar · Avenida Alcalde José Ramírez Bethencourt | 16,7 → 6,6 | 10,7 → 7,4 |
+| La Isleta · Calle Juan Rejón | 11,6 → 8,9 | 10,3 → 4,4 |
+| Guanarteme · Calle Fernando Guanarteme | 11,3 → 5,7 | 15,2 → 2,5 |
+| Santa Catalina–Canteras · Calle General Vives | 19,5 → 11,4 | 6,0 → 6,2 |
+
+Con la camera isometrica il tempo complessivo ad alta velocità con una pattuglia leggibile sale dal 16,2% al 41,1% nelle partenze a due stelle e dal 20,7% al 50,4% in quelle a quattro. Con la camera alta e quattro stelle il valore finale è 54,0%, con un massimo di 9,1 s senza avvistamenti. Tutte e 30 le guide della versione finale hanno registrato almeno un avvistamento. In General Vives, all’andata con due stelle, le facciate limitano la visibilità a 1,3 s su 18,5 s di guida veloce.
+
+In una partita ordinaria su viewport mobile con traffico attivo sono state verificate la cattura, la ripartenza e il ritorno a una stella. La suite generale ha segnalato una richiesta foto annullata durante la navigazione del test desktop (`auditorio-alfredo-kraus.webp`, `ERR_ABORTED`).
+
+Dopo la build, eseguire `node scripts/qa-police-straights.mjs` per quattro stelle con camera isometrica. Ripetere con `--aerial` per la camera alta e con `--two-stars` per due stelle. Il campo `longest` è espresso in secondi, `seen` è il tempo con una pattuglia leggibile, `fast` il tempo di guida valutato e `forward` la distanza percorsa lungo il rettilineo in metri.
+
 **Nuvole sopra i tetti.** Verificata la nuova quota a Parque Doramas con una vista mobile di 390 × 844 px. La prova del cielo passa su desktop e mobile, compresi disattivazione, recupero WebGL e ingresso in guida.
 
 ## Polizia a difficoltà crescente · 25 novembre 2026

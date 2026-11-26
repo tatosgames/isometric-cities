@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import {createPoliceDirector, findInterceptCandidates, POLICE} from '../src/drive/police-director.ts';
 
+import {indexPatrolSegments,straightRoadEntry} from '../src/drive/police-road-entry.ts';
+
+// No junction for 400 m. A visible screen edge, wall or occupied lane must rule out an entry.
+{
+  const nodes=[{x:-200,y:0,part:0,ok:false,links:[[1,400]]},{x:200,y:0,part:0,ok:false,links:[[0,400]]}];
+  const world={nodes,roadSegments:indexPatrolSegments(nodes,0),sight:()=>true,free:()=>true};
+  for(const h of [0,Math.PI]){
+    const player={x:0,y:0,h},offscreen=x=>Math.abs(x)>65;
+    const entry=straightRoadEntry(world,player,1.15,x=>offscreen(x)?0:Infinity);
+    assert.ok(entry && offscreen(entry.x) && Math.abs(entry.x)<100);
+    assert.ok(Math.cos(h)*entry.x>0 && Math.cos(h-entry.h)>.99 && Math.abs(entry.y)>2);
+    assert.equal(straightRoadEntry(world,player,1.15,()=>Infinity),undefined);
+    assert.equal(straightRoadEntry({...world,sight:()=>false},player,1.15,x=>offscreen(x)?0:Infinity),undefined);
+    assert.equal(straightRoadEntry({...world,free:()=>false},player,1.15,x=>offscreen(x)?0:Infinity),undefined);
+  }
+}
+
 const candidate=(unitId=2, overrides={})=>({unitId,id:11,exitNode:12,distance:40,playerEta:4,unitEta:3,reactionSeconds:2,...overrides});
 const units=[{id:1,distance:20},{id:2,distance:35}];
 

@@ -14,7 +14,8 @@ import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
 import { chooseStartNode, type RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
-import {createPoliceDirector,crossJunction,findInterceptCandidates,type Approach} from './police-director.ts';
+import {POLICE,createPoliceDirector,crossJunction,findInterceptCandidates,type Approach} from './police-director.ts';
+import {straightRoadEntry} from './police-road-entry.ts';
 import {chaseSteer} from './drive-chase.ts';
 import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians,PEDESTRIANS} from './pedestrians.ts';
@@ -332,6 +333,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   const director=createPoliceDirector();
   const lastSighting={x:0,y:0,vx:0,vy:0};
   const interceptorProfile={...TUNE.patrol,topSpeed:TUNE.patrol.topSpeed*1.08,turn:TUNE.patrol.turn*.85};
+  let secondsOutOfView=0;
   let arrivalPending=false,perceptionAge=0,spawnDelay=0,nextPatrolId=0;
   let staging:(Approach & {until:number;field:RouteField})|undefined;
   let nextStage=0;
@@ -357,6 +359,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       c.visibleFor=!c.wreck && patrolVisible(c.x,c.y)?Math.max(0,c.visibleFor+dt):-1;
       return {id:c.id,distance,wrecked:c.wreck>0};
     });
+    secondsOutOfView=chasers.some(c=>!c.wreck && c.visibleFor>=.3)?0:secondsOutOfView+dt;
     if(seen){lastSighting.x=player.x;lastSighting.y=player.y;}
     director.setUnits(units);
     const choices:Approach[]=[];
@@ -413,6 +416,48 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     Object.assign(c,{x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),node:index});
     chasers.push(c);
   }
+  function reinforceStraight(speed:number){
+    const live=chasers.filter(c=>!c.wreck);
+    const approaching=live.some(c=>{
+      const dx=c.x-player.x,dy=c.y-player.y,vx=c.vx-player.vx,vy=c.vy-player.vy;
+      const t=-(dx*vx+dy*vy)/Math.max(1,vx*vx+vy*vy);
+      return t>0 && t<3 && Math.hypot(dx+t*vx,dy+t*vy)<12 &&
+        activeWorld().sight(player.x,player.y,c.x,c.y,TUNE.radius);
+    });
+    if(approaching)return false;
+    const atCapacity=live.length>=director.maxUnits;
+    const replace=atCapacity?live.filter(c=>!inCameraFrame(c.x,c.y) && !director.assignment(c.id))
+      .sort((a,b)=>Math.hypot(b.x-player.x,b.y-player.y)-Math.hypot(a.x-player.x,a.y-player.y))[0]:undefined;
+    if(atCapacity && !replace)return false;
+    const world=activeWorld(),pace=Math.min(13,speed*.48);
+    camera.getWorldDirection(eye);
+    const viewX=eye.x/eye.y,viewY=-eye.z/eye.y;
+    const entry=straightRoadEntry(world,player,TUNE.radius,(x,y,h,ahead)=>{
+      if(inCameraFrame(x,y) || chasers.some(c=>Math.hypot(c.x-x,c.y-y)<12) ||
+        fleet?.active.some(bus=>Math.hypot(bus.state.x-x,bus.state.y-y)<10))return Infinity;
+      // Prefer a clear view across the whole encounter. A shorter opening between facades
+      // also works if the moving car can be seen for at least half a second on approach.
+      const meet=Math.min(5,ahead/(speed-pace));
+      const clearAt=(t:number)=>{
+        const px=x+pace*t*Math.cos(h),py=y+pace*t*Math.sin(h);
+        return world.free(px,py,TUNE.radius) && !world.occluded(px,py,groundAt(px,py)+2,viewX,viewY);
+      };
+      if(clearAt(meet) && clearAt(Math.max(0,meet-1.2)))return 0;
+      for(let t=Math.max(0,(ahead-42)/(speed-pace));t<=meet+.5;t+=.5){
+        if(clearAt(t) && clearAt(t+.5))return 35;
+      }
+      // Prefer an early entry on this road over leaving both units on distant parallel streets.
+      // The camera can gain a view through gaps between the sampled points as the cars advance.
+      return 85;
+    });
+    if(!entry)return false;
+    const interceptor=replace?.interceptor??(director.stars>=3 && !chasers.some(c=>c.interceptor));
+    if(replace)retire(replace);
+    const c=patrol(nextPatrolId++,interceptor);
+    Object.assign(c,entry,{vx:pace*Math.cos(entry.h),vy:pace*Math.sin(entry.h),entryUntil:time+5,entryPace:pace});
+    chasers.push(c);secondsOutOfView=0;
+    return true;
+  }
   function retire(c: Patrol){
     group.remove(c.mesh,c.blob);
     chasers.splice(chasers.indexOf(c),1);
@@ -427,7 +472,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   }
   function restart(n: RoadNode){
     manualLab=false;tick=0;recordedInputs=[];replay=undefined;replayIndex=0;
-    randomState=runSeed;nextPatrolId=0;spawnDelay=0;
+    randomState=runSeed;secondsOutOfView=0;nextPatrolId=0;spawnDelay=0;
     trace.length=traceCursor=nextSample=0;
     delete host.dataset.police;
     director.reset();staging=undefined;nextStage=0;sideRoutes.clear();perceptionAge=0;arrivalPending=false;showStars(policing?1:0);
@@ -545,8 +590,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
         if(!field || field.source!==source)field=world.patrolRoutesFrom(source);
       }
       spawnDelay-=dt;
-      if(!director.truce && spawnDelay<=0 && chasers.filter(c=>!c.wreck).length<director.maxUnits){
-        spawnChaser(director.stars,field);spawnDelay=.6;
+      if(!director.truce && spawnDelay<=0){
+        const reinforced=director.stars>=2 && speed>=16 && secondsOutOfView>=4 && reinforceStraight(speed);
+        if(!reinforced && chasers.filter(c=>!c.wreck).length<director.maxUnits)spawnChaser(director.stars,field);
+        spawnDelay=.6;
       }
     }
     for(let i=chasers.length-1;i>=0;i--){
@@ -560,7 +607,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       const assignment=director.assignment(c.id);
       let turn:number|null;
       let limit=supportSpeed(c);
-      if(assignment){
+      if(c.entryUntil && time<c.entryUntil && Math.hypot(player.x-c.x,player.y-c.y)>16 && !director.truce && !assignment){
+        turn=0;limit=Math.min(limit,c.entryPace??13);
+      }else if(assignment){
+        c.entryUntil=0;
         turn=crossJunction(c,world.nodes,assignment);
         c.aimX=world.nodes[c.target].x;c.aimY=world.nodes[c.target].y;
         c.node=-1;c.cornerSpeed=Infinity;
@@ -570,7 +620,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
         turn=chaseSteer(c,{x:entry.x,y:entry.y,vx:0,vy:0},world,staging.field.prev,TUNE);
         limit=Math.min(limit,Math.max(0,(distance-2)*1.5));
       }else{
-        turn=chaseSteer(c,director.truce?lastSighting:player,world,required(field,'patrol routes').prev,TUNE);
+        c.entryUntil=0;turn=chaseSteer(c,director.truce?lastSighting:player,world,required(field,'patrol routes').prev,TUNE);
         c.target=c.node;
       }
       if(turn===null){
@@ -895,6 +945,21 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     /** The player's body and the patrols on the road, for the lab's readout. */
     get player(): Readonly<Vehicle>{return player;},
     get patrols(){return chasers.length;},
+    roadRunLab(x:number,y:number,h:number,stars:number){
+      if(!endless || !world || !Number.isInteger(stars) || stars<1 || stars>5 ||
+        !Number.isFinite(x+y+h) || !world.free(x,y,TUNE.radius))throw new Error('Invalid road fixture');
+      const node=world.nearestNode(x,y);
+      if(node<0)throw new Error('Missing road');
+      restart(world.nodes[node]);
+      const pace=TUNE.player.baseSpeed;
+      Object.assign(player,{x,y,h,vx:pace*Math.cos(h),vy:pace*Math.sin(h),gear:pace});
+      rig.startHeading(h);focus.set(x,groundAt(x,y),-y);
+      for(let level=1;level<stars;level++){
+        const seconds=POLICE.thresholds[level]-POLICE.thresholds[level-1];
+        director.update({dt:seconds,anyVisible:false,closestDistance:Infinity});time+=seconds;
+      }
+      showStars(stars);
+    },
     advanceLab(seconds:number,steer:number,brake:boolean){
       if(!endless || !raf || !world || !group.visible || document.hidden || state==='off')return;
       if(!Number.isFinite(seconds) || seconds<=0 || seconds>180 || ![-1,0,1].includes(steer))throw new Error('Invalid lab input');
@@ -925,7 +990,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     },
     /** Patrols on or off during a run. Turning them off clears the streets. */
     setPolice(on: boolean){
-      policing=on;director.reset();staging=undefined;arrivalPending=false;perceptionAge=0;spawnDelay=0;showStars(on?1:0);
+      secondsOutOfView=0;policing=on;director.reset();staging=undefined;arrivalPending=false;perceptionAge=0;spawnDelay=0;showStars(on?1:0);
       if(!on){for(const c of chasers)group.remove(c.mesh,c.blob);chasers=[];}
     },
     /** Every run from now on starts at the road node nearest to this point. */

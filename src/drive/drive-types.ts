@@ -48,6 +48,7 @@ export interface Vehicle extends Body {
 export interface Patrol extends Vehicle {
   id: number;
   interceptor: boolean;
+  entryUntil?:number;entryPace?:number;
   visibleFor: number;
   role: 'support' | 'interceptor' | 'pursuer';
   target: number;

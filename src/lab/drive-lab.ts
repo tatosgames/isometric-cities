@@ -38,6 +38,7 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
     policeTrace:()=>drive.policeTrace(),
     policeRun:()=>({build:import.meta.url,settings:location.href,inputs:drive.inputLog(),samples:drive.policeTrace()}),
     policeRestart:()=>drive.respawn(),
+    policeRoadRun:(x:number,y:number,h:number,stars:number)=>drive.roadRunLab(x,y,h,stars),
     policeAdvance:(seconds:number,steer=0,brake=false)=>drive.advanceLab(seconds,steer,brake),
     policeInputs:()=>drive.inputLog(),
     replayPolice:(inputs:Parameters<typeof drive.replayInputs>[0])=>drive.replayInputs(inputs)

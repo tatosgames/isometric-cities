@@ -3,6 +3,7 @@ import { pointInRing } from '../geometry.ts';
 import type { BuildingBlock } from './building-occlusion.ts';
 import type { RoadNode } from './road-routing.ts';
 import {blocksCamera} from './building-occlusion.ts';
+import {indexPatrolSegments} from './police-road-entry.ts';
 import { routesFrom, indexRoadNodes } from './road-routing.ts';
 import * as T from 'three';
 
@@ -160,6 +161,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   const usable=(n: RoadNode)=>n.part===main && clear(n.x,n.y,1.7);
   for(const n of nodes)n.ok=usable(n);
   const roadIndex=indexRoadNodes(nodes);
+  const roadSegments=indexPatrolSegments(nodes,main);
   const zoneNodes=new Map<string,RoadNode[]>();
   if(zoning)for(const n of nodes){
     const key=zoneKey(n.x,n.y),list=zoneNodes.get(key);
@@ -266,7 +268,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     return hit;
   }
   return {
-    nodes,validNodes:roadIndex.valid,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
+    nodes,validNodes:roadIndex.valid,roadSegments,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
     patrolRoutesFrom:(source:number)=>routesFrom(nodes,source,patrolLink,480),
     routesFrom:(source: number)=>routesFrom(nodes,source)
   };
