@@ -118,3 +118,13 @@ Figure semplici senza gambe, un corpo colorato e una testa, che si muovono a sal
 - `npm.cmd test` controlla che la cattura produca almeno un fermo e che la spinta della camera torni a zero. I due valori sono l'undicesimo e il dodicesimo campo di `data-drive` su `#scene`: numero di fermi dall'ingresso in guida e spostamento attuale della camera in metri.
 - Dopo aver cambiato la molla, ricalcolare picco e tempo di rientro e aggiornare le misure di questo file.
 - Provare a mano una via stretta: strisciando lungo i muri non deve mai scattare un fermo.
+
+## Trasformazione e incidente aereo
+
+Durante il decollo assistito l’apertura delle ali accompagna la salita. Al rientro si richiudono negli ultimi metri. All’impatto l’aereo sparisce in un lampo arancio con fumo ascendente e frammenti in caduta. Il riepilogo usa gli stessi tempi della cattura stradale.
+
+### Assetto e scie del Piper
+
+- Al decollo l’elica passa dal 18% al regime di crociera in mezzo secondo. Il muso si alza fino a 11° e si riallinea in 1,45 s. Nella discesa assistita il muso richiama fino a 7,4° e l’elica perde giri mentre si richiudono le ali.
+- Oltre 23° di inclinazione compaiono due scie sottili che seguono le posizioni attraversate dalle estremità alari. Arrivano alla massima intensità a 40°. Otto campioni a 30 Hz conservano circa un quarto di secondo di traiettoria. In volo livellato l’opacità torna a zero in meno di mezzo secondo.
+- All’impatto i frammenti metallici hanno una componente iniziale in avanti di 16 m/s, che si esaurisce entro 4 m lungo la rotta. Il fumo continua a salire dal punto dell’urto.

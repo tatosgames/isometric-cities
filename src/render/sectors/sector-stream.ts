@@ -417,13 +417,21 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     }
     return !z || !!z.assets;
   }
-  function update(camera: T.OrthographicCamera,target: T.Vector3,driving=false,opening?:'covered'|'revealing'){
+  function update(camera: T.OrthographicCamera|T.PerspectiveCamera,target: T.Vector3,driving=false,opening?:'covered'|'revealing'){
     tick++;
-    const width=(camera.right-camera.left)/camera.zoom,height=(camera.top-camera.bottom)/camera.zoom;
+    const airborne=camera instanceof T.PerspectiveCamera;
+    const width=airborne?0:(camera.right-camera.left)/camera.zoom;
+    const height=airborne?0:(camera.top-camera.bottom)/camera.zoom;
     const span=Math.min(width,height),long=Math.max(width,height);
     frustum.setFromProjectionMatrix(matrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
     if(driving && target.distanceToSquared(lastTarget)>.0025)ahead.subVectors(target,lastTarget).setY(0).normalize();
     lastTarget.copy(target);aheadPoint.copy(target).addScaledVector(ahead,driving?data.sectorSize*.5:0);
+    // In perspective the horizon can contain the entire city. Use the full frustum for culling,
+    // but reserve detailed geometry and the zone footprint cache for the flight corridor.
+    const horizontalGap=(box:T.Box3,p:T.Vector3)=>Math.hypot(Math.max(box.min.x-p.x,0,p.x-box.max.x),
+      Math.max(box.min.z-p.z,0,p.z-box.max.z));
+    const underPlane=airborne?zoneAt(target.x,-target.z):undefined;
+    const aheadZone=airborne?zoneAt(aheadPoint.x,-aheadPoint.z):undefined;
     const now=performance.now();
     near=driving || (lod?.stable?(near?span<=580:span<=520):span<=550);
     mid=driving || long<=(mid?zoneSpan*1.09:zoneSpan);
@@ -434,12 +442,15 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const distance=s.bounds.getCenter(projected).distanceToSquared(target);
       if(distance<closest){openingSector=s;closest=distance;}
     }
-    for(const z of zones)if(z===openingZone || z===openingSector?.zone || z===demanded || (mid && (frustum.intersectsBox(z.prefetch) ||
-      (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize))))z.wanted=now;
+    for(const z of zones)if(z===openingZone || z===openingSector?.zone || z===demanded || (mid && (airborne?
+      (horizontalGap(z.bounds,aheadPoint)<data.sectorSize ||
+        (horizontalGap(z.bounds,target)<data.zoneSize && frustum.intersectsBox(z.prefetch))):
+      (frustum.intersectsBox(z.prefetch) ||
+        (driving && Math.min(z.bounds.distanceToPoint(aheadPoint),z.bounds.distanceToPoint(target))<data.sectorSize)))))z.wanted=now;
     requestedZones=opening
       ? zones.filter(z=>z===openingZone || z===openingSector?.zone)
       : zones.filter(z=>now-z.wanted<linger);
-    const zoneRank=(z: ResidentZone)=>z===demanded?-3:z===openingZone?-2:z===openingSector?.zone?-1:
+    const zoneRank=(z: ResidentZone)=>z===demanded?-5:z===underPlane?-4:z===aheadZone?-3:z===openingZone?-2:z===openingSector?.zone?-1:
       (frustum.intersectsBox(z.bounds)?0:1e10)+z.bounds.getCenter(projected).distanceToSquared(aheadPoint);
     requestedZones.sort((a,b)=>zoneRank(a)-zoneRank(b));
     if(staticEnabled)syncShadowMasks();
@@ -448,7 +459,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     for(const z of zones)if(z.group){z.group.visible=requestedZones.includes(z);z.far.visible=!z.group.visible;}
     const idle=zones.filter(z=>z.assets&&!requestedZones.includes(z)).sort((a,b)=>b.used-a.used);
     for(const z of idle.slice(idleZones))releaseZone(z);
-    if(near)for(const s of sectors)if(frustum.intersectsBox(s.prefetch)||(driving&&s.bounds.distanceToPoint(aheadPoint)<data.sectorSize))s.wanted=now;
+    if(near)for(const s of sectors){
+      const visible=frustum.intersectsBox(s.prefetch);
+      const wanted=airborne?horizontalGap(s.bounds,aheadPoint)<data.sectorSize ||
+        (visible && horizontalGap(s.bounds,target)<data.sectorSize*2):
+        visible || (driving && s.bounds.distanceToPoint(aheadPoint)<data.sectorSize);
+      if(wanted)s.wanted=now;
+    }
     requested=opening
       ? openingSector?.low?[openingSector]:[]
       : sectors.filter(s=>s.low && requestedZones.includes(s.zone) && now-s.wanted<linger);

@@ -24,6 +24,11 @@ export interface DriveOptions {
   police?: boolean;
   /** True keeps the run going when a patrol reaches the player: for the lab. */
   endless?: boolean;
+  flightArea: (x:number,y:number)=>boolean;
+  flightGround: Altitude;
+  redraw: () => void;
+  demandLanding: (x:number,y:number)=>boolean;
+  releaseLanding: ()=>void;
   onExit: () => void;
   /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
   zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};

@@ -214,3 +214,11 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 **Qualità dinamica · 26 novembre 2026.** Mappa e guida condividono un controller che punta a 60 FPS e riconosce i 30 FPS regolari sul profilo compatto. Sul telefono il primo frame mantiene il profilo compatto. Le promozioni provano sagome statiche sul terreno, FXAA e DPR fino a 1,25. La vista ferma torna al ciclo ambientale dopo il test iniziale. Misure in emulazione, confronto desktop e ritagli a camera fissa nel [rapporto QA](docs/QA.md#qualità-dinamica-globale--26-novembre-2026). Resta aperta la verifica su GPU mobile fisica.
 
 **Audit della qualità.** Mappa, laboratori ed editor leggono i profili da `dynamic-quality.ts`. Streaming, dettagli degli edifici, vegetazione e pedoni condividono i limiti iniziali. Le zone visibili hanno priorità nella memoria riservata alle maschere statiche.
+
+## Volo libero sopra Las Palmas
+
+Il Piper anticipa le interruzioni strette della copertura e conserva la quota assoluta sorvolando una valle. La camera protegge la visuale sulla coda passando dietro le facciate e mostra il tratto in discesa davanti all’aereo durante una picchiata.
+
+Il pulsante con l’aereo nell’HUD di guida avvia il decollo del Piper. Frecce, WASD o trascinamento con un dito controllano direzione e quota. Il pulsante con l’auto avvia il rientro su strada mantenendo monete e destinazione. Gli urti contro tetti, terreno e mare terminano la partita. [Prove e viste desktop e mobile](docs/QA.md#piper).
+
+Il passaggio di game feel del Piper rende visibili il regime dell’elica, la richiamata di rientro e la curva appena percorsa dalle ali. Parametri e durate sono nel [catalogo degli effetti](docs/JUICE.md#assetto-e-scie-del-piper).

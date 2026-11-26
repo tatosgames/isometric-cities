@@ -5,7 +5,8 @@ import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // The terrain reaches 0 m along the quays, so the water sits just below it and the quay wall stays visible.
-const LEVEL=-.9, REACH=90, STEPS=24;
+export const SEA_LEVEL=-.9;
+const REACH=90, STEPS=24;
 
 // Distance to the mapped coastline, painted once: nested strokes from wide and dark to thin and bright,
 // so the red channel reads 1 on the coast and 0 at REACH metres. Foam and shallows follow it in the shader.
@@ -43,7 +44,7 @@ export function makeSea(sea: Sea){
   const surface=mergeGeometries(sea.water.map(polygon=>{
     const [outer,...holes]=polygon.map(r=>r.map(([x,y])=>new T.Vector2(x,y)));
     const shape=new T.Shape(outer);shape.holes=holes.map(h=>new T.Path(h));
-    return new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,LEVEL,0);
+    return new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,SEA_LEVEL,0);
   }));
   if(!surface)throw new Error('Incompatible sea geometries');
   const water=new T.MeshBasicMaterial({...surfaceStencil(),side:T.DoubleSide});

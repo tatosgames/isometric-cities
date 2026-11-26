@@ -1,3 +1,4 @@
+import {makeFlight} from '../flight/flight.ts';
 import {cityDetail} from '../render/dynamic-quality.ts';
 import { carGeometry, carShellHeight, carShellParts, carShellPivot, carWheelParts, tint } from './car-model.ts';
 import type { Point } from '../data/types.ts';
@@ -54,7 +55,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,zoning,police=true,endless=false}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
@@ -267,7 +268,91 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   const clock=(s: number)=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
   const guide=el('guide'),zones={left:required(guide.querySelector('.left'),'left guide'),right:required(guide.querySelector('.right'),'right guide')};
   const over=el('over'),actions=el('over-actions'),again=el('again');
+  let aircraft:ReturnType<typeof makeFlight>|undefined;
+  const flightButton=el('drive-flight') as HTMLButtonElement;
+  const flightIcon=required(flightButton.querySelector('use'),'flight icon');
+  let candidates:number[]|undefined,landingCursor=0,landingRequested=0,crashElapsed=0,landingTruce=0;
+  function flightButtonState(inAir:boolean){
+    const label=inAir?'Volver al coche':'Volar';
+    flightButton.title=label;flightButton.setAttribute('aria-label',label);
+    flightIcon.setAttribute('href',inAir?'#i-car':'#i-plane');
+    el('hud').classList.toggle('airborne',inAir);
+    flightButton.disabled=false;
+  }
+  function endFlight(){
+    if(!aircraft || aircraft.phase==='off')return;
+    aircraft.stop();releaseLanding();candidates=undefined;group.visible=true;
+    flightButtonState(false);
+    delete host.dataset.flight;
+    controls.activate();
+  }
+  flightButton.onclick=()=>{
+    if(!raf || state==='caught' || state==='off')return;
+    if(aircraft && aircraft.phase!=='off'){
+      if(aircraft.phase==='fly' && !candidates){
+        candidates=activeWorld().landingCandidates(aircraft.x,aircraft.y);
+        landingCursor=0;landingRequested=performance.now();flightButton.disabled=true;
+      }
+    }else if(group.visible){
+      go();controls.deactivate();acc=0;
+      aircraft??=makeFlight(host,scene,flightGround,(x,y)=>activeWorld().roofAt(x,y),onExit,flightArea);
+      aircraft.start(player.x,player.y,player.h,camera);
+      group.visible=false;flightButtonState(true);flightButton.disabled=true;
+    }
+    host.focus({preventScroll:true});
+  };
+  function flightFrame(dt:number){
+    if(!aircraft)return;
+    if(candidates){
+      const world=activeWorld();
+      for(let checked=0;checked<32 && landingCursor<candidates.length;checked++){
+        const i=candidates[landingCursor],n=world.nodes[i];
+        if(!demandLanding(n.x,n.y))break;
+        landingCursor++;
+        const h=world.landingHeading(i,aircraft.h);
+        if(h===undefined || fleet?.active.some(b=>Math.hypot(b.state.x-n.x,b.state.y-n.y)<8))continue;
+        aircraft.land(n.x,n.y,h);candidates=undefined;break;
+      }
+      if(candidates && (landingCursor===candidates.length || performance.now()-landingRequested>12000)){
+        releaseLanding();candidates=undefined;
+      }
+    }
+    if(aircraft.phase!=='crash')time+=dt;
+    // Keep the aircraft on the loaded side of a zone edge while its collision footprints arrive.
+    const world=activeWorld(),c=Math.cos(aircraft.h),s=Math.sin(aircraft.h);
+    const corridorReady=(x:number,y:number)=>world.footprintsReady(x,y) &&
+      world.footprintsReady(x+5.4*s,y-5.4*c) && world.footprintsReady(x-5.4*s,y+5.4*c);
+    const needsZone=aircraft.phase==='fly' && (!corridorReady(aircraft.x,aircraft.y) ||
+      !corridorReady(aircraft.x+12*c,aircraft.y+12*s));
+    const event=aircraft.step(needsZone || candidates?0:dt);
+    if(event==='landed'){
+      const {x,y,h}=aircraft;
+      endFlight();
+      Object.assign(player,restBody(),feel(),{x,y,h,trail:null,tilt:0,hop:0,slopeAccel:undefined});
+      playerPose.reset();previous.delete(player);resetEffects();people?.reset(player);crowd.reset();
+      focus.set(x,groundAt(x,y),-y);lead.set(0,0,0);rig.startHeading(h);
+      for(const car of chasers)group.remove(car.mesh,car.blob);
+      chasers=[];director.reset();showStars(0);arrivalPending=false;
+      secondsOutOfView=perceptionAge=0;staging=undefined;field=null;sideRoutes.clear();
+      Object.assign(lastSighting,{x,y,vx:0,vy:0});paceEase=threat=0;
+      grace=TUNE.grace;landingTruce=POLICE.truceTime;spawnDelay=0;freeze=0;release=null;
+      return;
+    }
+    if(event==='impact'){
+      state='caught';candidates=undefined;releaseLanding();crashElapsed=0;buzz(140);
+      over.dataset.caught='';finishResult('Accidente aéreo');
+    }
+    if(aircraft.phase==='crash'){
+      crashElapsed+=dt;flightButton.hidden=true;
+      if(crashElapsed>=CAPTURE.summary)over.hidden=false;
+      if(crashElapsed>=CAPTURE.actions && actions.hidden){actions.hidden=false;again.focus({preventScroll:true});}
+    }else flightButton.disabled=aircraft.phase!=='fly' || !!candidates;
+    el('hud-time').textContent=clock(time);
+    host.dataset.flight=[aircraft.phase,aircraft.x.toFixed(1),aircraft.y.toFixed(1),aircraft.target.y.toFixed(1),aircraft.h.toFixed(3)].join(',');
+    redraw();
+  }
   function clearCapture(){
+    flightButton.hidden=false;
     capture=null;
     over.hidden=actions.hidden=true;
     over.inert=false;
@@ -472,6 +557,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     return world.nodes[index];
   }
   function restart(n: RoadNode){
+    endFlight();landingTruce=0;
     manualLab=false;tick=0;recordedInputs=[];replay=undefined;replayIndex=0;
     randomState=runSeed;secondsOutOfView=0;nextPatrolId=0;spawnDelay=0;
     trace.length=traceCursor=nextSample=0;
@@ -521,11 +607,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     kick(by.x-player.x,by.y-player.y,1);
     // The contact holds for a beat; dust and the push-in start when it lets go.
     stop(TUNE.hitStop*STOP_CAUGHT,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5);});
+    flightButton.hidden=true;finishResult('Atrapado');
+  }
+  function finishResult(title:string){
+    el('over-title').textContent=title;
     const best=score>record;
     if(best){record=score;try{localStorage.setItem('drive-record',String(record));}catch{}}
     el('over-coins').textContent=String(score);el('over-time').textContent=clock(time);el('over-record').textContent=String(record);
     el('over-record').classList.toggle('new',best);
-    el('hud-live').textContent='Atrapado. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo rÃ©cord.':'');
+    el('hud-live').textContent=title+'. '+score+' monedas en '+Math.round(time)+' segundos.'+(best?' Nuevo rÃ©cord.':'');
   }
 
   // The result is already fixed. Move only the two cars involved, using their remaining momentum.
@@ -554,6 +644,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   // ---- simulation ----
   function step(dt: number){
     const world=activeWorld();
+    landingTruce=Math.max(0,landingTruce-dt);
     time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);
     if(fleet){
       const start=endless?performance.now():0;
@@ -580,7 +671,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     // Only a hard, nearly head-on hit stops time, and not twice in a row: scraping along a street never does.
     if(knock>TUNE.hardImpact && !stopCool){stop(TUNE.hitStop);stopCool=TUNE.stopGap;}
     const speed=Math.hypot(player.vx,player.vy);
-    if(policing){
+    if(policing && !landingTruce){
       perceptionAge+=dt;
       if(perceptionAge>=.1){perceive(perceptionAge);perceptionAge=0;}
       routeAge+=dt;
@@ -754,11 +845,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
 
   function frame(now: number){
     raf=requestAnimationFrame(frame);
-    if(document.hidden || !group.visible){last=0;return;}
+    const airborne=aircraft && aircraft.phase!=='off';
+    if(document.hidden || (!airborne && !group.visible)){last=0;return;}
     fleetCpu=0;
     const wallDt=manualLab && !steppingLab?0:(now-(last||now))/1000;last=now;
     const captureDt=capture?wallDt:0;
     let dt=Math.min(.05,wallDt);
+    if(airborne){flightFrame(dt);return;}
     if(!capture){
       if(freeze)advanceStop(dt);
       else if(state==='playing' && !held){
@@ -942,6 +1035,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   el('leave').onclick=()=>onExit();
   let policing=police,fixedStart: Point | undefined;
   return {
+    get flightView(){return aircraft && aircraft.phase!=='off'?aircraft:undefined;},
     get active(){return state!=='off';},
     /** The player's body and the patrols on the road, for the lab's readout. */
     get player(): Readonly<Vehicle>{return player;},
@@ -1039,7 +1133,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     },
     exit(){
       if(state==='off')return;
-      state='off';runGeneration++;cancelAnimationFrame(raf);raf=0;scene.remove(group);group.visible=true;
+      endFlight();state='off';runGeneration++;cancelAnimationFrame(raf);raf=0;scene.remove(group);group.visible=true;
       fleet?.dispose();fleet=undefined;busViews?.dispose();busViews=undefined;
       controls.deactivate();
       location?.reset();
@@ -1053,17 +1147,17 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       if(content)world?.addZone(id,content.buildings,content.trees);else world?.removeZone(id);
     },
     visibilityChanged(){
-      last=0;
+      last=0;aircraft?.release();
       if(capture)over.toggleAttribute('data-paused',document.hidden || !raf);
     },
     // Graphics interruption: stop drawing and stepping, drop any touch in progress, keep the run.
     suspend(){
       if(state==='off')return;
-      cancelAnimationFrame(raf);raf=0;controls.release();
+      cancelAnimationFrame(raf);raf=0;controls.release();aircraft?.release();
       resetSteering(player);
       if(capture){over.inert=true;over.dataset.paused='';}
       else playerPose.reset();
-      if(state==='playing'){held=true;guide.className='ready';}
+      if(state==='playing' && (!aircraft || aircraft.phase==='off')){held=true;guide.className='ready';}
     },
     resume(){
       if(state==='off' || raf)return;

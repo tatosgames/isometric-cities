@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run check:data && vite build",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node scripts/qa.mjs",
+    "test": "node scripts/qa-flight-simulation.mjs && node scripts/qa.mjs && node scripts/qa-flight.mjs",
     "check:data": "node scripts/check-data.mjs"
   },
   "dependencies": {

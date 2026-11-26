@@ -6,7 +6,7 @@ I valori citati sono quelli del codice al 24 novembre 2026. Se cambiano nel codi
 
 ## Regole comuni
 
-1. **Una sola camera, un solo proprietario.** La camera ortografica nasce da `makeMapCamera()` in `src/render/map-camera.ts`, la stessa di editor e laboratori, con bordi in pixel (`fitPixels`), distanza dal bersaglio `CAMERA_DISTANCE` (1500 m) e angolo `mapViewDirection()`. Solo `src/main.ts` la sposta, con la funzione `view(target, zoom, offset)`: la guida chiede un'inquadratura chiamando `view`.
+1. **Mappa e guida condividono la camera ortografica.** La camera ortografica nasce da `makeMapCamera()` in `src/render/map-camera.ts`, la stessa di editor e laboratori, con bordi in pixel (`fitPixels`), distanza dal bersaglio `CAMERA_DISTANCE` (1500 m) e angolo `mapViewDirection()`. Solo `src/main.ts` la sposta, con la funzione `view(target, zoom, offset)`: la guida chiede un'inquadratura chiamando `view`.
 2. **Orientamento.** La mappa ruota a scatti attorno alla verticale mantenendo l'inclinazione isometrica. La vista Isométrica in guida riprende l'orientamento all'ingresso. Le altre viste di guida orientano la stessa camera ortografica lungo la traiettoria.
 3. **Lo zoom è in pixel per metro.** I bordi della camera sono in pixel CSS, quindi `camera.zoom` dice quanti pixel occupa un metro. Tutte le soglie si ragionano così.
 4. **Il bersaglio resta dentro il perimetro.** `draw()` riporta il bersaglio nel riquadro del confine a ogni frame e la camera a 1500 m da esso: lo zoom verso il cursore la fa scivolare nel proprio piano, e in proiezione ortografica la distanza non cambia l'immagine.
@@ -54,7 +54,7 @@ L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita i
 - Rimettere uno spostamento casuale della camera.
 - Legare lo zoom a eventi istantanei (urto, moneta, comparsa di una pattuglia). Passa sempre dai due ingressi filtrati.
 - Risolvere un problema di leggibilità di una singola zona cambiando i valori globali di campo visivo. Si interviene sulla scena o sulla sagoma dell’auto.
-- Aggiungere una seconda camera o spostare la camera da un modulo diverso da `src/main.ts`.
+- Attivare due camere nello stesso fotogramma. Il renderer seleziona la camera in `src/main.ts`.
 
 ## Verifica
 
@@ -63,3 +63,8 @@ L'interfaccia sta fuori da queste zone: statistiche in alto a sinistra, uscita i
 - Dopo una modifica alla camera di guida, campionare lo zoom ogni mezzo secondo per una decina di secondi (nono campo di `data-drive` su `#scene`) e confrontarlo con i valori del punto 4.
 - Guardare almeno uno screenshot a 390×844 e uno a 1440×900 con l'auto in una via stretta.
 - Su telefono fisico la sensazione di movimento non è stata ancora provata.
+
+## Volo
+
+Il Piper usa una camera prospettica da 54°, dietro la coda e leggermente sopra le ali. In verticale la distanza cresce per mantenere visibili entrambe le estremità alari. L’orizzonte resta livellato mentre le ali seguono il comando di virata. Decollo e rientro raccordano la vista stradale alla quota di volo. Le ombre e lo streaming seguono la posizione del Piper. All’impatto la camera trattiene il punto dell’esplosione.
+La camera di volo verifica il segmento fra la coda e la posizione inseguita con campioni distanti al massimo 1,5 m. Quando una facciata attraversa la visuale, la camera si avvicina e si alza. Quando il segmento torna libero riprende la distanza con lo smorzamento della rincorsa. In picchiata la camera sale rispetto alla coda e punta verso la traiettoria in discesa.

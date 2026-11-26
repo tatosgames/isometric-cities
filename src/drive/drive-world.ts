@@ -1,5 +1,5 @@
 import type { Altitude, Building, Point, Ring, Road, Surface } from '../data/types.ts';
-import { pointInRing } from '../geometry.ts';
+import { pointInRing, ringIndex } from '../geometry.ts';
 import type { BuildingBlock } from './building-occlusion.ts';
 import type { RoadNode } from './road-routing.ts';
 import {blocksCamera} from './building-occlusion.ts';
@@ -12,27 +12,6 @@ interface Cell {segs: Segment[];trees: Point[];blocks: BuildingBlock[]}
 
 
 const CELL=20;
-// The city boundary has thousands of edges and is asked about every road node: index its edges by bands of
-// northing so a point only meets the few edges that cross its own band.
-function ringIndex(ring: Ring,band=25){
-  const rows=new Map<number,number[]>();
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
-    const ay=ring[i][1],by=ring[j][1];
-    for(let k=Math.floor(Math.min(ay,by)/band);k<=Math.floor(Math.max(ay,by)/band);k++){
-      const row=rows.get(k);
-      if(row)row.push(i,j);else rows.set(k,[i,j]);
-    }
-  }
-  return (x: number,y: number)=>{
-    const row=rows.get(Math.floor(y/band));
-    let inside=false;
-    if(row)for(let k=0;k<row.length;k+=2){
-      const [ax,ay]=ring[row[k]],[bx,by]=ring[row[k+1]];
-      if((ay>y)!==(by>y) && x<(bx-ax)*(y-ay)/(by-ay)+ax)inside=!inside;
-    }
-    return inside;
-  };
-}
 export function inRing(ring: Ring,x: number,y: number){
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
@@ -227,6 +206,55 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     return true;
   }
   function nearestNode(x: number,y: number){return roadIndex.nearest(x,y);}
+  // Roof elevation at a sampled airframe point. Courtyards have no roof.
+  function roofAt(x:number,y:number){
+    const key=Math.floor(x/CELL)+','+Math.floor(y/CELL);
+    let top=-Infinity;
+    for(const grid of stack){
+      const cell=grid.get(key);
+      if(!cell)continue;
+      for(const block of cell.blocks){
+        if(block.top<=top || !pointInRing(block.rings[0],x,y))continue;
+        let courtyard=false;
+        for(let i=1;i<block.rings.length;i++){
+          if(pointInRing(block.rings[i],x,y)){courtyard=true;break;}
+        }
+        if(!courtyard)top=block.top;
+      }
+    }
+    return top;
+  }
+
+  // Query once when requesting a landing. An unloaded node can be a candidate,
+  // but the caller must load its zone and validate the departure lane before use.
+  function landingCandidates(x:number,y:number){
+    const ranked=roadIndex.valid.map(index=>{
+      const node=nodes[index];
+      return {index,distance:(x-node.x)**2+(y-node.y)**2};
+    });
+    ranked.sort((a,b)=>a.distance-b.distance || a.index-b.index);
+    return ranked.map(candidate=>candidate.index);
+  }
+
+  function landingHeading(index:number,heading:number){
+    const node=nodes[index],radius=tune.radius??1.15;
+    if(!node?.ok || !free(node.x,node.y,radius))return undefined;
+    let best:number|undefined,alignment=-Infinity;
+    for(const [next,length] of node.links){
+      const end=nodes[next],dx=(end.x-node.x)/length,dy=(end.y-node.y)/length;
+      const score=dx*Math.cos(heading)+dy*Math.sin(heading);
+      if(score<=alignment)continue;
+      // The rear bumper and both car lengths ahead of the centre must be clear,
+      // including when a short OSM link ends immediately after the spawn.
+      let clearLane=true;
+      for(let distance=-2;distance<=8;distance++){
+        if(!free(node.x+dx*distance,node.y+dy*distance,radius)){clearLane=false;break;}
+      }
+      if(clearLane){best=Math.atan2(dy,dx);alignment=score;}
+    }
+    return best;
+  }
+
   const checked=new Set<BuildingBlock>();
   function occluded(x: number,y: number,height: number,dx: number,dy: number){
     const distance=highestRoof-height;
@@ -269,6 +297,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   return {
     nodes,validNodes:roadIndex.valid,roadSegments,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
+    roofAt,landingCandidates,landingHeading,footprintsReady:(x:number,y:number)=>!unloaded(x,y),
     patrolRoutesFrom:(source:number)=>routesFrom(nodes,source,patrolLink,480),
     routesFrom:(source: number)=>routesFrom(nodes,source)
   };

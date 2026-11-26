@@ -1462,3 +1462,18 @@ La build, il typecheck e la suite generale (`npm test`) sono passati su Chromium
 `node scripts/qa-quality-idle.mjs dist 30` e la stessa prova con `60` verificano in Chromium il primo frame a DPR 1 e le ombre statiche dopo la calibrazione iniziale. Gli orologi sono sintetici. La normale animazione ambientale a vista ferma è esclusa dalla misura.
 
 `node scripts/qa-dynamic-quality.mjs` verifica 30 FPS uniformi, intervalli alternati da circa 17 e 50 ms, calo da 60 a 30 durante il movimento, ritorno ai 60 FPS dopo un alleggerimento e annullamento di una promozione troppo costosa. La regolarità osservata permette di scegliere un obiettivo operativo. La causa fisica del limite e il consumo energetico richiedono misure su dispositivo.
+
+## Piper
+
+In tre scenari sintetici, la simulazione riproduceva 9,28 s di arresto davanti a una fascia di 14 m fuori copertura, un salto di quota da 582 a 460 m sopra una scarpata e una facciata alta 110 m fra il Piper e la camera. Le regressioni verificano il movimento lungo il confine, la quota costante in volo livellato e la visuale fino alla coda. Una quarta prova misura la salita della camera durante la picchiata e il ritorno alla distanza verticale di crociera al rilascio del comando.
+
+Prova in Chrome con partenza dalla stessa strada, prua identica e 0,4 m di differenza in quota. In picchiata la nuova vista include la rotonda e i tetti lungo la traiettoria. [Prima](screenshots/piper-dive-before.png) · [Dopo](screenshots/piper-dive-after.png).
+
+
+La simulazione delle scie verifica a 30 e 120 FPS il volo livellato, la lunghezza in virata a 32 m/s, la pausa, lo spegnimento e il riavvio senza collegamento con la traiettoria precedente. [Virata touch a 390×844](screenshots/piper-turn.png).
+
+`node scripts/qa-flight-simulation.mjs` prova a 60 Hz il decollo e il rientro sopra edifici, un urto della sola ala, la discesa sul terreno e sul mare, la virata lungo un confine irregolare e il rilascio di tastiera e touch.
+
+`node scripts/qa-flight.mjs` usa Chrome sulla build. Sul pilota verifica decollo da fermo, virata, perdita e recupero WebGL, rientro, nuovo decollo, incidente e nuova partita. Sulla città a settori verifica la virata con un dito a 390×844, il passaggio in orizzontale e il rientro su strada. [Vista sul pilota](screenshots/piper-pilot.png) · [Vista verticale sulla città](screenshots/piper-city.png).
+
+Nella prova costiera il Piper è passato da (186,5; −1011) a (346,8; −1011), attraversando il bordo di un settore da 240 m. Il comando di rientro è partito a 40,1 m di quota, sopra un poligono di mare di `sea.json`. L’auto ha ripreso su Avenida Marítima a 0,92 m da un nodo della rete. Il cronometro è avanzato da 0:06 a 0:10 conservando le monete.

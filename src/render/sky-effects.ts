@@ -65,7 +65,7 @@ function build(anchors:Anchor[]){
   const cloudGeometry=new T.PlaneGeometry(1,1).rotateX(-Math.PI/2);
   const cloud=new T.Mesh(cloudGeometry,mist);
   group.add(cloud);
-  return {group,update(camera:T.OrthographicCamera,target:T.Vector3,driving:boolean){
+  return {group,update(camera:T.OrthographicCamera|T.PerspectiveCamera,target:T.Vector3,driving:boolean){
     const time=wind.time.value;
     for(const [k,flock] of flocks.entries()){
       for(let i=0;i<3;i++){
@@ -78,6 +78,7 @@ function build(anchors:Anchor[]){
       }
       flock.instanceMatrix.needsUpdate=true;
     }
+    if(camera instanceof T.PerspectiveCamera){cloud.visible=false;return;}
     const span=(camera.top-camera.bottom)/camera.zoom;
     mist.uniforms.opacity.value=(driving ? .08 : .28)*T.MathUtils.smoothstep(span,160,500);
     cloud.visible=mist.uniforms.opacity.value>.002;
@@ -100,7 +101,7 @@ export function makeSkyEffects(scene:T.Scene,anchors:Anchor[]){
       if(on){effects??=build(anchors);if(!effects.group.parent)scene.add(effects.group);}
       else effects?.group.removeFromParent();
     },
-    update(camera:T.OrthographicCamera,target:T.Vector3,driving:boolean){
+    update(camera:T.OrthographicCamera|T.PerspectiveCamera,target:T.Vector3,driving:boolean){
       if(effects?.group.parent)effects.update(camera,target,driving);
     },
     dispose(){effects?.group.removeFromParent();effects?.dispose();effects=undefined;}

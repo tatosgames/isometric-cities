@@ -19,6 +19,27 @@ export function pointInRing(ring: readonly (readonly [number,number])[],x: numbe
   return hit;
 }
 
+/** Band index for repeated point-in-ring queries on city boundaries and coastlines. */
+export function ringIndex(ring: readonly (readonly [number,number])[],band=25){
+  const rows=new Map<number,number[]>();
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const ay=ring[i][1],by=ring[j][1];
+    for(let k=Math.floor(Math.min(ay,by)/band);k<=Math.floor(Math.max(ay,by)/band);k++){
+      const row=rows.get(k);
+      if(row)row.push(i,j);else rows.set(k,[i,j]);
+    }
+  }
+  return (x: number,y: number)=>{
+    const row=rows.get(Math.floor(y/band));
+    let inside=false;
+    if(row)for(let k=0;k<row.length;k+=2){
+      const [ax,ay]=ring[row[k]],[bx,by]=ring[row[k+1]];
+      if((ay>y)!==(by>y) && x<(bx-ax)*(y-ay)/(by-ay)+ax)inside=!inside;
+    }
+    return inside;
+  };
+}
+
 /** A height grid: dense, or in squares of `tile` cells found through `slots` (see `Terrain`). */
 interface HeightGrid {
   origin: readonly [number,number];step: number;stepY?: number;w: number;h: number;

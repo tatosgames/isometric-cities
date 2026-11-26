@@ -16,7 +16,8 @@ import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
 import { makeQualityOutput } from './render/quality-output.ts';
 import { makeSkyEffects } from './render/sky-effects.ts';
 import { wind } from './render/wind.ts';
-import { makeSea } from './render/sea.ts';
+import { makeSea, SEA_LEVEL } from './render/sea.ts';
+import { makeFlightArea } from './flight/flight-area.ts';
 import { propObstacles } from './render/port-props.ts';
 import { makeMapFraming, normalizeTurn } from './map/framing.ts';
 import { approach, wrapAngle } from './geometry.ts';
@@ -106,6 +107,12 @@ async function start(){
   controls.enableRotate=false;controls.zoomToCursor=true;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
   const direction=mapViewDirection();
   const {mapInclination,mapDirection,bounds,center,fitAt,farthest,openingZoom}=makeMapFraming({host,compact,data,altitude,direction});
+  // The full-city sea extends 2.8 km beyond the municipal bounds. The pilot has land only.
+  const offshore=sea?650:0;
+  const flightBounds:[number,number,number,number]=[bounds.min.x-offshore,-bounds.max.z-offshore,
+    bounds.max.x+offshore,-bounds.min.z+offshore];
+  const flightArea=makeFlightArea(data.boundary,sea,flightBounds,groundAt,SEA_LEVEL);
+  const flightSky=new T.Color('#bfd9e7'),flightHaze=new T.Fog(flightSky,800,4800);
   let frame=0,lost=false,painted=0,mapTurn=0;
   let flight: Flight | null=null;
   // The glide after a drag: ground velocity in metres per second, and where the gesture went lately.
@@ -280,7 +287,13 @@ async function start(){
     if(signal.aborted)return;
     renderer.setSize(host.clientWidth,host.clientHeight);
     applyQuality(quality.config);
-    sizeCamera();draw();
+    sizeCamera();
+    const airborne=drive?.flightView;
+    if(airborne){
+      airborne.camera.aspect=Math.max(1,host.clientWidth)/Math.max(1,host.clientHeight);
+      airborne.camera.updateProjectionMatrix();
+    }
+    draw();
   }
   renderer.domElement.addEventListener('webglcontextrestored',()=>{
     if(signal.aborted)return;
@@ -305,8 +318,12 @@ async function start(){
     const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
     wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
     painted=time;
-    sky.update(camera,controls.target,!!drive?.active);
-    output.render(scene,camera);
+    const airborne=drive?.flightView;
+    const lens=airborne?.camera??camera;
+    scene.background=airborne?flightSky:null;
+    scene.fog=airborne?flightHaze:null;
+    sky.update(lens,airborne?.target??controls.target,!!drive?.active);
+    output.render(scene,lens);
     if(map.dataset.boot==='ready' && !document.hidden){
       const changed=quality.sample(time,{mode:moving()?'moving':quality.calibrating?'calibration':'resting',ready:!streamBusy,preparingShadows:streamed?.shadowsPending??pilotMask?.pending??false});
       if(changed)applyQuality(changed);
@@ -359,15 +376,18 @@ async function start(){
     controls.target.clamp(bounds.min,bounds.max);
     camera.position.copy(controls.target).addScaledVector(toCamera,CAMERA_DISTANCE);
     camera.updateMatrixWorld();
+    const airborne=drive?.flightView;
+    const subject=airborne?.target??controls.target;
+    if(airborne)airborne.camera.updateMatrixWorld();
     if(renderer.shadowMap.enabled){
-      const sx=Math.round(controls.target.x/240)*240,sz=Math.round(controls.target.z/240)*240;
+      const sx=Math.round(subject.x/240)*240,sz=Math.round(subject.z/240)*240;
       if(sun.target.position.x!==sx || sun.target.position.z!==sz){
         sun.target.position.set(sx,0,sz);sun.position.copy(sun.target.position).add(sunOffset);
         renderer.shadowMap.needsUpdate=true;
       }
     }
     const opening=booting();
-    const level=streamed?.update(camera,controls.target,drive?.active,opening?'covered':map.dataset.boot==='revealing'?'revealing':undefined);
+    const level=streamed?.update(airborne?.camera??camera,subject,drive?.active,opening?'covered':map.dataset.boot==='revealing'?'revealing':undefined);
     streamBusy=level?.busy??false;
     if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(beginDrive);
     paint(time);
@@ -427,7 +447,9 @@ async function start(){
     stopGesture();
     el('drive').focus({preventScroll:true});
   }
-  drive=makeDrive({scene,camera,renderer,host,data,locations,...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
+  drive=makeDrive({scene,camera,renderer,host,data,locations,...flightArea,redraw:draw,
+    demandLanding:(x,y)=>streamed?.demand(x,y)??true,releaseLanding:()=>streamed?.undemand(),
+    ...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   function disablePlay(){
