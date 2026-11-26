@@ -1,4 +1,5 @@
 import {makeFlight} from '../flight/flight.ts';
+import {settleTrees,shakeTree} from '../render/wind.ts';
 import {cityDetail} from '../render/dynamic-quality.ts';
 import { carGeometry, carShellHeight, carShellParts, carShellPivot, carWheelParts, tint } from './car-model.ts';
 import type { Point } from '../data/types.ts';
@@ -97,11 +98,18 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   const wreckPaint=new T.MeshStandardMaterial({...surfaceStencil(),color:'#3a3a3a',flatShading:true,roughness:1});
   const blobGeometry=new T.PlaneGeometry(4.15,2.5).rotateX(-Math.PI/2);
   const blobMaterial=new T.MeshBasicMaterial({color:'#15170f',transparent:true,opacity:.38,depthWrite:false});
+  // A tree hit at closing speed shakes its crowns for an instant, harder the faster the car (up to 0.7 m).
+  // The player's step also eases every shake back, once per step.
+  function struck(car: {treeHit?: {x: number;y: number;speed: number}},dt: number){
+    if(car===player)settleTrees(dt);
+    const hit=car.treeHit;
+    if(hit && hit.speed>1)shakeTree(hit.x,hit.y,Math.min(.7,.18+hit.speed*.045));
+  }
   function vehicle(geometry: T.BufferGeometry): Vehicle{
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';blob.rotation.order='YXZ';
-    return {...restBody(),...feel(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0};
+    return {...restBody(),...feel(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0,treeHit:{x:0,y:0,speed:0}};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
@@ -660,6 +668,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     const beforeContactX=player.x,beforeContactY=player.y;
     busContact(player);
     const knock=collide(player,world);
+    struck(player,dt);
     let playerContact=knock>0 || player.x!==beforeContactX || player.y!==beforeContactY;
     sparkCool=Math.max(0,sparkCool-dt);
     const scrape=player.scrape;
@@ -726,6 +735,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       steerPatrol(c,turn,world,dt,c.interceptor?interceptorProfile:TUNE.patrol,limit);
       const blocked=busContact(c);
       const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
+      struck(c,dt);
       if(hit>3)c.hit=hit;
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
       c.stuck=!blocked && pace<1.5?c.stuck+dt:0;
@@ -1139,6 +1149,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     exit(){
       if(state==='off')return;
       endFlight();state='off';runGeneration++;cancelAnimationFrame(raf);raf=0;scene.remove(group);group.visible=true;
+      settleTrees(Infinity);
       fleet?.dispose();fleet=undefined;busViews?.dispose();busViews=undefined;
       controls.deactivate();
       location?.reset();

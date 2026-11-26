@@ -91,10 +91,10 @@ assert.ok(empty.duration > 0);
   fleet.dispose();
 }
 
-// Eight independent nearby passages are capped at six, and following vehicles never overlap.
+// Eight independent nearby passages on parallel streets are capped at six, and vehicles never overlap.
 {
   const pieces = Object.fromEntries(Array.from({length: 8}, (_, i) => ['p' + i, {file: 'p' + i + '.json', line: String(10 + i), direction: 'north', phase: 0, period: 120}]));
-  const files = Object.fromEntries(Object.keys(pieces).map((id, i) => [id + '.json', pieceData(i * 8)]));
+  const files = Object.fromEntries(Object.keys(pieces).map((id, i) => [id + '.json', {...pieceData(), path: [[0, i * 8], [600, i * 8]]}]));
   const fixture = makeFixture({pieces, files, cells: {'0_0': Object.keys(pieces).map(id => [id, 0, 600])}});
   const fleet = makeLocalFleet('pilot', noCamera, noOccupancy, fixture.fetcher);
   await fleet.reset(0, 0);
@@ -143,16 +143,64 @@ async function twoBuses(paths){
   return fleet;
 }
 {
-  const queue=await twoBuses({front:[[[0,0],[100,0]],[{id:'stop',name:'Stop',position:[30,0],distance:30}]],
-                             rear:[[[-12,0],[90,0]],[]]});
-  for(let i=0;i<14*120;i++){
+  const queue=await twoBuses({front:[[[0,0],[300,0]],[{id:'stop',name:'Stop',position:[30,0],distance:30}]],
+                             rear:[[[-42,0],[290,0]],[]]});
+  // Hold the front bus at its slowest so the rear one catches up and has to keep its distance.
+  const lead=queue.active.find(b=>b.line==='front');lead.cruise=lead.speed=4;
+  let closest=Infinity;
+  for(let i=0;i<30*120;i++){
     queue.step(1/120,0,0);
-    const front=queue.active.find(b=>b.line==='front').state,rear=queue.active.find(b=>b.line==='rear').state;
-    assert.ok(front.x-rear.x>=7.2,'Queued buses touch');
+    const front=lead.state,rear=queue.active.find(b=>b.line==='rear').state;
+    closest=Math.min(closest,front.x-rear.x);
     assert.equal(front.stopped,0,'The service stop should never cause a dwell in Conducir');
   }
+  assert.ok(closest>=7.4+5,'A faster follower keeps a gap instead of tailgating: '+closest.toFixed(1));
   assert.ok(queue.active.find(b=>b.line==='rear').state.x>30,'Both buses should clear the stop');
   queue.dispose();
+}
+// Buses heading the same way on one street are not admitted nose to tail, so no convoy spawns.
+{
+  const pieces={},files={};
+  for(let i=0;i<4;i++){
+    pieces['c'+i]={file:'c'+i+'.json',line:String(i),direction:'east',phase:0,period:90};
+    files['c'+i+'.json']={line:String(i),direction:'east',path:[[-i*12,0],[400,0]],stops:[]};
+  }
+  const fixture=makeFixture({pieces,files,cells:{'0_0':Object.keys(pieces).map(id=>[id,0,60])}});
+  const fleet=makeLocalFleet('pilot',()=>true,noOccupancy,fixture.fetcher);
+  await fleet.reset(0,0);
+  assert.equal(fleet.active.length,1,'Only one bus of a would-be convoy enters');
+  fleet.dispose();
+}
+// Each passage has its own cruise speed, stable across releases.
+{
+  const pieces=Object.fromEntries(Array.from({length:6},(_,i)=>['v'+i,{file:'v'+i+'.json',line:String(i),direction:'east',phase:0,period:120}]));
+  const files=Object.fromEntries(Object.keys(pieces).map((id,i)=>[id+'.json',{...pieceData(),path:[[0,i*10],[600,i*10]]}]));
+  const fixture=makeFixture({pieces,files,cells:{'0_0':Object.keys(pieces).map(id=>[id,0,600])}});
+  const fleet=makeLocalFleet('pilot',noCamera,noOccupancy,fixture.fetcher);
+  await fleet.reset(0,0);
+  const speeds=fleet.active.map(b=>b.cruise);
+  assert.ok(new Set(speeds.map(v=>v.toFixed(3))).size>1,'Cruise speeds vary');
+  assert.ok(speeds.every(v=>v>=6*.85-1e-9 && v<=6*1.15+1e-9),'Cruise speeds stay within ±15 %');
+  fleet.dispose();
+}
+// A right-angle corner is taken as an arc: heading turns gradually and the bus slows down.
+{
+  const route={...pieceData(),path:[[0,0],[60,0],[60,200]]};
+  const fixture=makeFixture({cells:{'0_0':[['p',0,60]]},files:{'p.json':route}});
+  const fleet=makeLocalFleet('pilot',()=>true,noOccupancy,fixture.fetcher);
+  await fleet.reset(0,0);
+  const bus=fleet.active[0];
+  let maxTurn=0,minSpeed=Infinity,last=bus.state.h;
+  while(bus.state.distance<80){
+    fleet.step(1/60,0,0);
+    const turn=Math.abs(Math.atan2(Math.sin(bus.state.h-last),Math.cos(bus.state.h-last)));
+    maxTurn=Math.max(maxTurn,turn);last=bus.state.h;
+    if(bus.state.distance>50 && bus.state.distance<70)minSpeed=Math.min(minSpeed,bus.state.speed);
+  }
+  assert.ok(maxTurn<.05,'Heading turns smoothly at the vertex: '+maxTurn.toFixed(3)+' rad per frame');
+  assert.ok(minSpeed<bus.cruise*.75,'The bus slows down for a corner');
+  assert.ok(Math.abs(bus.state.h-Math.PI/2)<1e-6,'After the corner it follows the new street');
+  fleet.dispose();
 }
 {
   const route=pieceData(0,24,[{id:'s1',name:'Stop',position:[12,0],distance:12}]);
@@ -160,15 +208,21 @@ async function twoBuses(paths){
   const fleet=makeLocalFleet('pilot',()=>true,noOccupancy,fixture.fetcher);
   await fleet.reset(0,0);
   const bus=fleet.active[0];
-  for(let i=1;i<=12;i++){
+  let turns=0,direction=1;
+  for(let i=1;i<=24*60;i++){
     const before=bus.state.x;
-    fleet.step(1,0,0);
+    fleet.step(1/60,0,0);
     assert.equal(fleet.active[0],bus,'Keep the same bus through visible turnarounds');
-    assert.equal(bus.state.x,24-Math.abs((i*6)%48-24));
-    assert.equal(bus.state.speed,6);
+    assert.ok(bus.state.x>=0 && bus.state.x<=24);
+    assert.ok(bus.state.speed>0);
     assert.equal(bus.state.stopped,0);
-    assert.equal(Math.sign(Math.cos(bus.state.h)),Math.sign(bus.state.x-before));
+    const moved=bus.state.x-before;
+    if(Math.abs(moved)>1e-9){
+      if(Math.sign(moved)!==direction){turns++;direction=Math.sign(moved);}
+      assert.equal(Math.sign(Math.cos(bus.state.h)),Math.sign(moved));
+    }
   }
+  assert.ok(turns>=2,'The bus turns around at both ends');
   fleet.dispose();
 }
 {
@@ -200,9 +254,16 @@ async function twoBuses(paths){
   const fleet=makeLocalFleet('pilot',()=>true,noOccupancy,fixture.fetcher);
   await fleet.reset(0,0);
   const bus=fleet.active[0];
-  for(let i=0;i<9;i++)fleet.step(1,0,0);
+  let wrapped=false;
+  for(let i=0;i<20*60;i++){
+    const before=bus.progress,{x,y}=bus.state;
+    fleet.step(1/60,0,0);
+    if(bus.progress<before)wrapped=true;
+    const dx=bus.state.x-x,dy=bus.state.y-y;
+    assert.ok(dx*Math.cos(bus.state.h)+dy*Math.sin(bus.state.h)>=-1e-9,'Closed routes continue forward across the seam');
+  }
   assert.equal(fleet.active[0],bus);
-  assert.deepEqual([bus.state.x,bus.state.y,bus.state.h],[6,0,0],'Closed routes continue forward across the seam');
+  assert.ok(wrapped,'The loop wraps around its seam');
   fleet.dispose();
 }
 async function resumeOnReturn(){

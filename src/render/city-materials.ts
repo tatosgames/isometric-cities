@@ -46,5 +46,5 @@ export function cityMaterials(neutral: boolean,groundMap: GroundMap | null){
   });
   const road=breezy(new T.MeshStandardMaterial({...surfaceStencil(),vertexColors:true,flatShading:true,roughness:1,
     polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
-  return {mat,road,buildingMat,shadeMat,wood:breezy(timber()),leaf:breezy(timber(),'crown')};
+  return {mat,road,buildingMat,shadeMat,wood:breezy(timber()),leaf:breezy(Object.assign(timber(),surfaceStencil(true)),'crown')};
 }

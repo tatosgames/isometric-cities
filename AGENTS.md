@@ -26,6 +26,8 @@ Project roadmap
 | `scripts/qa-*.mjs` (boot, drive-*, pedestrians, recovery, sectors, ground, carriageways, lod, road-lab…) | Targeted Playwright tests; `qa.mjs` is the complete suite |
 | `src/drive/drive-camera.ts` | Calculation of camera positions and transitions in the guide |
 | `tsconfig.json` | Strict control of browser runtime and worker |
+| `src/render/game-renderer.ts`, `src/lab/lab-city.ts` | The game's renderer (look, output/FXAA, lights, adaptive quality, static shadows, wind clock) shared by map and labs; the labs' city streamed from the published sectors |
+| `src/render/gl-diagnostics.ts` | `[atlas:gl]` console reports: GPU at start, context lost/restored with view, sectors, quality and GPU objects, restore that never comes, GL errors such as OUT_OF_MEMORY |
 | `src/render/dynamic-quality.ts` | Device profiles and adaptive quality of shadows, anti-aliasing and resolution for map and guide |
 | `src/render/wind.ts` | Single wind: shadows of moving clouds, swaying treetops and palm trees, 30 fps cycle with static map |
 | `src/render/sea.ts` | Sea from the coast OSM: seabeds, waves with wind and foam on the shore with a distance texture |

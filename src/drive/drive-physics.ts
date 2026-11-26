@@ -20,6 +20,8 @@ export interface Body {
   ground: number; pace: number; grip: number;
   slopeAccel?: number;
   scrape?: {x: number;y: number;nx: number;ny: number;vx: number;vy: number;closing: number};
+  /** The hardest tree struck in this step and its closing speed (0 when none), for the tree shake. */
+  treeHit?: {x: number;y: number;speed: number};
 }
 
 type Profile = typeof TUNE.player;
@@ -193,11 +195,14 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
     return push(b,ax+dx*t,ay+dy*t,r,facade);
   }
   function treeContact(b: Body,tree: Point,r: number){
-    return push(b,tree[0],tree[1],r+tune.treeRadius,false);
+    const knock=push(b,tree[0],tree[1],r+tune.treeRadius,false);
+    if(b.treeHit && knock>b.treeHit.speed)Object.assign(b.treeHit,{x:tree[0],y:tree[1],speed:knock});
+    return knock;
   }
   function collide(b: Body,world: Pick<ReturnType<typeof buildDriveWorld>, "visitObstacles">){
     b.hitX=b.hitY=0;
     if(b.scrape)b.scrape.closing=0;
+    if(b.treeHit)b.treeHit.speed=0;
     const hit=world.visitObstacles(b,tune.radius,wallContact,treeContact);
     if(hit){const k=1-tune.wallLoss*Math.min(1,hit/8);b.vx*=k;b.vy*=k;}
     return hit;

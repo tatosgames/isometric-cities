@@ -15,6 +15,7 @@ import { makeDrive } from './drive/drive.ts';
 import { compactScreen, type DynamicQualityConfig } from './render/dynamic-quality.ts';
 import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
 import { makeGameRenderer } from './render/game-renderer.ts';
+import { watchGlContext } from './render/gl-diagnostics.ts';
 import { writeTune } from './render/look-lab.ts';
 import { lookControls } from './lab/look-controls.ts';
 import { FLIGHT_TUNE } from './flight/flight.ts';
@@ -113,6 +114,14 @@ async function start(){
   }
   let physicalDpr=devicePixelRatio, nextDisplayCheck=0;
   const stats=makeStatsOverlay(renderer,query);
+  // Registered before the map's own handler, so a loss is reported with what was resident when it happened.
+  const glWatch=watchGlContext(renderer,()=>{
+    const {view,sectors,qualityMode,qualityStage,shadows,aa}=host.dataset;
+    let stream: unknown=sectors;
+    try{if(sectors)stream=JSON.parse(sectors);}catch{}
+    return {boot:map.dataset.boot,view:view?'x,z,zoom '+view:'n/a',look,quality:`${qualityMode} L${qualityStage} shadows ${shadows} AA ${aa}`,
+      driving:!!drive?.active,stream};
+  });
   host.append(renderer.domElement);
   const residentZones=new Map<string,ZoneData>();
   const flightTerrain=makeTerrainCeiling(data.terrain,SEA_LEVEL);
@@ -437,6 +446,7 @@ async function start(){
     }
     stats?.begin();
     game.render(scene,lens,time,drive?.visualTimeScale??1);
+    glWatch.check(time);
     stats?.end();
     if(!document.hidden)setDesaturation(drive?.desaturation??0);
   }

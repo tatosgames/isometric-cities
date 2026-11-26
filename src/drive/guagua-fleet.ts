@@ -11,22 +11,74 @@ type Clock=ReturnType<typeof busTimetable>;
 interface Bus {
   id:string;line:string;direction:string;state:BusState;
   clock:Clock; progress:number; waiting:number; next:BusState; ahead:BusState;
+  cruise:number; speed:number;
 }
 const ACQUIRE=300,RELEASE=450,MAX_BUSES=6;
 const CRUISE_SPEED=6;
+// Each bus keeps its own cruise speed within ±15 % of the nominal one.
+const SPEED_SPREAD=.15;
+const ACCEL=1.6,BRAKE=3.2;
+// Followers settle about one headway behind the bus in front in the same lane.
+// New buses never enter closer than that to a bus heading the same way.
+const HEADWAY=34,MIN_GAP=6,BODY=7.4,LANE=3.2;
+// Curves: speed falls with the heading change over the lookahead.
+const CURVE_FLOOR=2.2;
+// Pose smoothing along the polyline: half the wheelbase window.
+const SMOOTH=3;
 const MIN_CITY_RUN=500;
 const dist2=(x:number,y:number,p:BusState)=>(x-p.x)**2+(y-p.y)**2;
+const angleGap=(a:number,b:number)=>Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));
 
 function circuitLength(clock:Clock){return clock.loop?clock.length:2*clock.length;}
 
+/** Stable value in [0,1) per passage, so speed survives a release and return. */
+function unit(id:string){
+  let h=2166136261;
+  for(let i=0;i<id.length;i++)h=Math.imul(h^id.charCodeAt(i),16777619);
+  return (h>>>0)/4294967296;
+}
+
+const rear={x:0,y:0},front={x:0,y:0},probe=emptyBusState();
+function pathPoint(clock:Clock,d:number,out:{x:number;y:number}){
+  d=clock.loop?((d%clock.length)+clock.length)%clock.length:Math.min(clock.length,Math.max(0,d));
+  clock.sampleAtDistance(d,probe);
+  out.x=probe.x;out.y=probe.y;
+}
+// Body centre and heading from points one window behind and ahead. Corners
+// become short arcs instead of a pivot at the polyline vertex.
 function sampleMotion(clock:Clock,progress:number,out:BusState){
   const offset=progress%circuitLength(clock);
   const returning=offset>=clock.length;
-  clock.sampleAtDistance(returning?2*clock.length-offset:offset,out);
+  const d=returning?2*clock.length-offset:offset;
+  pathPoint(clock,d-SMOOTH,rear);pathPoint(clock,d+SMOOTH,front);
+  clock.sampleAtDistance(d,out);
+  out.x=(rear.x+2*out.x+front.x)/4;out.y=(rear.y+2*out.y+front.y)/4;
+  if(front.x!==rear.x || front.y!==rear.y)out.h=Math.atan2(front.y-rear.y,front.x-rear.x);
   if(returning)out.h=Math.atan2(-Math.sin(out.h),-Math.cos(out.h));
-  out.speed=CRUISE_SPEED;
+  out.distance=d;
   out.stopped=0;
   out.braking=false;
+}
+
+/** Distance to the tail of the nearest bus ahead in the same lane and direction. */
+function gapAhead(bus:Bus,active:Bus[]){
+  const p=bus.state,c=Math.cos(p.h),s=Math.sin(p.h);
+  let gap=Infinity;
+  for(const other of active){
+    if(other===bus)continue;
+    const q=other.state,dx=q.x-p.x,dy=q.y-p.y;
+    const along=dx*c+dy*s;
+    if(along<=0 || along>HEADWAY+BODY || Math.abs(dy*c-dx*s)>LANE || angleGap(q.h,p.h)>.8)continue;
+    gap=Math.min(gap,along-BODY);
+  }
+  return gap;
+}
+function crowded(state:BusState,active:Bus[]){
+  const c=Math.cos(state.h),s=Math.sin(state.h);
+  return active.some(({state:q})=>{
+    const dx=q.x-state.x,dy=q.y-state.y;
+    return Math.abs(dx*c+dy*s)<HEADWAY+BODY && Math.abs(dy*c-dx*s)<LANE && angleGap(q.h,state.h)<.8;
+  });
 }
 
 export function validFleetIndex(value:unknown):value is Index{
@@ -167,12 +219,15 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
         // vehicle continues along the polyline without timetable dwells.
         const progress=state.distance;
         sampleMotion(clock,progress,state);
-        candidates.set(id,{id,line:ref.line,direction:ref.direction,clock,progress,state,waiting:0,next:emptyBusState(),ahead:emptyBusState()});
+        const cruise=CRUISE_SPEED*(1+SPEED_SPREAD*(2*unit(id)-1));
+        state.speed=cruise;
+        candidates.set(id,{id,line:ref.line,direction:ref.direction,clock,progress,state,waiting:0,
+          next:emptyBusState(),ahead:emptyBusState(),cruise,speed:cruise});
       }
     }
     const sorted=[...candidates.values()].sort((a,b)=>dist2(px,py,a.state)-dist2(px,py,b.state)||a.id.localeCompare(b.id));
     for(const bus of sorted){
-      if(active.some(b=>overlap(bus.state,b.state)))continue;
+      if(active.some(b=>overlap(bus.state,b.state)) || crowded(bus.state,active))continue;
       if(active.length===MAX_BUSES){
         let far=-1,distance=dist2(px,py,bus.state);
         for(let i=0;i<active.length;i++){
@@ -210,15 +265,24 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
     // the nearer vehicle; use its passage ID when both are equally far from entry.
     for(let i=0;i<active.length;i++){
       const bus=active[i],pose=bus.state;
-      const advance=CRUISE_SPEED*dt;
+      // Target speed: own cruise, less in curves, less when closing on a bus ahead.
+      const turn=Math.min(1,angleGap(bus.ahead.h,pose.h)/(Math.PI/2));
+      let target=Math.max(CURVE_FLOOR,bus.cruise*(1-.6*turn));
+      const gap=gapAhead(bus,active);
+      if(gap<HEADWAY)target=Math.min(target,bus.cruise*Math.max(0,(gap-MIN_GAP)/(HEADWAY-MIN_GAP)));
+      const before=bus.speed;
+      bus.speed=target>bus.speed?Math.min(target,bus.speed+ACCEL*dt):Math.max(target,bus.speed-BRAKE*dt);
+      const advance=bus.speed*dt;
       let progress=bus.progress+advance;
       const endOfLeg=Math.floor(progress/bus.clock.length)>Math.floor(bus.progress/bus.clock.length);
       if(endOfLeg || dist2(x,y,pose)>RELEASE**2){
         if(!visible(pose.x,pose.y) && !occupied(pose.x,pose.y,pose.h)){active.splice(i--,1);continue;}
       }
       sampleMotion(bus.clock,progress,bus.next);
+      let headOn=false;
       let blocked=active.some(other=>{
         if(other===bus || dist2(pose.x,pose.y,other.state)>24**2)return false;
+        headOn=angleGap(other.state.h,pose.h)>2.4;
         if(overlap(bus.next,other.state) || overlap(bus.ahead,other.state))return true;
         if(!overlap(bus.ahead,other.ahead))return false;
         const dx=other.state.x-pose.x,dy=other.state.y-pose.y;
@@ -228,7 +292,8 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
       });
       // Two buses can meet on the same stretch after a turnaround. Let a
       // yielding bus take the other direction if it has room behind it.
-      if(blocked && !bus.clock.loop && bus.waiting>=2){
+      // A crossing bus only has to wait for the other one to pass.
+      if(blocked && headOn && !bus.clock.loop && bus.waiting>=2){
         const length=circuitLength(bus.clock),retreat=(length-bus.progress+advance)%length;
         sampleMotion(bus.clock,retreat,bus.next);
         if(!active.some(other=>other!==bus && overlap(bus.next,other.state))){
@@ -238,9 +303,10 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
       }
       if(blocked){
         bus.waiting+=dt;
-        pose.speed=0;pose.braking=true;
+        bus.speed=pose.speed=0;pose.braking=true;
       }else{
         bus.waiting=0;
+        bus.next.speed=bus.speed;bus.next.braking=bus.speed<before-1e-6;
         // A step can straddle a turnaround. Face the actual displacement
         // until the sampled path tangent and travel direction agree again.
         const dx=bus.next.x-pose.x,dy=bus.next.y-pose.y;

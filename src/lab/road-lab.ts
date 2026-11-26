@@ -102,7 +102,7 @@ export async function roadLab(){
     if(ui.distance>=100)ui.distance=0;
     playing=true;last=performance.now();play.name('Pause');schedule();
   }},'play').name('Start route');
-  gui.add({reset(){pause();ui.distance=0;schedule();}},'reset').name('Restart from Calle Pelota');
+  gui.add({reset(){pause();ui.distance=0;scrub.updateDisplay();schedule();}},'reset').name('Restart from Calle Pelota');
   // The same positions with one rendering per frame, each after its sectors are in.
   async function measure(){
     if(measuring)return;pause();measuring=true;gui.domElement.inert=true;
