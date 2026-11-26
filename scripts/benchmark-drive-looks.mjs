@@ -10,7 +10,7 @@ const {server,origin}=/^https?:\/\//.test(target)?{origin:target}:await serveMap
 const browser=await chromium.launch({channel:'chrome'});
 const looks=[['base','&look=base'],['sole','&look=sole'],['matcap','&look=matcap'],['matcap-tilt','&look=matcap&tilt']];
 const report={target:origin,start,viewport:[1440,900],dpr:1,framesPerRun:180,simulationHz:60,rows:[]};
-const shotStyle='#drive-lab{visibility:hidden}';
+const shotStyle='.lab-runtime,#drive-lab{visibility:hidden}';
 
 try{
   await mkdir(out,{recursive:true});

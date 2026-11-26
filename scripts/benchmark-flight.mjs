@@ -93,7 +93,7 @@ try{
       return rows;
     },pass);
     for(const row of rows)console.log(JSON.stringify(row));
-    if(shots)await page.screenshot({path:join(shots,'piper-'+pass+'-dive.png'),style:'#drive-lab{visibility:hidden}'});
+    if(shots)await page.screenshot({path:join(shots,'piper-'+pass+'-dive.png'),style:'.lab-runtime,#drive-lab{visibility:hidden}'});
   }
   if(faults.length)throw new Error(faults.join('\n'));
 }finally{await browser.close();await server?.close();}

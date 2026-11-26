@@ -15,12 +15,14 @@ import { draftEdit, roundCoordinate as round, vertexList } from './edit-draft.ts
 import { makeEditHistory } from './edit-history.ts';
 import { bindPointerEditing, type Selection } from './pointer-editing.ts';
 import { disposeMeshes, poseProp } from './props.ts';
+import { labNavigation } from '../lab/lab-shell.ts';
 
 type Mode = 'select' | 'move' | 'vertices' | 'rotate';
 const ui = <E extends HTMLElement>(id: string) => required(document.querySelector<E>('#'+id),id);
 const button = (id: string) => ui<HTMLButtonElement>(id);
 const message = ui('message');
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Could not complete the action.';
+ui('editor-lab-navigation').append(labNavigation('editor'));
 
 async function start() {
   const [base,{tones}] = await Promise.all([loadPilotBase(),loadData('roof-tones.json',isRoofPalette)]);

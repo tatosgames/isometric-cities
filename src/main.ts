@@ -16,6 +16,7 @@ import { compactScreen, renderPixelRatio, makeDynamicQuality, type DynamicQualit
 import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
 import { makeQualityOutput } from './render/quality-output.ts';
 import { lightLook, makeMatcapPatcher, readLook } from './render/look-lab.ts';
+import { runtimeLab } from './lab/lab-shell.ts';
 import { makeStatsOverlay } from './render/stats-overlay.ts';
 import { makeSkyEffects } from './render/sky-effects.ts';
 import { wind } from './render/wind.ts';
@@ -38,6 +39,8 @@ async function start(){
   const pilot=query.get('area')==='pilot';
   // `?lab=guida`: the tuning panel of the drive, listed in lab.html.
   const lab=query.get('lab')==='guida';
+  const qualityLab=query.get('lab')==='qualita';
+  const showLab=lab || (qualityLab && (!query.has('preview') || query.has('diagnostics')));
   const neutral=query.has('neutral');
   const {signal}=startup;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
@@ -58,9 +61,17 @@ async function start(){
   const sessionKey='map-view:'+location.pathname+location.search;
   let resume: ReturnType<typeof parseViewState>=null;
   try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
+  if(qualityLab && !resume){
+    try{resume=parseViewState(query.get('vista'));}catch{}
+  }
+  function shareLabView(){
+    const url=new URL(location.href);
+    if(qualityLab && lastView)url.searchParams.set('vista',JSON.stringify({...lastView,selected:places.selected}));
+    return url;
+  }
   let losses=Number(resume?.losses)||0;
-  const labOutput=query.get('lab')==='qualita' && (!query.has('preview') || query.has('diagnostics'))
-    ? document.createElement('output'):null;
+  const tools=showLab?runtimeLab(lab?'guida':'qualita',shareLabView):null;
+  const labOutput=tools?document.createElement('output'):null;
   const decisions:string[]=[];
   let bufferReport='', cadenceReport='', contextReport='WebGL active';
   const frameGaps:number[]=[];
@@ -68,30 +79,38 @@ async function start(){
   function showQualityLab(){
     if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,contextReport,...decisions].filter(Boolean).join('\n');
   }
-  if(labOutput){
+  if(tools && labOutput){
     labOutput.id='quality-diagnostics';
     labOutput.setAttribute('aria-label','Rendering quality');
-    const panel=document.createElement('section'),looks=document.createElement('div');
-    panel.id='quality-lab';
-    looks.className='quality-looks';
-    looks.setAttribute('role','group');
-    looks.setAttribute('aria-label','Rendering look');
-    const options=[['matcap',false,'Matcap'],['base',false,'Base'],['sole',false,'Sole'],['matcap',true,'Matcap + tilt']] as const;
-    for(const [variant,blur,label] of options){
-      const params=new URLSearchParams(query),link=document.createElement('a');
-      params.set('look',variant);
-      if(blur)params.set('tilt','');else params.delete('tilt');
-      link.href='?'+params.toString();
-      link.textContent=label;
-      if(variant===look && blur===tilt)link.setAttribute('aria-current','true');
-      looks.append(link);
+    if(qualityLab){
+      const looks=document.createElement('div');
+      looks.className='quality-looks';
+      looks.setAttribute('role','group');
+      looks.setAttribute('aria-label','Rendering look');
+      const options=[['matcap',false,'Matcap'],['base',false,'Base'],['sole',false,'Sole'],['matcap',true,'Matcap + tilt']] as const;
+      for(const [variant,blur,label] of options){
+        const link=document.createElement('a');
+        const href=(url:URL)=>{
+          url.searchParams.set('look',variant);
+          if(blur)url.searchParams.set('tilt','');else url.searchParams.delete('tilt');
+          return url.href;
+        };
+        link.href=href(new URL(location.href));
+        link.addEventListener('click',()=>{link.href=href(shareLabView());});
+        link.textContent=label;
+        if(variant===look && blur===tilt)link.setAttribute('aria-current','true');
+        looks.append(link);
+      }
+      tools.panel.append(looks);
     }
-    panel.append(looks,labOutput);
-    map.append(panel);
-    signal.addEventListener('abort',()=>panel.remove(),{once:true});
+    const diagnostics=document.createElement('details'),summary=document.createElement('summary');
+    summary.textContent='Diagnostics';diagnostics.open=qualityLab || query.has('diagnostics');
+    diagnostics.append(summary,labOutput);tools.panel.append(diagnostics);
+    map.append(tools.root);
+    signal.addEventListener('abort',()=>tools.root.remove(),{once:true});
   }
   const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',solarShadows:look!=='matcap',
-    preview:query.get('lab')==='qualita'?query.get('preview'):null,
+    preview:qualityLab?query.get('preview'):null,
     ...(labOutput && {onDecision({mode,action,reason,from,to,targetFps,fps,p95Ms}){
       const metrics=fps===null || p95Ms===null?'':` · ${fps.toFixed(0)} FPS · p95 ${p95Ms.toFixed(1)} ms`;
       const effect=(entry:typeof from)=>`L${entry.stage} ${entry.shadows}/${entry.antialias}`;
@@ -620,7 +639,7 @@ async function start(){
     draw();
     // The driving world and its pedestrians are not needed to see the map: the first Play builds them.
     if(drive && !drive.available)disablePlay();
-    if(lab && drive){
+    if(lab && drive && tools){
       // Driving lab: every run starts where the map opens, with the tuning panel beside the game.
       const tested=drive;
       // `start=x,y` (map metres) picks the street to test on, for example a steep one.
@@ -630,7 +649,7 @@ async function start(){
         view(new T.Vector3(sx,altitude(sx,sy),-sy),camera.zoom);
         tested.startAt([sx,sy]);
       }else tested.startAt([controls.target.x,-controls.target.z]);
-      void import('./lab/drive-lab.ts').then(({driveLab})=>driveLab({drive:tested,host,compact,begin:()=>play.click()}));
+      void import('./lab/drive-lab.ts').then(({driveLab})=>driveLab({drive:tested,host,compact,mount:tools.panel,begin:()=>play.click()}));
       return;
     }
   },{once:true});

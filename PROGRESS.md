@@ -1,5 +1,7 @@
 # Checkpoints
 
+**Lab consolidation.** Three areas share navigation and collapsible controls. The four road fixtures live under one scenario selector, the driving and flying panel shares the rendering diagnostics, and Copy link preserves the active test settings. The pilot editor remains accessible from the lab navigation. [Entry points](README.md#labs).
+
 Matcap without tilt is the default for the map, drive and flight. Rendering quality offers Matcap, Base, Sole and Matcap + tilt. The desktop Matcap profile starts at static shadows and drops directly to shadows off when needed. `?stats` adds the three.js Stats panel. [Comparison and verification](docs/QA.md#pilot-rendering-benchmark).
 
 The Sole prototype now uses a stronger sky fill for more detail in shade. On the Intel UHD pilot benchmark, Matcap halved median GPU time compared with Base and sustained 60 FPS. Tilt adds three fullscreen draws. [Published and local benchmark](docs/QA.md#pilot-rendering-benchmark).

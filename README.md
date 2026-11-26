@@ -18,6 +18,16 @@ The home page opens a full-screen view of Triana. The menu at the top left lists
 
 The editor opens on [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) or locally on `http://127.0.0.1:5197/editor.html`. Download the fixes in JSON and reload them in the editor or in **Test Drive**. The browser reads the file from the device.
 
+## Labs
+
+Open `lab.html` for the three labs and the pilot editor. The labs share navigation and a collapsible Controls panel. **Copy link** captures the current test parameters.
+
+| Lab | Entry and useful parameters |
+|---|---|
+| Rendering, effects & quality | `index.html?lab=qualita`. Use `look=base\|sole\|matcap`, `tilt`, `sky=0`, `stats` or `preview=base\|static\|fxaa&diagnostics`. Look links carry the current map view. |
+| Driving & flight | `index.html?lab=guida&area=pilot`. Use `start=x,y`, `seed`, `nopolice`, `nobuses`, `t` and `diagnostics`. Use the plane button to switch to flight and the Flight folder for Piper tuning. |
+| Map, LOD & roads | `lab.html?lab=strade`. Pick `scenario=mercado\|larghezze\|settori\|lod` from the selector. The old `lab.html?test=…` links still open their original scenarios. |
+
 ## Replay the data
 
 Vision requires only Node. To reconstruct the data, from the root with Python 3.13 and curl:

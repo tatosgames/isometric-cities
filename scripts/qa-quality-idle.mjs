@@ -63,6 +63,8 @@ try{
     await page.waitForFunction(()=>document.getElementById('quality-diagnostics').textContent.includes('WebGL context restored'));
     await page.waitForSelector('#status[hidden]',{state:'attached'});
     assert.equal(await scene.getAttribute('data-view'),view);
+    await page.locator('#rotate-right').click();
+    await page.waitForSelector('#scene[data-moving="false"][data-map-angle="90.00"]');
     const looks=page.getByRole('group',{name:'Rendering look'});
     assert.equal(await looks.locator('[aria-current="true"]').textContent(),'Matcap');
     for(const [label,look,tilt,shadows] of [
@@ -74,10 +76,14 @@ try{
       await page.waitForSelector(`#scene[data-look="${look}"][data-tilt="${tilt}"][data-shadows="${shadows}"]`);
       assert.equal(await looks.locator('[aria-current="true"]').textContent(),label);
       assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
+      assert.equal(await scene.getAttribute('data-map-angle'),'90.00');
+      assert.equal(await scene.getAttribute('data-view'),view);
     }
     assert.deepEqual(errors,[]);
     console.log('Matcap default, idle shadow and DPR drops, WebGL recovery and all four look options passed.');
   }else{
+    const controls=page.getByRole('button',{name:'Controls',exact:true});
+    assert.equal(await controls.getAttribute('aria-expanded'),'false');
     await page.waitForSelector('#scene[data-shadows="off"][data-aa="off"][data-dpr="1"]');
     await page.waitForSelector('#scene[data-shadows="static"][data-aa="off"][data-dpr="1"]',{timeout:30000});
     await page.waitForTimeout(4000);
@@ -85,6 +91,8 @@ try{
     assert.equal(await page.locator('#scene').getAttribute('data-aa'),'off');
     const report=page.locator('#quality-diagnostics');
     await page.waitForFunction(()=>document.getElementById('quality-diagnostics')?.textContent.includes('confirm (stable)'));
+    await controls.click();
+    assert.equal(await controls.getAttribute('aria-expanded'),'true');
     const size=await page.locator('#scene canvas').evaluate(canvas=>{
       const gl=canvas.getContext('webgl2');
       return `${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`;

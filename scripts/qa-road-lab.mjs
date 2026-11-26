@@ -13,9 +13,10 @@ try{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     const catalog=new URL(url);catalog.search='';
     await page.goto(catalog.href);
-    await page.getByRole('link',{name:'Roads · Mercado de Vegueta'}).click();
+    await page.getByRole('link',{name:'Map, LOD & roads'}).click();
     await page.waitForSelector('#view[data-ready=true]');
-    const variant=page.locator('select'),view=page.locator('#view');
+    assert.equal(await page.getByLabel('Scenario',{exact:true}).inputValue(),'mercado');
+    const variant=page.locator('#gui select'),view=page.locator('#view');
     const captured=[];
     for(let i=0;i<3;i++){
       await variant.selectOption({index:i});
@@ -42,6 +43,17 @@ try{
       await page.waitForFunction(()=>document.querySelector('#metrics').textContent.includes('Geometric carriageway'),null,{timeout:120000});
       console.log(await page.locator('#metrics').textContent());
       assert.equal(await view.getAttribute('data-road-mode'),'1');
+    }
+    if(!mobile){
+      await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+      await page.getByRole('button',{name:'Copy link'}).click();
+      await page.getByRole('button',{name:'Link copied'}).waitFor();
+      const share=await page.evaluate(()=>navigator.clipboard.readText());
+      await page.goto(share);
+      await page.waitForSelector('#view[data-ready=true][data-road-mode="1"]');
+      await page.getByLabel('Scenario',{exact:true}).selectOption('lod');
+      await page.waitForSelector('#view[data-ready=true][data-lod-changes]');
+      assert.equal(new URL(page.url()).searchParams.get('scenario'),'lod');
     }
     assert.deepEqual(errors,[]);await page.close();
   }

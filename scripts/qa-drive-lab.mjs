@@ -12,13 +12,19 @@ try{
   const ready=()=>page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
   // The catalogue of the lab links to it.
   await page.goto(new URL('lab.html',origin).href);
-  await page.getByRole('link',{name:'Drive · tuning'}).click();
+  assert.equal(await page.locator('#tests a').count(),3);
+  await page.getByRole('link',{name:'Driving & flight'}).click();
   await ready();
   assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
   const titles=await page.locator('#drive-lab .title').allTextContents();
-  for(const title of ['Player','Patrols','Impacts and braking','Car on screen','Camera and effects','Chase','Surfaces','Drive views']){
+  for(const title of ['Player','Patrols','Impacts and braking','Car on screen','Camera and effects','Chase','Surfaces','Drive views','Flight']){
     assert.ok(titles.includes(title),'Missing folder '+title);
   }
+  assert.equal(await page.getByRole('navigation',{name:'Labs'}).locator('[aria-current=page]').textContent(),'Driving & flight');
+  await page.getByText('Diagnostics',{exact:true}).click();
+  await page.locator('#quality-diagnostics').waitFor();
+  assert.match(await page.locator('#quality-diagnostics').innerText(),/WebGL active/);
+  await page.getByText('Diagnostics',{exact:true}).click();
 
   // Straight line up to the base speed, 90 km/h by default.
   const scene=page.locator('#scene');
@@ -34,7 +40,7 @@ try{
     // The URL is written when the change ends, as it does when the field loses the keyboard.
     input.focus();input.value='30';input.dispatchEvent(new Event('input',{bubbles:true}));input.blur();
   });
-  assert.match(decodeURIComponent(page.url()),/t=player\.baseSpeed:30/);
+  await page.waitForURL(url=>/t=player\.baseSpeed:30/.test(decodeURIComponent(url.search)));
   // A drag is hundreds of steps: the URL is written once at its end, and a duration cannot reach zero.
   const drag=await page.evaluate(()=>{
     const row=[...document.querySelectorAll('#drive-lab .controller')].find(c=>c.querySelector('.name').textContent==='bonusTime');
@@ -71,6 +77,18 @@ try{
   assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#drive-lab .controller')]
     .find(c=>c.querySelector('.name').textContent==='baseSpeed (km/h)').querySelector('input').value),'30');
   assert.equal(await page.locator('#drive-lab').getByLabel('Police').isChecked(),false);
+
+  // Flight tuning uses the same URL and controls without changing ordinary gameplay defaults.
+  const flightUrl=new URL(page.url());
+  flightUrl.searchParams.append('diagnostics','1');
+  flightUrl.searchParams.set('t',(flightUrl.searchParams.get('t')??'')+',flight.fov:200');
+  await page.goto(flightUrl.href);
+  await ready();
+  await page.locator('#drive-lab .title',{hasText:'Flight'}).click();
+  const fov=page.locator('#drive-lab .controller').filter({hasText:'Camera FOV'}).locator('input');
+  assert.equal(await fov.inputValue(),'75');
+  await fov.fill('60');await fov.press('Enter');
+  await page.waitForURL(url=>/flight\.fov:60/.test(decodeURIComponent(url.search)));
 
   // Outside the lab the same parameter is ignored: the published game keeps its own values.
   await page.goto(new URL('index.html?area=pilot&t=player.baseSpeed:30',origin).href);

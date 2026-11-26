@@ -32,11 +32,12 @@ try {
       },stop.distance+1,{timeout:60000});
       if(index===0){
         const path=fileURLToPath(new URL(mobile?'guagua-mobile.png':'guagua-desktop.png',dir));
-        await page.screenshot({path,style:'#drive-lab{visibility:hidden}'});
+        await page.screenshot({path,style:'.lab-runtime{visibility:hidden}'});
       }
     }
     await page.keyboard.up('ArrowDown');
     const restart=page.getByRole('button',{name:'Back to start'});
+    if(mobile)await page.getByRole('button',{name:'Controls',exact:true}).click();
     if(!await restart.isVisible())await page.locator('#drive-lab .lil-gui.root > .title').click();
     await restart.click();
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive?.startsWith('ready'));

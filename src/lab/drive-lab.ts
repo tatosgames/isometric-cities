@@ -2,12 +2,13 @@
 // the changed values live in the URL and can be copied as lines for `drive-tune.ts`.
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {SURFACES,TUNE} from '../drive/drive-tune.ts';
+import {FLIGHT_TUNE} from '../flight/flight.ts';
 import type {makeDrive} from '../drive/drive.ts';
 import './drive-lab.css';
 
 type Unit={name: 'deg' | 'kmh' | '';scale: number};
 // `mirror` is the patrol profile for the values patrols take from the player.
-type Leaf={path: string;owner: Record<string,number>;key: string;unit: Unit;initial: number;row: HTMLElement;mirror: Record<string,number> | undefined};
+type Leaf={path: string;owner: Record<string,number>;key: string;unit: Unit;initial: number;row: HTMLElement;mirror: Record<string,number> | undefined;range?: readonly [number,number]};
 const DEG: Unit={name:'deg',scale:180/Math.PI},KMH: Unit={name:'kmh',scale:3.6},RAW: Unit={name:'',scale:1};
 const angles=/^(turn|turnLow|turnRamp|recover|releaseRecover|maxSlip|bonusSlip|pitch|pose(Yaw|Roll|YawLimit|Dive))$/;
 const unitOf=(key: string)=>angles.test(key)?DEG:/^(baseSpeed|topSpeed)$/.test(key)?KMH:RAW;
@@ -30,7 +31,9 @@ const groups: [title: string,keys: RegExp][]=[
 // Coins, goal and slope stay out: they are not handling or how the car looks.
 const round=(v: number)=>Number(v.toPrecision(6));
 
-export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof makeDrive>;host: HTMLElement;compact: boolean;begin: () => void}){
+export function driveLab({drive,host,compact,mount,begin}: {
+  drive:ReturnType<typeof makeDrive>;host:HTMLElement;compact:boolean;mount:HTMLElement;begin:()=>void;
+}){
   // Only the view span of this screen does anything here.
   hidden.add(compact?'viewSpanWide':'viewSpanCompact');
   const query=new URLSearchParams(location.search);
@@ -48,20 +51,21 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
   const shown: Record<string,number>={};
   const panel=document.createElement('aside');panel.id='drive-lab';
   const readout=document.createElement('output');
-  const gui=new GUI({container:panel,title:'Drive · tuning'});
-  panel.append(readout);document.body.append(panel);
+  const gui=new GUI({container:panel,title:'Tuning'});
+  panel.append(readout);mount.prepend(panel);
 
   const differs=(leaf: Leaf)=>Math.abs(leaf.owner[leaf.key]-leaf.initial)>1e-9*Math.max(1,Math.abs(leaf.initial));
   const mark=(leaf: Leaf)=>leaf.row.classList.toggle('changed',differs(leaf));
-  function add(folder: GUI,owner: Record<string,number>,key: string,path: string,mirror?: Record<string,number>){
-    const unit=unitOf(key),initial=owner[key];
+  function add(folder: GUI,owner: Record<string,number>,key: string,path: string,mirror?: Record<string,number>,
+    field?:{unit:Unit;range:readonly [number,number];label:string}){
+    const unit=field?.unit??unitOf(key),initial=owner[key];
     shown[path]=round(initial*unit.scale);
     const top=Math.abs(shown[path])||1;
     const step=10**Math.floor(Math.log10(top))/100;
-    const controller=folder.add(shown,path,positive.test(key)?step:0,round(top*3),step)
-      .name(key+(unit.name?' ('+(unit.name==='deg'?'°':'km/h')+')':''))
+    const controller=folder.add(shown,path,field?.range[0]??(positive.test(key)?step:0),field?.range[1]??round(top*3),step)
+      .name((field?.label??key)+(unit.name?' ('+(unit.name==='deg'?'°':'km/h')+')':''))
       .onChange((value: number)=>{owner[key]=value/unit.scale;if(mirror)mirror[key]=owner[key];drive.retune();mark(leaf);});
-    const leaf: Leaf={path,owner,key,unit,initial,row:controller.domElement,mirror};
+    const leaf: Leaf={path,owner,key,unit,initial,row:controller.domElement,mirror,...(field && {range:field.range})};
     leaves.push(leaf);
     return controller;
   }
@@ -98,6 +102,15 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
   controllers.set('roughDrag',add(surfaceFolder,tree as Record<string,number>,'roughDrag','roughDrag'));
   walk(surfaceFolder,tree.surfaces as Record<string,unknown>,'surfaces.');
   walk(gui.addFolder(folders.cameraModes).close(),tree.cameraModes as Record<string,unknown>,'cameraModes.');
+  const flightFolder=gui.addFolder('Flight').close();
+  const flightFields=[
+    ['cruiseSpeed','Cruise speed',KMH,65,180],['bankLimit','Bank limit',DEG,10,55],
+    ['pitchLimit','Pitch limit',DEG,10,40],['fov','Camera FOV (°)',RAW,35,75]
+  ] as const;
+  for(const [key,label,unit,min,max] of flightFields){
+    const path='flight.'+key;
+    controllers.set(path,add(flightFolder,FLIGHT_TUNE,key,path,undefined,{unit,range:[min,max],label}));
+  }
 
   // Written when a change ends, not on every step of a drag: browsers limit how often the URL may change.
   function store(){
@@ -107,7 +120,9 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
     history.replaceState(null,'','?'+query.toString().replaceAll('%3A',':').replaceAll('%2C',','));
   }
   function set(leaf: Leaf,value: number){
-    leaf.owner[leaf.key]=value;if(leaf.mirror)leaf.mirror[leaf.key]=value;shown[leaf.path]=round(value*leaf.unit.scale);
+    const scale=leaf.unit.scale;
+    if(leaf.range)value=Math.max(leaf.range[0],Math.min(leaf.range[1],value*scale))/scale;
+    leaf.owner[leaf.key]=value;if(leaf.mirror)leaf.mirror[leaf.key]=value;shown[leaf.path]=round(value*scale);
     controllers.get(leaf.path)?.updateDisplay();mark(leaf);
   }
   // The changed values as they are written in `drive-tune.ts`, one profile or one value per line.
@@ -150,9 +165,14 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
       // A car that has not moved yet has no gear: it starts in the base one.
       next=(speed*3.6).toFixed(0).padStart(3)+' km/h · gear '+(Math.max(car.gear,TUNE.player.baseSpeed)*3.6).toFixed(0)
         +'\nslip '+slip.toFixed(0).padStart(3)+'° · slide '+car.drifted.toFixed(1)+' s'
-        +'\n'+SURFACES[car.ground]+' · patrols '+drive.patrols+(copied?'\n\n'+copied:'');
+        +'\n'+SURFACES[car.ground]+' · patrols '+drive.patrols;
+      if(host.dataset.flight){
+        const [phase,,,altitude,heading]=host.dataset.flight.split(',');
+        next=`Flight · ${phase}\n${altitude} m · heading ${Math.round(Number(heading)*DEG.scale)}°`;
+      }
       host.dataset.lab=[(speed*3.6).toFixed(1),slip.toFixed(1),drive.patrols,car.ground].join(',');
     }
+    if(copied)next+='\n\n'+copied;
     if(next!==text)readout.textContent=text=next;
   }
   telemetry();

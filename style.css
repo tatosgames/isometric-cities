@@ -141,23 +141,9 @@ article[data-kind=card] h3{font-size:26px}
 .flight-stick{position:absolute;width:76px;height:76px;margin:-38px;border:1px solid #fff8;border-radius:50%;background:#263b382b;display:grid;place-items:center;pointer-events:none}
 .flight-stick i{width:24px;height:24px;background:#fffcebba;border-radius:50%;box-shadow:0 1px 4px #18272166}
 
-/* Look selector and diagnostics in the quality lab, above the map controls. */
-#quality-lab {
-  position: absolute;
-  left: .5rem;
-  bottom: 5rem;
-  z-index: 8;
-  max-width: calc(100% - 1rem);
-  padding: .4rem .6rem;
-  border-radius: .35rem;
-  pointer-events: none;
-  background: #172520ec;
-  color: white;
-  font: 12px/1.4 monospace;
-}
-#quality-diagnostics { white-space: pre-line; }
-.quality-looks { display: flex; flex-wrap: wrap; gap: .25rem .65rem; margin-bottom: .4rem; }
-.quality-looks a { color: inherit; pointer-events: auto; padding: .25rem 0; }
+#quality-diagnostics { display: block; padding-top: .35rem; white-space: pre-wrap; font: 12px/1.4 monospace; }
+.quality-looks { display: flex; flex-wrap: wrap; gap: .25rem .65rem; padding: .35rem .55rem; }
+.quality-looks a { color: inherit; padding: .25rem 0; }
 .quality-looks a[aria-current] { font-weight: bold; text-decoration: none; }
 @media (pointer: coarse) {
   .quality-looks a { display: inline-flex; align-items: center; min-width: 40px; min-height: 40px; }

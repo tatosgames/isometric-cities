@@ -9,14 +9,15 @@ import type {FlightCeiling} from './terrain-ceiling.ts';
 
 type Phase='off'|'launch'|'fly'|'return'|'crash';
 type Sample=(x:number,y:number)=>number;
-const CRUISE=32,SPAN=10.7;
+export const FLIGHT_TUNE={cruiseSpeed:32,bankLimit:.74,pitchLimit:.48,fov:54};
+const SPAN=10.7;
 const smooth=(t:number)=>T.MathUtils.smoothstep(t,0,1);
 const clamp=T.MathUtils.clamp;
 
 /** Simulation coordinates are easting, northing and absolute elevation. The model points along local +X. */
 export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sample,
   onExit:()=>void,covered:(x:number,y:number)=>boolean,ceiling?:FlightCeiling){
-  const camera=new T.PerspectiveCamera(54,1,.35,6200),target=new T.Vector3();
+  const camera=new T.PerspectiveCamera(FLIGHT_TUNE.fov,1,.35,6200),target=new T.Vector3();
   const trails=makeWingTrails();
   const plane=makePiper(),burst=makeBurst(),controls=makeFlightControls(host,onExit);
   const streetOffset=new T.Vector3();
@@ -55,15 +56,15 @@ export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sam
     return -clamp(wrapAngle(recoverHeading-h)*3,-1,1);
   }
   function cruise(dt:number){
-    const desiredBank=steer()*.74;
+    const desiredBank=steer()*FLIGHT_TUNE.bankLimit;
     bank+=(desiredBank-bank)*approach(4,dt);
-    pitch+=(controls.pitch*.48-pitch)*approach(3,dt);
+    pitch+=(controls.pitch*FLIGHT_TUNE.pitchLimit-pitch)*approach(3,dt);
     h-=Math.tan(bank)*1.03*dt;
-    const c=Math.cos(h),s=Math.sin(h),distance=CRUISE*dt*Math.cos(pitch);
+    const c=Math.cos(h),s=Math.sin(h),distance=FLIGHT_TUNE.cruiseSpeed*dt*Math.cos(pitch);
     const nx=x+c*distance,ny=y+s*distance;
     if(covered(nx,ny)){x=nx;y=ny;}
     // A lower valley can put us above the local climb limit. Only constrain further ascent.
-    const rise=CRUISE*dt*Math.sin(pitch);
+    const rise=FLIGHT_TUNE.cruiseSpeed*dt*Math.sin(pitch);
     z=rise>0?Math.min(z+rise,Math.max(z,ground(x,y)+460)):z+rise;
     const half=SPAN/2;
     const lowest=z+Math.min(-.95,3*Math.sin(pitch),.82-half*Math.abs(Math.sin(bank)));
@@ -92,7 +93,9 @@ export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sam
     if(phase==='fly')trails.update(plane.root,bank,dt);
     plane.wings.scale.z=.13+.87*smooth(deploy);
     const aspect=Math.max(.1,host.clientWidth/Math.max(1,host.clientHeight));
-    if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
+    if(camera.aspect!==aspect || camera.fov!==FLIGHT_TUNE.fov){
+      camera.aspect=aspect;camera.fov=FLIGHT_TUNE.fov;camera.updateProjectionMatrix();
+    }
     const distance=Math.max(23,SPAN/(.54*aspect)),c=Math.cos(h),s=Math.sin(h);
     // Follow the descent from above the tail, with the next stretch of the dive in frame.
     const dive=phase==='fly'?Math.max(0,-Math.sin(pitch)):0;
@@ -162,13 +165,13 @@ export function makeFlight(host:HTMLElement,scene:T.Scene,ground:Sample,roof:Sam
       const lift=smooth(age/1.05);
       z=T.MathUtils.lerp(launchBase,launchTop,lift);deploy=clamp((age-.45)/.66,0,1);
       if(age>1.05){
-        const travel=CRUISE*smooth((age-1.05)/.65)*dt;
+        const travel=FLIGHT_TUNE.cruiseSpeed*smooth((age-1.05)/.65)*dt;
         const nx=x+Math.cos(h)*travel,ny=y+Math.sin(h)*travel;
         if(covered(nx,ny)){x=nx;y=ny;}
       }
       if(age>=1.7){phase='fly';age=0;}
     }else if(phase==='fly'){
-      const steps=Math.max(1,Math.ceil(dt*CRUISE/.35));
+      const steps=Math.max(1,Math.ceil(dt*FLIGHT_TUNE.cruiseSpeed/.35));
       for(let i=0;i<steps;i++)if(!cruise(dt/steps)){
         phase='crash';age=0;controls.release();target.set(x,z,-y);
         plane.root.visible=false;trails.reset();burst.root.rotation.y=h;burst.root.position.copy(target);scene.add(burst.root);burst.update(0);

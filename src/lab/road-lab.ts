@@ -89,7 +89,9 @@ export async function roadLab(){
   pavement.receiveShadow=true;scene.add(pavement);
   const car=new T.Mesh(carGeometry('#d8452f','#f4ead7',false),new T.MeshStandardMaterial({vertexColors:true,roughness:.8,flatShading:true}));
   car.scale.setScalar(carVisualScale);car.castShadow=true;car.receiveShadow=true;scene.add(car);
-  const ui={variant:labels[0],distance:0};
+  const query=new URLSearchParams(location.search);
+  const initialMode=modes.find(mode=>String(mode)===query.get('variante'))??0;
+  const ui={variant:labels[initialMode],distance:T.MathUtils.clamp(Number(query.get('pos'))||0,0,100)};
   let mode:Mode=0,playing=false,measuring=false,last=0,animation=0;
   const gui=new GUI({container:$('gui'),title:'Carriageway comparison'});
   const variant=gui.add(ui,'variant',labels).name('Rendering').onChange(()=>{select(labels.indexOf(ui.variant) as Mode);draw();});
@@ -103,7 +105,10 @@ export async function roadLab(){
     pavement.visible=n===2;
   }
   const split=$('split') as HTMLInputElement, divider=$('divider');
-  function compare(){return ($('compare') as HTMLInputElement).checked&&!measuring;}
+  const compareInput=$('compare') as HTMLInputElement;
+  compareInput.checked=query.has('confronto');
+  split.value=query.get('divisore')??'50';
+  function compare(){return compareInput.checked&&!measuring;}
   function draw(){
     const t=ui.distance/100,p=route.at(t),heading=route.at(t+.004).sub(route.at(t-.004));
     car.position.set(p.x,original.altitude(p.x,p.y)+.08,-p.y);car.rotation.y=Math.atan2(heading.y,heading.x);
@@ -171,8 +176,14 @@ export async function roadLab(){
   }
   gui.add({measure},'measure').name('Measure the three renderings');
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)pause();});
-  $('panel').onclick=()=>{const el=$('settings');el.hidden=!el.hidden;$('panel').setAttribute('aria-expanded',String(!el.hidden));};
-  select(0);size();new ResizeObserver(size).observe(host);
+  select(initialMode);size();new ResizeObserver(size).observe(host);
   $('status').textContent='Calle Pelota → Calle de Mendizábal → Lugar Mercadillos Municipales';
   host.dataset.ready='true';
+  return ()=>{
+    const params=new URLSearchParams(query);
+    params.set('variante',String(mode));params.set('pos',ui.distance.toFixed(2));
+    if(compareInput.checked){params.set('confronto','1');params.set('divisore',split.value);}
+    else {params.delete('confronto');params.delete('divisore');}
+    return params;
+  };
 }

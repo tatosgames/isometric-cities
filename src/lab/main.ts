@@ -1,37 +1,44 @@
-// Each entry owns its assets and UI. A full-page navigation releases the previous WebGL context.
-const tests = [
-  {id:'lod',title:'Detail transitions',
-    description:'Compares zoom thresholds, asphalt and the screen pattern for buildings and trees on Calle San Nicolás.',
-    start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},
-  {id:'larghezze',title:'Carriageway width',
-    description:'Compares three measured sections with the same car and the same camera.',
-    start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},
-  {id:'settori',title:'Calle San Nicolás · crossing sectors',
-    description:'Compares the change between overview and carriageway on the sloping bend.',
-    start:async()=>{const {sectorRoadLab}=await import('./sector-road-lab.ts');await sectorRoadLab();}},
-  {id:'strade', title:'Roads · Mercado de Vegueta',
-    description:'Compares the current rendering, the 4 px/m texture and the geometric carriageway along the same route.',
-    start:async()=>{const {roadLab}=await import('./road-lab.ts');await roadLab();}},
-  {id:'qualita',title:'Rendering quality',href:'./index.html?lab=qualita',
-    description:'Compare Matcap, Base, Sole and Matcap + tilt, with frame times, shadows and drawing-buffer diagnostics.'},
-  {id:'guida',title:'Drive · tuning',href:'./index.html?lab=guida&area=pilot',
-    description:'Drive in the Vegueta pilot while changing the values of player, patrols, car and camera live, with or without police.'}
-];
-const chosen=new URLSearchParams(location.search).get('test');
-const selected=tests.find(t=>t.id===chosen),start=selected?.start;
-if(selected && start){
-  document.getElementById('catalog')!.hidden=true;
-  document.querySelector('main')!.hidden=false;
-  for(const id of ['back','panel'])document.getElementById(id)!.hidden=false;
-  document.getElementById('title')!.textContent=selected.title;
-  const status=document.getElementById('status')!;
+import {required} from '../required.ts';
+import {bindLabPanel,copyLabLink,labNavigation,labs,roadScenarios} from './lab-shell.ts';
+
+const el=(id:string)=>required(document.getElementById(id),id);
+const query=new URLSearchParams(location.search),legacy=query.get('test');
+const roads=query.get('lab')==='strade' || roadScenarios.some(scenario=>scenario.legacy===legacy);
+el('lab-navigation').append(labNavigation(roads?'strade':undefined));
+
+if(roads){
+  const requested=query.get('scenario');
+  const scenario=roadScenarios.find(entry=>entry.id===requested || (!requested && entry.legacy===legacy))??roadScenarios[0];
+  const select=required(document.querySelector<HTMLSelectElement>('#scenario'),'road scenario');
+  for(const {id,title} of roadScenarios)select.add(new Option(title,id,id===scenario.id,id===scenario.id));
+  const roadUrl=(id:string,params=new URLSearchParams(location.search))=>{
+    const destination=new URL(location.href);
+    params.delete('test');
+    params.set('lab','strade');
+    params.set('scenario',id);
+    destination.search=params.toString();
+    return destination;
+  };
+  select.onchange=()=>{location.href=roadUrl(select.value,new URLSearchParams()).href;};
+  el('title').textContent=labs[2].title;
+  el('catalog').hidden=true;
+  required(document.querySelector('main'),'road lab').hidden=false;
+  const actions=el('road-actions');
+  el('lab-navigation').append(actions);
+  actions.hidden=false;
+  bindLabPanel(el('panel'),el('settings'));
+  const status=el('status');
   status.textContent='Loading the sample…';
-  start().catch(error=>{status.textContent=String(error);});
+  const start=scenario.id==='mercado'
+    ? import('./road-lab.ts').then(({roadLab})=>roadLab())
+    : import('./sector-road-lab.ts').then(({sectorRoadLab})=>sectorRoadLab(scenario.id));
+  start.then(currentParams=>{actions.append(copyLabLink(()=>roadUrl(scenario.id,currentParams())));})
+    .catch(error=>{status.textContent=String(error);});
 }else{
-  const list=document.getElementById('tests')!;
-  for(const test of tests){
+  const list=el('tests');
+  for(const lab of labs){
     const li=document.createElement('li'),a=document.createElement('a'),p=document.createElement('p');
-    a.href=test.href??'?test='+encodeURIComponent(test.id);a.textContent=test.title;p.textContent=test.description;
+    a.href=lab.href;a.textContent=lab.title;p.textContent=lab.description;
     li.append(a,p);list.append(li);
   }
 }

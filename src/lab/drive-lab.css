@@ -1,6 +1,5 @@
-#drive-lab{position:fixed;top:60px;right:8px;z-index:40;width:300px;max-height:calc(100dvh - 68px);display:flex;flex-direction:column;font:12px "Segoe UI",sans-serif}
+#drive-lab{display:flex;flex-direction:column;font:12px "Segoe UI",sans-serif}
 #drive-lab .lil-gui.root{width:100%;overflow:auto;--background-color:#f7f5eb;--text-color:#27342c;--title-background-color:#e4e5d9;--title-text-color:#25372b;--widget-color:#e3e1d6;--hover-color:#d2d9c9;--focus-color:#cbd2bc;--number-color:#29634f;--string-color:#294c37;--font-size:12px;--widget-height:22px;--name-width:46%}
 #drive-lab .lil-gui .lil-gui{--background-color:#f7f5eb;--title-background-color:#e4e5d9;--text-color:#27342c;--title-text-color:#25372b;--widget-color:#e3e1d6}
 #drive-lab output{display:block;margin:0;padding:6px 8px;background:#25372b;color:#f7f5eb;font:12px/1.5 Consolas,monospace;white-space:pre}
 #drive-lab .lil-gui .controller.changed .name{color:#a3401f;font-weight:600}
-@media(max-width:720px){#drive-lab{width:220px}}

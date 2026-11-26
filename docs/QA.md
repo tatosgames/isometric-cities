@@ -1,5 +1,11 @@
 # Local Verification · November 21, 2026
 
+## Consolidated labs
+
+The lab catalog exposes Rendering, effects & quality, Driving & flight, and Map, LOD & roads. The pilot editor is accessible from the shared navigation. The road selector routes to the existing four fixtures, including the legacy `?test=` URLs. Rendering comparisons carry the current map view when switching looks. Driving and flight use the same diagnostic output as Rendering and share the existing tuning URL. Flight controls expose cruise speed, bank and pitch limits, and camera FOV with the original gameplay defaults.
+
+Typecheck, build and the full `npm test` suite passed. The dedicated checks passed for the driving panel, flight tuning URL, rendering quality at simulated 30 and 60 Hz, look changes with a fixed camera, editor, road surfaces, widths and LOD. The current and legacy sector-crossing URLs both loaded the two-sector fixture without console errors. The historical comparison in `qa-carriageways.mjs` timed out because its reference index predates the required zone schema.
+
 ## City straight lines and visibility of patrols
 
 The test uses the complete city in Chromium, vertically at 390 × 844 px. Each start resets position, direction, level and initial speed of 90 km/h. You travel both directions of five roads with the steering wheel straight and guaguas disabled. Time is counted at 72 km/h or more in the corridor of the road. A patrol must be operational and visible from the camera for at least 0.3 consecutive s. The result for each route is the longest consecutive interval that meets these driving conditions without a visible patrol.
