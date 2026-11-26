@@ -6,12 +6,14 @@ import math
 from shapely import STRtree, intersects, make_valid, prepare, union_all
 from shapely.geometry import LineString, Point, Polygon, box
 from osm_extract import acquire
+from carriageways import grade_separated
 from geo import origin, to_crs
 
 ROAD_CLASSES={'motorway','trunk','primary','secondary','tertiary','residential','unclassified',
               'service','living_street','road','busway','bus_guideway'}
 ROAD_CLASSES |= {name+'_link' for name in ['motorway','trunk','primary','secondary','tertiary']}
 DENIED={'no','private','agricultural','forestry','customers','delivery','destination'}
+MAX_ANCHOR_GAP=48
 def tags(element):
     return {tag.get('k'):tag.get('v') for tag in element.findall('tag')}
 
@@ -81,8 +83,8 @@ class BusRoads:
             if rule.startswith('no_') and target==next_way:return False
         return True
 
-    def snap(self,p,dx,dy):
-        best=None
+    def snaps(self,p,dx,dy):
+        candidates=[]
         for idx in self.tree.query(box(p[0]-15,p[1]-15,p[0]+15,p[1]+15)):
             i=int(idx); a,b=self.xy[i];length=self.length[i]
             ux=(b[0]-a[0])/length;uy=(b[1]-a[1])/length
@@ -91,9 +93,8 @@ class BusRoads:
             s=max(0,min(length,(p[0]-a[0])*ux+(p[1]-a[1])*uy))
             err=math.hypot(a[0]+ux*s-p[0],a[1]+uy*s-p[1])
             if err>14:continue
-            rank=(err+7*(1-dot),i,s)
-            if best is None or rank<best:best=rank
-        return best[1:] if best else None
+            candidates.append((err+7*(1-dot),i,s))
+        return sorted(candidates)[:5]
 
     def connect(self,first,last,source_length):
         i,s=first;j,t=last
@@ -117,24 +118,69 @@ class BusRoads:
 
     def match(self,coords):
         """Order-preserving road points labelled with source distance and way ID. Gaps break the run."""
-        chains=[];chain=[];prev=None;last_m=0;total=0
-        def anchor(p,m,dx,dy):
-            nonlocal prev,last_m,chain
-            cur=self.snap(p,dx,dy)
-            parts=self.connect(prev,cur,m-last_m) if prev and cur else None
-            if parts:
-                real=sum(max(0,b-a) for _,a,b in parts)
+        chains=[];states=[];pending=[];last_m=0;total=0;last_heading=None
+
+        def finish():
+            if not states:return
+            steps=[]
+            node=min(states,key=lambda state:state[0])[2]
+            while node is not None:
+                node,start,end,parts,real=node
+                steps.append((start,end,parts,real))
+            chain=[]
+            for start,end,parts,real in reversed(steps):
                 walked=0
                 for edge,a,b in parts:
                     if b-a<.001:continue
                     wid=self.nodes[edge][2]
-                    if not chain:chain=[(self.position(edge,a),last_m,wid)]
+                    point=self.position(edge,a)
+                    if not chain:chain.append((point,start,wid))
                     walked+=b-a
-                    chain.append((self.position(edge,b),last_m+(m-last_m)*walked/real,wid))
-            elif chain:
-                chains.append(chain);chain=[]
-            prev=cur;last_m=m
-        for i,(p,q) in enumerate(zip(coords,coords[1:])):
+                    chain.append((self.position(edge,b),start+(end-start)*walked/real,wid))
+            if len(chain)>1:chains.append(chain)
+
+        def advance(choices,m):
+            nonlocal states,last_m
+            delta=m-last_m
+            next_states=[]
+            for cost,i,s in choices:
+                best=None
+                for previous,position,history in states:
+                    parts=self.connect(position,(i,s),delta)
+                    if parts is None:continue
+                    real=sum(max(0,b-a) for _,a,b in parts)
+                    score=previous+cost+.45*abs(real-delta)
+                    if best is None or score<best[0]:
+                        best=(score,(i,s),(history,last_m,m,parts,real))
+                if best is not None:next_states.append(best)
+            if not next_states:return False
+            states=next_states
+            last_m=m
+            return True
+
+        def restart(choices,m):
+            nonlocal states,last_m
+            finish()
+            states=[(cost,(i,s),None) for cost,i,s in choices]
+            last_m=m
+
+        def flush_pending():
+            for choices,m in pending:
+                if not advance(choices,m):restart(choices,m)
+            pending.clear()
+
+        def anchor(p,m,dx,dy):
+            choices=self.snaps(p,dx,dy)
+            # A GTFS point may face the wrong way at an intersection or
+            # miss every lane. Try the next sample through the directed graph.
+            if states and m-last_m<=MAX_ANCHOR_GAP:
+                if advance(choices,m):pending.clear()
+                else:pending.append((choices,m))
+                return
+            flush_pending()
+            if not advance(choices,m):restart(choices,m)
+
+        for p,q in zip(coords,coords[1:]):
             length=math.dist(p,q)
             if length<.01:continue
             dx=(q[0]-p[0])/length;dy=(q[1]-p[1])/length
@@ -143,8 +189,10 @@ class BusRoads:
                 u=k/count
                 anchor((p[0]+u*(q[0]-p[0]),p[1]+u*(q[1]-p[1])),total+length*u,dx,dy)
             total+=length
-            if i==len(coords)-2:anchor(q,total,dx,dy)
-        if chain:chains.append(chain)
+            last_heading=(dx,dy)
+        if last_heading is not None:anchor(coords[-1],total,*last_heading)
+        flush_pending()
+        finish()
         return chains
 
 
@@ -152,12 +200,22 @@ class RoadClearance:
     """Prepared local pavement minus obstacles. Cache repeats where different lines share a street."""
     def __init__(self,data,style):
         self.boundary=make_valid(Polygon(data['boundary']));prepare(self.boundary)
-        self.pavement=[LineString(r['line']).buffer(style['width']['main' if r['kind'] in style['main'] else 'street']/2)
-                       for r in data['roads'] if r['kind'] not in style['pedestrian']]
+        roads=[(r,LineString(r['line'])) for r in data['roads']]
+        drivable=[(r,line) for r,line in roads if r['kind'] not in style['pedestrian']]
+        self.pavement=[line.buffer(style['width']['main' if r['kind'] in style['main'] else 'street']/2,
+                                   quad_segs=8,cap_style='flat' if r.get('portal') else 'round')
+                       for r,line in drivable]
+        self.widened=[line.buffer(style['targetWidth']['main' if r['kind'] in style['main'] else 'street']/2,
+                                   quad_segs=8,cap_style='flat' if r.get('portal') else 'round')
+                      for r,line in drivable]
         self.obstacles=[make_valid(Polygon(b['rings'][0],b['rings'][1:])) for b in data['buildings']]
         self.obstacles.extend(Point(x,y).buffer(.3) for x,y in data['trees'])
         self.obstacles.extend(make_valid(Polygon(s['rings'][0],s['rings'][1:])) for s in data['surfaces'] if s['kind']=='water')
+        self.widening_obstacles=[make_valid(Polygon(s['rings'][0],s['rings'][1:])) for s in data['surfaces'] if s['kind']!='water']
+        self.widening_obstacles.extend(line.buffer(style['width']['pedestrian']/2) for r,line in roads if r['kind'] in style['pedestrian'])
+        self.widening_obstacles.extend(line.buffer(8) for r,line in roads if grade_separated(r))
         self.road_tree=STRtree(self.pavement); self.obstacle_tree=STRtree(self.obstacles)
+        self.widened_tree=STRtree(self.widened);self.widening_tree=STRtree(self.widening_obstacles)
 
     @lru_cache(maxsize=5000)
     def tile(self,x,y):
@@ -169,6 +227,11 @@ class RoadClearance:
         # The indexed halo contains many obstacles outside actual roadway.
         obstacles=union_all([o for o,hit in zip(candidates,intersects(pavement,candidates)) if hit])
         free=pavement.difference(obstacles)
+        widened=union_all([self.widened[i] for i in self.widened_tree.query(region)])
+        protected=union_all([self.widening_obstacles[i] for i in self.widening_tree.query(region)])
+        roads=roads.union(widened.difference(protected))
+        obstacles=union_all([self.obstacles[i] for i in self.obstacle_tree.query(region)])
+        free=roads.intersection(self.boundary).difference(obstacles)
         prepare(free)
         return free
 
@@ -186,6 +249,17 @@ class RoadClearance:
         length=math.dist(a,b);dx=(b[0]-a[0])/length;dy=(b[1]-a[1])/length
         return self.fits(self.body(a,dx,dy).union(self.body(b,dx,dy)).convex_hull)
 
+    def turn_approach(self,a,b,at_start,at_end):
+        # Keep the width on the pavement. Allow the nose and tail to overhang
+        # within one half-body length of a bend.
+        if not self.fits(LineString([a,b]).buffer(1.1,cap_style='flat')):return False
+        length=math.dist(a,b)
+        start=3.6 if at_start else 0
+        end=length-(3.6 if at_end else 0)
+        if end<=start:return True
+        dx,dy=(b[0]-a[0])/length,(b[1]-a[1])/length
+        return self.straight((a[0]+dx*start,a[1]+dy*start),(a[0]+dx*end,a[1]+dy*end))
+
     @lru_cache(maxsize=200000)
     def corner(self,a,b,c):
         h=math.atan2(b[1]-a[1],b[0]-a[0]);g=math.atan2(c[1]-b[1],c[0]-b[0])
@@ -198,7 +272,7 @@ class RoadClearance:
         bodies=[self.body(b,math.cos(h+angle*k/n),math.sin(h+angle*k/n)) for k in range(n+1)]
         return all(self.fits(x.union(y).convex_hull.buffer(pad+.0001)) for x,y in zip(bodies,bodies[1:]))
 
-    def verified(self,chain):
+    def verified(self,chain,*,allow_tight_turns=False):
         # Offset to the right; limit the miter at acute turns. All checks run on
         # the rounded coordinates that the browser will actually receive.
         normals=[]
@@ -213,13 +287,15 @@ class RoadClearance:
             ax,ay=normals[max(0,i-1)]; bx,by=normals[min(i,len(normals)-1)]
             scale=.95/max(.6,1+ax*bx+ay*by)
             point=(round(x+(ax+bx)*scale,2),round(y+(ay+by)*scale,2))
-            if not vertices or point!=vertices[-1][0]:vertices.append((point,m,wid))
+            bend=ax*bx+ay*by<.966
+            if not vertices or point!=vertices[-1][0][0]:vertices.append(((point,m,wid),bend))
         run=[]
-        for a,b in zip(vertices,vertices[1:]):
-            if not self.straight(a[0],b[0]):
+        for (a,enter),(b,leave) in zip(vertices,vertices[1:]):
+            if not self.straight(a[0],b[0]) and not (
+                    allow_tight_turns and (enter or leave) and self.turn_approach(a[0],b[0],enter,leave)):
                 if run:yield run
                 run=[];continue
-            if run and not self.corner(run[-2][0],a[0],b[0]):
+            if run and not allow_tight_turns and not self.corner(run[-2][0],a[0],b[0]):
                 yield run;run=[]
             if not run:run=[a]
             run.append(b)

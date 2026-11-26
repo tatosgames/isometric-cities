@@ -1,3 +1,4 @@
+import {cityDetail} from '../dynamic-quality.ts';
 import type { Building, CityCore, FarBlock, Layers, Point, Prop, Ring, RoofTones, SectorIndex, Zone, ZoneData } from '../../data/types.ts';
 import { ringCenter, sectorOwner, zoneOfSector } from '../../data/sector-index.ts';
 import { isLayers, isZone, loadData } from '../../data/load.ts';
@@ -8,6 +9,7 @@ import { overviewGround, overviewSilhouettes } from '../overview.ts';
 import * as T from 'three';
 import { makeCity } from '../scene.ts';
 import { breezy } from '../wind.ts';
+import {makeStaticGroundShadow} from '../static-ground-shadow.ts';
 import { makeGroundMap } from '../ground-map.ts';
 import { groundSampler } from '../ground-surface.ts';
 
@@ -141,6 +143,7 @@ function unpackBlocks({points,ends,heights,tones}: PackedBlocks): FarBlock[] {
 // Three levels. Far: merged blocks of every zone, always resident. Zone: one silhouette per building, on demand.
 // Sector: full detail inside a loaded zone, within the byte budget. Zones are bounded by the view and counted apart.
 export function streamCity({data,stage='city',neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,loadZone,onZone,lod}: StreamOptions){
+  const detailProfile=cityDetail(compact);
   const build=sectorBuilder(data.terrain,compact,neutral,tones);
   const streetPriority=!!data.carriageways&&!legacyRoads,coverage=legacyRoads?undefined:data.roadCoverage;
   // The far ground is painted once from the whole city; merged blocks leave its contact shadows.
@@ -156,16 +159,28 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   const box=(bounds: Zone['bounds'],vertical: Zone['vertical'])=>new T.Box3(
     new T.Vector3(bounds[0],vertical[0],-bounds[3]),new T.Vector3(bounds[2],vertical[1],-bounds[1]));
   const packed=new Map<string,PackedBlocks>();
+  let staticEnabled=false;
+  type ShadowMask=ReturnType<typeof makeStaticGroundShadow>;
+  const masks=new Map<string,ShadowMask>();
+  const casters=new Map<string,Building[]>();
+  function* blockCasters(id:string){
+    for(const block of unpackBlocks(required(packed.get(id),'packed zone '+id))){
+      yield {rings:[block.ring],height:block.height};
+    }
+  }
+  function* farCasters(){for(const id of packed.keys())yield* blockCasters(id);}
+  const farMask=base.groundMap && makeStaticGroundShadow(base.groundMap.bounds,farCasters,refresh);
+  farMask?.attach(farGround);
   // Silhouettes keep no copy once uploaded; the ground stays, because the ground sampler walks its triangles.
   function farSilhouettes(blocks: FarBlock[]){
-    const mesh=overviewSilhouettes({blocks},base.altitude,null,neutral,overviewMaterials,!compact);
+    const mesh=overviewSilhouettes({blocks},base.altitude,null,neutral,overviewMaterials,detailProfile.overviewNormals);
     mesh.userData.silhouettes=true;
     gpuOnly(mesh);
     return mesh;
   }
   const zones: ResidentZone[]=data.zones.map(z=>{
     const far=new T.Group(),level=required(data.far[z.id],'far level of zone '+z.id);
-    const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround,!compact);
+    const surface=overviewGround(level.ground,base.altitude,base.groundMap,farGround,detailProfile.overviewNormals);
     packed.set(z.id,packBlocks(level.blocks));
     far.add(farSilhouettes(level.blocks),surface);
     base.group.add(far);
@@ -200,7 +215,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     return (west?sampleGround(x,y,x-1,y):undefined)??(south?sampleGround(x,y,x,y-1):undefined)??
       (west&&south?sampleGround(x,y,x-1,y-1):undefined)??base.altitude(x,y);
   }
-  const budget=(compact?58:115)*1024*1024;
+  const budget=detailProfile.sectorMiB*1024*1024;
   // What leaves the view stays requested this long, in milliseconds. A camera hovering on a boundary would
   // otherwise start and cancel the same download at every step.
   const linger=600;
@@ -208,10 +223,26 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   // Zones that left the view stay for a quick return, up to this many.
   const idleZones=2;
   // Longest side of the view, in metres, that still shows one silhouette per building. Beyond it, merged blocks.
-  const zoneSpan=compact?3200:6000;
+  const zoneSpan=detailProfile.zoneSpan;
   const frustum=new T.Frustum(),matrix=new T.Matrix4(),projected=new T.Vector3();
   const lastTarget=new T.Vector3(),ahead=new T.Vector3(),aheadPoint=new T.Vector3();
   let requested: ResidentSector[]=[],requestedZones: ResidentZone[]=[];
+  const shadowBudget=detailProfile.shadowMiB*1024*1024;
+  let shadowBytes=0;
+  function syncShadowMasks(){
+    shadowBytes=staticEnabled && farMask?farMask.textureBytes:0;
+    farMask?.setEnabled(staticEnabled);
+    const selected=new Set<string>();
+    if(staticEnabled)for(const z of requestedZones){
+      const mask=masks.get(z.id);
+      if(mask && shadowBytes+mask.textureBytes<=shadowBudget){
+        selected.add(z.id);
+        shadowBytes+=mask.textureBytes;
+      }
+    }
+    for(const [id,mask] of masks)if(!selected.has(id))mask.setEnabled(false);
+    for(const id of selected)masks.get(id)?.setEnabled(true);
+  }
   let demanded: ResidentZone | undefined;
   let near=false,mid=false,activeFades=0;
   const transitions=new Map<string,ReturnType<NonNullable<SectorLod['attach']>>>();
@@ -227,9 +258,20 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;
     if(s.low)s.low.visible=true;
   }
+  // Only an adjoining zone can project an urban building across this zone's edge.
+  function neighbours(z:ResidentZone){
+    return zones.filter(other=>other!==z && other.bounds.min.x<=z.bounds.max.x+190 &&
+      other.bounds.max.x>=z.bounds.min.x-190 && other.bounds.min.z<=z.bounds.max.z+190 &&
+      other.bounds.max.z>=z.bounds.min.z-190);
+  }
+  function updateNeighbours(z:ResidentZone){
+    for(const other of neighbours(z))masks.get(other.id)?.invalidate();
+  }
   function releaseZone(z: ResidentZone,keepFootprints=false){
     if(!z.assets)return;
     for(const s of z.sectors){release(s);s.low=null;s.groundAt=null;}
+    masks.get(z.id)?.dispose();masks.delete(z.id);casters.delete(z.id);
+    updateNeighbours(z);
     z.assets.dispose();zoneBytes-=z.assets.bytes;z.assets=null;z.group=null;z.map=null;z.far.visible=true;
     if(!keepFootprints)onZone?.(z.id,null);
   }
@@ -245,6 +287,19 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const map=neutral?null:makeGroundMap({...data,buildings:content.buildings,textureBounds:[west-5,south-5,east+5,north+5]},
         .6,streetPriority,data.roadFallback,coverage&&(content.coverage??coverage));
       const material=ground(map?.texture??null),group=new T.Group();
+      if(map){
+        casters.set(z.id,content.buildings);
+        const mask=makeStaticGroundShadow(map.bounds,function*(){
+          yield* casters.get(z.id)??[];
+          for(const other of neighbours(z)){
+            const exact=casters.get(other.id);
+            if(exact)yield* exact;
+            else yield* blockCasters(other.id);
+          }
+        },refresh);
+        masks.set(z.id,mask);mask.attach(material);syncShadowMasks();
+        updateNeighbours(z);
+      }
       const batches=new Map(z.sectors.map(s=>[s.id,{buildings:[] as Building[],trees:[] as Point[],props:[] as Prop[],ground:[] as Ring[]}]));
       const batch=(id: string)=>required(batches.get(id),'sector '+id+' of zone '+z.id);
       const owners=content.owners;
@@ -254,10 +309,10 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       for(const ring of content.ground)batch(owner(...ringCenter(ring))).ground.push(ring);
       for(const s of z.sectors){
         const b=batch(s.id);
-        const surface=overviewGround(b.ground,base.altitude,map,material,!compact);
+        const surface=overviewGround(b.ground,base.altitude,map,material,detailProfile.overviewNormals);
         s.low=new T.Group();
         s.groundAt=groundSampler(()=>[surface.geometry]);
-        const silhouettes=overviewSilhouettes(b,base.altitude,tones,neutral,overviewMaterials,!compact);
+        const silhouettes=overviewSilhouettes(b,base.altitude,tones,neutral,overviewMaterials,detailProfile.overviewNormals);
         s.low.add(silhouettes,surface);
         group.add(s.low);
       }
@@ -300,11 +355,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     try{
       const layers=await (loadLayers?loadLayers(s,controller.signal):loadData(stage+'-sectors/'+s.file,isLayers,controller.signal));
       if(legacyRoads||neutral)delete layers.carriageway;
-      if(compact&&layers.fused)layers.buildings=layers.fused;
+      if(detailProfile.simplifiedBuildings && layers.fused)layers.buildings=layers.fused;
       delete layers.fused;
       if(controller.signal.aborted || !requested.includes(s))return;
       const local=await build(layers,controller.signal);
       if(!local || !s.low)return;
+      const mask=masks.get(s.zone.id);
+      mask?.attach(local.materials.mat,true);mask?.attach(local.materials.road);
       const detail=local.group;
       const assets=resources(detail);
       gpuOnly(detail);
@@ -385,6 +442,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const zoneRank=(z: ResidentZone)=>z===demanded?-3:z===openingZone?-2:z===openingSector?.zone?-1:
       (frustum.intersectsBox(z.bounds)?0:1e10)+z.bounds.getCenter(projected).distanceToSquared(aheadPoint);
     requestedZones.sort((a,b)=>zoneRank(a)-zoneRank(b));
+    if(staticEnabled)syncShadowMasks();
     for(const z of requestedZones)if(z.assets)z.used=tick;
     // A zone kept for a quick return shows the far level, so one view never mixes the two.
     for(const z of zones)if(z.group){z.group.visible=requestedZones.includes(z);z.far.visible=!z.group.visible;}
@@ -441,9 +499,17 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     }
     host.dataset.sectors=JSON.stringify({near,mid,fading,loaded:sectors.filter(s=>s.detail).length,
       visible:sectors.filter(s=>s.detail?.visible).length,zones:zones.filter(z=>z.assets).map(z=>z.id),
-      zoneBytes,bytes,budget,evictions,
+      zoneBytes,bytes,budget,shadowBytes,shadowBudget,evictions,
       pending:pending?.s.id??pendingZone?.z.id??null});
-    return {zoneReady:!openingZone || !!openingZone.assets};
+    return {zoneReady:!openingZone || !!openingZone.assets,busy:!!pending || !!pendingZone || fading>0};
   }
-  return {...base,groundAt,update,suspend,forget,demand,undemand(){demanded=undefined;}};
+  return {...base,groundAt,update,suspend,forget,demand,
+    setStaticShadows(enabled:boolean){
+      if(enabled===staticEnabled)return;
+      staticEnabled=enabled;
+      syncShadowMasks();
+    },
+    get shadowsPending(){return staticEnabled && (requestedZones.length?requestedZones.some(z=>masks.get(z.id)?.pending):!!farMask?.pending);},
+    disposeShadows(){farMask?.dispose();for(const mask of masks.values())mask.dispose();},
+    undemand(){demanded=undefined;}};
 }

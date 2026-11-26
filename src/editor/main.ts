@@ -1,4 +1,5 @@
-import { cityFillLight } from '../render/city-light.ts';
+import {editorQuality,renderPixelRatio} from '../render/dynamic-quality.ts';
+import { cityFillLight, sunOffset } from '../render/city-light.ts';
 import * as T from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { applyPilotEdits, inPilot, isFixedBuilding, loadPilotBase, propKinds, readPilotFile } from '../data/pilot-edits.ts';
@@ -30,14 +31,14 @@ async function start() {
   const host = ui('viewport'), catalog = ui<HTMLSelectElement>('catalog'), vertexSelect = ui<HTMLSelectElement>('vertex');
   const file = ui<HTMLInputElement>('file');
   const east = ui<HTMLInputElement>('east'), north = ui<HTMLInputElement>('north'), yaw = ui<HTMLInputElement>('yaw');
-  const renderer = new T.WebGLRenderer({ antialias: true, stencil: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const renderer = new T.WebGLRenderer({ antialias: editorQuality.antialias==='native', stencil: true });
+  renderer.setPixelRatio(renderPixelRatio(editorQuality));
   host.append(renderer.domElement);
   const canvas = renderer.domElement;
   const scene = new T.Scene(), camera = makeMapCamera();
   scene.background = new T.Color('#e5e3d2');
   const sun = new T.DirectionalLight(0xfff6ea,2.12);
-  sun.position.set(-550,690,-370);
+  sun.position.copy(sunOffset);
   scene.add(sun,cityFillLight());
   // The map's controls: left and middle drag pan with the ground under the pointer, right drag orbits,
   // the wheel zooms towards the pointer.

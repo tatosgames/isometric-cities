@@ -14,6 +14,7 @@ interface Bus {
 }
 const ACQUIRE=300,RELEASE=450,MAX_BUSES=6;
 const CRUISE_SPEED=6;
+const MIN_CITY_RUN=500;
 const dist2=(x:number,y:number,p:BusState)=>(x-p.x)**2+(y-p.y)**2;
 
 function circuitLength(clock:Clock){return clock.loop?clock.length:2*clock.length;}
@@ -150,6 +151,9 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
         if(!validGuagua(data,0)){report(key,'invalid vehicle path or stops');continue;}
         clock=busTimetable(data);cache.set(key,clock);
       }
+      // Short verified fragments still describe coverage in the data. An
+      // independent city bus needs enough continuous road for a full pass.
+      if(area==='city' && clock.length<MIN_CITY_RUN)continue;
       const latest=Math.floor((elapsed-ref.phase-clock.timeAt(from)+.00001)/ref.period);
       const earliest=Math.ceil((elapsed-ref.phase-clock.timeAt(to,true)-.00001)/ref.period);
       for(let k=earliest;k<=latest;k++){

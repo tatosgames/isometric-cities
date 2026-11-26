@@ -41,9 +41,9 @@ Catalogo dei trucchi già applicati al plastico, con la misura che li giustifica
 
 | Trucco | Dove | Effetto |
 |---|---|---|
-| Nessuna shadow map nel profilo compatto: ombra di contatto dipinta nella texture del suolo, occlusione alla base dei muri nei colori dei vertici, macchia d'ombra piatta sotto gli alberi | `main.ts`, `ground-map.ts`, `scene.ts` | Un solo passaggio di disegno |
+| Profilo compatto iniziale (può aggiungere maschere statiche dopo la calibrazione): ombra di contatto dipinta nella texture del suolo, occlusione alla base dei muri nei colori dei vertici, macchia d'ombra piatta sotto gli alberi | `main.ts`, `ground-map.ts`, `scene.ts` | Un solo passaggio di disegno |
 | Su desktop la shadow map si aggiorna solo quando serve (`autoUpdate=false`) | `main.ts` | — |
-| Risoluzione adattiva sulla cadenza dei fotogrammi quando la vista si muove | `src/render/adaptive-resolution.ts` | — |
+| Qualità adattiva condivisa da mappa e guida. Il telefono parte con DPR massimo 1, poi prova sagome statiche, FXAA e DPR massimo 1,25 | `src/render/dynamic-quality.ts` | Calibrazione iniziale fino a 6 s. Le successive promozioni richiedono almeno 8 s di movimento fluido. Sul profilo compatto il controller può riconoscere 30 FPS regolari al livello base o inferiore. Sotto i 27 FPS o con p95 oltre 42 ms per due secondi riduce la qualità. |
 | Ciclo a 30 fps a mappa ferma per vento e nuvole | `src/render/wind.ts` | — |
 
 ## Streaming

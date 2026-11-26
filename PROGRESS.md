@@ -200,6 +200,10 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 
 **Guaguas in movimento continuo.** In Conducir i bus passano le fermate senza sostare. Un percorso chiuso continua in avanti, su un tratto aperto il bus visibile gira e ripercorre la strada. Le precedenze fra autobus possono rallentare la marcia.
 
+**Guaguas su tratti più lunghi.** L’importatore confronta sequenze connesse di strade OSM e verifica il bus sulla carreggiata allargata del plastico. In città un bus entra in scena su un tratto continuo di almeno 500 m. I tratti che raggiungono 1 km passano da 27 a 81. [Verifica a Guanarteme](docs/QA.md#continuità-delle-guaguas-a-guanarteme).
+
+**Raccordi delle guaguas.** L’importatore recupera i campioni GTFS ambigui tramite brevi raccordi direzionali e consente alle estremità del bus di sporgere nelle curve strette in città. I tratti da almeno 1 km passano da 81 a 169. [Verifica a Guanarteme](docs/QA.md#continuità-delle-guaguas-a-guanarteme).
+
 **Cielo sperimentale.** Gabbiani sopra Parque Doramas e Santa Catalina e nubi mosse dallo stesso vento delle ombre. Attivi di default, disattivabili con `?sky=0`. [Controlli e guida tecnica in inglese](docs/SKY_EFFECTS.md).
 
 **Blocco sud.** La Montañeta, Marzagán, Tafira e Los Hoyos per intero, con i «Diseminado» di raccordo: città a 62,67 km², 36.321 parti di edificio, 72 barrios con nome, 110 zone e 1.290 settori. Terreno a riquadri, altezze LiDAR per 998 edifici, rete delle guaguas rigenerata. Heap dopo la raccolta 62,5 MB. Restano Tamaraceite, Almatriche, San Lorenzo, Los Giles e Tenoya a nord-ovest. [Misure e limiti](docs/QA.md#blocco-sud--25-novembre-2026)
@@ -207,3 +211,6 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 **Tutto il comune.** Almatriche, Los Giles, San Lorenzo, Tamaraceite e Tenoya per intero: il plastico copre tutto il comune di Las Palmas de Gran Canaria, 103,88 km², 48.308 parti di edificio, 112 barrios con nome, 164 zone e 2.041 settori. Heap dopo la raccolta 77,1 MB, 67,5 MB dopo il passaggio di ottimizzazione (silhouette lontane solo sulla GPU). Da fare: `city.json` vicino al limite di 100 MB di GitHub, luoghi nei quartieri nuovi, vegetazione rurale. [Misure e limiti](docs/QA.md#blocco-nord-ovest--tutto-il-comune--25-novembre-2026)
 
 **Controlli dopo l'unione · 26 novembre 2026.** Suite completa, `qa-sectors.mjs` e `qa-drive-lab.mjs` verdi; heap misurato anche a Tamaraceite e Marzagán, sotto i 60 MB, e benchmark invariato (67,7 MB dopo la raccolta). Chiude le voci aperte su `qa-sectors.mjs`, `qa-drive-lab.mjs` e misure dei quartieri nuovi. [Misure](docs/QA.md#controlli-dopo-lunione-delle-due-sessioni--26-novembre-2026)
+**Qualità dinamica · 26 novembre 2026.** Mappa e guida condividono un controller che punta a 60 FPS e riconosce i 30 FPS regolari sul profilo compatto. Sul telefono il primo frame mantiene il profilo compatto. Le promozioni provano sagome statiche sul terreno, FXAA e DPR fino a 1,25. La vista ferma torna al ciclo ambientale dopo il test iniziale. Misure in emulazione, confronto desktop e ritagli a camera fissa nel [rapporto QA](docs/QA.md#qualità-dinamica-globale--26-novembre-2026). Resta aperta la verifica su GPU mobile fisica.
+
+**Audit della qualità.** Mappa, laboratori ed editor leggono i profili da `dynamic-quality.ts`. Streaming, dettagli degli edifici, vegetazione e pedoni condividono i limiti iniziali. Le zone visibili hanno priorità nella memoria riservata alle maschere statiche.

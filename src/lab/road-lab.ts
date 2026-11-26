@@ -1,4 +1,5 @@
-import { cityFillLight } from '../render/city-light.ts';
+import {compactScreen,makeDynamicQuality,renderPixelRatio} from '../render/dynamic-quality.ts';
+import { cityFillLight, citySun } from '../render/city-light.ts';
 import * as T from 'three';
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import { loadData,isCity,isRoofPalette } from '../data/load.ts';
@@ -65,16 +66,13 @@ export async function roadLab(){
     asset<Carriageway>(new URL('./mercado-carriageway.json',import.meta.url))
   ]);
   const host=$('view'),data=subset(city,sample),route=makeRoute(data.roads);
-  const compact=matchMedia('(pointer:coarse)').matches||screen.width<700;
-  const renderer=new T.WebGLRenderer({antialias:!compact,stencil:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.75));renderer.setClearColor(0xe7e5d5);
-  renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;host.prepend(renderer.domElement);
+  const compact=compactScreen(), quality=makeDynamicQuality({compact}).config;
+  const renderer=new T.WebGLRenderer({antialias:quality.antialias==='native',stencil:true});
+  renderer.setPixelRatio(renderPixelRatio(quality));renderer.setClearColor(0xe7e5d5);
+  renderer.shadowMap.enabled=quality.shadows==='solar';renderer.shadowMap.type=T.PCFShadowMap;host.prepend(renderer.domElement);
   const scene=new T.Scene(),camera=makeMapCamera();
   scene.add(cityFillLight());
-  const sun=new T.DirectionalLight(0xfff6ea,2.12);
-  sun.target.position.set(sample.center[0],0,-sample.center[1]);sun.position.copy(sun.target.position).add(new T.Vector3(-550,690,-370));
-  sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
-  sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);
+  const sun=citySun(sample.center[0],-sample.center[1]);scene.add(sun,sun.target);
   const original=makeCity(data,false,palette.tones,compact);scene.add(original.group);
   const footways=new Set(['steps','footway','path','pedestrian','cycleway']);
   const base={...data,roads:data.roads.filter(r=>footways.has(r.kind))};

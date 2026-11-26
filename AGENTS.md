@@ -26,7 +26,7 @@ Las Palmas · Atlas insular: plastico urbano interattivo di Las Palmas de Gran C
 | `scripts/qa-*.mjs` (boot, drive-*, pedestrians, recovery, sectors, ground, carriageways, lod, road-lab…) | Prove Playwright mirate; `qa.mjs` è la suite completa |
 | `src/drive/drive-camera.ts` | Calcolo delle pose e transizioni della camera in guida |
 | `tsconfig.json` | Controllo rigoroso del runtime browser e del worker |
-| `src/render/adaptive-resolution.ts` | Politica di risoluzione in base alla cadenza dei frame (mappa in movimento e guida) |
+| `src/render/dynamic-quality.ts` | Profili dispositivo e qualità adattiva di ombre, antialiasing e risoluzione per mappa e guida |
 | `src/render/wind.ts` | Vento unico: ombre di nuvole in movimento, oscillazione di chiome e palme, ciclo a 30 fps a mappa ferma |
 | `src/render/sea.ts` | Mare dalla costa OSM: fondali, onde con il vento e schiuma a riva da una texture di distanza |
 | `src/drive/drive.ts` | Modalità «Conducir» stile Pako: ciclo di partita, pattuglie, monete, rendering, HUD e parametri `TUNE` |

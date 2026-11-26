@@ -112,11 +112,11 @@ def stop_locations(path_segments,order,stops):
             result.append((best[0],sid,name,point))
     return result
 
-def clipped_verified(chains,clearance,reviewed):
+def clipped_verified(chains,clearance,reviewed,*,allow_tight_turns=False):
     result=[];matched=[]
     for chain in chains:
         matched.append((chain[0][1],chain[-1][1]))
-        for run in clearance.verified(chain):
+        for run in clearance.verified(chain,allow_tight_turns=allow_tight_turns):
             # Reserve the original pilot demo for its reviewed alignment and stops.
             groups=[run]
             if reviewed:
@@ -205,7 +205,7 @@ def generate(feed,out):
                 s,e=[shape.project(Point(reviewed['path'][i])) for i in (0,-1)]
                 reserve=(s,e,reviewed)
             inside=intervals_within(shape,clearance.boundary)
-            runs,matched=clipped_verified(matches[shape_id],clearance,reserve) if inside else ([],[])
+            runs,matched=clipped_verified(matches[shape_id],clearance,reserve,allow_tight_turns=area=='city') if inside else ([],[])
             served,gaps=ledger(inside,[(s,e) for s,e,*_ in runs],matched,shape)
             geometry[shape_id]=(shape,runs,round(sum(e-s for s,e in inside),1),served,gaps)
         for (line,dir_id),variants in sorted(groups.items()):

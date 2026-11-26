@@ -1,5 +1,6 @@
+import {cityDetail} from './dynamic-quality.ts';
 import type { Building, CityData, Ring, RoofTones } from '../data/types.ts';
-import style from '../data/road-style.json';
+import style from '../data/road-style.json' with {type:'json'};
 import type { GroundMap } from './ground-map.ts';
 import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
@@ -7,7 +8,7 @@ import { GROUND_SURFACE, groundPatch, groundSampler } from './ground-surface.ts'
 import { addLandmarks } from './landmarks.ts';
 import { roofTone } from './roof-tone.ts';
 import { heightAt, pointInRing } from '../geometry.ts';
-import quarters from '../data/historic-quarters.json';
+import quarters from '../data/historic-quarters.json' with {type:'json'};
 
 const oldQuarters=quarters.rings as [number,number][][];
 import { propParts } from './port-props.ts';
@@ -31,6 +32,7 @@ export interface BuildingRange {
 export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null,
   buildingRanges?: Map<Building['rings'], BuildingRange[]>) {
   const group = new T.Group();
+  const detail=cityDetail(compact);
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
   const {mat,road,buildingMat,wood,leaf,shadeMat}=cityMaterials(neutral,groundMap);
   if(!neutral && data.carriageway?.indices.length){
@@ -85,7 +87,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const rgb=new Uint8Array(geom.attributes.position.count*3);
     shade.multiplyScalar(255);
     for(let i=0;i<rgb.length;i+=3){
-      const ao=compact && wallBase!==null ? .80+.20*T.MathUtils.clamp((geom.attributes.position.getY(i/3)-wallBase)/4,0,1) : 1;
+      const ao=detail.contactTint && wallBase!==null ? .80+.20*T.MathUtils.clamp((geom.attributes.position.getY(i/3)-wallBase)/4,0,1) : 1;
       rgb[i]=shade.r*ao;rgb[i+1]=shade.g*ao;rgb[i+2]=shade.b*ao;
     }
     if(!neutral){
@@ -155,9 +157,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   }
   // On small screens a parapet is one or two pixels tall: the wall itself rises to its height (see `RIM`) and
   // the parapet is only the light strip on top. Its outer face is the wall, the inner one is never missed.
-  const RIM=compact?.56:0;
+  const RIM=detail.parapetWidth;
   function parapet(length: number,height: number,depth: number): T.BufferGeometry{
-    if(!compact)return new T.BoxGeometry(length,height,depth);
+    if(!detail.simplifiedBuildings)return new T.BoxGeometry(length,height,depth);
     const x=length/2,y=height/2,d=depth/2,g=new T.BufferGeometry();
     g.setAttribute('position',new T.Float32BufferAttribute([-x,y,d, x,y,d, x,y,-d, x,y,-d, -x,y,-d, -x,y,d],3));
     g.setAttribute('normal',new T.Float32BufferAttribute(Array(6).fill([0,1,0]).flat(),3));
@@ -212,7 +214,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       for(let j=1;j<o.length;j++){const l=Math.hypot(o[j][0]-o[j-1][0],o[j][1]-o[j-1][1]);if(l>far){far=l;hx=(o[j][0]-o[j-1][0])/l;hy=(o[j][1]-o[j-1][1])/l;}}
       const us=o.map(p=>p[0]*hx+p[1]*hy),vs=o.map(p=>p[1]*hx-p[0]*hy),u1=Math.max(...us),v1=Math.max(...vs);
       const inside=(px: number,py: number)=>pointInRing(o,px,py) && !b.rings.slice(1).some(ring=>pointInRing(ring,px,py));
-      let left=compact?24:60;
+      let left=detail.roofDetails;
       for(let u=Math.min(...us)+6;u<u1 && left;u+=12)for(let v=Math.min(...vs)+6;v<v1 && left;v+=12){
         const px=u*hx-v*hy,py=u*hy+v*hx;
         if(![[0,0],[4,0],[-4,0],[0,4],[0,-4]].every(([du,dv])=>inside(px+du*hx-dv*hy,py+du*hy+dv*hx)))continue;
@@ -228,8 +230,8 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           for(let i=0;i<position.count;i++)if(position.getY(i)<top+.01)darkenJoint(rgb,i);
         });
         // The thin lid and the tank beside the rooftop cabin are smaller than a pixel on a phone.
-        if(!compact)addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
-        if(!compact && radius>3.5 && n%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
+        if(!detail.simplifiedBuildings)addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
+        if(!detail.simplifiedBuildings && radius>3.5 && n%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
       }
     }
     // Low parapets trace the actual perimeter and distinguish adjoining roofs.
@@ -282,7 +284,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
               const start=trim.length/3;
               (old?woodJoints:sillJoints).push(start,start+1,start+4);
             }
-            if(!compact || balcony)trim.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
+            if(!detail.simplifiedBuildings || balcony)trim.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
             if(balcony){
               const rail=old?.95:.62;
               const railLeft=[lipLeft[0],lipLeft[1]+rail,lipLeft[2]],railRight=[lipRight[0],lipRight[1]+rail,lipRight[2]];
@@ -299,7 +301,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           }
         }
       }
-      if(!compact && !hall && !block && b.windows!==false && count>=2 && len<65){
+      if(!detail.simplifiedBuildings && !hall && !block && b.windows!==false && count>=2 && len<65){
         const rot=Math.atan2(f-c,e-a);
         for(let level=3;level<h-2;level+=3.6){
           if(z+level<=shared)continue;
@@ -323,7 +325,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     for(const [geometry,color] of propParts(prop,altitude(prop[1],prop[2]),true))addBuilding(geometry,color,prop[1],prop[2]);
   }
   const templates={
-    crown:new T.IcosahedronGeometry(1,compact?0:1),
+    crown:new T.IcosahedronGeometry(1,detail.crownSubdivisions),
     trunk:new T.CylinderGeometry(.28,.35,1,6),
     shade:new T.PlaneGeometry(1,1).rotateX(-Math.PI/2)
   };
@@ -339,13 +341,13 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
   }
   for(const [x,y] of data.trees){
     const z=altitude(x,y),seed=Math.abs(Math.round(x*3+y));
-    if(compact)instance('shade',x,y,z+.76,7,1,6.4,seed,0);
+    if(detail.treeGroundShade)instance('shade',x,y,z+.76,7,1,6.4,seed,0);
     if(seed%5===0){
       const height=7+seed%4;
       instance('trunk',x,y,z+height/2,1.2,height,1.2,0,'#8b7756');
       // Each frond vertex records how far it sits from the trunk (128 = root, 228 = tip) so the wind can bend it.
       const leaves=[],bend: number[]=[],reachOf=(t: number)=>128+Math.round(100*Math.min(1,t));
-      for(let k=0;k<(compact?8:13);k++){
+      for(let k=0;k<detail.fronds;k++){
         const angle=k*2.4+seed,reach=3.7+(k%3)*.7;
         const frond=(t: number,side: number)=>[x+Math.cos(angle)*reach*t-Math.sin(angle)*side,z+height+2.5*Math.sin(t*Math.PI)-1.2*t-Math.abs(side)*.65,-y+Math.sin(angle)*reach*t+Math.cos(angle)*side];
         for(let j=0;j<9;j++){
@@ -361,7 +363,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     }
     instance('trunk',x,y,z+2,1,4,1,0,'#887451');
     const palette=[['#3d533e','#59714c','#778352'],['#324d43','#4a6a53','#68805d'],['#4f6040','#687b50','#85935d']][seed%3];
-    for(let k=0;k<(compact?4:7);k++){
+    for(let k=0;k<detail.crowns;k++){
       const angle=k*2.4+seed,rad=k===0?0:2.05,sz=2.3+(seed%7)*.14;
       instance('crown',x+Math.cos(angle)*rad,y-Math.sin(angle)*rad,z+5.3+(k===0?1.6:Math.sin(k+seed)*.65),sz,sz*1.08,sz*.86,angle,palette[k%3]);
     }

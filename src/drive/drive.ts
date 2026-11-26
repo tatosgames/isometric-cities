@@ -1,3 +1,4 @@
+import {cityDetail} from '../render/dynamic-quality.ts';
 import { carGeometry, carShellHeight, carShellParts, carShellPivot, carWheelParts, tint } from './car-model.ts';
 import type { Point } from '../data/types.ts';
 import { element as el } from '../map/dom.ts';
@@ -179,7 +180,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   const coinMesh=new T.InstancedMesh(new T.CylinderGeometry(1.15,1.15,.24,14).rotateX(Math.PI/2),new T.MeshStandardMaterial({...surfaceStencil(),color:'#ffcf24',emissive:'#b07a00',roughness:.4,flatShading:true}),COINS);
   coinMesh.frustumCulled=false;coinMesh.count=0;group.add(coinMesh);
   const {puff,skid,reset: resetEffects,update: updateEffects}=makeDriveEffects(group,groundAt);
-  const WALKERS=compact?26:40;
+  const WALKERS=cityDetail(compact).walkers;
   const crowd=makeCrowdView(group,altitude,WALKERS);
   let people: ReturnType<typeof makePedestrians> | null=null;
   function place(b: Vehicle,yaw: number,roll: number,pitch: number,dt: number){

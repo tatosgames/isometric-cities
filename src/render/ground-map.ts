@@ -1,5 +1,5 @@
 import type { CityData, Point, Ring } from '../data/types.ts';
-import style from '../data/road-style.json';
+import style from '../data/road-style.json' with {type:'json'};
 import * as T from 'three';
 
 export interface GroundMap {

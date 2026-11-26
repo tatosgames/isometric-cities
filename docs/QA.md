@@ -355,7 +355,7 @@ I crediti si vedono con il menu dei luoghi, la scheda di un luogo, il riepilogo 
 ## Robustezza grafica · 21 novembre 2026
 
 - **Perdita del contesto in guida.** La partita resta sospesa invece di chiudersi: punteggio, pattuglie e posizione sono conservati, nessun passo di simulazione senza grafica, e la corsa riparte solo al primo input dopo il ripristino. Coperto da `npm.cmd test` su desktop e mobile emulato (stato `held` in `data-drive`). Cambiare scheda o finestra rilascia i tocchi in corso, senza pannello di pausa.
-- **Risoluzione adattiva continua** (`src/render/adaptive-resolution.ts`, dal criterio di superstudiorecover). Attiva durante trascinamento, voli e guida, su tutti i dispositivi; tre livelli (1, 0,85, 0,7 del pixel ratio di base). Scende dopo due finestre di 30 frame con mediana oltre 33 ms, risale dopo sei finestre con 75º percentile sotto 20 ms, e raddoppia l’attesa se il livello appena risalito non regge. A vista ferma torna subito al pieno. Simulazione: 40 ms per frame porta a 0,85 dopo 60 frame e a 0,7 dopo 120; a 16 ms risale a 0,85 dopo 190 frame e a 1 dopo 370.
+- **Risoluzione adattiva continua** (misura storica del controller precedente, oggi sostituito da `src/render/dynamic-quality.ts`). Attiva durante trascinamento, voli e guida, su tutti i dispositivi; tre livelli (1, 0,85, 0,7 del pixel ratio di base). Scende dopo due finestre di 30 frame con mediana oltre 33 ms, risale dopo sei finestre con 75º percentile sotto 20 ms, e raddoppia l’attesa se il livello appena risalito non regge. A vista ferma torna subito al pieno. Simulazione: 40 ms per frame porta a 0,85 dopo 60 frame e a 0,7 dopo 120; a 16 ms risale a 0,85 dopo 190 frame e a 1 dopo 370.
 - **Warm-up degli shader.** All’ingresso in guida si compilano tutti i materiali della modalità, compresi quelli che compaiono dopo (rottami, lampeggianti, colori della polvere). Programmi contati in 45 s di guida con una cattura: 15 all’ingresso e 15 al massimo su mobile emulato; 16 e 17 su desktop.
 
 Limiti: sul desktop resta un programma compilato a partita in corso, non identificato (probabile materiale di un settore caricato in streaming). In Chrome con rendering software la guida scende a 0,7 per il caricamento dei settori: non è una misura di un telefono. La prima esecuzione della suite dopo la modifica ha segnalato quattro richieste di settori fallite durante la perdita del contesto in guida; non si è ripetuto nelle sei esecuzioni successive e la causa non è accertata. Nessuna prova su telefono fisico.
@@ -1264,6 +1264,14 @@ Limiti. `qa-drive-lab.mjs` fallisce sull'URL dei valori (`t=player.baseSpeed:30`
 
 ## Guaguas locali in Conducir · rete cittadina
 
+### Continuità delle guaguas a Guanarteme
+
+Con lo stesso feed, il confronto fra il vecchio catalogo e quello rigenerato conta 27 → 81 tratti cittadini da almeno 1 km e 238 → 428 da almeno 500 m. Nelle celle che intersecano il rettangolo di Guanarteme, la mediana sale da 25 a 124 m e i tratti da almeno 500 m passano da 56 a 97. I vuoti GTFS con punto medio nel barrio scendono da 7,48 a 4,77 km, sommati sulle varianti.
+
+Alla partenza `-2800,2400`, le linee L2, 45 e 65 hanno tratti da circa 1,27 km. Osservando la linea 45 per 167 secondi simulati, lo stesso bus avanza di 981 m lungo il suo tratto, da 273 a 1.254 m. La soglia di 500 m riguarda il traffico cittadino. La linea 13 del pilota conserva il percorso di prova.
+
+Con i nuovi raccordi direzionali e il margine d’ingombro in curva, i tratti da almeno 1 km passano da 81 a 169 in città e da 6 a 42 nelle celle intorno a Guanarteme. Il tratto continuo più lungo in città raggiunge 7,11 km. I vuoti GTFS con punto medio a Guanarteme scendono da 4,77 a 2,74 km sommati sulle varianti. Alla partenza `-3400,2700` la L2 dispone di 2,07 km continui. In 205 secondi simulati lo stesso bus avanza di 1,23 km lungo il tratto.
+
 La prova `qa-guagua-local.mjs` verifica che la stessa guagua continui a muoversi dopo più inversioni in vista, passi le fermate e riparta dopo un incontro frontale. La prova `qa-guagua-browser.mjs` segue la linea 13 oltre entrambe le fermate sul desktop e sul telefono emulato.
 
 Una simulazione di 90 s con i dati pubblicati a Hoya de La Plata, visuale fissa su `-296,-3975` e raggio di 90 m, ha registrato un’attesa massima di 2,02 s per precedenza. Nei 18.059 campioni con spostamento il muso ha seguito la direzione di marcia.
@@ -1424,3 +1432,33 @@ Sul commit `7c7dfa91`, che unisce il comune intero con polizia, luce e guaguas d
 | Marzagán | 29,4 MB | 21,1 MB | 56,0 MB, 23 settori | 25,8 MB, 7 zone | 2,6 MB |
 
 `benchmark.mjs`: apertura in 9,7 s, p95 18,1 ms, heap dopo la raccolta 67,7 MB (67,5 dopo il passaggio di ottimizzazione), picco campionato 148 MB. Nessun quartiere nuovo supera i settori di La Isleta (fino a 317 KB), già trattati nel passaggio di `PERFORMANCE.md`: niente da alleggerire. Restano da misurare su telefono fisico.
+## Qualità dinamica globale · 26 novembre 2026
+
+Il primo frame mobile usa il percorso diretto a DPR massimo 1 con ombre di contatto. La calibrazione prova una proiezione delle impronte ufficiali nella direzione del sole. Le successive promozioni in movimento abilitano FXAA e DPR fino a 1,25. In guida e in mappa le soglie sono identiche. I confronti usano la build precedente e livelli fissati nel laboratorio per mostrare anche gli effetti che il dispositivo di prova avrebbe escluso in automatico.
+
+| Profilo mobile emulato, canvas largo 390 px | Pan, FPS medi | Pan, p95 ms | Guida, FPS medi | Guida, p95 ms |
+|---|---:|---:|---:|---:|
+| Build precedente | 56,5 | 18,3 | 49,0 | 18,3 |
+| Avvio base nella nuova build | 55,7 | 18,1 | 43,2 | 18,1 |
+| Ombre statiche | 55,5 | 18,1 | 44,9 | 18,3 |
+| Ombre statiche con FXAA | 55,8 | 18,1 | 46,1 | 18,4 |
+
+Le misure raccolgono 120 intervalli RAF per sequenza in Chrome su PC con viewport touch 390 × 844. Gli FPS medi in guida risentono dei picchi durante l'avvio e lo streaming. Una singola esecuzione per profilo non consente di attribuire le differenze di media all'effetto. Tutti i livelli in tabella hanno DPR 1. Le prove automatiche delle tre inquadrature sono partite su base e l'hanno mantenuta. Una prova separata con cadenza sintetica stabile a 60 Hz nel vero ciclo di rendering ha abilitato e mantenuto le ombre a mappa ferma.
+
+Sul desktop il confronto a 1440 × 900 tra AA nativo diretto e render target a zero campioni con copia finale ha dato p95 di 18,1 ms in entrambi i casi, in panoramica e guida. Il desktop conserva perciò l'AA nativo. Restano da misurare consumi, calore e prestazioni sostenute su telefono fisico.
+
+Confronti a parità di camera e di scala: [piazza e cattedrale](screenshots/qualita-dinamica/plaza.webp), [strada stretta](screenshots/qualita-dinamica/calle.webp), [confine di settore](screenshots/qualita-dinamica/sectores.webp). Ogni immagine affianca build precedente, sagome statiche e sagome con FXAA. La proiezione segue i volumi ricavati dalle impronte e dalle altezze disponibili e interessa il terreno e le carreggiate.
+
+Per ripetere le misure usare `node scripts/qa-quality-views.mjs dist static`, sostituendo il profilo con `base`, `fxaa` o `auto`. Per la build precedente passare la sua directory e `before`. La prova di promozione a cadenza controllata è `node scripts/qa-quality-idle.mjs dist`.
+Typecheck, build, prove del controller, calibrazione in browser, confronti dei livelli e prova camera superati. La suite generale è stata interrotta durante l'apertura di una pagina Chromium, con meno di 1 GiB di RAM fisica libera. Il suo esito complessivo resta da verificare.
+
+### Verifica della centralizzazione
+
+In Chromium il contatore delle texture GPU passa da 0 a 2 attivando FXAA e torna a 0 disattivandolo, per due cicli consecutivi. La prova a 60 Hz simulati verifica il primo frame mobile con DPR 1, poi le ombre statiche con antialiasing ancora spento. Le tre viste emulano uno schermo 390 × 844 e controllano il tetto di memoria delle texture delle ombre (12 MiB nel profilo compatto, 24 MiB nel profilo standard). Il tetto riguarda le texture delle maschere e non misura la memoria totale del browser. La simulazione del controller copre anche il rollback dopo sei secondi se una maschera resta in preparazione.
+La build, il typecheck e la suite generale (`npm test`) sono passati su Chromium, incluse le sessioni desktop e mobile emulato e il recupero del contesto WebGL in guida.
+
+### Cadenza mobile a 30 e 60 FPS
+
+`node scripts/qa-quality-idle.mjs dist 30` e la stessa prova con `60` verificano in Chromium il primo frame a DPR 1 e le ombre statiche dopo la calibrazione iniziale. Gli orologi sono sintetici. La normale animazione ambientale a vista ferma è esclusa dalla misura.
+
+`node scripts/qa-dynamic-quality.mjs` verifica 30 FPS uniformi, intervalli alternati da circa 17 e 50 ms, calo da 60 a 30 durante il movimento, ritorno ai 60 FPS dopo un alleggerimento e annullamento di una promozione troppo costosa. La regolarità osservata permette di scegliere un obiettivo operativo. La causa fisica del limite e il consumo energetico richiedono misure su dispositivo.

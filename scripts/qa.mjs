@@ -12,8 +12,11 @@ import './qa-police-crossing.mjs';
 import './qa-drive-location.mjs';
 import './qa-pedestrians.mjs';
 import './qa-ground.mjs';
-import './qa-drive-surface.mjs';
-import './qa-map-camera.mjs';
+import './qa-dynamic-quality.mjs';
+// Each of these starts its own WebGL browser. Running them in sequence keeps
+// software-renderer contention out of the camera and driving timing checks.
+await import('./qa-drive-surface.mjs');
+await import('./qa-map-camera.mjs');
 const browser=await launchBrowser();
 const {server,origin:served}=await serveMap();
 const origin=served.replace(/\/$/,'');
@@ -114,17 +117,27 @@ try{
     assert.notEqual(await host.getAttribute('data-view'),moved);
     await host.focus();await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.waitForTimeout(150);assert.notEqual(await host.getAttribute('data-view'),initial);
     await page.locator('#reset').click();
-    // Hold one gesture across two slow sampling windows, then release it.
+    // Hold a real gesture while the renderer misses its frame budget. Sparse pointer
+    // events alone do not indicate GPU load. A settled view must not promote itself.
     if(mobile){
-      const width=await page.locator('canvas').evaluate(c=>c.width);
-      await page.mouse.move(x,y);await page.mouse.down();
-      for(let i=0;i<70;i++){
-        await page.mouse.move(x+(i%2?12:0),y);
-        await page.waitForTimeout(40);
-      }
-      await page.waitForFunction(w=>document.querySelector('canvas').width===Math.floor(w*.85),width);
+      await page.waitForFunction(()=>!JSON.parse(document.querySelector('#scene').dataset.sectors).pending);
+      await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+12,y);
+      await page.evaluate(()=>{
+        window.qaSlowFrames=true;
+        function block(){
+          if(!window.qaSlowFrames)return;
+          const end=performance.now()+28;while(performance.now()<end){}
+          requestAnimationFrame(block);
+        }
+        requestAnimationFrame(block);
+      });
+      await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.dpr)<1,null,{timeout:20000});
+      await page.evaluate(()=>{window.qaSlowFrames=false;});
       await page.mouse.up();
-      await page.waitForFunction(w=>document.querySelector('canvas').width===w,width);
+      await settled();
+      const dpr=await host.getAttribute('data-dpr');
+      await page.waitForTimeout(400);
+      assert.equal(await host.getAttribute('data-dpr'),dpr);
       await page.locator('#reset').click();
     }
     if(mobile){
@@ -165,7 +178,7 @@ try{
       assert.equal(await host.getAttribute('data-view'),savedView);
       assert.equal(await angle(),90);
       assert.equal(await page.locator('article').isVisible(),true);
-      if(cycle>=1)assert.ok(await page.locator('canvas').evaluate(c=>c.width)<fullWidth);
+      if(cycle>=1)assert.ok(await host.evaluate(e=>Number(e.dataset.dpr)<=.75*Math.min(devicePixelRatio,matchMedia('(pointer:coarse)').matches?1:1.75)));
       // Inspect the central map without the DOM controls: a cleared canvas is a failure.
       const rect=await host.boundingBox();
       const png=await page.screenshot({clip:{x:rect.x+rect.width/2-80,y:rect.y+rect.height/2-80,width:160,height:160}});

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createServer } from 'vite';
+import {makeCity} from '../src/render/scene.ts';
+import {streamCity} from '../src/render/sectors/sector-stream.ts';
+import {coreWithTerrain} from '../src/data/load.ts';
 import * as T from 'three';
 import { ringCenter, sectorOwner, zoneOfSector } from '../src/data/sector-index.ts';
 import { groundPatch } from '../src/render/ground-surface.ts';
@@ -13,13 +15,7 @@ assert.deepEqual(patch.faces.flat(),Array.from(shape.index.array));
 shape.dispose();
 
 const read = async file => JSON.parse(await readFile(new URL('../public/data/'+file,import.meta.url)));
-const vite = await createServer({ server:{middlewareMode:true}, appType:'custom', optimizeDeps:{noDiscovery:true,include:[]} });
-try {
-  const [{makeCity},{streamCity},{coreWithTerrain}] = await Promise.all([
-    vite.ssrLoadModule('/src/render/scene.ts'),
-    vite.ssrLoadModule('/src/render/sectors/sector-stream.ts'),
-    vite.ssrLoadModule('/src/data/load.ts')
-  ]);
+{
   const [index,pilot,coreFile] = await Promise.all([
     read('city-index.json'), read('pilot.json'), read('city-core.json')
   ]);
@@ -87,6 +83,4 @@ try {
   assert.ok(Math.abs(match(stream,point)-before)<.01);
   match(stream,edge);
   console.log('Ground QA passed (mesh vs DEM: '+(before-stream.altitude(...point)).toFixed(2)+' m, steady during detail load)');
-} finally {
-  await vite.close();
 }

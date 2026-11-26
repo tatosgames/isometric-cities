@@ -1,4 +1,4 @@
-import { cityFillLight } from './render/city-light.ts';
+import { cityFillLight, citySun, sunOffset } from './render/city-light.ts';
 import { parseViewState } from './data/load.ts';
 import type { ViewState, ZoneData } from './data/types.ts';
 import { element as el } from './map/dom.ts';
@@ -11,7 +11,9 @@ import { coastWindow, measureCoast, sampleFlight, type DragSample, type Flight }
 import * as T from 'three';
 import { makeCity } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
-import { makeAdaptiveResolution } from './render/adaptive-resolution.ts';
+import { compactScreen, renderPixelRatio, makeDynamicQuality, type DynamicQualityConfig } from './render/dynamic-quality.ts';
+import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
+import { makeQualityOutput } from './render/quality-output.ts';
 import { makeSkyEffects } from './render/sky-effects.ts';
 import { wind } from './render/wind.ts';
 import { makeSea } from './render/sea.ts';
@@ -45,15 +47,17 @@ async function start(){
   await bootPaint();
   signal.throwIfAborted();
   const scene=new T.Scene(),host=el('scene'),camera=makeMapCamera();
-  const compact=matchMedia('(pointer:coarse)').matches || Math.min(screen.width,screen.height)<700;
+  const compact=compactScreen();
   const sessionKey='map-view:'+location.pathname+location.search;
   let resume: ReturnType<typeof parseViewState>=null;
   try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
   let losses=Number(resume?.losses)||0;
-  const baseRatio=()=>Math.min(devicePixelRatio,compact?1:1.75)*(losses>=2?.75:1);
-  const renderer=new T.WebGLRenderer({antialias:!compact,alpha:true,stencil:true});
-  renderer.setPixelRatio(baseRatio());
-  renderer.shadowMap.enabled=!compact && losses<2;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
+  const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',
+    preview:query.get('lab')==='qualita'?query.get('preview'):null});
+  const renderer=new T.WebGLRenderer({antialias:quality.nativeAntialias,alpha:true,stencil:true});
+  const output=makeQualityOutput(renderer);
+  renderer.shadowMap.type=T.PCFShadowMap;
+  renderer.shadowMap.autoUpdate=false;
   host.append(renderer.domElement);
   const residentZones=new Map<string,ZoneData>();
   const streamed=index&&core?streamCity({data:{...core,...index},stage,neutral,tones,compact,host,
@@ -65,7 +69,26 @@ async function start(){
     },
     lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
-  const {group,altitude,groundAt}=streamed??makeCity(data,neutral,tones,compact);scene.add(group);
+  const city=streamed??makeCity(data,neutral,tones,compact);
+  const {group,altitude,groundAt}=city;
+  scene.add(group);
+  const pilotMask=!streamed && city.groundMap?makeStaticGroundShadow(city.groundMap.bounds,()=>data.buildings,draw):null;
+  pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
+  function applyQuality(config:DynamicQualityConfig){
+    const {shadows,antialias:aa}=config;
+    const ratio=renderPixelRatio(config);
+    if(ratio!==renderer.getPixelRatio())renderer.setPixelRatio(ratio);
+    output.configure(aa==='fxaa');
+    if(renderer.shadowMap.enabled!==(shadows==='solar')){
+      renderer.shadowMap.enabled=shadows==='solar';
+      renderer.shadowMap.needsUpdate=true;
+    }
+    streamed?.setStaticShadows(shadows==='static');
+    pilotMask?.setEnabled(shadows==='static');
+    host.dataset.aa=aa;
+    host.dataset.shadows=shadows;
+    host.dataset.dpr=String(ratio);
+  }
   if(edited)for(const prop of edited.props(groundAt))group.add(prop);
   if(sea)scene.add(makeSea(sea));
   performance.mark('atlas:startup-scene');
@@ -74,9 +97,7 @@ async function start(){
   await bootPaint();
   signal.throwIfAborted();
   scene.add(cityFillLight());
-  const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
-  sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
-  sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);
+  const sun=citySun();scene.add(sun,sun.target);
   // Map controls: the ground stays under the pointer, the wheel and the pinch zoom towards where they point.
   // Rotation goes by the buttons in quarter turns, so the two-finger gesture pans and zooms only.
   // No damping: three.js damping applies a share of each move per update, so the map trails the finger.
@@ -97,16 +118,14 @@ async function start(){
   let playRequestedAt=0;
   let beforeDrive: {target: T.Vector3;zoom: number} | null=null;
   const locations=poi.features.filter(f=>f.properties.areas.includes(pilot?'pilot':'city'));
-  const skyRequested=query.get('sky')!=='0';
   const sky=makeSkyEffects(scene,locations.filter(f=>['parque-doramas','parque-santa-catalina'].includes(f.properties.id)).map(f=>{
     const [x,y]=f.properties.xy;
     return {x,y:altitude(x,y)+34,z:-y};
   }));
-  const setSkyQualityAllowed=(allowed:boolean)=>sky.setEnabled(skyRequested && allowed);
-  setSkyQualityAllowed(true);
+  sky.setEnabled(quality.config.sky);
   window.addEventListener('atlas:sky-quality',e=>{
     const allowed=(e as CustomEvent<unknown>).detail;
-    if(typeof allowed==='boolean')setSkyQualityAllowed(allowed);
+    if(typeof allowed==='boolean')sky.setEnabled(quality.allowSky(allowed));
   },{signal});
   const places=createPlacesUI(locations,altitude,(_id,point,frame)=>{
     if(lost || flight?.driveOrbit)return false;
@@ -194,16 +213,16 @@ async function start(){
     const next=step<0?Math.ceil(turn)-1:Math.floor(turn)+1;
     fly(flight?.to??controls.target,flight?.z1??camera.zoom,turnDuration,next);
   }
-  // Resolution follows the frame cadence whenever the view moves continuously (drag, flight, driving)
-  // and returns to full as soon as it rests, where a single sharp frame costs nothing.
-  const adaptive=makeAdaptiveResolution();
-  let gesture=false;
+  let gesture=false, streamBusy=true;
   const moving=()=>gesture || coasting || !!flight || !!drive?.active;
-  function settle(){
-    if(moving())return;
-    if(adaptive.reset()){renderer.setPixelRatio(baseRatio());draw();}
+  function interruptProbe(){
+    const changed=quality.interrupt();
+    if(changed && !lost)applyQuality(changed);
   }
-  function stopGesture(){gesture=false;settle();}
+  for(const type of ['pointerdown','wheel','keydown']){
+    document.addEventListener(type,()=>{if(quality.calibrationPending || quality.calibrating)interruptProbe();},{capture:true,passive:true,signal});
+  }
+  function stopGesture(){gesture=false;}
   const credits=required(map.querySelector('footer'),'data attribution');
   const licences=el('data-licences');
   function dismissCredits(){
@@ -216,12 +235,7 @@ async function start(){
   },{capture:true});
   controls.addEventListener('start',()=>{dismissCredits();flight=null;places.fold();gesture=true;coasting=false;trail.length=0;trace();});
   controls.addEventListener('change',()=>{if(gesture)trace();});
-  controls.addEventListener('end',()=>{gesture=false;launch();settle();});
-  function sampleCadence(time: number){
-    if(!moving()){adaptive.suspend();return;}
-    const scale=adaptive.sample(time);
-    if(scale!==null){renderer.setPixelRatio(baseRatio()*scale);host.dataset.scale=String(scale);}
-  }
+  controls.addEventListener('end',()=>{gesture=false;launch();});
   function remember(){
     if(!lastView)return;
     try{sessionStorage.setItem(sessionKey,JSON.stringify({...lastView,selected:places.selected,losses}));}catch{}
@@ -241,13 +255,15 @@ async function start(){
     streamed?.suspend();
     controls.dispose();
     sky.dispose();
+    streamed?.disposeShadows();pilotMask?.dispose();
+    output.dispose();
     renderer.dispose();
     setDesaturation(0);
   },{once:true});
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
     event.preventDefault();lost=true;streamed?.forget();losses++;flight=null;coasting=false;drive?.suspend();
-    cancelAnimationFrame(frame);frame=0;gesture=false;adaptive.reset();delete host.dataset.scale;
+    cancelAnimationFrame(frame);frame=0;gesture=false;interruptProbe();
     controls.enabled=false;controls.disconnect();
     remember();
     if(map.dataset.boot!=='ready'){
@@ -263,12 +279,13 @@ async function start(){
   function syncSize(){
     if(signal.aborted)return;
     renderer.setSize(host.clientWidth,host.clientHeight);
+    applyQuality(quality.config);
     sizeCamera();draw();
   }
   renderer.domElement.addEventListener('webglcontextrestored',()=>{
     if(signal.aborted)return;
     lost=false;controls.connect(renderer.domElement);controls.enabled=map.dataset.boot==='ready'&&!drive?.active;
-    renderer.setPixelRatio(baseRatio());renderer.shadowMap.enabled=!compact && losses<2;
+    applyQuality(quality.restore(losses));
     renderer.shadowMap.needsUpdate=true;
     if(drive?.active){syncSize();drive.resume();return;}
     // The saved target is the centre of the screen, so the restored view needs no offset.
@@ -280,7 +297,7 @@ async function start(){
     drive?.visibilityChanged();
     // A hidden page is the first the browser closes for memory: the drive's world goes unless a run is on.
     if(document.hidden && !building)drive?.release();
-    if(document.hidden){if(!flight?.driveOrbit)flight=null;coasting=false;stopGesture();remember();}
+    if(document.hidden){interruptProbe();if(!flight?.driveOrbit)flight=null;coasting=false;stopGesture();remember();}
     else if(!lost)syncSize();
   });
   function paint(time: number){
@@ -289,7 +306,11 @@ async function start(){
     wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
     painted=time;
     sky.update(camera,controls.target,!!drive?.active);
-    renderer.render(scene,camera);
+    output.render(scene,camera);
+    if(map.dataset.boot==='ready' && !document.hidden){
+      const changed=quality.sample(time,{mode:moving()?'moving':quality.calibrating?'calibration':'resting',ready:!streamBusy,preparingShadows:streamed?.shadowsPending??pilotMask?.pending??false});
+      if(changed)applyQuality(changed);
+    }
     if(!document.hidden)setDesaturation(drive?.desaturation??0);
   }
   function draw(){
@@ -304,7 +325,6 @@ async function start(){
     });
   }
   function drawFrame(time: number){
-    sampleCadence(time);
     if(coasting){
       // Exponential decay, integrated exactly over the frame: the same glide at any frame cadence.
       const dt=coastTime?Math.min(.1,(time-coastTime)/1000):1/60;
@@ -312,7 +332,7 @@ async function start(){
       const step=approach(coastRate,dt)/coastRate;
       controls.target.addScaledVector(coastVelocity,step);camera.position.addScaledVector(coastVelocity,step);
       coastVelocity.multiplyScalar(1-approach(coastRate,dt));
-      if(coastVelocity.length()*camera.zoom<8){coasting=false;settle();}else draw();
+      if(coastVelocity.length()*camera.zoom<8){coasting=false;}else draw();
     }
     if(flight){
       const {t,ease,turn,zoom}=sampleFlight(flight,time);
@@ -331,7 +351,6 @@ async function start(){
       if(t>=1){
         flight=null;
         if(orbit)controls.enabled=true;
-        settle();
       }
     }
     // Keep the target inside the outline. Zooming to the cursor slides the camera across its own plane, so its
@@ -343,12 +362,13 @@ async function start(){
     if(renderer.shadowMap.enabled){
       const sx=Math.round(controls.target.x/240)*240,sz=Math.round(controls.target.z/240)*240;
       if(sun.target.position.x!==sx || sun.target.position.z!==sz){
-        sun.target.position.set(sx,0,sz);sun.position.set(sx-550,690,sz-370);
+        sun.target.position.set(sx,0,sz);sun.position.copy(sun.target.position).add(sunOffset);
         renderer.shadowMap.needsUpdate=true;
       }
     }
     const opening=booting();
     const level=streamed?.update(camera,controls.target,drive?.active,opening?'covered':map.dataset.boot==='revealing'?'revealing':undefined);
+    streamBusy=level?.busy??false;
     if(awaitingZone && streamed?.demand(controls.target.x,-controls.target.z))queueMicrotask(beginDrive);
     paint(time);
     if(renderer.getContext().isContextLost())return;
@@ -374,7 +394,11 @@ async function start(){
   function ambient(time: number){
     if(signal.aborted)return;
     requestAnimationFrame(ambient);
-    if(map.dataset.boot!=='ready' || lost || frame || !painted || time-painted<31)return;
+    if(map.dataset.boot!=='ready' || document.hidden || lost || frame || !painted || time===painted)return;
+    if(quality.calibrationPending && !streamBusy && !moving()){
+      quality.beginCalibration(time);
+    }
+    if(!quality.calibrating && !moving() && time-painted<31)return;
     paint(time);
   }
   requestAnimationFrame(ambient);
@@ -474,6 +498,7 @@ async function start(){
   },{once:true});
   const openingPlace=places.point(query.get('focus'));
   const initialZoom=()=>openingPlace ? Math.min(host.clientWidth,host.clientHeight)/270 : openingZoom();
+  applyQuality(quality.config);
   let firstView=true;
   new ResizeObserver(()=>{
     if(signal.aborted || lost || !host.clientWidth || !host.clientHeight)return;

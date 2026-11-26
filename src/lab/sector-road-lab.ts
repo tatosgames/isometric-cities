@@ -1,4 +1,5 @@
-import { cityFillLight } from '../render/city-light.ts';
+import {compactScreen,makeDynamicQuality,renderPixelRatio} from '../render/dynamic-quality.ts';
+import { cityFillLight, citySun } from '../render/city-light.ts';
 import * as T from 'three';
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {loadData,isCity,isSectorIndex,isRoofPalette,isLayers} from '../data/load.ts';
@@ -27,16 +28,14 @@ export async function sectorRoadLab(){
   const split=zonesFromCity(city,index,!widths&&query.has('intera')?undefined:id=>pair.has(id));
   const layers={...split.core,...split.index};
   if(previous)delete layers.roadCoverage;
-  const compact=matchMedia('(pointer:coarse)').matches||screen.width<700;
-  const renderer=new T.WebGLRenderer({antialias:!compact,stencil:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.75));renderer.setClearColor(0xe7e5d5);
-  renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
+  const compact=compactScreen(), quality=makeDynamicQuality({compact}).config;
+  const renderer=new T.WebGLRenderer({antialias:quality.antialias==='native',stencil:true});
+  renderer.setPixelRatio(renderPixelRatio(quality));renderer.setClearColor(0xe7e5d5);
+  renderer.shadowMap.enabled=quality.shadows==='solar';renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
   host.prepend(renderer.domElement);
   const scene=new T.Scene(),camera=makeMapCamera(),toCamera=mapViewDirection();
   scene.add(cityFillLight());
-  const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
-  sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
-  sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);
+  const sun=citySun();scene.add(sun,sun.target);
   const car=new T.Mesh(carGeometry('#d8452f','#f4ead7',false),new T.MeshStandardMaterial({vertexColors:true,roughness:.8,flatShading:true}));
   car.scale.setScalar(carVisualScale);car.castShadow=true;scene.add(car);
   const ui={legacy:query.has('raster'),reverse:query.has('inverso'),drive:!query.has('mappa'),delay:query.has('ritardo'),

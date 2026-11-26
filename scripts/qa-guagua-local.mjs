@@ -26,6 +26,16 @@ const makeFixture = ({pieces = {p: {file: 'p.json', line: '13', direction: 'Tres
 const noCamera = () => false;
 const noOccupancy = () => false;
 
+{
+  const short=pieceData(0,40,[]);
+  const fixture=makeFixture({cells:{'0_0':[['p',0,40]]},files:{'p.json':short}});
+  const fleet=makeLocalFleet('city',()=>true,noOccupancy,fixture.fetcher);
+  await fleet.reset(0,0);
+  assert.equal(fleet.active.length,0,'A short city fragment must not spawn a shuttle');
+  assert.deepEqual(fleet.errors,[]);
+  fleet.dispose();
+}
+
 // Timetable contract: a real route with one stop has a three-second dwell. Empty stops remain legal.
 const dwell = busTimetable(pieceData());
 const atStop = emptyBusState();
