@@ -15,6 +15,8 @@ import { makeDrive } from './drive/drive.ts';
 import { compactScreen, renderPixelRatio, makeDynamicQuality, type DynamicQualityConfig } from './render/dynamic-quality.ts';
 import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
 import { makeQualityOutput } from './render/quality-output.ts';
+import { lightLook, makeMatcapPatcher, readLook } from './render/look-lab.ts';
+import { makeStatsOverlay } from './render/stats-overlay.ts';
 import { makeSkyEffects } from './render/sky-effects.ts';
 import { wind } from './render/wind.ts';
 import { makeSea, SEA_LEVEL } from './render/sea.ts';
@@ -82,7 +84,10 @@ async function start(){
     }})});
   let physicalDpr=devicePixelRatio, nextDisplayCheck=0;
   const renderer=new T.WebGLRenderer({antialias:quality.nativeAntialias,alpha:true,stencil:true});
-  const output=makeQualityOutput(renderer);
+  const look=readLook(),patchLook=look==='matcap'?makeMatcapPatcher():null;
+  let lookPatched=0;
+  const output=makeQualityOutput(renderer,{tilt:look!=='base'&&query.has('tilt')});
+  const stats=makeStatsOverlay(renderer,query);
   renderer.shadowMap.type=T.PCFShadowMap;
   renderer.shadowMap.autoUpdate=false;
   host.append(renderer.domElement);
@@ -107,7 +112,9 @@ async function start(){
   pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
   let flightRange:DynamicQualityConfig['flight'];
   function applyQuality(config:DynamicQualityConfig){
-    const {shadows,antialias:aa}=config;
+    const {antialias:aa}=config;
+    // The matcap look ignores lights, so it shows the painted static shadow instead of the shadow map.
+    const shadows=look==='matcap'&&config.shadows==='solar'?'static':config.shadows;
     flightRange=config.flight;
     const flightCamera=drive?.flightView?.camera;
     if(flightRange && flightCamera){
@@ -146,8 +153,9 @@ async function start(){
   bootPhase('Preparando la vista');
   await bootPaint();
   signal.throwIfAborted();
-  scene.add(cityFillLight());
+  const fill=cityFillLight();scene.add(fill);
   const sun=citySun();scene.add(sun,sun.target);
+  lightLook(look,renderer,fill,sun);
   // Map controls: the ground stays under the pointer, the wheel and the pinch zoom towards where they point.
   // Rotation goes by the buttons in quarter turns, so the two-finger gesture pans and zooms only.
   // No damping: three.js damping applies a share of each move per update, so the map trails the finger.
@@ -271,6 +279,7 @@ async function start(){
   }
   let gesture=false, streamBusy=true, flightPreparing=false;
   const moving=()=>gesture || coasting || !!flight || !!drive?.active;
+  (window as any).__qdbg={busy:()=>streamBusy,moving:()=>moving()}; // TEMP-DEBUG
   function interruptProbe(reason:'input'|'context-lost'|'hidden'){
     const changed=quality.interrupt(reason);
     if(changed && !lost)applyQuality(changed);
@@ -386,7 +395,10 @@ async function start(){
     scene.background=airborne?flightSky:null;
     scene.fog=airborne?flightHaze:null;
     sky.update(lens,airborne?.target??controls.target,!!drive?.active);
+    if(patchLook && time-lookPatched>400){lookPatched=time;patchLook(scene);}
+    stats?.begin();
     output.render(scene,lens);
+    stats?.end();
     if(map.dataset.boot==='ready' && !document.hidden){
       const changed=quality.sample(time,{
         mode:moving()?'moving':quality.calibrating?'calibration':'resting',

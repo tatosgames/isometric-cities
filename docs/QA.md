@@ -20,6 +20,10 @@ In an ordinary game on mobile viewport with active traffic, capture, restart and
 
 After the build, run `node scripts/qa-police-straights.mjs` for four stars with isometric camera. Repeat with `--aerial` for the upper chamber and with `--two-stars` for two stars. The `longest` field is expressed in seconds, `seen` is the time with a readable patrol, `fast` the estimated driving time and `forward` the distance traveled along the straight in meters.
 
+## Drive look prototypes · November 26, 2026
+
+Same pilot start in Vegueta, Chromium 1440 × 900, isometric and chase views after 2.5 s of driving: shipped look, `?look=sole`, `?look=matcap`, `?look=matcap&tilt`. No errors on the page. The matcap ignores the lights: tree and cloud shadows remain, building shadows depend on the static mask. The sole look shows real shadows that are too dark under the trees and needs a stronger fill. With `&tilt&stats` the drive ran at 60 FPS with 40 draw calls per frame (desktop GPU). The captures are not kept in the repository.
+
 ## Python Regeneration · November 26, 2026
 
 Comparison with `7c7dfa91` in isolated checkouts, with Python 3.14 and the same cached inputs. The absolute times are affected by the concurrent load. Equality is verified with the SHA-256 of the generated files, comparing two regenerations from the same input or the canonical files in Git.

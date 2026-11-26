@@ -1,5 +1,7 @@
 # Checkpoints
 
+Look prototypes for the drive, selected by URL and absent without it: `?look=sole` (Neutral tone mapping, warmer and stronger sun, weaker sky fill), `?look=matcap` (three-band toon matcap in the style of Soso Mart and folio-2019, painted static shadow instead of the shadow map), `&tilt` for the folio edge blur. `?stats` adds the three.js Stats panel (FPS, ms, MB, draw calls, thousands of triangles). Pending: choice of direction for phase 1 of the visual audit. [Comparison](docs/QA.md#drive-look-prototypes--november-26-2026).
+
 From the second star, on the straights traveled at high speed, reinforcements can enter off-road along a section of road. The lane is checked from the camera's point of view in the oncoming traffic section. [Test across five neighborhoods](docs/QA.md#city-straight-lines-and-visibility-of-patrols).
 
 Python regeneration reuses projected OSM extracts, roadway masks and meshes, orthophoto tiles, and decoded LiDAR data. Calculation of roof colors only and gzip 6 are available on request. The default generators keep the canonical files. [Guide](docs/EXPAND_CITY.md#reproducible-generation) · [Measurements](docs/QA.md#python-regeneration--november-26-2026).
