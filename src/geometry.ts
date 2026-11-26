@@ -19,6 +19,18 @@ export function pointInRing(ring: readonly (readonly [number,number])[],x: numbe
   return hit;
 }
 
+/** The point of a ring's outline nearest to (x,y), and how far it is. */
+export function nearestOnRing(ring: readonly (readonly [number,number])[],x: number,y: number){
+  let distance=Infinity,px=x,py=y;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const [ax,ay]=ring[j],[bx,by]=ring[i],dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;
+    const t=l?Math.min(1,Math.max(0,((x-ax)*dx+(y-ay)*dy)/l)):0;
+    const d=Math.hypot(ax+t*dx-x,ay+t*dy-y);
+    if(d<distance){distance=d;px=ax+t*dx;py=ay+t*dy;}
+  }
+  return {x:px,y:py,distance};
+}
+
 /** Band index for repeated point-in-ring queries on city boundaries and coastlines. */
 export function ringIndex(ring: readonly (readonly [number,number])[],band=25){
   const rows=new Map<number,number[]>();

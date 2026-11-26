@@ -29,8 +29,28 @@ export interface BuildingRange {
 }
 
 
+const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
+// Buildings that are not housing (`kind`): the plain shells of sheds and shopping centres, the pale fronts of
+// hospitals, schools and offices.
+const halls=['#d8d5cd','#cdd2d1','#e2ded4','#c6c2b8'],blocks=['#ece9e2','#dedcd5','#e6dccb','#d3d9d8'];
+/** The colour of a building's walls. Buildings from the catalogue `osmBuildings` have negative ids: the magnitude picks. */
+export function wallTone(b: Building){
+  const n=Math.abs(b.id);
+  return b.wallColor??(b.kind==='hall'?halls[n%halls.length]:b.kind==='block'?blocks[n%blocks.length]:walls[n%walls.length]);
+}
+
+/**
+ * The ranges of `makeCity` by building id, as quadruples of id, mesh index in `meshes`, first vertex and vertex
+ * count: the form that crosses from the sector worker, and the one the main thread decodes.
+ */
+export function packRanges(buildings: Building[],ranges: Map<Building['rings'],BuildingRange[]>,meshes: T.Object3D[]){
+  const index=new Map(meshes.map((mesh,i)=>[mesh,i])),quads: number[]=[];
+  for(const b of buildings)for(const {mesh,start,count} of ranges.get(b.rings)??[])quads.push(b.id,index.get(mesh)??-1,start,count);
+  return Int32Array.from(quads);
+}
+
 export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | null, compact=false, sharedGround: GroundMap | null=null,
-  buildingRanges?: Map<Building['rings'], BuildingRange[]>) {
+  buildingRanges?: Map<Building['rings'], BuildingRange[]>, movable=false) {
   const group = new T.Group();
   const detail=cityDetail(compact);
   const groundMap=neutral?null:(sharedGround??makeGroundMap(data));
@@ -165,15 +185,12 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     g.setAttribute('normal',new T.Float32BufferAttribute(Array(6).fill([0,1,0]).flat(),3));
     return g;
   }
-  const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
   const parapetCream=new T.Color('#eee0c7');
-  // Buildings that are not housing (`kind`): the plain shells of sheds and shopping centres, the pale fronts of
-  // hospitals, schools and offices.
-  const halls=['#d8d5cd','#cdd2d1','#e2ded4','#c6c2b8'],blocks=['#ece9e2','#dedcd5','#e6dccb','#d3d9d8'];
   // A window or ledge on a party wall is buried in the neighbour. Index the footprints to ask what stands just
-  // outside a wall, and up to which height. The editor moves buildings apart, so there every wall keeps its detail.
+  // outside a wall, and up to which height. The editor moves buildings apart (`movable`), so there every wall keeps
+  // its detail; the demolition lab only removes them, and a bared party wall stays blank.
   const LOT=32,lots=new Map<string,{rings: Ring[];top: number}[]>();
-  if(!buildingRanges)for(const b of data.buildings){
+  if(!movable)for(const b of data.buildings){
     const outer=b.rings[0],xs=outer.map(p=>p[0]),ys=outer.map(p=>p[1]);
     const lot={rings:b.rings,top:altitude(outer[0][0],outer[0][1])+(b.heightOverride??b.height)};
     for(let i=Math.floor(Math.min(...xs)/LOT);i<=Math.floor(Math.max(...xs)/LOT);i++)
@@ -203,7 +220,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const z=altitude(x,y), h=b.heightOverride??b.height, top=z+h;
     const g=wallsOnly(new T.ExtrudeGeometry(s,{depth:h+2+RIM,bevelEnabled:false})).translate(0,0,z-2).rotateX(-Math.PI/2);
     const hall=b.kind==='hall',block=b.kind==='block';
-    addBuilding(g,b.wallColor??(hall?halls[n%halls.length]:block?blocks[n%blocks.length]:walls[n%walls.length]),x,y,0,z);
+    addBuilding(g,wallTone(b),x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
     const roofColour=roofTone(b,tones);
     const rimColour=new T.Color(roofColour).lerp(parapetCream,.25);

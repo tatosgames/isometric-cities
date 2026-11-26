@@ -4,9 +4,27 @@ import {bindLabPanel,copyLabLink,labNavigation,labs,roadScenarios} from './lab-s
 const el=(id:string)=>required(document.getElementById(id),id);
 const query=new URLSearchParams(location.search),legacy=query.get('test');
 const roads=query.get('lab')==='strade' || roadScenarios.some(scenario=>scenario.legacy===legacy);
-el('lab-navigation').append(labNavigation(roads?'strade':undefined));
+const demolition=query.get('lab')==='demolizione';
+el('lab-navigation').append(labNavigation(roads?'strade':demolition?'demolizione':undefined));
 
-if(roads){
+if(demolition){
+  el('title').textContent=labs[3].title;
+  el('catalog').hidden=true;
+  required(document.querySelector('main'),'demolition lab').hidden=false;
+  const actions=el('road-actions');
+  // The scenario selector belongs to the road lab.
+  el('scenario').hidden=required(actions.querySelector('label'),'scenario label').hidden=true;
+  el('lab-navigation').append(actions);
+  actions.hidden=false;
+  bindLabPanel(el('panel'),el('settings'));
+  const status=el('status');
+  status.textContent='Loading the city…';
+  import('./demolition-lab.ts').then(({demolitionLab})=>demolitionLab())
+    .then(currentParams=>{
+      actions.append(copyLabLink(()=>{const url=new URL(location.href);url.search=currentParams().toString();return url;}));
+    })
+    .catch(error=>{status.textContent=String(error);});
+}else if(roads){
   const requested=query.get('scenario');
   const scenario=roadScenarios.find(entry=>entry.id===requested || (!requested && entry.legacy===legacy))??roadScenarios[0];
   const select=required(document.querySelector<HTMLSelectElement>('#scenario'),'road scenario');

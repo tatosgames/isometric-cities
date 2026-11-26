@@ -1,5 +1,13 @@
 # Local Verification · November 21, 2026
 
+## Demolition lab · November 26, 2026
+
+`lab.html?lab=demolizione`, desktop test viewport 1280 × 800, software WebGL. `scripts/qa-demolition.mjs`: the catalog lists four labs; dynamite clicked on the building nearest the centre brings it down within the fuse (≥ 5 pieces). Picking at the same point then finds another building, so the building has left the sector meshes. The pieces settle, sink and their meshes are gone within 20 s, and the rubble slab stays. A fast mouse sweep of the wrecking ball across the next building breaks it (5 buildings along one sweep at ball height 6 m). No page or console errors. Close-up frames at 60, 250, 500, 900 and 2,200 ms show shards flying out of the side that was hit, dust, then a pile on the footprint. One burst is one draw call; a mid-rise block breaks into 40–110 pieces.
+
+Optimisation pass (same day): `qa-demolition.mjs` passed again and close-up frames show the same blast. Worst frames and per-frame cost: [measures](PERFORMANCE.md#demolition-lab). Hidden buildings now have one owner, the stream: zones and sectors loaded later leave them out of their data, so the lab no longer filters zones itself.
+
+Building tracking is asked for only by this lab (`trackBuildings`): the map and the drive build their sectors as before and keep releasing positions after upload. Typecheck, build, full `npm test` (exit 0) and `qa-drive-lab.mjs` passed. A first `npm test` run failed in `qa-map-camera.mjs` with `ERR_HTTP_RESPONSE_CODE_FAILURE` because `dist` was rebuilt while the suite was serving it; the rerun on an untouched build passed.
+
 ## Labs on the game renderer · November 26, 2026
 
 Cause of the carriageways that sank into the ground in the Mercado lab: its reference mesh was baked on an older ground. Against today's ground triangles its vertices ranged from −1.01 m to +1.26 m, and 52% sat more than 1 cm below the ground. Twelve published sectors, checked with the same triangulation and bilinear terrain reading, were all coplanar within 0.1 mm, so the map was not affected.

@@ -4,7 +4,7 @@ import { ringCenter, sectorOwner, zoneOfSector } from '../../data/sector-index.t
 import { isLayers, isZone, loadData } from '../../data/load.ts';
 import { required } from '../../required.ts';
 import {surfaceStencil} from '../building-stencil.ts';
-import { sectorBuilder } from './sector-builder.ts';
+import { sectorBuilder, type SectorBuildings } from './sector-builder.ts';
 import { overviewGround, overviewSilhouettes } from '../overview.ts';
 import * as T from 'three';
 import { makeCity } from '../scene.ts';
@@ -40,6 +40,8 @@ interface StreamOptions {
   /** Footprints of a zone arrive with `data`, and leave with `null`. Collision follows the same residency. */
   onGroundRings?:(rings:Ring[])=>void;
   onZone?:(id:string,data:ZoneData|null)=>void;
+  /** Keep where each building lies in the sector meshes, so that `hideBuilding` can take one away (demolition lab). */
+  trackBuildings?: boolean;
 }
 
 type Assets={bytes:number;dispose:()=>void};
@@ -69,6 +71,8 @@ interface ResidentSector {
   prefetch: T.Box3;
   detail: T.Group | null;
   assets: Assets | null;
+  /** With `trackBuildings`: the vertices of each building in `detail`, whose positions stay in memory. */
+  buildings: SectorBuildings | null;
   used: number;
   failed: number;
   retry: number;
@@ -112,17 +116,17 @@ function resources(group: T.Object3D): Assets {
 // are rebuilt from their files instead (see `forget`), so the copy goes as soon as it is uploaded. Geometry that is
 // still read afterwards, such as the ground a sampler walks, is left out by the caller.
 function release(this: T.BufferAttribute){(this as unknown as {array: null}).array=null;}
-function gpuOnly(root: T.Object3D){
+function gpuOnly(root: T.Object3D,keep?: ReadonlySet<T.BufferAttribute>){
   root.traverse(mesh=>{
     if(!(mesh instanceof T.Mesh))return;
     const geometry=mesh.geometry;
     // Culling needs the bounds, and they are computed from the positions about to go.
     if(!geometry.boundingSphere)geometry.computeBoundingSphere();
-    for(const a of [...Object.values(geometry.attributes),geometry.index])if(a instanceof T.BufferAttribute)a.onUpload(release);
+    for(const a of [...Object.values(geometry.attributes),geometry.index])if(a instanceof T.BufferAttribute && !keep?.has(a))a.onUpload(release);
     // A buffer is uploaded at its first draw, and a mesh outside the view is never drawn: its copy would stay
     // for as long as the zone. Draw it once wherever it is; culling returns with the upload.
     const position=geometry.getAttribute('position');
-    if(!mesh.frustumCulled || !(position instanceof T.BufferAttribute))return;
+    if(!mesh.frustumCulled || !(position instanceof T.BufferAttribute) || keep?.has(position))return;
     mesh.frustumCulled=false;
     position.onUpload(function(this: T.BufferAttribute){release.call(this);mesh.frustumCulled=true;});
   });
@@ -149,9 +153,28 @@ function unpackBlocks({points,ends,heights,tones}: PackedBlocks): FarBlock[] {
 
 // Three levels. Far: merged blocks of every zone, always resident. Zone: one silhouette per building, on demand.
 // Sector: full detail inside a loaded zone, within the byte budget. Zones are bounded by the view and counted apart.
-export function streamCity({data,stage='city',neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,loadZone,onZone,onGroundRings,lod}: StreamOptions){
+export function streamCity({data,stage='city',neutral,tones,compact,refresh,host,legacyRoads=false,loadLayers,loadZone,onZone,onGroundRings,lod,trackBuildings=false}: StreamOptions){
   const detailProfile=cityDetail(compact);
-  const build=sectorBuilder(data.terrain,compact,neutral,tones);
+  const build=sectorBuilder(data.terrain,compact,neutral,tones,trackBuildings);
+  /**
+   * Buildings taken away with `hideBuilding`. Zones and sectors loaded later leave them out of their data; the
+   * baked ground shadows of resident zones drop them at the next `update`, once for however many went together.
+   */
+  const hidden=new Set<number>();
+  let shadowsStale=false;
+  function standing(zone: ZoneData): ZoneData {
+    if(!hidden.size)return zone;
+    const keep=zone.buildings.map(b=>!hidden.has(b.id));
+    return {...zone,buildings:zone.buildings.filter((_,i)=>keep[i]),owners:zone.owners.filter((_,i)=>keep[i])};
+  }
+  function collapse(ranges: SectorBuildings,id: number){
+    for(const {mesh,start,count} of ranges.get(id)??[]){
+      const position=mesh.geometry.getAttribute('position');
+      if(!(position instanceof T.BufferAttribute) || !position.array)continue;
+      position.array.fill(0,start*3,(start+count)*3);
+      position.addUpdateRange(start*3,count*3);position.needsUpdate=true;
+    }
+  }
   const streetPriority=!!data.carriageways&&!legacyRoads,coverage=legacyRoads?undefined:data.roadCoverage;
   // The far ground is painted once from the whole city; merged blocks leave its contact shadows.
   const footprints: Building[]=Object.values(data.far).flatMap(z=>z.blocks.map(b=>({id:0,rings:[b.ring],height:b.height})));
@@ -202,7 +225,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const zone=required(zoneById.get(zoneOfSector(s.id,data)),'zone of sector '+s.id);
     const bounds=box(s.bounds,s.vertical);
     const sector={id:s.id,file:s.file,zone,low:null,groundAt:null,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.55),
-      detail:null,assets:null,used:0,failed:0,retry:0,estimate:0,wanted:-Infinity,inView:false,seen:-Infinity};
+      detail:null,assets:null,buildings:null,used:0,failed:0,retry:0,estimate:0,wanted:-Infinity,inView:false,seen:-Infinity};
     zone.sectors.push(sector);
     return sector;
   });
@@ -275,7 +298,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     if(!s.assets)return;
     transitions.get(s.id)?.dispose();transitions.delete(s.id);
     if(displayed.delete(s.id))lod?.observe?.(s.id,false);
-    evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;
+    evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;s.buildings=null;
     if(s.low)s.low.visible=true;
   }
   // Only an adjoining zone can project an urban building across this zone's edge.
@@ -302,6 +325,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       const source=required(data.zones.find(zone=>zone.id===z.id),'zone '+z.id);
       let content: ZoneData | null=await (loadZone?loadZone(source,controller.signal):loadData(stage+'-zones/'+z.file,isZone,controller.signal));
       if(controller.signal.aborted || !requestedZones.includes(z))return;
+      content=standing(content);
       onGroundRings?.(content.ground);
       const [west,south,east,north]=source.bounds;
       // The zone paints its own ground, so its sharpness does not depend on the size of the city.
@@ -378,6 +402,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       if(legacyRoads||neutral)delete layers.carriageway;
       if(detailProfile.simplifiedBuildings && layers.fused)layers.buildings=layers.fused;
       delete layers.fused;
+      if(hidden.size)layers.buildings=layers.buildings.filter(b=>!hidden.has(b.id));
       if(controller.signal.aborted || !requested.includes(s))return;
       const local=await build(layers,controller.signal);
       if(!local || !s.low)return;
@@ -385,7 +410,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       mask?.attach(local.materials.mat,true);mask?.attach(local.materials.road);
       const detail=local.group;
       const assets=resources(detail);
-      gpuOnly(detail);
+      const tracked=local.buildings;
+      const keep=new Set<T.BufferAttribute>();
+      for(const ranges of tracked?.values()??[])for(const {mesh} of ranges){
+        const position=mesh.geometry.getAttribute('position');
+        if(position instanceof T.BufferAttribute)keep.add(position);
+      }
+      gpuOnly(detail,keep);
       const texture=local.groundMap?.texture;
       if(texture){
         assets.bytes+=textureBytes(texture);
@@ -399,7 +430,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         release(other);
       }
       if(bytes+assets.bytes>budget){assets.dispose();return;}
-      s.detail=detail;s.assets=assets;bytes+=assets.bytes;base.group.add(detail);
+      s.detail=detail;s.assets=assets;s.buildings=tracked;bytes+=assets.bytes;base.group.add(detail);
       if(lod?.attach && s.zone.map)transitions.set(s.id,lod.attach(s.low,local,s.zone.map));
       s.low.visible=false;s.failed=0;
     }catch(error){
@@ -459,6 +490,13 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
   }
   function update(camera: T.OrthographicCamera|T.PerspectiveCamera,target: T.Vector3,driving=false,opening?:'covered'|'revealing',flight?:FlightRenderRange){
     tick++;
+    if(shadowsStale){
+      shadowsStale=false;
+      for(const [zone,list] of casters){
+        const kept=list.filter(b=>!hidden.has(b.id));
+        if(kept.length!==list.length){casters.set(zone,kept);masks.get(zone)?.invalidate();}
+      }
+    }
     const airborne=camera instanceof T.PerspectiveCamera;
     const now=performance.now();
     const expanding=flight && previousFlight && flight.detailRadius>previousFlight.detailRadius;
@@ -605,6 +643,16 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       if(enabled===staticEnabled)return;
       staticEnabled=enabled;
       syncShadowMasks();
+    },
+    /**
+     * Takes a building out of the sectors that draw it, at once, and out of everything loaded later. Needs
+     * `trackBuildings`. The silhouettes of a resident zone keep it until the zone reloads, behind the detail.
+     */
+    hideBuilding(id: number){
+      hidden.add(id);
+      for(const s of sectors)if(s.buildings)collapse(s.buildings,id);
+      shadowsStale=true;
+      refresh();
     },
     get shadowsPending(){return staticEnabled && (requestedZones.length?requestedZones.some(z=>masks.get(z.id)?.pending):!!farMask?.pending);},
     disposeShadows(){farMask?.dispose();for(const mask of masks.values())mask.dispose();},

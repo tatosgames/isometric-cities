@@ -31,7 +31,7 @@ export function makeCityView(scene: T.Scene, tones: RoofTones) {
         pickables.clear();
       }
       buildingRanges.clear();
-      city = makeCity(data,false,tones,false,null,buildingRanges);
+      city = makeCity(data,false,tones,false,null,buildingRanges,true);
       scene.add(city.group);
       const material = new T.MeshBasicMaterial({ side: T.DoubleSide });
       data.buildings.forEach((building,part) => {

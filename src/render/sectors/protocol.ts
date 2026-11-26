@@ -6,6 +6,8 @@ export interface WorkerConfig {
   compact: boolean;
   neutral: boolean;
   tones: RoofTones | null;
+  /** Report where each building lies in the merged meshes (demolition lab): see `WorkerResult.ranges`. */
+  track?: boolean;
 }
 
 /** A build carries the heights under its own sector: the worker never holds the grid of the whole city. */
@@ -28,6 +30,7 @@ export interface MeshData {
   receive: boolean;
 }
 
-export type WorkerResult = {geometries: GeometryData[]; meshes: MeshData[]} &
+/** `ranges`: quadruples of building id, mesh index, first vertex and vertex count, when the worker tracks them. */
+export type WorkerResult = {geometries: GeometryData[]; meshes: MeshData[]; ranges: Int32Array | null} &
   ({image: ImageBitmap; bounds: Bounds} | {image: null});
 export type WorkerReply = WorkerResult | {error: string};

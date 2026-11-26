@@ -3,7 +3,7 @@ import type { AttributeData, WorkerReply, WorkerRequest, WorkerResult } from './
 import type { GroundMap } from '../ground-map.ts';
 import * as T from 'three';
 import { cityMaterials } from '../city-materials.ts';
-import { makeCity } from '../scene.ts';
+import { makeCity, packRanges, type BuildingRange } from '../scene.ts';
 import { heightWindow } from '../../geometry.ts';
 
 function bitmapTexture(bitmap: ImageBitmap){
@@ -26,14 +26,34 @@ function extent(layers: Layers): [number,number,number,number]{
   return west<=east?[west,south,east,north]:[0,0,0,0];
 }
 
-// The streamer serializes builds. A cancelled result is discarded before GPU upload.
-export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean,tones: RoofTones | null){
+/** Where each building lies in the merged meshes of a sector, by building id. */
+export type SectorBuildings=Map<number,BuildingRange[]>;
+
+/** Decodes `packRanges`. The positions of those meshes will be rewritten: they are uploaded as dynamic. */
+function unpackRanges(r: Int32Array,group: T.Group): SectorBuildings {
+  const buildings: SectorBuildings=new Map();
+  for(let k=0;k<r.length;k+=4){
+    const mesh=group.children[r[k+1]];
+    if(!(mesh instanceof T.Mesh))continue;
+    let list=buildings.get(r[k]);
+    if(!list){
+      buildings.set(r[k],list=[]);
+      mesh.geometry.getAttribute('position').setUsage(T.DynamicDrawUsage);
+    }
+    list.push({mesh,start:r[k+2],count:r[k+3]});
+  }
+  return buildings;
+}
+
+// The streamer serializes builds. A cancelled result is discarded before GPU upload. `track` also returns, for the
+// demolition lab, where each building lies in the merged meshes.
+export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean,tones: RoofTones | null,track=false){
   const timeoutMs=10000;
   let worker: Worker | null=null;
   if(typeof OffscreenCanvas!=='undefined'){
     try {
       worker=new Worker(new URL('./sector-worker.ts',import.meta.url),{type:'module'});
-      worker.postMessage({config:{compact,neutral,tones}} satisfies WorkerRequest);
+      worker.postMessage({config:{compact,neutral,tones,track}} satisfies WorkerRequest);
     } catch (error) {
       worker?.terminate();
       worker=null;
@@ -43,7 +63,11 @@ export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean
   const attr=(a: AttributeData)=>new T.BufferAttribute(a.array,a.size,a.normalized);
   return async(layers: Layers,signal: AbortSignal)=>{
     if(signal.aborted)return null;
-    const buildLocally=()=>makeCity({...layers,boundary:[],terrain},neutral,tones,compact);
+    const buildLocally=()=>{
+      const tracked=track?new Map<Layers['buildings'][number]['rings'],BuildingRange[]>():undefined;
+      const city=makeCity({...layers,boundary:[],terrain},neutral,tones,compact,null,tracked);
+      return {...city,buildings:tracked?unpackRanges(packRanges(layers.buildings,tracked,city.group.children),city.group):null};
+    };
     if(!worker)return buildLocally();
     const activeWorker=worker;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -92,6 +116,6 @@ export function sectorBuilder(terrain: Terrain,compact: boolean,neutral: boolean
       }else mesh=new T.Mesh(geometry,material);
       mesh.castShadow=m.cast;mesh.receiveShadow=m.receive;group.add(mesh);
     }
-    return {group,groundMap,materials};
+    return {group,groundMap,materials,buildings:result.ranges?unpackRanges(result.ranges,group):null};
   };
 }

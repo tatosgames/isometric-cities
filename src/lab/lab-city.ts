@@ -66,5 +66,5 @@ export async function labCity(host: HTMLElement, query = new URLSearchParams(loc
     };
     requestAnimationFrame(tick);
   }
-  return {city, index, compact, game, renderer, scene, camera, stream, render, ambient};
+  return {city, index, tones: palette.tones, compact, game, renderer, scene, camera, stream, render, ambient};
 }

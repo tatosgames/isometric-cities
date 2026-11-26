@@ -1,6 +1,7 @@
 import { BufferAttribute, Mesh, InstancedMesh } from 'three';
 import type { BufferGeometry } from 'three';
-import { makeCity } from '../scene.ts';
+import { makeCity, packRanges, type BuildingRange } from '../scene.ts';
+import type { Building } from '../../data/types.ts';
 import type { AttributeData, GeometryData, MeshData, WorkerConfig, WorkerReply, WorkerRequest } from './protocol.ts';
 
 const scope = self as DedicatedWorkerGlobalScope;
@@ -17,8 +18,9 @@ scope.onmessage = async ({data}: MessageEvent<WorkerRequest>) => {
   }
   try {
     if (!config) throw new Error('Sector worker is not initialized');
-    const {compact,neutral,tones} = config;
-    const result = makeCity({...data.layers,boundary:[],terrain:data.terrain},neutral,tones,compact);
+    const {compact,neutral,tones,track} = config;
+    const tracked = track ? new Map<Building['rings'],BuildingRange[]>() : undefined;
+    const result = makeCity({...data.layers,boundary:[],terrain:data.terrain},neutral,tones,compact,null,tracked);
     const transfer = new Set<Transferable>();
     const geometries: GeometryData[] = [];
     const ids = new Map<BufferGeometry,number>();
@@ -54,14 +56,16 @@ scope.onmessage = async ({data}: MessageEvent<WorkerRequest>) => {
         cast:mesh.castShadow,receive:mesh.receiveShadow
       };
     });
+    const ranges = tracked ? packRanges(data.layers.buildings,tracked,result.group.children) : null;
+    if (ranges) transfer.add(ranges.buffer);
     if (result.groundMap) {
       const image = await createImageBitmap(result.groundMap.texture.image,{
         imageOrientation:'flipY',colorSpaceConversion:'none'
       });
       transfer.add(image);
-      send({geometries,meshes,image,bounds:result.groundMap.bounds.toArray()},[...transfer]);
+      send({geometries,meshes,ranges,image,bounds:result.groundMap.bounds.toArray()},[...transfer]);
     } else {
-      send({geometries,meshes,image:null},[...transfer]);
+      send({geometries,meshes,ranges,image:null},[...transfer]);
     }
   } catch (error) {
     send({error:String(error)});

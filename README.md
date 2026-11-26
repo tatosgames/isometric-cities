@@ -20,13 +20,14 @@ Deprecated and no longer linked from the labs; kept in the build in case it is n
 
 ## Labs
 
-Open `lab.html` for the three labs. The labs share navigation and a collapsible Controls panel. **Copy link** captures the current test parameters.
+Open `lab.html` for the four labs. The labs share navigation and a collapsible Controls panel. **Copy link** captures the current test parameters.
 
 | Lab | Entry and useful parameters |
 |---|---|
 | Rendering, effects & quality | `index.html?lab=qualita`. Use `look=base\|sole\|matcap`, the Matcap panel parameters (`matcap`, `gain`, `bounce`, `shade`, `clouds`, `palette`, `tilt`, `glow`), `sky=0`, `stats` or `preview=base\|static\|fxaa&diagnostics`. The look dropdown carries the current map view. |
 | Driving & flight | `index.html?lab=guida&area=pilot`. Use `start=x,y`, `seed`, `nopolice`, `nobuses`, `t` and `diagnostics`. Use the plane button to switch to flight and the Flight folder for Piper tuning. |
 | Map, LOD & roads | `lab.html?lab=strade`. Pick `scenario=mercado\|larghezze\|settori\|lod` from the selector. The old `lab.html?test=…` links still open their original scenarios. |
+| Demolition | `lab.html?lab=demolizione`. Left button swings the wrecking ball or places dynamite (keys 1 and 2), right button pans, wheel zooms. Use `x`, `y`, `zoom`, `strumento=palla\|dinamite` and `quota` (ball height, m). Reload to rebuild the city. |
 
 ## Replay the data
 

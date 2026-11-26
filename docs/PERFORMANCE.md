@@ -65,6 +65,21 @@ Catalog of tricks already applied to the model, with the measure that justifies 
 | Guide: global road graph, walls and trees by zone; an unloaded area is considered full | `drive-world.ts` | The obstacle index does not grow with the city |
 | City boundary indexed by 25m bands: a point only meets the sides of its own band | `ringIndex()` to `drive-world.ts` | −2.7 s at the opening with the coast of La Isleta (2,451 sides) |
 
+## Demolition lab
+
+Measured with the same script before and after: main-thread time per animation frame and GL draws per frame (shadow passes included), desktop 1280 × 800, software WebGL, `lab.html?lab=demolizione&zoom=6`. Windows: 60 pointer moves with dynamite (hover), 60 with the ball, 4 s from a dynamite click (blast), 3 s after.
+
+| Makeup | Where | Measured effect |
+|---|---|---|
+| Every program built before the first frame (`compileAsync`), and the preview stick shares the charges' material instead of a transparent one | `demolition-lab.ts` | Worst frame on first hover from 38.3 to 4.4 ms, on the first blast from 72.3 to 8.4 ms, on the first swing from 26.0 to 13.5 ms |
+| Picking once a frame, not per pointer event; the ray meets roofs and walls exactly in the cells it crosses instead of being marched in 0.5 m steps with an allocation per step; the ball reads only the terrain | `pick()` and `aim()` in `demolition-lab.ts` | Hover: mean 2.89 → 2.46 ms, p95 3.40 → 3.10 ms |
+| Ball: one neighbour lookup a frame instead of one per substep, no allocation per substep, grid and rubble cells under numeric keys | `swing()`, `near()`, `debris.ts` | Ball: mean 3.30 → 2.95 ms, p95 4.40 → 3.70 ms |
+| Debris rewrites and uploads only the span of pieces that moved; a burst at rest costs nothing and stops asking for a shadow-map redraw; sinking pieces stop casting | `update()` in `debris.ts` | Blast: mean 3.56 → 2.85 ms. After the blast: mean 2.91 → 2.44 ms, draws 73 → 69 |
+| All rubble slabs in one mesh, rebuilt with each slab | `slab()` in `debris.ts` | One draw call however many buildings come down |
+| Ground shadows of a zone repainted once a frame for however many buildings a blast takes, instead of once per building | `hideBuilding()` and `update()` in `sector-stream.ts` | One repaint per blast |
+
+Left as is: the CPU copies of the building positions kept by `trackBuildings` (only the lab asks for them; zeroing the ranges on the GPU without them would reach into three.js internals), and the per-charge material clone (a handful at a time, same program).
+
 ## Proven things that are useless
 
 - Removing sills (−11 % of triangles) does not eliminate double frames in Santa Ana.

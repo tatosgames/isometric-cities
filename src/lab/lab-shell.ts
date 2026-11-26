@@ -6,7 +6,9 @@ export const labs = [
   {id:'guida',title:'Driving & flight',href:'./index.html?lab=guida&area=pilot',
     description:'Tune, replay and measure driving or flying from Vegueta.'},
   {id:'strade',title:'Map, LOD & roads',href:'./lab.html?lab=strade',
-    description:'Compare road surfaces and widths, sector boundaries and detail transitions.'}
+    description:'Compare road surfaces and widths, sector boundaries and detail transitions.'},
+  {id:'demolizione',title:'Demolition',href:'./lab.html?lab=demolizione',
+    description:'Knock buildings down with a wrecking ball or dynamite and watch them break apart.'}
 ] as const;
 
 export const roadScenarios = [
