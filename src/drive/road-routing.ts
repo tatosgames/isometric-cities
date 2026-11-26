@@ -24,7 +24,7 @@ export function chooseStartNode(nodes: RoadNode[],candidates: number[],free: (x:
 }
 
 /** Weighted shortest paths. Each predecessor points one hop back to source. */
-export function routesFrom(nodes: RoadNode[],source: number){
+export function routesFrom(nodes: RoadNode[],source: number,canUse?: (a:number,b:number)=>boolean,range=Infinity){
   const dist=new Float64Array(nodes.length).fill(Infinity);
   const prev=new Int32Array(nodes.length).fill(-1);
   dist[source]=0;
@@ -58,7 +58,7 @@ export function routesFrom(nodes: RoadNode[],source: number){
     if(d>dist[n])continue;
     for(const [next,w] of nodes[n].links){
       const cost=d+w;
-      if(cost>=dist[next])continue;
+      if(cost>=dist[next] || cost>range || (canUse && !canUse(n,next)))continue;
       dist[next]=cost;prev[next]=n;push([cost,next]);
     }
   }

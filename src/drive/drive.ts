@@ -14,6 +14,7 @@ import {makeDriveRoute} from './drive-route.ts';
 import type { RouteEvent } from './drive-route.ts';
 import { chooseStartNode, type RoadNode } from './road-routing.ts';
 import {makeDriveInput} from './drive-input.ts';
+import {createPoliceDirector,crossJunction,findInterceptCandidates,type Approach} from './police-director.ts';
 import {chaseSteer} from './drive-chase.ts';
 import {makeDriveLocation} from './drive-location.ts';
 import {makePedestrians,PEDESTRIANS} from './pedestrians.ts';
@@ -70,6 +71,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   function cycleCamera(){
     if(state==='off' || state==='caught' || !raf)return;
     rig.cycle();showMode();
+    for(const c of chasers)c.visibleFor=-1;
   }
   // A second finger can tap while the primary pointer keeps steering.
   button.onpointerup=e=>{
@@ -82,16 +84,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     cycleCamera();host.focus({preventScroll:true});
   };
   const controls=makeDriveInput(host,go,onExit,cycleCamera,()=>state!=='caught');
-  function routes(source: number){
-    if(field?.source===source)return field;
-    field=activeWorld().routesFrom(source);
-    return field;
-  }
+
 
   // ---- scene objects ----
   const group=new T.Group();
   const paint=new T.MeshStandardMaterial({...surfaceStencil(),vertexColors:true,flatShading:true,roughness:.8});
   const policeGeometry=carGeometry('#f3f3ee','#2b3440',true);
+  const interceptorGeometry=carGeometry('#344660','#c7d1d6',true).scale(1.15,.78,1);
   const wreckPaint=new T.MeshStandardMaterial({...surfaceStencil(),color:'#3a3a3a',flatShading:true,roughness:1});
   const blobGeometry=new T.PlaneGeometry(4.15,2.5).rotateX(-Math.PI/2);
   const blobMaterial=new T.MeshBasicMaterial({color:'#15170f',transparent:true,opacity:.38,depthWrite:false});
@@ -106,7 +105,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   let busViews:ReturnType<typeof makeGuaguaViews>|undefined;
   let fleet:ReturnType<typeof makeLocalFleet>|undefined;
   let fleetSteps=0,fleetCpu=0,runGeneration=0;
-  function busVisible(x:number,y:number){
+  function inCameraFrame(x:number,y:number){
     const [px,py]=project(x,y,2);
     const margin=7*camera.zoom;
     return px>=-margin && py>=-margin && px<=host.clientWidth+margin && py<=host.clientHeight+margin;
@@ -131,11 +130,12 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     if(start)fleetCpu+=performance.now()-start;
     return hit;
   }
-  function patrol(){
-    const c=vehicle(policeGeometry);
+  function patrol(id: number,interceptor: boolean): Patrol{
+    const c=vehicle(interceptor?interceptorGeometry:policeGeometry);
     const light=new T.Mesh(lightGeometry,lightRed);
+    if(interceptor)light.position.y=-.34;
     c.mesh.add(light);
-    return Object.assign(c,{light});
+    return {...c,light,id,interceptor,hit:0,visibleFor:-1,role:'support',target:-1};
   }
   const player=Object.assign(vehicle(required(mergeGeometries(carWheelParts()),'player wheels')),
     {scrape:{x:0,y:0,nx:0,ny:0,vx:0,vy:0,closing:0}});
@@ -199,6 +199,57 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   let capture: {patrol: Patrol;elapsed: number;motionElapsed: number;started: number} | null=null;
   let puffArmed=true,sparkCool=0;
   let chasers: Patrol[]=[];
+  const stars=el('wanted-stars');
+  const starIcons=Array.from(stars.querySelectorAll<SVGElement>('svg'));
+  function showStars(level: number){
+    if(stars.dataset.level===String(level))return;
+    const previousLevel=Number(stars.dataset.level??0);
+    stars.dataset.level=String(level);
+    stars.hidden=!level;
+    stars.setAttribute('aria-label',`Nivel de búsqueda: ${level} de 5`);
+    starIcons.forEach((icon,i)=>{
+      icon.toggleAttribute('hidden',i>=level);
+      icon.classList.toggle('promoted',previousLevel>0 && level>previousLevel && i===level-1);
+    });
+  }
+  type RecordedInput={tick:number;steer:number;brake:boolean};
+  let manualLab=false,steppingLab=false;
+  let labInput:{steer:number;brake:boolean}|undefined;
+  let recordedInputs:RecordedInput[]=[],replay:readonly RecordedInput[]|undefined,replayIndex=0,tick=0;
+  function readDriveInput(){
+    if(!endless)return controls.read();
+    const list=replay;
+    if(list)while(replayIndex+1<list.length && list[replayIndex+1].tick<=tick)replayIndex++;
+    const input=labInput??list?.[replayIndex]??controls.read();
+    const previous=recordedInputs.at(-1);
+    if(input.steer!==previous?.steer || input.brake!==previous?.brake)
+      recordedInputs.push({tick,steer:input.steer,brake:input.brake});
+    tick++;
+    return input;
+  }
+  const runSeed=Number(new URLSearchParams(window.location.search).get('seed')??1)>>>0;
+  let randomState=runSeed;
+  function random(){
+    if(!endless)return Math.random();
+    randomState=(Math.imul(randomState,1664525)+1013904223)>>>0;
+    return randomState/4294967296;
+  }
+  // Sample the fixed-step simulation only in the endless tuning lab.
+  let nextSample=0;
+  const trace: string[]=[];
+  let traceCursor=0;
+  const traceLimit=3600;
+  function samplePolice(steer: number,brake: boolean){
+    if(!endless || time<nextSample)return;
+    nextSample=time+.1;
+    const sample=JSON.stringify({time,seed:runSeed,camera:rig.mode,level:policing?director.stars:0,truce:director.truce,
+      destination:route.target?.node,coin:coins.find(c=>Math.hypot(c.x-player.x,c.y-player.y)>6),player:{x:player.x,y:player.y,h:player.h,speed:Math.hypot(player.vx,player.vy)},steer,brake,
+      patrols:chasers.map(c=>({id:c.id,x:c.x,y:c.y,h:c.h,speed:Math.hypot(c.vx,c.vy),role:c.role,
+        stage:staging?.unitId===c.id,model:c.interceptor?'interceptor':'standard',visible:c.visibleFor>=0,visibleFor:c.visibleFor,target:c.target,aim:[c.aimX,c.aimY],plannedSpeed:c.cornerSpeed,hit:c.hit,wreck:c.wreck}))});
+    host.dataset.police=sample;
+    trace[traceCursor]=sample;
+    traceCursor=(traceCursor+1)%traceLimit;
+  }
   let field: RouteField | null=null;
   let zoomNow=1,paceEase=0,threat=0;
   let freeze=0,stopCool=0,stops=0,kickX=0,kickY=0,kickVX=0,kickVY=0;
@@ -256,7 +307,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   function trail(){
     const world=activeWorld();
     const from=world.nearestNode(player.x,player.y);
-    const next=route.choose(world,routes(from));
+    const next=route.choose(world,world.routesFrom(from),random);
     if(!next)return null;
     const {target,path}=next;
     const end=world.nodes[target.node];
@@ -272,35 +323,115 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       gain(event.points);buzz(8);
       return;
     }
+    if(policing)arrivalPending=true;
     pop(player.x,player.y,event.points,'coin',true);
     gain(event.points);buzz(40);stop(TUNE.hitStop*STOP_ARRIVE);
     for(let k=0;k<8;k++)puff(player.x+Math.cos(k*.8)*2.5,player.y+Math.sin(k*.8)*2.5);
     trail();
   }
-  function spawnChaser(c: Patrol){
+  const director=createPoliceDirector();
+  const lastSighting={x:0,y:0,vx:0,vy:0};
+  const interceptorProfile={...TUNE.patrol,topSpeed:TUNE.patrol.topSpeed*1.08,turn:TUNE.patrol.turn*.85};
+  let arrivalPending=false,perceptionAge=0,spawnDelay=0,nextPatrolId=0;
+  let staging:(Approach & {until:number;field:RouteField})|undefined;
+  let nextStage=0;
+  const sideRoutes=new Map<number,RouteField>();
+  function sideRoute(node:number){
+    let route=sideRoutes.get(node);
+    if(!route){
+      route=activeWorld().patrolRoutesFrom(node);
+      if(sideRoutes.size>=4)sideRoutes.delete(sideRoutes.keys().next().value!);
+      sideRoutes.set(node,route);
+    }
+    return route;
+  }
+  function perceive(dt:number){
     const world=activeWorld();
-    const all=world.validNodes;
-    const ring=all.filter(i=>{
-      const d=Math.hypot(world.nodes[i].x-player.x,world.nodes[i].y-player.y);
-      return d>75 && d<120;
+    let closest=Infinity,seen=false;
+    const units=chasers.map(c=>{
+      const distance=Math.hypot(c.x-player.x,c.y-player.y);
+      if(!c.wreck){
+        closest=Math.min(closest,distance);
+        if(distance<TUNE.chaserSight && world.sight(c.x,c.y,player.x,player.y))seen=true;
+      }
+      c.visibleFor=!c.wreck && patrolVisible(c.x,c.y)?Math.max(0,c.visibleFor+dt):-1;
+      return {id:c.id,distance,wrecked:c.wreck>0};
     });
-    // Half of the patrols come from where the player is heading.
-    const ahead=ring.filter(i=>(world.nodes[i].x-player.x)*player.vx+(world.nodes[i].y-player.y)*player.vy>0);
-    const pool=ahead.length && Math.random()<.5?ahead:ring.length?ring:all;
-    const index=pool[Math.floor(Math.random()*pool.length)],n=world.nodes[index];
-    const next=(field ? world.nodes[field.prev[index]] : undefined) ?? player;
-    Object.assign(c,restBody(),feel(),{x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),wreck:0,stuck:0,trail:null,node:index,puff:0,tilt:0,slopeAccel:undefined});
-    c.mesh.material=paint;c.mesh.visible=c.blob.visible=true;
+    if(seen){lastSighting.x=player.x;lastSighting.y=player.y;}
+    director.setUnits(units);
+    const choices:Approach[]=[];
+    const search=director.stars>=4 && director.canStage && !staging && time>=nextStage;
+    if(search)nextStage=time+1;
+    const result=director.update({dt,anyVisible:seen,closestDistance:closest,arrived:arrivalPending,
+      candidates:findInterceptCandidates(world,player,chasers,director.stars,TUNE.radius,search?{route:sideRoute,choices}:undefined)});
+    if(staging && (time>=staging.until || !director.canStage || !chasers.some(c=>c.id===staging?.unitId && !c.wreck))){
+      staging=undefined;nextStage=time+2;
+    }
+    if(director.canStage && !staging && choices.length){
+      const choice=choices[0];
+      staging={...choice,field:sideRoute(choice.node),until:time+4};
+    }
+    arrivalPending=false;showStars(result.stars);
+    for(const c of chasers)c.role=result.units.find(unit=>unit.id===c.id)?.role??'support';
+  }
+  function supportSpeed(c:Patrol){
+    if(c.role!=='support')return Infinity;
+    const fx=Math.cos(c.h),fy=Math.sin(c.h);
+    let limit=Infinity;
+    for(const other of chasers){
+      if(c===other || other.wreck)continue;
+      const dx=other.x-c.x,dy=other.y-c.y,along=dx*fx+dy*fy;
+      if(along>0 && along<13 && Math.abs(dx*fy-dy*fx)<3)
+        limit=Math.min(limit,Math.max(2,Math.hypot(other.vx,other.vy)+(along-9)*.8));
+    }
+    return limit;
+  }
+  const eye=new T.Vector3();
+  function patrolVisible(x: number,y: number){
+    const [px,py]=project(x,y,2);
+    if(px<0 || py<0 || px>host.clientWidth || py>host.clientHeight)return false;
+    camera.getWorldDirection(eye).negate();
+    return !activeWorld().occluded(x,y,groundAt(x,y)+2,eye.x/eye.y,-eye.z/eye.y);
+  }
+  function spawnChaser(level: number,routeField: RouteField){
+    const world=activeWorld(),pool:number[]=[],preferred:number[]=[];
+    const forwardX=Math.cos(player.h),forwardY=Math.sin(player.h);
+    const behind=chasers.every(c=>c.wreck);
+    for(const index of world.validNodes){
+      const n=world.nodes[index],dx=n.x-player.x,dy=n.y-player.y,d=dx*dx+dy*dy;
+      if(d<75*75 || d>135*135 || routeField.prev[index]<0 || !n.ok)continue;
+      if(inCameraFrame(n.x,n.y) || !world.free(n.x,n.y,TUNE.radius+.25))continue;
+      if(chasers.some(c=>Math.hypot(c.x-n.x,c.y-n.y)<12))continue;
+      pool.push(index);
+      if((dx*forwardX+dy*forwardY<0)===behind)preferred.push(index);
+    }
+    const choices=preferred.length?preferred:pool;
+    if(!choices.length)return;
+    const index=choices[Math.floor(random()*choices.length)],n=world.nodes[index];
+    const next=world.nodes[routeField.prev[index]];
+    const c=patrol(nextPatrolId++,level>=3 && !chasers.some(p=>p.interceptor));
+    Object.assign(c,{x:n.x,y:n.y,h:Math.atan2(next.y-n.y,next.x-n.x),node:index});
+    chasers.push(c);
+  }
+  function retire(c: Patrol){
+    group.remove(c.mesh,c.blob);
+    chasers.splice(chasers.indexOf(c),1);
   }
   function nextStart(){
     const world=activeWorld();
     // A fixed start, when given, is the road node nearest to it.
-    const index=fixedStart?world.nearestNode(fixedStart[0],fixedStart[1]):chooseStartNode(world.nodes,world.validNodes,world.free,10,Math.random,lastStart);
+    const index=fixedStart?world.nearestNode(fixedStart[0],fixedStart[1]):chooseStartNode(world.nodes,world.validNodes,world.free,10,random,lastStart);
     if(index===undefined || !world.nodes[index])return undefined;
     lastStart=index;
     return world.nodes[index];
   }
   function restart(n: RoadNode){
+    manualLab=false;tick=0;recordedInputs=[];replay=undefined;replayIndex=0;
+    randomState=runSeed;nextPatrolId=0;spawnDelay=0;
+    trace.length=traceCursor=nextSample=0;
+    delete host.dataset.police;
+    director.reset();staging=undefined;nextStage=0;sideRoutes.clear();perceptionAge=0;arrivalPending=false;showStars(policing?1:0);
+    lastSighting.x=n.x;lastSighting.y=n.y;
     location?.reset([n.x,n.y]);
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
@@ -369,6 +500,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   }
 
   function go(){
+    manualLab=false;
     if(state==='ready'){state='playing';guide.className='play';}
     // A run held after an interruption continues on the next input, never by itself.
     if(held){held=false;guide.className='play';}
@@ -382,7 +514,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       fleet.step(dt,player.x,player.y);
       if(endless){fleetCpu+=performance.now()-start;fleetSteps+=fleet.active.length;}
     }
-    const {steer,brake}=controls.read();
+    const {steer,brake}=readDriveInput();
     const driveLoad=steerPlayer(player,steer,brake,dt);
     const beforeContactX=player.x,beforeContactY=player.y;
     busContact(player);
@@ -402,26 +534,57 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     // Only a hard, nearly head-on hit stops time, and not twice in a row: scraping along a street never does.
     if(knock>TUNE.hardImpact && !stopCool){stop(TUNE.hitStop);stopCool=TUNE.stopGap;}
     const speed=Math.hypot(player.vx,player.vy);
-    routeAge+=dt;
-    if(routeAge>.6){routeAge=0;field=routes(world.nearestNode(player.x,player.y));}
-    const wanted=policing?Math.min(compact?6:8,1+Math.floor(time/TUNE.chaserEvery)):0;
-    while(chasers.length<wanted){const c=patrol();chasers.push(c);spawnChaser(c);}
-    for(const c of chasers){
+    if(policing){
+      perceptionAge+=dt;
+      if(perceptionAge>=.1){perceive(perceptionAge);perceptionAge=0;}
+      routeAge+=dt;
+      if(routeAge>=.5 || !field){
+        routeAge=0;
+        const target=director.truce?lastSighting:player;
+        const source=world.nearestNode(target.x,target.y);
+        if(!field || field.source!==source)field=world.patrolRoutesFrom(source);
+      }
+      spawnDelay-=dt;
+      if(!director.truce && spawnDelay<=0 && chasers.filter(c=>!c.wreck).length<director.maxUnits){
+        spawnChaser(director.stars,field);spawnDelay=.6;
+      }
+    }
+    for(let i=chasers.length-1;i>=0;i--){
+      const c=chasers[i];
       if(c.wreck>0){
-        c.wreck-=dt;c.puff-=dt;c.h+=dt*14*Math.max(0,c.wreck-TUNE.wreckTime+.45);
-        if(c.puff<=0){c.puff=.12;puff(c.x,c.y,'smoke');}
-        if(c.wreck<=0)spawnChaser(c);
+        c.wreck=Math.max(0,c.wreck-dt);c.puff-=dt;c.h+=dt*14*Math.max(0,c.wreck-TUNE.wreckTime+.45);
+        if(c.puff<=0 && c.wreck>0){c.puff=.12;puff(c.x,c.y,'smoke');}
+        if(!c.wreck)retire(c);
         continue;
       }
-      const turn=chaseSteer(c,player,world,required(field,"route field").prev,TUNE);
-      if(turn===null){spawnChaser(c);continue;}
-      steerPatrol(c,turn,world,dt);
+      const assignment=director.assignment(c.id);
+      let turn:number|null;
+      let limit=supportSpeed(c);
+      if(assignment){
+        turn=crossJunction(c,world.nodes,assignment);
+        c.aimX=world.nodes[c.target].x;c.aimY=world.nodes[c.target].y;
+        c.node=-1;c.cornerSpeed=Infinity;
+      }else if(staging?.unitId===c.id && c.role==='support'){
+        const entry=world.nodes[staging.node],distance=Math.hypot(c.x-entry.x,c.y-entry.y);
+        c.target=staging.node;
+        turn=chaseSteer(c,{x:entry.x,y:entry.y,vx:0,vy:0},world,staging.field.prev,TUNE);
+        limit=Math.min(limit,Math.max(0,(distance-2)*1.5));
+      }else{
+        turn=chaseSteer(c,director.truce?lastSighting:player,world,required(field,'patrol routes').prev,TUNE);
+        c.target=c.node;
+      }
+      if(turn===null){
+        if(!inCameraFrame(c.x,c.y))retire(c);
+        continue;
+      }
+      steerPatrol(c,turn,world,dt,c.interceptor?interceptorProfile:TUNE.patrol,limit);
       const blocked=busContact(c);
       const hit=collide(c,world),pace=Math.hypot(c.vx,c.vy);
+      if(hit>3)c.hit=hit;
       if(hit>3)c.hop=Math.min(TUNE.hop,hit*.05);
       c.stuck=!blocked && pace<1.5?c.stuck+dt:0;
       if(hit>TUNE.hardImpact)wreck(c);
-      else if(c.stuck>TUNE.stuckTime)spawnChaser(c);
+      else if(c.stuck>TUNE.stuckTime && !inCameraFrame(c.x,c.y))retire(c);
     }
     for(let i=0;i<chasers.length;i++){
       const a=chasers[i];
@@ -458,6 +621,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       }
     }
     route.advance(player,world.nodes,dt,handleRouteEvent);
+    samplePolice(steer,brake);
     for(const b of [player,...chasers]){
       const isPlayer=b===player,slip=isPlayer?playerSlip:b.slip,speed=Math.hypot(b.vx,b.vy);
       surfaceFeel(b,isPlayer,speed,dt);
@@ -541,7 +705,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     raf=requestAnimationFrame(frame);
     if(document.hidden || !group.visible){last=0;return;}
     fleetCpu=0;
-    const wallDt=(now-(last||now))/1000;last=now;
+    const wallDt=manualLab && !steppingLab?0:(now-(last||now))/1000;last=now;
     const captureDt=capture?wallDt:0;
     let dt=Math.min(.05,wallDt);
     if(!capture){
@@ -731,9 +895,37 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     /** The player's body and the patrols on the road, for the lab's readout. */
     get player(): Readonly<Vehicle>{return player;},
     get patrols(){return chasers.length;},
+    advanceLab(seconds:number,steer:number,brake:boolean){
+      if(!endless || !raf || !world || !group.visible || document.hidden || state==='off')return;
+      if(!Number.isFinite(seconds) || seconds<=0 || seconds>180 || ![-1,0,1].includes(steer))throw new Error('Invalid lab input');
+      labInput={steer,brake};go();manualLab=steppingLab=true;
+      let now=performance.now();
+      last=now;
+      try{
+        const frames=Math.ceil(seconds*30),frameMs=seconds*1000/frames;
+        for(let i=0;i<frames;i++){
+          cancelAnimationFrame(raf);
+          now+=frameMs;frame(now);
+        }
+      }finally{last=performance.now();labInput=undefined;steppingLab=false;}
+      return host.dataset.police?JSON.parse(host.dataset.police):undefined;
+    },
+    replayInputs(inputs:readonly RecordedInput[]){
+      if(!endless || state==='off')return;
+      if(!Array.isArray(inputs) || !inputs.length || inputs[0].tick!==0 ||
+        inputs.some((v,i)=>!Number.isSafeInteger(v.tick) || (i>0 && inputs[i-1].tick>=v.tick) ||
+          ![-1,0,1].includes(v.steer) || typeof v.brake!=='boolean'))throw new Error('Invalid drive replay');
+      const start=activeWorld().nodes[lastStart??-1];
+      if(start){restart(start);replay=inputs.map(v=>({...v}));go();}
+    },
+    inputLog(){return recordedInputs.map(v=>({...v}));},
+    policeTrace(){
+      const samples=trace.length<traceLimit?trace:[...trace.slice(traceCursor),...trace.slice(0,traceCursor)];
+      return samples.map(sample=>JSON.parse(sample));
+    },
     /** Patrols on or off during a run. Turning them off clears the streets. */
     setPolice(on: boolean){
-      policing=on;
+      policing=on;director.reset();staging=undefined;arrivalPending=false;perceptionAge=0;spawnDelay=0;showStars(on?1:0);
       if(!on){for(const c of chasers)group.remove(c.mesh,c.blob);chasers=[];}
     },
     /** Every run from now on starts at the road node nearest to this point. */
@@ -744,7 +936,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       if(node){clearCapture();restart(node);}
     },
     /** Reapply the tuning values that are read only when a car is built. */
-    retune(){for(const c of [player,...chasers])c.mesh.scale.setScalar(TUNE.visualScale);},
+    retune(){field=null;routeAge=1;sideRoutes.clear();staging=undefined;Object.assign(interceptorProfile,TUNE.patrol,{topSpeed:TUNE.patrol.topSpeed*1.08,turn:TUNE.patrol.turn*.85});for(const c of [player,...chasers])c.mesh.scale.setScalar(TUNE.visualScale);},
     get desaturation(){return capture?T.MathUtils.smoothstep(capture.elapsed,0,CAPTURE.grade):0;},
     get visualTimeScale(){return capture?(freeze?0:CAPTURE.speed):1;},
     /** False when the city has no places or no roads to drive on. */
@@ -770,7 +962,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       rig.enter(mapOffset);showMode();
       controls.activate();
       el('hud').hidden=false;
-      if(buses)fleet=makeLocalFleet(busArea,busVisible,busOccupied);
+      if(buses)fleet=makeLocalFleet(busArea,inCameraFrame,busOccupied);
       warm();
       restart(start);
       // Glide in from the map zoom instead of cutting to the play zoom.
@@ -787,10 +979,11 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       location?.reset();
       held=false;
       el('hud').hidden=true;clearCapture();guide.className='';el('pops').replaceChildren();
-      delete host.dataset.drive;delete host.dataset.guagua;delete host.dataset.guaguas;
+      delete host.dataset.police;delete host.dataset.drive;delete host.dataset.guagua;delete host.dataset.guaguas;
     },
     /** A zone arrived with its footprints, or left with `null`. */
     zone(id: string,content: ZoneData | null){
+      field=null;routeAge=1;sideRoutes.clear();staging=undefined;
       if(content)world?.addZone(id,content.buildings,content.trees);else world?.removeZone(id);
     },
     visibilityChanged(){

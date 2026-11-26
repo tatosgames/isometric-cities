@@ -5,6 +5,7 @@ import {cityMaterials} from './city-materials.ts';
 import { makeGroundMap } from './ground-map.ts';
 import { GROUND_SURFACE, groundPatch, groundSampler } from './ground-surface.ts';
 import { addLandmarks } from './landmarks.ts';
+import { roofTone } from './roof-tone.ts';
 import { heightAt, pointInRing } from '../geometry.ts';
 import quarters from '../data/historic-quarters.json';
 
@@ -67,7 +68,12 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     bucket.parts.length=0;bucket.vertices=0;
   }
   const altitude=heightAt(data.terrain);
-  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material=mat) {
+  type ContactTint=(rgb: Uint8Array,position: T.BufferAttribute | T.InterleavedBufferAttribute)=>void;
+  function darkenJoint(rgb: Uint8Array,vertex: number){
+    const offset=vertex*3;
+    for(let channel=offset;channel<offset+3;channel++)rgb[channel]=Math.round(rgb[channel]*.9);
+  }
+  function add(g: T.BufferGeometry,color: T.ColorRepresentation,x=0,y=0,surface: number | Uint8Array=0,wallBase: number | null=null,material=mat,contact?: ContactTint) {
     const geom=g.index?g.toNonIndexed():g;
     geom.deleteAttribute('uv');
     const normals=geom.attributes.normal;
@@ -81,6 +87,19 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     for(let i=0;i<rgb.length;i+=3){
       const ao=compact && wallBase!==null ? .80+.20*T.MathUtils.clamp((geom.attributes.position.getY(i/3)-wallBase)/4,0,1) : 1;
       rgb[i]=shade.r*ao;rgb[i+1]=shade.g*ao;rgb[i+2]=shade.b*ao;
+    }
+    if(!neutral){
+      const position=geom.attributes.position;
+      if(wallBase!==null){
+        for(let i=0;i<position.count;i++){
+          const ground=altitude(position.getX(i),-position.getZ(i));
+          const bounce=1-T.MathUtils.clamp((position.getY(i)-ground)/2,0,1);
+          // Warm the existing contact colour at the foot of the wall, including on sloping streets.
+          rgb[i*3]+=Math.min(255-rgb[i*3],Math.round(4*bounce));
+          rgb[i*3+1]+=Math.min(255-rgb[i*3+1],Math.round(2*bounce));
+        }
+      }
+      contact?.(rgb,position);
     }
     geom.setAttribute('color',new T.BufferAttribute(rgb,3,true));
     const key=Math.floor(x/120)+','+Math.floor(y/120)+','+material.id;
@@ -119,8 +138,8 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();add(g,'#bb9f7d',x,y);
     }
   }
-  function addBuilding(g: T.BufferGeometry,color: T.ColorRepresentation,x: number,y: number,surface=0,wallBase: number | null=null){
-    add(g,color,x,y,surface,wallBase,buildingMat);
+  function addBuilding(g: T.BufferGeometry,color: T.ColorRepresentation,x: number,y: number,surface=0,wallBase: number | null=null,contact?: ContactTint){
+    add(g,color,x,y,surface,wallBase,buildingMat,contact);
   }
   // An extrusion also closes both ends. The floor is buried and the lid lies under the roof: keep the sides.
   function wallsOnly(g: T.ExtrudeGeometry){
@@ -145,7 +164,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     return g;
   }
   const walls=['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'];
-  const roofs=['#dbd4be','#b37559','#e8dfc9','#d4c8b6','#c28869'];
+  const parapetCream=new T.Color('#eee0c7');
   // Buildings that are not housing (`kind`): the plain shells of sheds and shopping centres, the pale fronts of
   // hospitals, schools and offices.
   const halls=['#d8d5cd','#cdd2d1','#e2ded4','#c6c2b8'],blocks=['#ece9e2','#dedcd5','#e6dccb','#d3d9d8'];
@@ -184,7 +203,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     const hall=b.kind==='hall',block=b.kind==='block';
     addBuilding(g,b.wallColor??(hall?halls[n%halls.length]:block?blocks[n%blocks.length]:walls[n%walls.length]),x,y,0,z);
     const roof=new T.ShapeGeometry(s).rotateX(-Math.PI/2).translate(0,top+0.035,0);
-    addBuilding(roof,tones?.[String(b.id)+(b.toneSuffix??'')] ?? roofs[n%roofs.length],x,y,4);
+    const roofColour=roofTone(b,tones);
+    const rimColour=new T.Color(roofColour).lerp(parapetCream,.25);
+    addBuilding(roof,roofColour,x,y,4);
     if(hall && b.roofFurniture!==false){
       // Rooflights on a 12 m grid along the longest wall, where the roof reaches 4 m around them.
       const o=b.rings[0];let far=0,hx=1,hy=0;
@@ -203,7 +224,9 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
       const {radius,rx,ry}=roofClearance(roof);
       if(radius>2.1){
         const size=Math.min(5,radius),angle=Math.atan2(b.rings[0][1][1]-y,b.rings[0][1][0]-x);
-        addBuilding(new T.BoxGeometry(size,1.8,size*.72).rotateY(angle).translate(rx,top+.9,-ry),'#dcd7c9',x,y);
+        addBuilding(new T.BoxGeometry(size,1.8,size*.72).rotateY(angle).translate(rx,top+.9,-ry),'#dcd7c9',x,y,0,null,(rgb,position)=>{
+          for(let i=0;i<position.count;i++)if(position.getY(i)<top+.01)darkenJoint(rgb,i);
+        });
         // The thin lid and the tank beside the rooftop cabin are smaller than a pixel on a phone.
         if(!compact)addBuilding(new T.BoxGeometry(size+.25,.22,size*.72+.25).rotateY(angle).translate(rx,top+1.91,-ry),'#f3eee1',x,y);
         if(!compact && radius>3.5 && n%3===0) addBuilding(new T.CylinderGeometry(.65,.68,1.25,8).translate(rx+size*.65,top+.66,-ry+size*.43),'#9aaca9',x,y);
@@ -212,6 +235,7 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
     // Low parapets trace the actual perimeter and distinguish adjoining roofs.
     const r=b.rings[0];
     const windows: number[]=[],sills: number[]=[],woodwork: number[]=[];
+    const sillJoints: number[]=[],woodJoints: number[]=[];
     // Low houses of the old quarters carry the closed wooden balcony of the islands, with its small roof.
     const old=h<=15 && b.balconies!==false && oldQuarters.some(ring=>pointInRing(ring,x,y));
     const winding=Math.sign(r.slice(1).reduce((sum,p,j)=>sum+r[j][0]*p[1]-p[0]*r[j][1],0));
@@ -254,6 +278,10 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
             const lipRight=[right[0]+nx*projection,right[1],right[2]-ny*projection];
             // A plain sill is a 22 cm lip: on a phone only the balconies are worth their triangles.
             const trim=balcony && old?woodwork:sills;
+            if(balcony){
+              const start=trim.length/3;
+              (old?woodJoints:sillJoints).push(start,start+1,start+4);
+            }
             if(!compact || balcony)trim.push(...left,...right,...lipLeft,...lipLeft,...right,...lipRight);
             if(balcony){
               const rail=old?.95:.62;
@@ -263,6 +291,8 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
                 // The roof of the balcony: from the wall above the window down to the line of the rail.
                 const wallLeft=[left[0],left[1]+2.45,left[2]],wallRight=[right[0],right[1]+2.45,right[2]];
                 const eaveLeft=[lipLeft[0]+nx*.12,lipLeft[1]+2.15,lipLeft[2]-ny*.12],eaveRight=[lipRight[0]+nx*.12,lipRight[1]+2.15,lipRight[2]-ny*.12];
+                const start=woodwork.length/3;
+                woodJoints.push(start,start+2,start+3);
                 woodwork.push(...wallLeft,...eaveLeft,...wallRight,...wallRight,...eaveLeft,...eaveRight);
               }
             }
@@ -276,14 +306,15 @@ export function makeCity(data: CityData, neutral: boolean, tones: RoofTones | nu
           addBuilding(new T.BoxGeometry(len,.16,.38).rotateY(rot).translate((a+e)/2,z+level-.12,-(c+f)/2),'#e8e1d2',x,y);
         }
       }
-      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),'#eee0c7',x,y);
+      if(shared<=top+.56)addBuilding(parapet(len,0.58,0.28).rotateY(Math.atan2(f-c,e-a)).translate((a+e)/2,top+0.27,-(c+f)/2),rimColour,x,y);
     }
     if(windows.length){
       const panes=new T.BufferGeometry();panes.setAttribute('position',new T.Float32BufferAttribute(windows,3));panes.computeVertexNormals();addBuilding(panes,['#4e6668','#455b60','#65634e'][n%3],x,y);
     }
-    for(const [corners,colour] of [[sills,'#ede8dc'],[woodwork,'#6f4b33']] as const){
+    for(const [corners,colour,joints] of [[sills,'#ede8dc',sillJoints],[woodwork,'#6f4b33',woodJoints]] as const){
       if(!corners.length)continue;
-      const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(corners,3));trim.computeVertexNormals();addBuilding(trim,colour,x,y);
+      const trim=new T.BufferGeometry();trim.setAttribute('position',new T.Float32BufferAttribute(corners,3));trim.computeVertexNormals();
+      addBuilding(trim,colour,x,y,0,null,rgb=>{for(const vertex of joints)darkenJoint(rgb,vertex);});
     }
   }
   editableBuilding=undefined;

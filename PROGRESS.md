@@ -1,5 +1,11 @@
 # Checkpoint
 
+La luce diurna del plastico è condivisa fra mappa, guida, editor e laboratori. I parapetti riprendono il colore delle coperture e le giunzioni di muri, cabine e balconi usano i colori dei vertici. [Sei confronti a camera fissa](docs/QA.md#luce-diurna-bordi-delle-coperture-e-contatto).
+
+Le nuvole passano 400 m sopra il punto inquadrato e sfumano avvicinandosi alla strada.
+
+La guida introduce cinque livelli di polizia, tregua quando si perde il contatto e intercettazioni laterali sulla rete stradale del pilota. Dal terzo livello può entrare un modello più veloce sul dritto e più largo in curva. Il laboratorio registra input e telemetria per ripetere gli inseguimenti. [Risultati del gauntlet](docs/QA.md).
+
 Il rendering condivide la costruzione delle sagome LOD, dei tetti a falde e dei canvas del terreno. Lo streamer calcola lo stato di apertura usato dal viewer. Riduzione di 31 righe nette. [Verifica locale](docs/QA.md).
 
 Il viewer ha moduli dedicati per il caricamento iniziale e i calcoli della camera. L'editor separa cronologia, bozza, mesh e gesti. Le prove dell'editor coprono anche l'annullamento del trascinamento alla perdita del focus o della cattura del puntatore. [Verifica locale](docs/QA.md).

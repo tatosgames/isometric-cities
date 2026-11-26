@@ -77,7 +77,7 @@ export function solidWater(data: Pick<WorldData,'roads'|'surfaces'>){
 
 // The road graph covers the whole city. Walls, roofs and trees live in one layer per zone, so they can
 // come and go with the zones the map has loaded; the boundary and anything in `data` form the base layer.
-export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number},zoning?: Zoning){
+export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number;radius?:number},zoning?: Zoning){
   const layers=new Map<string,Grid>();
   const inCity=ringIndex(data.boundary);
   let stack: Grid[]=[];
@@ -165,13 +165,32 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     const key=zoneKey(n.x,n.y),list=zoneNodes.get(key);
     if(list)list.push(n);else zoneNodes.set(key,[n]);
   }
+  // Police plan locally. Reuse sampled road links across cars and route fields until a layer changes.
+  const passage=new Map<number,boolean>();
+  let passageRadius=tune.radius;
+  function patrolLink(a:number,b:number){
+    if(tune.radius!==passageRadius){passage.clear();passageRadius=tune.radius;}
+    const key=Math.min(a,b)*nodes.length+Math.max(a,b);
+    const known=passage.get(key);
+    if(known!==undefined)return known;
+    const start=nodes[a],end=nodes[b],steps=Math.max(1,Math.ceil(Math.hypot(end.x-start.x,end.y-start.y)/1.5));
+    let open=true;
+    for(let i=0;i<=steps && open;i++){
+      const t=i/steps;
+      open=free(start.x+(end.x-start.x)*t,start.y+(end.y-start.y)*t,tune.radius??1.15);
+    }
+    passage.set(key,open);
+    return open;
+  }
   function addZone(id: string,buildings: Building[],trees: Point[]){
     if(layers.has(id))return;
+    passage.clear();
     addLayer(id,buildings,trees);
     for(const n of zoneNodes.get(id)??[])n.ok=usable(n);
   }
   function removeZone(id: string){
     if(!id || !layers.delete(id))return;
+    passage.clear();
     stack=[...layers.values()];
     for(const n of zoneNodes.get(id)??[])n.ok=usable(n);
   }
@@ -200,9 +219,9 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   function free(x: number,y: number,r: number){
     return !unloaded(x,y) && clear(x,y,r);
   }
-  function sight(ax: number,ay: number,bx: number,by: number){
+  function sight(ax: number,ay: number,bx: number,by: number,radius=1){
     const d=Math.hypot(bx-ax,by-ay),steps=Math.ceil(d/1.8);
-    for(let i=1;i<steps;i++)if(near(ax+(bx-ax)*i/steps,ay+(by-ay)*i/steps,1))return false;
+    for(let i=1;i<steps;i++)if(near(ax+(bx-ax)*i/steps,ay+(by-ay)*i/steps,radius))return false;
     return true;
   }
   function nearestNode(x: number,y: number){return roadIndex.nearest(x,y);}
@@ -248,6 +267,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   return {
     nodes,validNodes:roadIndex.valid,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
+    patrolRoutesFrom:(source:number)=>routesFrom(nodes,source,patrolLink,480),
     routesFrom:(source: number)=>routesFrom(nodes,source)
   };
 }

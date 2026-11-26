@@ -1,3 +1,4 @@
+import { cityFillLight } from '../render/city-light.ts';
 import * as T from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { applyPilotEdits, inPilot, isFixedBuilding, loadPilotBase, propKinds, readPilotFile } from '../data/pilot-edits.ts';
@@ -37,7 +38,7 @@ async function start() {
   scene.background = new T.Color('#e5e3d2');
   const sun = new T.DirectionalLight(0xfff6ea,2.12);
   sun.position.set(-550,690,-370);
-  scene.add(sun,new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
+  scene.add(sun,cityFillLight());
   // The map's controls: left and middle drag pan with the ground under the pointer, right drag orbits,
   // the wheel zooms towards the pointer.
   const controls = new GroundControls(camera,canvas);

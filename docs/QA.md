@@ -1,5 +1,36 @@
 # Verifica locale · 21 novembre 2026
 
+**Nuvole sopra i tetti.** Verificata la nuova quota a Parque Doramas con una vista mobile di 390 × 844 px. La prova del cielo passa su desktop e mobile, compresi disattivazione, recupero WebGL e ingresso in guida.
+
+## Polizia a difficoltà crescente · 25 novembre 2026
+
+Confronto con la revisione `42488497`. Il bersaglio fermo serve a isolare gli errori di guida. Le prove con bersaglio mobile misurano separatamente quanto guadagna chi sterza.
+
+| Prova | Risultato |
+|---|---|
+| 40 avvicinamenti sulle strade del pilota, stesse coppie di nodi | Da 24 a 35 arrivi. Da 5 a 0 incidenti distruttivi. Nella nuova versione 4 arrivi fuori tempo e 1 percorso perso. |
+| 20 coppie tenute in riserva | 19 arrivi, 0 incidenti distruttivi. |
+| Due input a parità di velocità e posizione iniziali | Il ritardo guadagnato sterzando è di 0,54 s sul rettilineo, 4,13 s nella curva, 2,88 s nella doppia curva, 8,03 s nella piazza e 0,39 s nello stretto. |
+| Stesso incrocio, tre camere in verticale e orizzontale | In quattro viste l'auto attraversa, entra entro 4 m se il giocatore prosegue e lascia spazio alla schivata. Nelle altre due il direttore rinvia per visibilità insufficiente. |
+| Stelle e comandi touch | Tutte e cinque le stelle rientrano nello schermo, separate dai pulsanti, a 320, 390 e 844 pixel di larghezza. |
+| Cinque pattuglie con viewport mobile emulato | Chromium, 390 × 844, software WebGL, pilota senza guaguas, stessa partenza con freno premuto. Su 55 intervalli per build, mediana 16,7 ms e 90° percentile 16,9 ms su entrambe. È una misura della cadenza del browser sul computer di prova. |
+
+**Trenta guide sulla mappa di Vegueta.** Dieci partenze distinte sulla rete OSM, identiche per le tre strategie. Ogni guida attraversa tutti e cinque i livelli per almeno 175 secondi simulati con fisica di produzione. Il laboratorio prosegue dopo un contatto per poter osservare i livelli successivi. La percentuale indica i campioni con almeno una pattuglia operativa entro 25 m, inclusi nel denominatore i periodi senza alcuna pattuglia vicina. Le guaguas sono disabilitate in questo confronto.
+
+| Input giocatore | ★ | ★★ | ★★★ | ★★★★ | ★★★★★ | Intercettazioni ordinate |
+|---|---:|---:|---:|---:|---:|---:|
+| Volante diritto | 9% | 65% | 72% | 74% | 74% | 6 |
+| Schivata in risposta alla pattuglia | 17% | 61% | 68% | 66% | 70% | 4 |
+| Segue le monete verso il punto di interesse | 44% | 74% | 92% | 82% | 94% | 14 |
+
+L'aumento più marcato arriva con la seconda pattuglia. A quattro stelle la pressione di prossimità cala per due strategie. La frequenza degli ordini di intercettazione risente del percorso e delle svolte del giocatore. Questo è il passaggio da osservare nella prova su telefono. Per conservare i dati per singola partita impostare `POLICE_REPORT` a un percorso JSON prima di eseguire il gauntlet.
+
+Per riprodurre le prove brevi, eseguire `npm.cmd run typecheck`, `npm.cmd run build` e `npm.cmd test`. Il confronto delle prestazioni si esegue con `node scripts/benchmark-police.mjs <directory-dist-precedente>`. Il gauntlet lungo si avvia con `node scripts/qa-police-runs.mjs` dopo la build.
+
+Per ripetere una guida, aprire `?lab=guida&area=pilot&seed=7&start=-60,-818&nobuses`. In console `policeRun()` restituisce build, URL, cambi di input e telemetria. `replayPolice(policeInputs())` riparte dallo stesso nodo e riproduce i comandi registrati. Per confrontare due modifiche usare lo stesso URL e gli stessi input. `policeAdvance(3,0,false)` avanza tre secondi con il volante diritto. Un input reale riprende la guida.
+
+**Prova su telefono da completare.** Sei partite, in coppie con la stessa partenza per ognuna delle tre camere, alternando versione precedente e nuova. Lasciare scegliere la strada al giocatore. Registrare il primo momento in cui decide di deviare, la causa percepita della cattura e se aveva visto la via di fuga. Provare anche una schivata stretta vicino a un edificio. Una cattura illeggibile si riproduce con la traccia prima di modificare distanza, angolo o velocità.
+
 ## Tracce, fumo e strappi in guida · 25 novembre 2026
 
 Segnalazione: niente fumo né erba a schermo, e ogni tanto uno scatto di velocità attribuito a una superficie sbagliata. Verificato con guide registrate fotogramma per fotogramma in città (Avenida Marítima, La Minilla):
@@ -1306,3 +1337,27 @@ Restano in memoria, in ordine: terreno 9,9 MB, strade e superfici del nucleo cir
 ### Suolo a quadrati più veloce
 
 `data.py` taglia la terraferma in un milione di quadrati da 15 m. Prima ogni quadrato veniva ritagliato contro il contorno intero del comune (11.366 vertici): circa 20 minuti. Ora un test preparato (`shapely.contains`/`intersects`, a colonne) scarta i quadrati fuori e restituisce così come sono quelli tutti dentro, con i vertici nell'ordine che GEOS darebbe; si ritagliano solo quelli sul bordo. `data.py city` intero passa da 6–20 minuti a 184 s, con `city.json.gz` identico byte per byte (i quadrati interni restano scritti come decimali, `-1500.0`).
+
+## Luce diurna, bordi delle coperture e contatto
+
+Confronto A/B in Chrome. Le prime cinque tavole isolano ogni intervento. L’ultima confronta la build iniziale con i tre interventi attivi. Camera ortografica, viewport, risoluzione e tempo del vento (7 s) coincidono fra le coppie. Gli originali comprendono anche la prova con intensità emisferica 1,25. [Parametri delle catture](screenshots/look-136/catture.json) · [PNG originali](screenshots/look-136/originals).
+
+| Tavola | Cosa osservare |
+|---|---|
+| [Santa Ana](screenshots/look-136/torri-prima-dopo.png) | La luce emisferica passa da 1,38 a 1,15. Il sole resta a 2,12. Gli archi si distinguono ancora nella facciata in ombra. |
+| [La Isleta](screenshots/look-136/tetti-prima-dopo.png) | Il parapetto usa il 75% della tinta del tetto e il 25% di crema in spazio lineare. Il tetto conserva il campione disponibile; settore e zona condividono il colore di ripiego. |
+| [Terrazze di Vegueta](screenshots/look-136/cabina-prima-dopo.png) | I vertici alla base delle cabine sono più scuri del 10% in spazio lineare. |
+| [Balconi di Vegueta](screenshots/look-136/balcone-prima-dopo.png) | Nella vista mobile il ritaglio mostra la lieve gradazione fra attacco e bordo del balcone ligneo. |
+| [San Juan – San José](screenshots/look-136/pendio-prima-dopo.png) | La base del muro riceve una lieve tinta calda campionando la quota del terreno locale. L’effetto viene interpolato sulle facce esistenti. |
+| [Guida e panoramica](screenshots/look-136/guida-panorama-prima-dopo.png) | Effetto combinato sulla Carretera del Centro e nella vista ampia. La guida usa lo stesso seme, passo di simulazione, posizione e orientamento dell’auto. |
+
+Misure su Chrome, GPU NVIDIA GeForce RTX 4060 (ANGLE D3D11), viewport mobile emulata 390 × 844. Tre confronti accoppiati, nell’ordine prima/dopo, dopo/prima, prima/dopo. Ogni campione misura 45 intervalli di animazione per confrontare la stessa risoluzione. Nella mappa si alternano piccoli spostamenti e in guida si avanza lungo la strada con il medesimo seme.
+
+| Scenario | Canvas | p90 prima, ms | p90 dopo, ms | Mediana dei p90 prima → dopo |
+|---|---|---|---|---|
+| Santa Ana, mappa | 390 × 844 | 16,7 / 16,9 / 16,8 | 16,8 / 16,8 / 16,8 | 16,8 → 16,8 ms |
+| Guida nel pilota | 331 × 717 | 16,8 / 16,9 / 16,9 | 16,8 / 16,8 / 16,7 | 16,9 → 16,8 ms |
+
+In un controllo separato a camera e contenuto fissi, i 30 fotogrammi disegnati a La Isleta hanno tutti 161 draw call e 241.207 triangoli, in entrambe le build. In guida sulla Carretera del Centro, alla stessa posizione, orientamento e tick, i 30 fotogrammi hanno tutti 37 draw call e 82.844 triangoli in entrambe le build. Le modifiche usano le luci e gli attributi colore già presenti. Restano da misurare su un telefono fisico.
+
+Verifiche superate: typecheck, build con validazione dei dati, suite browser completa e circuito di sei giri dei settori con attraversamento in guida nei due sensi. La suite completa e il circuito finale usano Chromium di Playwright tramite `CHROME_PATH`. La prova dei settori riproduce ora anche acqua e ostacoli portuali quando ricostruisce i nodi di partenza disponibili: la precedente discrepanza faceva fallire la stessa asserzione anche sulla build iniziale.

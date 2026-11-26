@@ -46,6 +46,13 @@ export interface Vehicle extends Body {
 }
 
 export interface Patrol extends Vehicle {
+  id: number;
+  interceptor: boolean;
+  visibleFor: number;
+  role: 'support' | 'interceptor' | 'pursuer';
+  target: number;
+  hit: number;
+  aimX?:number;aimY?:number;
   light: T.Mesh<T.BoxGeometry,T.MeshBasicMaterial>;
 }
 

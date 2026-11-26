@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {buildDriveWorld} from '../src/drive/drive-world.ts';
+import {propObstacles} from '../src/render/port-props.ts';
 import {launchBrowser,serveMap} from './qa-browser.mjs';
 import assert from 'node:assert/strict';
 
@@ -101,11 +102,11 @@ try{
     // The run starts among the zones on screen: bring the first endpoint into view, then mirror that world.
     await select('santa-ana');await settle();
     await p.locator('#close').click();
-    const world=buildDriveWorld({boundary:core.boundary,roads:core.roads,buildings:[],trees:[]},()=>0,{treeClearance:4.5,treeRadius:.3},
+    const world=buildDriveWorld({boundary:core.boundary,roads:core.roads,surfaces:core.surfaces,buildings:[],trees:[]},()=>0,{treeClearance:4.5,treeRadius:.3},
       {size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id))});
     for(const id of (await state()).zones){
       const zone=await read('city-zones/'+index.zones.find(z=>z.id===id).file);
-      world.addZone(id,zone.buildings,zone.trees);
+      world.addZone(id,zone.buildings,[...zone.trees,...propObstacles(zone.props??[])]);
     }
     const pool=world.validNodes.filter(i=>world.free(world.nodes[i].x,world.nodes[i].y,10));
     const slot=pool.indexOf(world.nearestNode(...order[0]));assert.ok(slot>=0);

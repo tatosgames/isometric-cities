@@ -1,3 +1,4 @@
+import { cityFillLight } from '../render/city-light.ts';
 import * as T from 'three';
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {loadData,isCity,isSectorIndex,isRoofPalette,isLayers} from '../data/load.ts';
@@ -32,7 +33,7 @@ export async function sectorRoadLab(){
   renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
   host.prepend(renderer.domElement);
   const scene=new T.Scene(),camera=makeMapCamera(),toCamera=mapViewDirection();
-  scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
+  scene.add(cityFillLight());
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
   sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);

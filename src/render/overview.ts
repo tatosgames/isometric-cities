@@ -2,6 +2,7 @@ import type { Altitude, Building, FarBlock, Point, Prop, Ring, RoofTones } from 
 import { propParts } from './port-props.ts';
 import type { GroundMap } from './ground-map.ts';
 import { groundPatch } from './ground-surface.ts';
+import { roofTone } from './roof-tone.ts';
 import * as T from 'three';
 
 // The overview materials are flat shaded: the fragment shader finds the face normal by itself. A normal per vertex
@@ -36,7 +37,7 @@ export function overviewSilhouettes(data: Silhouettes,altitude: Altitude,tones: 
       const base=altitude(...b.rings[0][0]),top=base+(b.heightOverride??b.height);
       prism(b.rings.map(r=>r.slice(0,-1)),base-2,top,
         b.wallColor??['#e4d9d6','#ebe7df','#d5a79c','#d7bd9c','#b6c8c1','#f3eee6'][Math.abs(b.id)%6],
-        tones?.[String(b.id)+(b.toneSuffix??'')]??'#d4c8b6');
+        roofTone(b,tones));
     }
     // Port objects keep their silhouette from afar: a crane is a landmark of the skyline.
     for(const prop of data.props)for(const [geometry,value] of propParts(prop,altitude(prop[1],prop[2]),false)){

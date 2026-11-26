@@ -7,6 +7,7 @@ import { wrapAngle as wrap } from '../geometry.ts';
 import { SURFACES } from './drive-tune.ts';
 
 export interface Body {
+  cornerSpeed?:number;
   x: number; y: number; h: number; vx: number; vy: number;
   wayHold: number; dive: number; steer: number;
   slip: number; side: number; way: number; hitX: number; hitY: number;
@@ -141,18 +142,21 @@ export function makeDrivePhysics(tune: PhysicsTuning,gradeAt?: ReturnType<typeof
   }
   const steerPlayer=(b: Body,steer: number,brake: boolean,dt: number)=>
     steerCar(b,tune.player,steer,brake,slopeAccel(b,Math.hypot(b.vx,b.vy),dt),dt);
-  function steerPatrol(b: Body,steer: number,world: Pick<ReturnType<typeof buildDriveWorld>,'near'>,dt: number){
+  function steerPatrol(b: Body,steer: number,world: Pick<ReturnType<typeof buildDriveWorld>,'near'>,dt: number,profile: Profile=tune.patrol,speedCeiling?: number){
     const speed=Math.hypot(b.vx,b.vy);
     const slope=slopeAccel(b,speed,dt);
     const lookAhead=Math.max(4,speed*speed/(2*(tune.brake+slope))+tune.radius);
     const samples=Math.ceil((lookAhead-4)/1.8);
     const fx=Math.cos(b.h),fy=Math.sin(b.h);
-    let brake=false;
+    let brake=speed>Math.min(speedCeiling??Infinity,b.cornerSpeed??Infinity);
     for(let i=0;speed>8 && i<=samples;i++){
       const distance=4+(lookAhead-4)*i/Math.max(1,samples);
       if(world.near(b.x+fx*distance,b.y+fy*distance,1.1)){brake=true;break;}
     }
-    steerCar(b,tune.patrol,steer,brake,slope,dt);
+    // Shed speed before a sharp route turn. The ceiling is supplied by the
+    // chase role and lets an interceptor trade corner speed for a straight.
+    if(Math.abs(steer)>.5 && speed>profile.baseSpeed*.65)brake=true;
+    steerCar(b,profile,steer,brake,slope,dt);
   }
   function push(b: Body,px: number,py: number,r: number,facade: boolean){
     let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);

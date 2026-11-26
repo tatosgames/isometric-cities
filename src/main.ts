@@ -1,3 +1,4 @@
+import { cityFillLight } from './render/city-light.ts';
 import { parseViewState } from './data/load.ts';
 import type { ViewState, ZoneData } from './data/types.ts';
 import { element as el } from './map/dom.ts';
@@ -72,7 +73,7 @@ async function start(){
   bootPhase('Preparando la vista');
   await bootPaint();
   signal.throwIfAborted();
-  scene.add(new T.HemisphereLight(0xf1f4ff,0x9b9dac,1.38));
+  scene.add(cityFillLight());
   const sun=new T.DirectionalLight(0xfff6ea,2.12);sun.position.set(-550,690,-370);
   sun.castShadow=true;Object.assign(sun.shadow.camera,{left:-850,right:850,top:850,bottom:-850,far:2200});
   sun.shadow.camera.updateProjectionMatrix();sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.00035;sun.shadow.normalBias=.4;scene.add(sun,sun.target);

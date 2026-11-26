@@ -60,7 +60,7 @@ export const TUNE={
   radius:1.15, treeRadius:.3, treeClearance:4.5, bounce:.3, wallLoss:.6, visualScale:carVisualScale,
   scrapeRatio:.5, scrapeFriction:.12, sparkSpeed:5, sparkGap:.075,
   catchSpeed:4.5, catchReach:4, grace:2.5,
-  chaserEvery:18, chaserSight:45, chaserLost:170, wreckTime:3, stuckTime:2,
+  chaserSight:45, chaserLost:170, wreckTime:3, stuckTime:2,
   coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
   viewSpanCompact:62, viewSpanWide:95
 };

@@ -116,6 +116,8 @@ assert.ok(speed(field)<p.topSpeed*TUNE.surfaces.grass.speed+.3,'A patrol slows o
 
 // Chases on the pilot's streets. The previous handling reached the player in 22 of these 40 runs, at 41 km/h.
 const chase40=await chaseRuns();
-assert.ok(chase40.reached>=20 && chase40.stuck<=4,`Chases: ${JSON.stringify(chase40)}`);
+const reserve=await chaseRuns(true);
+assert.ok(reserve.runs===20 && reserve.reached>=16 && reserve.wreck<=3,JSON.stringify(reserve));
+assert.ok(chase40.runs===40 && chase40.reached>=34 && chase40.wreck<=3 && chase40.stuck<=4,`Chases: ${JSON.stringify(chase40)}`);
 
 console.log(`Handling QA passed (chases ${chase40.reached}/${chase40.runs} at ${chase40.pace.toFixed(0)} km/h, base speed at ${seconds.toFixed(2)} s, 100 ms tap ${tap.heading.toFixed(1)} degrees, slide limit ${degrees(d.maxSlip).toFixed(0)} degrees, 60 vs 120 Hz ${degrees(fast.h-slow.h).toFixed(2)} degrees)`);

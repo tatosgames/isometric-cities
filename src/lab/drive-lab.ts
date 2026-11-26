@@ -18,7 +18,7 @@ const unitOf=(key: string)=>angles.test(key)?DEG:/^(baseSpeed|topSpeed)$/.test(k
 const hidden=new Set(['treeClearance','player.steerDead','player.rollbackGrip','patrol.rollbackGrip','patrol.bonusMax',
   'cameraModes.fixed.zoom','cameraModes.fixed.framing','surfaces.paving.speed','surfaces.paving.grip']);
 // Sizes, spans and durations the game divides by: their sliders stop one step above zero.
-const positive=/^(radius|visualScale|viewSpan|baseSpeed|topSpeed|bonusTime|response|skidSpeed|chaserEvery|coinStep|puffLife|hitStop|pose(Release|FullSpeed)|speed|grip)/;
+const positive=/^(radius|visualScale|viewSpan|baseSpeed|topSpeed|bonusTime|response|skidSpeed|coinStep|puffLife|hitStop|pose(Release|FullSpeed)|speed|grip)/;
 const folders: Record<string,string>={player:'Player',patrol:'Patrols',cameraModes:'Drive views',fixed:'Isometric',high:'Aerial',chase:'Chase',
   surfaces:'Surfaces',paving:'Paving',grass:'Grass',dirt:'Dirt',sand:'Sand'};
 const groups: [title: string,keys: RegExp][]=[
@@ -34,6 +34,14 @@ export function driveLab({drive,host,compact,begin}: {drive: ReturnType<typeof m
   // Only the view span of this screen does anything here.
   hidden.add(compact?'viewSpanWide':'viewSpanCompact');
   const query=new URLSearchParams(location.search);
+  Object.assign(window,{
+    policeTrace:()=>drive.policeTrace(),
+    policeRun:()=>({build:import.meta.url,settings:location.href,inputs:drive.inputLog(),samples:drive.policeTrace()}),
+    policeRestart:()=>drive.respawn(),
+    policeAdvance:(seconds:number,steer=0,brake=false)=>drive.advanceLab(seconds,steer,brake),
+    policeInputs:()=>drive.inputLog(),
+    replayPolice:(inputs:Parameters<typeof drive.replayInputs>[0])=>drive.replayInputs(inputs)
+  });
   const leaves: Leaf[]=[];
   // The panel shows degrees and km/h; `TUNE` keeps radians and metres per second.
   const shown: Record<string,number>={};

@@ -65,13 +65,20 @@ function encounter(side){
     physics.bump(patrol,player);
     resolveGuaguaContact(bus.state,player,TUNE.radius);
     resolveGuaguaContact(bus.state,patrol,TUNE.radius);
+    // A patrol can steer around the bus. Every pose still clears its oriented body.
+    for(const car of [player,patrol]){
+      const dx=car.x-x,dy=car.y-y;
+      const along=Math.max(0,Math.abs(dx*fx+dy*fy)-3.6);
+      const across=Math.max(0,Math.abs(dy*fx-dx*fy)-1.1);
+      assert.ok(Math.hypot(along,across)>=TUNE.radius-1e-6);
+    }
   }
   const ahead=car=>(car.x-x)*fx+(car.y-y)*fy;
   return {player:ahead(player),patrol:ahead(patrol),playerHits,patrolHits};
 }
 const queued=encounter(0),passed=encounter(2.45);
 assert.ok(queued.playerHits>0 && queued.player<0);
-assert.ok(passed.playerHits===0 && passed.player>6 && passed.patrolHits>0 && passed.patrol<0);
+assert.ok(passed.playerHits===0 && passed.player>6 && passed.patrol<passed.player);
 // The compact body ends at 3.6 m. A car clearing the tail must keep its speed.
 const parked={x:0,y:0,h:0,speed:0};
 const clearTail={x:-4.80,y:0,vx:8,vy:0};
