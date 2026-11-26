@@ -4,7 +4,7 @@
 
 Cause of the carriageways that sank into the ground in the Mercado lab: its reference mesh was baked on an older ground. Against today's ground triangles its vertices ranged from −1.01 m to +1.26 m, and 52% sat more than 1 cm below the ground. Twelve published sectors, checked with the same triangulation and bilinear terrain reading, were all coplanar within 0.1 mm, so the map was not affected.
 
-The road labs now use the game renderer and stream the published sectors. Mercado compares *Game · geometric carriageway* with *Painted roads (legacy)*. Measure, on the desktop test viewport: 16.9 ms p95 · 34 draws · 57,290 triangles against 16.7 ms · 31 draws · 53,638 triangles. Typecheck, build, `qa-road-lab.mjs`, `qa-road-width-lab.mjs` and `qa-lod-lab.mjs` passed. Full `npm test`: RESULT_PENDING.
+The road labs now use the game renderer and stream the published sectors. Mercado compares *Game · geometric carriageway* with *Painted roads (legacy)*. Measure, on the desktop test viewport: 16.9 ms p95 · 34 draws · 57,290 triangles against 16.7 ms · 31 draws · 53,638 triangles. Typecheck, build, `qa-road-lab.mjs`, `qa-road-width-lab.mjs` and `qa-lod-lab.mjs` passed. Full `npm test` stopped at `qa-guagua-local.mjs` ("Both routes should clear the intersection"), in guagua code being changed in parallel and unrelated to rendering; the map tests that follow were run alone. `qa-quality-views`, `qa-quality-idle`, `qa-recovery` and `qa-map-camera` passed. `qa-boot` passed on the third run: the first two timed out at different steps while the checkout was being rebuilt by another process.
 
 ## Consolidated labs
 

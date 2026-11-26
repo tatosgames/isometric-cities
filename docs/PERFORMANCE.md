@@ -50,6 +50,7 @@ Catalog of tricks already applied to the model, with the measure that justifies 
 | Makeup | Where | Measured effect |
 |---|---|---|
 | Detail budget 58 MiB compact, 115 MiB desktop; the zones are counted separately | `sector-stream.ts` | Stable memory on the repeating circuit of `qa-sectors.mjs` |
+| Detail sectors released 3 s after the view widens past them (they were kept, invisible, until another sector needed room); zone budget 48 MiB compact, 96 MiB desktop: over it a zone at least 1.5× farther from the centre makes room for a nearer one, the rest keep the merged blocks. Flight is exempt | `update()` and `roomForZone()` in `sector-stream.ts`, `zoneMiB` in `dynamic-quality.ts` | Widest view on a 1909×910 desktop (`.cache/zoom-memory.mjs`, three centres): detail from 108–115 MB to 0, zones from 86–108 MB to 86–97 MB, total stream from 131–247 MB to 110–121 MB. Zooming back in reloads the detail |
 | A request remains valid 600 ms after leaving the view, like the "in view" state | `sector-stream.ts` | End of load-and-discard at the edge of the screen: p95 from over 100 ms to 17-35 ms |
 | Sectors of the same type do not expel each other; a sector of known size is downloaded only if there is room | `sector-stream.ts` | See above |
 | Wider view limited to 3,000m (desktop) and 2,400m (compact) | `farthest()` to `main.ts` | Each building is always designed; merged isolates only appear during a load |

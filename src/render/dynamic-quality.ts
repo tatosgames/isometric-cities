@@ -25,11 +25,11 @@ export function renderPixelRatio(config:Pick<DynamicQualityConfig,'dprScale'|'dp
 
 // Baked into geometry or reserved at startup. A frame-rate transition never rebuilds a city sector.
 const compactDetail={
-  sectorMiB:58,shadowMiB:12,zoneSpan:3200,walkers:26,roofDetails:24,crownSubdivisions:0,fronds:8,crowns:4,
+  sectorMiB:58,shadowMiB:12,zoneMiB:48,zoneSpan:3200,walkers:26,roofDetails:24,crownSubdivisions:0,fronds:8,crowns:4,
   simplifiedBuildings:true,parapetWidth:.56,contactTint:true,treeGroundShade:true,overviewNormals:false
 } as const;
 const standardDetail={
-  sectorMiB:115,shadowMiB:24,zoneSpan:6000,walkers:40,roofDetails:60,crownSubdivisions:1,fronds:13,crowns:7,
+  sectorMiB:115,shadowMiB:24,zoneMiB:96,zoneSpan:6000,walkers:40,roofDetails:60,crownSubdivisions:1,fronds:13,crowns:7,
   simplifiedBuildings:false,parapetWidth:0,contactTint:false,treeGroundShade:false,overviewNormals:true
 } as const;
 export function cityDetail(compact:boolean){return compact?compactDetail:standardDetail;}

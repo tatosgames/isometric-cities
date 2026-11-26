@@ -223,6 +223,12 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       (west&&south?sampleGround(x,y,x-1,y-1):undefined)??base.altitude(x,y);
   }
   const budget=detailProfile.sectorMiB*1024*1024;
+  // Zone silhouettes of a wide view. Beyond the budget, zones nearer the centre take the place of farther ones
+  // and the rest keep the always-resident merged blocks. Flight keeps its own corridor and horizon instead.
+  const zoneBudget=detailProfile.zoneMiB*1024*1024;
+  // Detail kept after the view widened past the sectors, for a quick zoom back. Then it goes: nothing shows it.
+  const detailGrace=3000;
+  let farSince=Infinity;
   // What leaves the view stays requested this long, in milliseconds. A camera hovering on a boundary would
   // otherwise start and cancel the same download at every step.
   const linger=600;
@@ -422,6 +428,25 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       z.far.add(farSilhouettes(unpackBlocks(required(packed.get(z.id),'packed blocks of zone '+z.id))));
     }
   }
+  /**
+   * Whether `next` fits the zone budget, once zones well down the ranking have made room. A resident zone makes
+   * room only if it is at least 1.5 times farther than `next`, so two zones near the same distance never take
+   * turns. The estimate of a zone is the mean of those resident.
+   */
+  function roomForZone(next: ResidentZone,zoneRank: (z: ResidentZone)=>number){
+    const resident=zones.filter(z=>z.assets);
+    if(!resident.length)return true;
+    const estimate=zoneBytes/resident.length;
+    if(zoneBytes+estimate<=zoneBudget)return true;
+    const nextRank=zoneRank(next);
+    const spare=resident.filter(z=>z!==demanded && zoneRank(z)>Math.max(nextRank*2.25,nextRank+1))
+      .sort((a,b)=>zoneRank(b)-zoneRank(a));
+    for(const z of spare){
+      if(zoneBytes+estimate<=zoneBudget)break;
+      releaseZone(z);
+    }
+    return zoneBytes+estimate<=zoneBudget;
+  }
   function zoneAt(x: number,y: number){return zoneById.get(sectorOwner(x,y,data.zoneSize));}
   /** Ask for the zone under a point whatever the camera shows. True once its footprints are resident. */
   function demand(x: number,y: number){
@@ -466,6 +491,11 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const underPlane=airborne?zoneAt(target.x,-target.z):undefined;
     const aheadZone=airborne?zoneAt(aheadPoint.x,-aheadPoint.z):undefined;
     near=driving || (lod?.stable?(near?span<=580:span<=520):span<=550);
+    if(near || airborne)farSince=Infinity;
+    else if(farSince===Infinity)farSince=now;
+    else if(now-farSince>detailGrace){
+      for(const s of sectors)if(s.detail && !s.detail.visible)release(s);
+    }
     mid=driving || long<=(mid?zoneSpan*1.09:zoneSpan);
     const openingZone=opening && mid?zoneAt(target.x,-target.z):undefined;
     let openingSector: ResidentSector | undefined,closest=Infinity;
@@ -552,7 +582,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     if(pendingZone && !requestedZones.includes(pendingZone.z))pendingZone.controller.abort();
     if(!pendingZone){
       const next=requestedZones.find(z=>!z.assets && z.retry<=performance.now());
-      if(next)void loadZoneLevel(next);
+      if(next && (airborne || roomForZone(next,zoneRank)))void loadZoneLevel(next);
     }
     if(pending && !requested.includes(pending.s))pending.controller.abort();
     if(!pending){
