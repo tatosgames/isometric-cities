@@ -1,6 +1,7 @@
 """Generate verified Conducir network pieces, local-sector indexes and a coverage ledger."""
 from collections import defaultdict
 from bisect import bisect_left,bisect_right
+from dataclasses import dataclass
 import hashlib
 import json
 import math
@@ -18,6 +19,7 @@ from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, Polygon
 
 MIN_INTERVAL_METRES = .0001
+AREAS = ('city','pilot')
 
 def encode(obj):
     return (json.dumps(obj,ensure_ascii=False,separators=(',',':'),allow_nan=False)+'\n').encode()
@@ -175,7 +177,28 @@ def coverage_report(source,patterns):
     return {'source':source,'lines':list(by_line.values()),'gapsByMidpointBarrio':dict(sorted(by_area.items())),
             'patterns':patterns}
 
-def generate(feed,out):
+@dataclass
+class MatchedNetwork:
+    datasets: dict
+    style: dict
+    source: dict
+    shapes: dict
+    patterns: dict
+    stops: dict
+    reviewed: dict
+    roads: BusRoads
+    matches: dict
+
+    def corridors(self):
+        parts=defaultdict(set)
+        for chains in self.matches.values():
+            for chain in chains:
+                for (a,_,_),(b,_,way) in zip(chain,chain[1:]):
+                    if a!=b:parts[way].add(tuple(sorted((a,b))))
+        return {way:[LineString(part) for part in sorted(segments)] for way,segments in parts.items()}
+
+
+def match_network(feed):
     public=ROOT/'public/data'
     datasets={area:read_layers(area,public) for area in ('city','pilot')}
     style=json.loads((ROOT/'src/data/road-style.json').read_bytes())
@@ -183,17 +206,26 @@ def generate(feed,out):
     shapes,patterns,stops,reviewed_trip=read_feed(feed)
     source={'url':SOURCE,'sha256':hashlib.sha256(feed.read_bytes()).hexdigest()}
     reviewed=extract_reviewed(reviewed_trip,shapes[reviewed_trip[2]],stops,datasets,style,source['sha256'])
-    segments={shape_id:stop_segments(coords) for shape_id,coords in shapes.items()}
     ids={r['id'] for d in datasets.values() for r in d['roads']}
     print('Loading directed street network',flush=True)
     roads=BusRoads(catalog['coverage'],ids)
     print('Matching',len(shapes),'shapes to',len(roads.edges),'directed edges',flush=True)
     matches={k:roads.match(coords) for k,coords in shapes.items()}
+    return MatchedNetwork(datasets,style,source,shapes,patterns,stops,reviewed,roads,matches)
+
+
+def generate(feed,out,*,network=None,city_pavement=None,areas=AREAS):
+    network=network if network is not None else match_network(feed)
+    datasets,style,source=network.datasets,network.style,network.source
+    shapes,patterns,stops=network.shapes,network.patterns,network.stops
+    reviewed,matches=network.reviewed,network.matches
+    segments={shape_id:stop_segments(coords) for shape_id,coords in shapes.items()}
     groups=defaultdict(list)
     for pattern in sorted(patterns):groups[pattern[:2]].append(pattern)
-    for area,dataset in datasets.items():
+    for area in areas:
+        dataset=datasets[area]
         print('Checking vehicle envelopes in',area,flush=True)
-        clearance=RoadClearance(dataset,style)
+        clearance=RoadClearance(dataset,style,**(city_pavement if area=='city' and city_pavement is not None else {}))
         folder=out/area;folder.mkdir(parents=True)
         index={'version':1,'size':240,'source':source,'cells':{},'pieces':{}}
         stats=[];geometry={}
@@ -296,10 +328,10 @@ def version_packs(folder):
     (folder/'index.json').write_bytes(encode(directory))
 
 
-def previous_files(target):
+def previous_files(target,areas=AREAS):
     """Only files registered by the previous generated manifests may be retired."""
     owned=set()
-    for area in ('city','pilot'):
+    for area in areas:
         folder=target/area
         if not (folder/'index.json').exists():continue
         directory=json.loads((folder/'index.json').read_bytes())
@@ -315,21 +347,23 @@ def previous_files(target):
     return owned
 
 
-def install(staging,target):
+def install(staging,target,areas=AREAS):
     """Install immutable bundles first, then switch the small public manifests."""
     target=target.resolve()
     lock=target.with_name('.'+target.name+'.publish.lock')
     with lock.open('x'):pass
     try:
-        old=previous_files(target)
+        old=previous_files(target,areas)
         installed=[];changed=[]
-        headers=[Path(a)/f for f in ('coverage.json','index.json') for a in ('city','pilot')]
+        headers=[Path(a)/f for f in ('coverage.json','index.json') for a in areas]
         bundles={p.relative_to(staging) for p in staging.rglob('*.json')}-set(headers)
         try:
             for path in sorted(bundles):
                 dst=target/path
                 if dst.exists():
-                    if dst.read_bytes()!=(staging/path).read_bytes():raise ValueError('Content-address collision '+str(path))
+                    # A Windows Git checkout can expand JSON line endings.
+                    if dst.read_bytes().replace(b'\r\n',b'\n')!=(staging/path).read_bytes():
+                        raise ValueError('Content-address collision '+str(path))
                     continue
                 dst.parent.mkdir(parents=True,exist_ok=True)
                 os.replace(staging/path,dst);installed.append(dst)
@@ -347,10 +381,10 @@ def install(staging,target):
     finally:lock.unlink()
 
 
-def publish(feed,target):
+def publish(feed,target,*,areas=AREAS,**options):
     target=Path(target).resolve()
     target.parent.mkdir(parents=True,exist_ok=True)
     with TemporaryDirectory(prefix='.guagua-build-',dir=target.parent) as tmp:
         staging=Path(tmp)/'candidate'
-        generate(feed,staging)
-        install(staging,target)
+        generate(feed,staging,areas=areas,**options)
+        install(staging,target,areas)

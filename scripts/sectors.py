@@ -329,9 +329,11 @@ def far_ground(land, square):
     return ground
 
 
-def partition(stage, road_cells=None):
-    data = read_layers(stage)
-    directory = ROOT / f"{stage}-sectors"
+def partition(stage, road_cells=None, *, root=ROOT, data=None, carriageways=None, drive_coverage=None):
+    custom_carriageways = carriageways is not None
+    if data is None:
+        data = read_layers(stage, root)
+    directory = root / f"{stage}-sectors"
     tiles = defaultdict(lambda: {"buildings": [], "trees": [], "props": [], "ground": [], "roads": [], "surfaces": []})
 
     def cell(x, y):
@@ -353,7 +355,7 @@ def partition(stage, road_cells=None):
         row = min(max((relief["origin"][1] - y) / (relief.get("stepY") or relief["step"]), 0), relief["h"] - 1.001)
         i, u, t, v, w = floor(row) * relief["w"] + floor(col), col % 1, row % 1, relief["values"], relief["w"]
         return (v[i] * (1 - u) + v[i + 1] * u) * (1 - t) + (v[i + w] * (1 - u) + v[i + w + 1] * u) * t
-    palette = json.loads((ROOT / "roof-tones.json").read_bytes())
+    palette = json.loads((root / "roof-tones.json").read_bytes())
     # The fused list rides beside the full one: the small-screen profile draws it, the zones and the desktop do not.
     for name, detail in tiles.items():
         if len(detail["buildings"]) >= DENSE:
@@ -388,11 +390,12 @@ def partition(stage, road_cells=None):
         if roof is None:
             kept = previous_roofs(directory, candidates)
     directory.mkdir(exist_ok=True)
-    carriageways = Carriageways(data, stage)
+    if carriageways is None:
+        carriageways = Carriageways(data, stage)
     sample_cells=set()
     if published:
-        samples=select_sections(data,carriageways,SIZE)
-        lab=ROOT/"road-width-lab"
+        samples=select_sections(data,carriageways,SIZE) if not custom_carriageways else json.loads((root/"road-width-lab/sections.json").read_bytes())
+        lab=root/"road-width-lab"
         lab.mkdir(exist_ok=True)
         write_if_changed(lab / "sections.json", encode(samples))
         sample_cells={s["cell"] for s in samples.values()}
@@ -438,7 +441,7 @@ def partition(stage, road_cells=None):
         zone["trees"] += detail["trees"]
         zone["props"] += detail["props"]
         zone["ground"] += detail["ground"]
-    zone_directory = ROOT / f"{stage}-zones"
+    zone_directory = root / f"{stage}-zones"
     zone_directory.mkdir(exist_ok=True)
     land = Polygon(data["boundary"]).buffer(0)
     prepare(land)
@@ -460,15 +463,16 @@ def partition(stage, road_cells=None):
     # The core is everything the viewer needs before any zone arrives.
     terrain = data["terrain"]
     kept, heights = terrain_tiles(terrain, data["boundary"])
-    write_if_changed(ROOT / f"{stage}-terrain.bin", heights.tobytes())
+    write_if_changed(root / f"{stage}-terrain.bin", heights.tobytes())
     core = dict(boundary=data["boundary"], roads=data["roads"], surfaces=data["surfaces"], focus=data.get("focus"),
                 terrain={**{k: v for k, v in terrain.items() if k != "values"}, "file": f"{stage}-terrain.bin", "tile": TILE, "tiles": kept}, far=far)
-    write_if_changed(ROOT / f"{stage}-core.json", encode(core))
+    write_if_changed(root / f"{stage}-core.json", encode(core))
     # The same footprint index serves collision, the low LOD and the route graph.
     # Detail files remain independently cacheable on static hosting.
     index = dict(sectors=entries, sectorSize=SIZE, zones=zone_entries, zoneSize=ZONE, buildingCount=len(owners), carriageways=True,
-                 roadCoverage=polygon_rings(carriageways.coverage.simplify(1.5)), roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
-    write_if_changed(ROOT / f"{stage}-index.json", encode(index))
+                 roadCoverage=polygon_rings(drive_coverage if drive_coverage is not None else carriageways.coverage.simplify(1.5)),
+                 roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
+    write_if_changed(root / f"{stage}-index.json", encode(index))
     for path in directory.iterdir():
         if re.fullmatch(r"-?\d+_-?\d+-[0-9a-f]{12}\.(json|webp)",path.name) and path.name not in generated:
             path.unlink()

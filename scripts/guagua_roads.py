@@ -3,7 +3,7 @@ from collections import defaultdict
 from functools import lru_cache
 from heapq import heappop, heappush
 import math
-from shapely import STRtree, intersects, make_valid, prepare, union_all
+from shapely import STRtree, clip_by_rect, get_parts, intersects, make_valid, points, prepare, union_all
 from shapely.geometry import LineString, Point, Polygon, box
 from osm_extract import acquire
 from carriageways import grade_separated
@@ -25,6 +25,7 @@ class BusRoads:
         self.restrictions=defaultdict(list)
         self.via_ways=set()
         self.coords={}
+        self.tags_by_way={}
         raw={n.get('id'):(float(n.get('lon')),float(n.get('lat'))) for n in osm.findall('node')}
         ox,oy=origin()
         project=to_crs()
@@ -32,6 +33,7 @@ class BusRoads:
             wid=way.get('id')
             if wid not in ids: continue
             t=tags(way)
+            self.tags_by_way[wid]=t
             kind=t.get('highway')
             access=next((t[k] for k in ('bus','psv','motor_vehicle','vehicle','access') if k in t),'yes')
             if access in DENIED or kind not in ROAD_CLASSES and access not in ('designated','permissive'): continue
@@ -198,7 +200,7 @@ class BusRoads:
 
 class RoadClearance:
     """Prepared local pavement minus obstacles. Cache repeats where different lines share a street."""
-    def __init__(self,data,style):
+    def __init__(self,data,style,*,coverage=None,protected=None,widening=None):
         self.boundary=make_valid(Polygon(data['boundary']));prepare(self.boundary)
         roads=[(r,LineString(r['line'])) for r in data['roads']]
         drivable=[(r,line) for r,line in roads if r['kind'] not in style['pedestrian']]
@@ -216,10 +218,24 @@ class RoadClearance:
         self.widening_obstacles.extend(line.buffer(8) for r,line in roads if grade_separated(r))
         self.road_tree=STRtree(self.pavement); self.obstacle_tree=STRtree(self.obstacles)
         self.widened_tree=STRtree(self.widened);self.widening_tree=STRtree(self.widening_obstacles)
+        if coverage is not None:
+            self.coverage_tree=STRtree(get_parts(coverage))
+            self.protected_tree=STRtree(get_parts(protected))
+            self.widening_tree=STRtree(get_parts(widening))
 
     @lru_cache(maxsize=5000)
     def tile(self,x,y):
         region=box(x*120-35,y*120-35,(x+1)*120+35,(y+1)*120+35)
+        if hasattr(self,'coverage_tree'):
+            def local(tree):
+                clipped=[clip_by_rect(tree.geometries[i],*region.bounds) for i in tree.query(region)]
+                return union_all([part if part.is_valid else make_valid(part) for part in clipped])
+            # The renderer retains the original strokes through protected
+            # crossings, where the surfaced mesh leaves a fallback window.
+            roads=local(self.coverage_tree).union(local(self.road_tree).intersection(local(self.protected_tree)))
+            free=roads.intersection(self.boundary).difference(local(self.obstacle_tree))
+            prepare(free)
+            return free
         roads=union_all([self.pavement[i] for i in self.road_tree.query(region)])
         pavement=roads.intersection(self.boundary)
         prepare(pavement)
@@ -273,6 +289,27 @@ class RoadClearance:
         return all(self.fits(x.union(y).convex_hull.buffer(pad+.0001)) for x,y in zip(bodies,bodies[1:]))
 
     def verified(self,chain,*,allow_tight_turns=False):
+        nominal=list(self._verified(chain,allow_tight_turns))
+        whole_chain=len(nominal)==1 and nominal[0][0][1]<=chain[0][1]+.1 and nominal[0][-1][1]>=chain[-1][1]-.1
+        if not hasattr(self,'widening_tree') or whole_chain:
+            yield from nominal
+            return
+        route_points=points([row[0] for row in chain])
+        nearby,_=self.widening_tree.query(route_points,predicate='dwithin',distance=8)
+        shiftable={chain[i][1] for i in nearby}
+        if not shiftable:
+            yield from nominal
+            return
+        # A local shift can recover a bend, but only if the previous runs
+        # remain contained in runs of the new alignment.
+        variants=[nominal]
+        for shift in (-.25,.25):
+            shifted=list(self._verified(chain,allow_tight_turns,shiftable,shift))
+            if all(any(new[0][1]<=run[0][1] and new[-1][1]>=run[-1][1] for new in shifted) for run in nominal):
+                variants.append(shifted)
+        yield from max(variants,key=lambda runs:sum(run[-1][1]-run[0][1] for run in runs))
+
+    def _verified(self,chain,allow_tight_turns,shiftable=None,shift=0):
         # Offset to the right; limit the miter at acute turns. All checks run on
         # the rounded coordinates that the browser will actually receive.
         normals=[]
@@ -285,7 +322,8 @@ class RoadClearance:
         vertices=[]
         for i,((x,y),m,wid) in enumerate(cleaned):
             ax,ay=normals[max(0,i-1)]; bx,by=normals[min(i,len(normals)-1)]
-            scale=.95/max(.6,1+ax*bx+ay*by)
+            offset=.95+shift if shiftable is not None and m in shiftable else .95
+            scale=offset/max(.6,1+ax*bx+ay*by)
             point=(round(x+(ax+bx)*scale,2),round(y+(ay+by)*scale,2))
             bend=ax*bx+ay*by<.966
             if not vertices or point!=vertices[-1][0][0]:vertices.append(((point,m,wid),bend))

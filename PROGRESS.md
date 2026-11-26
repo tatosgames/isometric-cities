@@ -204,6 +204,8 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 
 **Raccordi delle guaguas.** L’importatore recupera i campioni GTFS ambigui tramite brevi raccordi direzionali e consente alle estremità del bus di sporgere nelle curve strette in città. I tratti da almeno 1 km passano da 81 a 169. [Verifica a Guanarteme](docs/QA.md#continuità-delle-guaguas-a-guanarteme).
 
+**Allargamento adattivo dei corridoi delle guaguas.** Il nuovo generatore applica fino al 20% con il solo spazio geometrico e fino al 40% con riscontro per la larghezza. I dati cittadini allargano 127,38 km di corridoi con 50 cm di margine dalle facciate. Mappa e guida condividono le nuove fasce e i tratti delle guaguas da almeno 1 km passano da 169 a 230. [Geometria, guida e confronto mobile](docs/QA.md#allargamento-adattivo-dei-corridoi).
+
 **Cielo sperimentale.** Gabbiani sopra Parque Doramas e Santa Catalina e nubi mosse dallo stesso vento delle ombre. Attivi di default, disattivabili con `?sky=0`. [Controlli e guida tecnica in inglese](docs/SKY_EFFECTS.md).
 
 **Blocco sud.** La Montañeta, Marzagán, Tafira e Los Hoyos per intero, con i «Diseminado» di raccordo: città a 62,67 km², 36.321 parti di edificio, 72 barrios con nome, 110 zone e 1.290 settori. Terreno a riquadri, altezze LiDAR per 998 edifici, rete delle guaguas rigenerata. Heap dopo la raccolta 62,5 MB. Restano Tamaraceite, Almatriche, San Lorenzo, Los Giles e Tenoya a nord-ovest. [Misure e limiti](docs/QA.md#blocco-sud--25-novembre-2026)

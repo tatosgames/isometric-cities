@@ -1266,6 +1266,14 @@ Limiti. `qa-drive-lab.mjs` fallisce sull'URL dei valori (`t=player.baseSpeed:30`
 
 ### Continuità delle guaguas a Guanarteme
 
+#### Allargamento adattivo dei corridoi
+
+La candidata cittadina allarga 1.018 fasce che coprono 127,38 km di asse, di cui 4,73 km a Guanarteme. Aggiunge 130.909,60 m² di asfalto con un margine di 0,50 m dalle facciate. Il controllo triangolato ha verificato 2.041 settori, 511 con nuove fasce e 2.720 bordi stradali. L’unica eccezione di bordo era già presente. In Conducir 11 dei 12 pixel interamente interni alle nuove fasce passano da pavimentazione ad asfalto e il pixel già asfaltato resta tale.
+
+La rete passa da 906,26 a 923,66 km GTFS verificati, sommando separatamente le varianti. I tratti continui da almeno 1 km passano da 169 a 230. La L2 a Guanarteme conserva il tratto da 2,07 km. Prova browser riuscita su desktop e telefono emulato, con il pilota di riferimento conservato.
+
+Cinque coppie alternate sul telefono emulato a Guanarteme usano la stessa guida registrata e raggiungono lo stesso punto. Il p90 mediano resta a 18,1 ms. La memoria dei settori e delle zone passa da 74,272 a 74,296 MB e l’heap JavaScript da 112,82 a 117,53 MB. L’indice della superficie conserva il dettaglio attorno alle nuove fasce e misura 3,71 MB, rispetto ai 7,80 MB della prima candidata a dettaglio integrale.
+
 Con lo stesso feed, il confronto fra il vecchio catalogo e quello rigenerato conta 27 → 81 tratti cittadini da almeno 1 km e 238 → 428 da almeno 500 m. Nelle celle che intersecano il rettangolo di Guanarteme, la mediana sale da 25 a 124 m e i tratti da almeno 500 m passano da 56 a 97. I vuoti GTFS con punto medio nel barrio scendono da 7,48 a 4,77 km, sommati sulle varianti.
 
 Alla partenza `-2800,2400`, le linee L2, 45 e 65 hanno tratti da circa 1,27 km. Osservando la linea 45 per 167 secondi simulati, lo stesso bus avanza di 981 m lungo il suo tratto, da 273 a 1.254 m. La soglia di 500 m riguarda il traffico cittadino. La linea 13 del pilota conserva il percorso di prova.
