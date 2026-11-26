@@ -64,7 +64,8 @@ try{
   assert.ok(third,'No building for the gun');
   await page.mouse.click(third.x,third.y);
   await page.mouse.click(third.x,third.y);
-  assert.equal(await data('shots'),1,'The cooldown let a second shot through');
+  // Read from the lab itself: the page attributes follow only at the next frame.
+  assert.equal((await page.evaluate(()=>window.demolitionLab.gun())).shots,1,'The cooldown let a second shot through');
   await page.waitForFunction(n=>Number(document.querySelector('#view').dataset.demolished)>n,before,{timeout:8000});
   assert.equal((await page.evaluate(()=>window.demolitionLab.gun())).flying,false);
   await page.waitForTimeout(400);

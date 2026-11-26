@@ -1,5 +1,5 @@
 import type { Altitude, Building, Point, Ring, Road, Surface } from '../data/types.ts';
-import { pointInRing, ringIndex } from '../geometry.ts';
+import { insidePoint, pointInRing, ringIndex } from '../geometry.ts';
 import type { BuildingBlock } from './building-occlusion.ts';
 import type { RoadNode } from './road-routing.ts';
 import {blocksCamera} from './building-occlusion.ts';
@@ -211,6 +211,22 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
     });
     reopen(b);
   }
+  /**
+   * Takes out every building under what came down: those sharing an id with a part, and those standing inside a
+   * part (a fused block). Returns them, to put back when it is rebuilt.
+   */
+  function removeUnder(parts: readonly Building[]){
+    const ids=new Set(parts.map(p=>p.id)),found=new Set<Building>();
+    for(const part of parts)footprintCells(part,(cx,cy)=>{
+      for(const grid of stack)for(const block of grid.get(cx+','+cy)?.blocks??[]){
+        const b=block.building;
+        if(!b || found.has(b))continue;
+        if(ids.has(b.id) || parts.some(p=>pointInRing(p.rings[0],...insidePoint(b.rings[0]))))found.add(b);
+      }
+    });
+    for(const b of found)removeBuilding(b);
+    return [...found];
+  }
   /** Puts a rebuilt building back in its zone, if the zone is loaded. */
   function restoreBuilding(b: Building){
     const layer=down.get(b),grid=layer!==undefined && layers.get(layer);
@@ -226,7 +242,9 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   /**
    * The first building a ray meets, through its roof or a wall, and where: the ray parameter `t`. World axes, as
-   * the camera's. Without a building, `t` is where it meets the terrain, up to `range` metres along it.
+   * the camera's. A level ray (the gun's) meets any wall it crosses in plan: it flies just above a road that climbs
+   * and falls under it. Without a building, `t` is where it meets the terrain, up to `range` metres along it.
+   * The cells are read every 2 m along the ray, so none it crosses is skipped.
    */
   function rayHit(o: T.Vector3,d: T.Vector3,range: number){
     let ground=range;
@@ -235,18 +253,17 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
       for(let k=0;k<4;k++)ground=(altitude(o.x+ground*d.x,-(o.z+ground*d.z))-o.y)/d.y;
       ground=Math.min(range,Math.max(0,ground));
     }
-    const top=d.y<0?Math.max(0,(highestRoof-o.y)/d.y):0,step=CELL/2/(Math.hypot(d.x,d.z)||1);
+    const flat=!d.y,top=d.y<0?Math.max(0,(highestRoof-o.y)/d.y):0,step=2/(Math.hypot(d.x,d.z)||1);
     let t=ground,building: Building | null=null;
     checked.clear();
-    for(let s=Math.min(top,ground);s<=ground+step;s+=step){
+    for(let s=Math.min(top,ground);s<=ground+step && s<=t+step;s+=step){
       const key=Math.floor((o.x+s*d.x)/CELL)+','+Math.floor(-(o.z+s*d.z)/CELL);
       for(const grid of stack)for(const block of grid.get(key)?.blocks??[]){
         if(checked.has(block) || !block.building)continue;
         checked.add(block);
-        const hit=rayPrism(o,d,block.rings[0],block.base,block.top);
+        const hit=rayPrism(o,d,block.rings[0],flat?-Infinity:block.base,flat?Infinity:block.top);
         if(hit<t){t=hit;building=block.building;}
       }
-      if(s>t)break;
     }
     return {t,building};
   }
@@ -382,7 +399,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   return {
     nodes,validNodes:roadIndex.valid,roadSegments,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
-    removeBuilding,restoreBuilding,rayHit,
+    removeBuilding,removeUnder,restoreBuilding,rayHit,
     roofAt,roofCeiling,landingCandidates,landingHeading,footprintsReady:(x:number,y:number)=>!unloaded(x,y),
     patrolRoutesFrom:(source:number)=>routesFrom(nodes,source,patrolLink,480),
     routesFrom:(source: number)=>routesFrom(nodes,source)

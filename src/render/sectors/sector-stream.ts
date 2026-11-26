@@ -4,6 +4,7 @@ import { ringCenter, sectorOwner, zoneOfSector } from '../../data/sector-index.t
 import { isLayers, isZone, loadData } from '../../data/load.ts';
 import { required } from '../../required.ts';
 import {surfaceStencil} from '../building-stencil.ts';
+import { pointInRing } from '../../geometry.ts';
 import { sectorBuilder, type SectorBuildings } from './sector-builder.ts';
 import { overviewGround, overviewSilhouettes } from '../overview.ts';
 import * as T from 'three';
@@ -71,8 +72,9 @@ interface ResidentSector {
   prefetch: T.Box3;
   detail: T.Group | null;
   assets: Assets | null;
-  /** With `trackBuildings`: the vertices of each building in `detail`, for `hideBuilding`. */
+  /** With `trackBuildings`: the vertices of each building in `detail`, for `hideBuilding`, and the footprints drawn. */
   buildings: SectorBuildings | null;
+  drawn: Building[] | null;
   used: number;
   failed: number;
   retry: number;
@@ -219,7 +221,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     const zone=required(zoneById.get(zoneOfSector(s.id,data)),'zone of sector '+s.id);
     const bounds=box(s.bounds,s.vertical);
     const sector={id:s.id,file:s.file,zone,low:null,groundAt:null,bounds,prefetch:bounds.clone().expandByScalar(data.sectorSize*.55),
-      detail:null,assets:null,buildings:null,used:0,failed:0,retry:0,estimate:0,wanted:-Infinity,inView:false,seen:-Infinity};
+      detail:null,assets:null,buildings:null,drawn:null,used:0,failed:0,retry:0,estimate:0,wanted:-Infinity,inView:false,seen:-Infinity};
     zone.sectors.push(sector);
     return sector;
   });
@@ -292,7 +294,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
     if(!s.assets)return;
     transitions.get(s.id)?.dispose();transitions.delete(s.id);
     if(displayed.delete(s.id))lod?.observe?.(s.id,false);
-    evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;s.buildings=null;
+    evictions++;s.assets.dispose();bytes-=s.assets.bytes;s.assets=null;s.detail=null;s.buildings=s.drawn=null;
     if(s.low)s.low.visible=true;
   }
   // Only an adjoining zone can project an urban building across this zone's edge.
@@ -418,7 +420,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         release(other);
       }
       if(bytes+assets.bytes>budget){assets.dispose();return;}
-      s.detail=detail;s.assets=assets;s.buildings=local.buildings;bytes+=assets.bytes;base.group.add(detail);
+      s.detail=detail;s.assets=assets;s.buildings=local.buildings;s.drawn=trackBuildings?layers.buildings:null;bytes+=assets.bytes;base.group.add(detail);
       if(lod?.attach && s.zone.map)transitions.set(s.id,lod.attach(s.low,local,s.zone.map));
       s.low.visible=false;s.failed=0;
     }catch(error){
@@ -643,6 +645,19 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       for(const s of sectors)hideRanges(s.buildings?.get(id)??[]);
       shadowsStale=true;
       refresh();
+    },
+    /**
+     * The footprints drawn as one with the building `id` standing at (x, y), as `hideBuilding(id)` would take them
+     * away: every part sharing its id or, on small screens, the fused block it belongs to. Empty if not drawn.
+     */
+    partsOf(id: number,x: number,y: number){
+      const drawn=sectors.flatMap(s=>s.drawn??[]);
+      let unit=drawn.filter(b=>b.id===id);
+      if(!unit.length){
+        const block=drawn.find(b=>pointInRing(b.rings[0],x,y));
+        if(block)unit=drawn.filter(b=>b.id===block.id);
+      }
+      return unit;
     },
     /**
      * Brings a hidden building back. The sectors that draw it are rebuilt from their files, so this waits (false)

@@ -13,7 +13,7 @@ try{
     // Both runs hold the player at the same start and use the pilot without bus traffic.
     await page.goto(new URL('?lab=guida&area=pilot&nobuses&start=-60,-818&seed=7&t=chaserEvery:8',server.origin).href);
     const scene=page.locator('#scene[data-drive][data-lab-ready]');
-    await scene.waitFor({timeout:120000});await scene.focus();await page.keyboard.down('Space');
+    await scene.waitFor({timeout:120000});await scene.focus();await page.keyboard.down('ArrowDown');
     if(version==='candidate'){
       await page.evaluate(()=>window.policeAdvance(150,0,true));
       await page.keyboard.press('ArrowDown');

@@ -1,6 +1,6 @@
 // The car's gun. In Node, on the pilot world: a ray finds the building it meets, a demolished building stops
 // blocking and comes back when rebuilt, the slug meets cars on its way, a thrown body lands. In the browser
-// (`index.html?lab=guida&area=pilot`): F fires straight ahead, the ring fills inside the button and a second F
+// (`index.html?lab=guida&area=pilot`): F or Space fires straight ahead, the ring fills inside the button and a second F
 // waits for it, and a shot towards a building brings it down into pieces. Screenshot in QA_SCREENSHOT_DIR (docs/screenshots).
 import assert from 'node:assert/strict';
 import {mkdir,readFile} from 'node:fs/promises';
@@ -8,7 +8,7 @@ import * as T from 'three';
 import {TUNE} from '../src/drive/drive-tune.ts';
 import {buildDriveWorld} from '../src/drive/drive-world.ts';
 import {aimShot,fly,launch,segmentBox,segmentCircle} from '../src/drive/drive-weapon.ts';
-import {pointInRing} from '../src/geometry.ts';
+import {insidePoint,pointInRing} from '../src/geometry.ts';
 import {mapViewDirection} from '../src/render/map-camera.ts';
 import {launchBrowser,serveMap} from './qa-browser.mjs';
 
@@ -47,6 +47,34 @@ assert.ok(candidates.length>20,'Too few buildings to aim at');
     world.restoreBuilding(b);
   }
   assert.ok(met>=20,'The ray met only '+met+' of 40 roofs');
+  // The gun's level ray meets a wall whatever the slope: from 40 m below a building's base it still stops there.
+  let walls=0;
+  for(const b of candidates){
+    const [cx,cy]=insidePoint(b.rings[0]),from=[cx-30,cy];
+    if(!world.free(...from,TUNE.radius))continue;
+    const hit=world.rayHit(new T.Vector3(from[0],-40,-from[1]),new T.Vector3(1,0,0),60);
+    assert.ok(hit.building && hit.t<=30,'A level ray crossed building '+b.id+' at '+hit.t.toFixed(1)+' m');
+    walls++;
+  }
+  assert.ok(walls>=20,'Only '+walls+' level rays tried');
+  // A building split in volumes shares its id: what comes down is all of it, and nothing beside it.
+  const byId=Map.groupBy(data.buildings,b=>b.id);
+  const split=[...byId.values()].find(parts=>parts.length>=3 && !parts[0].landmark);
+  assert.ok(split,'No building split in volumes');
+  const neighbours=data.buildings.filter(b=>b.id!==split[0].id);
+  const before=neighbours.filter(b=>world.free(...insidePoint(b.rings[0]),.1)===false).length;
+  const taken=world.removeUnder(split);
+  assert.deepEqual(new Set(taken),new Set(split),'Not every part, or more than its parts, came down');
+  assert.equal(neighbours.filter(b=>world.free(...insidePoint(b.rings[0]),.1)===false).length,before,'A neighbour lost its walls');
+  for(const b of taken)world.restoreBuilding(b);
+  // A block fused from neighbours (small screens) takes down the real buildings standing inside it.
+  const [a]=split,others=data.buildings.filter(b=>b.id!==a.id && !b.landmark && Math.hypot(...insidePoint(b.rings[0]).map((v,i)=>v-insidePoint(a.rings[0])[i]))<25).slice(0,2);
+  const box=[...a.rings[0],...others.flatMap(b=>b.rings[0])];
+  const [w,so,e,n]=[Math.min(...box.map(p=>p[0]))-.5,Math.min(...box.map(p=>p[1]))-.5,Math.max(...box.map(p=>p[0]))+.5,Math.max(...box.map(p=>p[1]))+.5];
+  const block={...a,rings:[[[w,so],[e,so],[e,n],[w,n],[w,so]]]};
+  const under=world.removeUnder([block]);
+  for(const b of [...split,...others])assert.ok(under.includes(b),'Building '+b.id+' left standing inside the fused block');
+  for(const b of under)world.restoreBuilding(b);
   // The slug meets a car on its way, and a guagua's turned box.
   assert.ok(Math.abs(segmentCircle(0,0,10,0,5,.5,1)-.4134)<1e-3);
   assert.equal(segmentCircle(0,0,10,0,5,3,1),Infinity);
@@ -62,7 +90,7 @@ assert.ok(candidates.length>20,'Too few buildings to aim at');
   while(fly(body,1/120,TUNE.weapon.gravity) && t<5)t+=1/120;
   assert.ok(t<2,'Still flying after '+t.toFixed(2)+' s');
   assert.equal(body.lift,0);assert.equal(Math.abs(Math.round(body.tumble/Math.PI)*Math.PI-body.tumble)<1e-9,true);
-  console.log('Gun geometry passed ('+met+'/40 roofs met, landing '+t.toFixed(2)+' s)');
+  console.log('Gun geometry passed ('+met+'/40 roofs met, '+walls+' level rays stopped from 40 m below, landing '+t.toFixed(2)+' s)');
 }
 
 // ---- browser ----
@@ -101,6 +129,11 @@ try{
   const ring=Math.round(100-await button.evaluate(b=>parseFloat(getComputedStyle(b.querySelector('circle')).strokeDashoffset)));
   assert.ok(ring>10 && ring<60,'Ring at '+ring+'%');
   await page.waitForFunction(()=>!document.querySelector('#drive-fire').classList.contains('cooling'),null,{timeout:6000});
+  // Space fires too, and no longer brakes.
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(100);
+  assert.ok((await gun()).cool>2.5,'Space did not fire');
+  await page.waitForFunction(()=>!document.querySelector('#drive-fire').classList.contains('cooling'),null,{timeout:6000});
   // A shot at the nearest tall building brings it down.
   const at=await page.evaluate(()=>window.gunPlayer());
   const target=candidates.map(b=>({b,c:centre(b.rings[0])}))
@@ -113,6 +146,7 @@ try{
   const after=await gun();
   assert.ok(after.pieces>=5,'Pieces: '+after.pieces);
   assert.equal(after.ruins,before.ruins+1);
+  assert.equal(after.lastDown.members,data.buildings.filter(b=>b.id===after.lastDown.id).length,'Not all the volumes of the building came down');
   await page.locator('#scene').screenshot({path:dir+'/drive-fire.png'});
   await page.keyboard.up('ArrowDown');
   assert.deepEqual(errors,[]);

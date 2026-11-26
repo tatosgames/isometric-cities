@@ -52,7 +52,7 @@ The destination card was a yellow circle with the location number in the menu ("
 
 ### Driving: tactile brake indicator (Luca, November 22, 2026)
 
-Removed the central button with the brake symbol and the related educational animation. Braking remains active by holding down both sides, or with Space/Down Arrow.
+Removed the central button with the brake symbol and the related educational animation. Braking remains active by holding down both sides, or with Down Arrow. Since 26 November 2026 Space fires the car's gun (Luca's request), as F does.
 
 ### Help: Emoji icon on button (November 21, 2026)
 

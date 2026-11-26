@@ -19,6 +19,18 @@ export function pointInRing(ring: readonly (readonly [number,number])[],x: numbe
   return hit;
 }
 
+/** A point inside a ring: the middle of its box when it falls inside, else the middle of a chord between corners. */
+export function insidePoint(ring: readonly (readonly [number,number])[]): [number,number]{
+  let w=Infinity,s=Infinity,e=-Infinity,n=-Infinity;
+  for(const [x,y] of ring){w=Math.min(w,x);s=Math.min(s,y);e=Math.max(e,x);n=Math.max(n,y);}
+  if(pointInRing(ring,(w+e)/2,(s+n)/2))return [(w+e)/2,(s+n)/2];
+  for(let i=0;i+2<ring.length;i++){
+    const x=(ring[i][0]+ring[i+2][0])/2,y=(ring[i][1]+ring[i+2][1])/2;
+    if(pointInRing(ring,x,y))return [x,y];
+  }
+  return [ring[0][0],ring[0][1]];
+}
+
 /** The point of a ring's outline nearest to (x,y), and how far it is. */
 export function nearestOnRing(ring: readonly (readonly [number,number])[],x: number,y: number){
   let distance=Infinity,px=x,py=y;

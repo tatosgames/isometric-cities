@@ -7,10 +7,14 @@ import { fractureBuilding, rubbleSlab } from './fracture.ts';
 
 const RUBBLE = '#a39886';
 
+/** A footprint as the city draws it, and the ground under its first corner, where its walls stand. */
+export interface Part { building: Building; base: number }
+
 /**
- * Brings buildings down, in the demolition lab and in the drive: `hide` takes the building out of the city meshes,
- * then it breaks into the pieces of `fracture.ts` at the blast, which fly as `debris.ts` and leave a rubble slab.
- * `update` moves the pieces and says when the shadow map has to follow.
+ * Brings buildings down, in the demolition lab and in the drive. What comes down is what the city draws under one
+ * id: every volume of a building split in parts, or a block of neighbours fused on small screens. `hide` takes it
+ * out of the city meshes; each part breaks into the pieces of `fracture.ts` at the blast, which fly as `debris.ts`
+ * and leave a rubble slab. `update` moves the pieces and says when the shadow map has to follow.
  */
 export function makeDemolisher({material, altitude, tones, hide}: {
   material: T.Material;
@@ -20,17 +24,18 @@ export function makeDemolisher({material, altitude, tones, hide}: {
 }) {
   const debris = makeDebris(material, altitude);
   const done = new Set<number>();
-  /** `base` is the ground under the footprint's first corner, where the walls stand. False if already down. */
-  function demolish(b: Building, base: number, blast: Blast) {
-    if (done.has(b.id)) return false;
-    done.add(b.id);
-    hide(b.id);
-    debris.burst(fractureBuilding({building: b, base, wall: wallTone(b), roof: roofTone(b, tones),
-      impact: [blast.point.x, -blast.point.z]}), blast);
-    debris.slab(b.id, rubbleSlab(b, base, .9, RUBBLE));
+  /** False if it is already down. */
+  function demolish(id: number, parts: readonly Part[], blast: Blast) {
+    if (done.has(id) || !parts.length) return false;
+    done.add(id);
+    hide(id);
+    const impact: [number, number] = [blast.point.x, -blast.point.z];
+    for (const {building: b, base} of parts)
+      debris.burst(fractureBuilding({building: b, base, wall: wallTone(b), roof: roofTone(b, tones), impact}), blast);
+    debris.slab(id, parts.flatMap(({building, base}) => rubbleSlab(building, base, .9, RUBBLE)));
     return true;
   }
-  /** The building stands again (the caller has put it back in the city): its rubble goes. */
+  /** It stands again (the caller has put it back in the city): its rubble goes. */
   function restore(id: number) {
     done.delete(id);
     debris.clearSlab(id);

@@ -84,8 +84,8 @@ To extend your perimeter, update your acquisitions, or prepare a new city, follo
 The 🚗 button on the tools opens an arcade chase on the model, inspired by Pako. The car accelerates on its own.
 
 - Touch: press the left or right half to turn, both at the same time to brake. A horizontal slide is equivalent to the side you slide toward.
-- Keyboard: left/right arrows or A/D, both at the same time (or Space / down arrow) to brake, F to shoot, Escape to exit.
-- Shooting: the crosshair button at the bottom centre (or F) fires straight ahead, once every 3 seconds; the ring inside the button fills while it reloads. A building comes down and is rebuilt once it has been out of view for a while; a patrol is wrecked and thrown; a guagua is thrown off its run.
+- Keyboard: left/right arrows or A/D, both at the same time (or down arrow) to brake, Space or F to shoot, Escape to exit.
+- Shooting: the crosshair button at the bottom centre (or Space / F) fires straight ahead, once every 3 seconds; the ring inside the button fills while it reloads. A building comes down and is rebuilt once it has been out of view for a while; a patrol is wrecked and thrown; a guagua is thrown off its run.
 - The coins mark the route through the streets to one of the places; When you arrive there is a bonus and another route appears.
 - Patrols increase every 18 seconds. They catch you if they catch up with you when you're going slow; At full speed they only push. The record is saved in the browser.
 

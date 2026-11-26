@@ -4,7 +4,7 @@ export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () 
   function read(){
     let left=keys.has('ArrowLeft')||keys.has('a'),right=keys.has('ArrowRight')||keys.has('d');
     for(const p of pointers.values()){if(p.side<0)left=true;else right=true;}
-    return {steer:(left?1:0)-(right?1:0),brake:(left&&right)||keys.has(' ')||keys.has('ArrowDown')};
+    return {steer:(left?1:0)-(right?1:0),brake:(left&&right)||keys.has('ArrowDown')};
   }
   function release(){pointers.clear();keys.clear();}
   const hidden=()=>{if(document.hidden)release();};
@@ -27,8 +27,11 @@ export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () 
     if(k==='Escape'){onExit();return;}
     if(!canDrive())return;
     if(k==='c' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onCamera();e.preventDefault();return;}
-    if(k==='f' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onFire();e.preventDefault();return;}
-    if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement)return;
+    if((k==='f' || k===' ') && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement)){
+      if(!e.repeat)onFire();
+      e.preventDefault();return;
+    }
+    if(!['ArrowLeft','ArrowRight','ArrowDown','a','d'].includes(k) || e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement)return;
     keys.add(k);onDrive();e.preventDefault();
   }
 

@@ -42,13 +42,18 @@ export async function demolitionLab() {
   const {city, renderer, scene, camera, tones} = lab;
 
   // Every building the streamed sectors bring, indexed on a 32 m grid for the ball, the picking and the blasts.
-  const targets = new Map<number, Target>(), grid = new Map<number, Target[]>();
+  // A building split in volumes shares its id: `targets` holds its parts, which come down together. A sector that
+  // loads again brings the same parts again: `known` keeps one of each.
+  const targets = new Map<number, Target[]>(), grid = new Map<number, Target[]>(), known = new Set<string>();
   let highest = 0, lookup = 0;
   function register(b: Building) {
-    if (b.landmark || targets.has(b.id) || demolished.has(b.id)) return;
-    const ring = b.rings[0], base = stream.altitude(ring[0][0], ring[0][1]);
+    const ring = b.rings[0], part = b.id + ':' + ring[0][0] + ',' + ring[0][1];
+    if (b.landmark || known.has(part) || demolished.has(b.id)) return;
+    known.add(part);
+    const base = stream.altitude(ring[0][0], ring[0][1]);
     const target = {building: b, ring, base, top: base + (b.heightOverride ?? b.height), seen: 0};
-    targets.set(b.id, target);
+    const parts = targets.get(b.id);
+    if (parts) parts.push(target); else targets.set(b.id, [target]);
     highest = Math.max(highest, target.top);
     const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
     for (let i = Math.floor(Math.min(...xs) / GRID); i <= Math.floor(Math.max(...xs) / GRID); i++)
@@ -126,7 +131,8 @@ export async function demolitionLab() {
   const shake = makeShake();
   let freeze = 0, shadows = true;
   function demolish(target: Target, blast: Blast) {
-    if (!debris.demolish(target.building, target.base, blast)) return;
+    const parts = targets.get(target.building.id) ?? [target];
+    if (!debris.demolish(target.building.id, parts.map(({building, base}) => ({building, base})), blast)) return;
     shake.add(blast.strength / 18 + (blast.push?.length() ?? 0) / 30);
     freeze = Math.max(freeze, .05);
   }
@@ -253,7 +259,7 @@ export async function demolitionLab() {
     shot.x += shot.dx * step; shot.y += shot.dy * step; shot.z = altitude(shot.x, shot.y) + SHOT_HEIGHT;
     shot.left -= step;
     if (shot.left > 1e-6) return;
-    const target = shot.building && targets.get(shot.building.id);
+    const target = shot.building && targets.get(shot.building.id)?.[0];
     if (target) demolish(target, shotBlast(shot, W));
     shot = null;
   }
@@ -375,7 +381,7 @@ export async function demolitionLab() {
     camera.position.add(offset); camera.updateMatrixWorld();
     lab.render(now, controls.target);
     camera.position.sub(offset);
-    report({demolished: demolished.size, pieces: debris.pieces, buildings: targets.size, busy: String(busy), tool: settings.tool, shots},
+    report({demolished: demolished.size, pieces: debris.pieces, buildings: known.size, busy: String(busy), tool: settings.tool, shots},
       demolished.size + ' demolished · ' + debris.pieces + ' pieces · ' + debris.dust + ' dust · ' + renderer.info.render.calls + ' draw calls' +
       (settings.tool === 'gun' ? ' · gun ' + (cool > 0 ? cool.toFixed(1) + ' s' : 'ready') : ''));
   }

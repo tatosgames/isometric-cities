@@ -26,7 +26,7 @@ import { makeSea, SEA_LEVEL } from './render/sea.ts';
 import { makeFlightArea } from './flight/flight-area.ts';
 import { propObstacles } from './render/port-props.ts';
 import { makeMapFraming, normalizeTurn } from './map/framing.ts';
-import { approach, wrapAngle } from './geometry.ts';
+import { approach, insidePoint, wrapAngle } from './geometry.ts';
 import { CAMERA_DISTANCE, GroundControls, fitPixels, makeMapCamera, mapViewDirection, screenOffsetOnGround } from './render/map-camera.ts';
 import { bootError, bootEvent, bootPaint, bootPhase, bootProgress, booting, openingFrame, startup } from './boot.ts';
 
@@ -149,11 +149,18 @@ async function start(){
   const pilotMask=!streamed && city.groundMap?makeStaticGroundShadow(city.groundMap.bounds,()=>data.buildings.filter(b=>!taken.has(b.id)),draw):null;
   function hideBuilding(id: number){
     if(streamed){streamed.hideBuilding(id);taken.set(id,()=>{});return;}
-    const b=data.buildings.find(b=>b.id===id);
-    if(!b)return;
-    taken.set(id,hideRanges(pilotRanges?.get(b.rings)??[]));
+    // A building split in volumes shares its id: they all go.
+    const parts=data.buildings.filter(b=>b.id===id);
+    if(!parts.length)return;
+    taken.set(id,hideRanges(parts.flatMap(b=>pilotRanges?.get(b.rings)??[])));
     pilotMask?.invalidate();
     renderer.shadowMap.needsUpdate=true;
+  }
+  /** What the city draws as one with a building hit by a shot, as `hideBuilding` takes it away. */
+  function partsOf(b: Building){
+    const [x,y]=insidePoint(b.rings[0]);
+    const parts=streamed?streamed.partsOf(b.id,x,y):data.buildings.filter(other=>other.id===b.id);
+    return parts.length?parts:[b];
   }
   /** False while the city cannot rebuild it yet (its sector is in view): ask again later. */
   function showBuilding(id: number){
@@ -595,7 +602,7 @@ async function start(){
   }
   drive=makeDrive({scene,camera,renderer,host,data,locations,...flightArea,flightTerrainCeiling:flightTerrain.ceiling,redraw:draw,
     demandLanding:(x,y)=>streamed?.demand(x,y)??true,releaseLanding:()=>streamed?.undemand(),
-    hideBuilding,showBuilding,buildingMaterial:city.materials.buildingMat,tones,
+    hideBuilding,showBuilding,partsOf,buildingMaterial:city.materials.buildingMat,tones,
     ...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');

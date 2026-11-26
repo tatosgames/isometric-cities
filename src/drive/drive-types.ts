@@ -1,5 +1,5 @@
 import type * as T from 'three';
-import type { Altitude, CityData, Place, Ring, RoofTones, ZoneData } from '../data/types.ts';
+import type { Altitude, Building, CityData, Place, Ring, RoofTones, ZoneData } from '../data/types.ts';
 import type { Body } from './drive-physics.ts';
 import type { routesFrom } from './road-routing.ts';
 import type { Zoning } from './drive-world.ts';
@@ -36,6 +36,8 @@ export interface DriveOptions {
   hideBuilding: (id: number) => void;
   /** Puts it back; false while the city cannot rebuild it yet, to ask again later. */
   showBuilding: (id: number) => boolean;
+  /** The footprints drawn as one with a building (its parts, or its fused block), which come down together. */
+  partsOf: (building: Building) => Building[];
   /** The city's building material and roof palette, for the pieces of a demolished building. */
   buildingMaterial: T.Material;
   tones: RoofTones | null;

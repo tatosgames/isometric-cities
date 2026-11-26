@@ -61,7 +61,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,flightTerrainCeiling,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false,hideBuilding,showBuilding,buildingMaterial,tones}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,flightTerrainCeiling,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false,hideBuilding,showBuilding,partsOf,buildingMaterial,tones}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
@@ -419,7 +419,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   const fireButton=el('drive-fire'),coolRing=required(fireButton.querySelector('circle'),'cooldown ring');
   let cool=0,cooling=false,shot: Shot | null=null,trailLeft=0;
   // Demolished buildings wait to be rebuilt; guaguas thrown off the road lie there, then sink.
-  const ruins: {building: Building;x: number;y: number;reach: number;away: number;age: number}[]=[];
+  const ruins: {id: number;members: Building[];x: number;y: number;reach: number;away: number;age: number}[]=[];
+  // The real footprints under what came down: a zone that arrives leaves them out until they are rebuilt.
+  const fallen=new Set<number>();
   const knocked: (Thrown & {line: string;x: number;y: number;h: number;speed: number;rest: number})[]=[];
   const rayFrom=new T.Vector3(),rayDir=new T.Vector3();
   /** A slug level from the nose, along the car or (lab checks) towards a world point. False while it cools. */
@@ -472,11 +474,17 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     }
     if(shot.left>1e-6)return;
     const b=shot.building;
-    if(b){
-      const [cx,cy]=ringCenter(b.rings[0]);
-      activeWorld().removeBuilding(b);
-      demolisher.demolish(b,altitude(...b.rings[0][0]),shotBlast(shot,W));
-      ruins.push({building:b,x:cx,y:cy,reach:Math.max(...b.rings[0].map(([x,y])=>Math.hypot(x-cx,y-cy))),away:0,age:0});
+    // A monument is its own model, which the city cannot take away: the slug stops on it in a cloud of dust.
+    if(b?.landmark){
+      for(let i=0;i<6;i++)puff(shot.x,shot.y,'dust',(Math.random()-.5)*5,(Math.random()-.5)*5);
+      kick(shot.x-player.x,shot.y-player.y,.3);quake.add(.4);
+    }else if(b){
+      // What comes down is what the city draws as one: all the parts of a building, or its fused block.
+      const parts=partsOf(b),id=parts[0].id,members=activeWorld().removeUnder(parts);
+      for(const m of members)fallen.add(m.id);
+      demolisher.demolish(id,parts.map(p=>({building:p,base:altitude(...p.rings[0][0])})),shotBlast(shot,W));
+      const corners=parts.flatMap(p=>p.rings[0]),[cx,cy]=ringCenter(corners);
+      ruins.push({id,members,x:cx,y:cy,reach:Math.max(...corners.map(([x,y])=>Math.hypot(x-cx,y-cy))),away:0,age:0});
       kick(shot.x-player.x,shot.y-player.y,.6);buzz(30);quake.add(1.2);
       if(!stopCool){stop(.08);stopCool=TUNE.stopGap;}
     }else for(let i=0;i<4;i++)puff(shot.x,shot.y,'dirt',(Math.random()-.5)*4,(Math.random()-.5)*4);
@@ -504,8 +512,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       const r=ruins[i];
       r.age+=dt;r.away=inCameraFrame(r.x,r.y,r.reach)?0:r.away+dt;
       if(!force && (r.away<W.rebuild || r.age<DEBRIS_TUNE.life+DEBRIS_TUNE.sink))continue;
-      if(!showBuilding(r.building.id)){r.away=W.rebuild-.5;continue;}
-      world?.restoreBuilding(r.building);demolisher.restore(r.building.id);ruins.splice(i,1);
+      if(!showBuilding(r.id)){r.away=W.rebuild-.5;continue;}
+      for(const m of r.members){fallen.delete(m.id);world?.restoreBuilding(m);}
+      demolisher.restore(r.id);ruins.splice(i,1);
     }
   }
   fireButton.onpointerup=fireButton.onclick=tapped(fireButton,()=>fire());
@@ -1159,7 +1168,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   // Road graph, surface map, walls of the zones in memory, walkers: seconds of work on a slow phone, in steps that
   // leave room for a frame between them. The walkers come last, so they tell that all of it is there.
   function* build(){
-    if(!world){world=buildDriveWorld(data,altitude,TUNE,zoning,demolisher.demolished);yield;}
+    if(!world){world=buildDriveWorld(data,altitude,TUNE,zoning,fallen);yield;}
     if(!surfaceMap){surfaceMap=makeSurfaceMap(data.roads,data.surfaces,streets);yield;}
     for(const [id,zone] of zoning?.resident??[]){world.addZone(id,zone.buildings,zone.trees);yield;}
     people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
@@ -1234,6 +1243,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     },
     /** Lab checks: the gun, what it brought down and threw. */
     get gun(){return {cool,flying:!!shot,demolished:demolisher.demolished.size,pieces:demolisher.pieces,ruins:ruins.length,
+      lastDown:ruins.at(-1)?{id:ruins.at(-1)!.id,members:ruins.at(-1)!.members.length}:null,
       knockedBuses:knocked.length,wrecks:chasers.filter(c=>c.wreck).length};},
     /** Every run from now on starts at the road node nearest to this point. */
     startAt(point: Point){fixedStart=point;},

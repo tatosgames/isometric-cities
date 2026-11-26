@@ -30,9 +30,10 @@ The values ​​are those of `TUNE` in `src/drive/drive-tune.ts` as of November
 | Crash of a patrol | – | Thrust towards the wreckage within 40 m, weaker from afar | Dark wreck spinning, smoke for 3 s | «+2» with impact icon | – |
 | Pedestrian near an oncoming vehicle | – | – | The pedestrian dashes sideways at 6.2 m/s for 0.9 s, hopping; if a wall leaves no room, jump over the car | – | – |
 | Arrival at destination | Freeze 100 ms | – | Crown of dust, new beam of light | «+10» large; the drop of the new goal flies from the car to its place in 0.45 s | 40 ms |
-| Shot (button or F, every 3 s) | – | Light shake (0.25) | Fat yellow slug, level 1.1 m above the road along the car, 55 m/s up to 120 m, smoke trail every 4 m, puff at the muzzle, small hop | The ring inside the button fills in 3 s, icon dimmed meanwhile | – |
+| Shot (button, Space or F, every 3 s) | – | Light shake (0.25) | Fat yellow slug, level 1.1 m above the road along the car, 55 m/s up to 120 m, smoke trail every 4 m, puff at the muzzle, small hop | The ring inside the button fills in 3 s, icon dimmed meanwhile | – |
 | Shot into a building | Freeze 80 ms (not within the gap of another) | Push towards the impact, strong shake (1.2) | The building breaks into 2.5D pieces from the impact (demolition lab), dust, rubble slab; rebuilt after 20 s out of view, once its pieces have sunk | – | 30 ms |
 | Shot into a patrol | – | As a patrol crash, plus shake (0.6) | Wrecked as in a crash, thrown 9 m/s along the shot and 10 m/s up, rolls over, one bounce, stops at walls | «+2» with impact icon | – |
+| Shot into a monument | – | Push towards it, at 30%, shake (0.4) | The slug stops in a cloud of dust: a monument is its own model and stays standing | – | – |
 | Shot into a guagua | – | Push towards it, at 50%, shake (0.8) | Thrown 5 m/s along the shot and 7 m/s up, rolls, lies 3 s as an obstacle, sinks in 1 s; its run does not come back | – | – |
 | Capture | Stopped for 220 ms, then end of game | Full push towards the patrol; after the shutdown, slow approach of 14% | Powder on release | Panel after another 420 ms, record that pulsates if broken | 140 ms |
 
