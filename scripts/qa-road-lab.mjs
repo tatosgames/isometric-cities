@@ -18,12 +18,12 @@ try{
     assert.equal(await page.getByLabel('Scenario',{exact:true}).inputValue(),'mercado');
     const variant=page.locator('#gui select'),view=page.locator('#view');
     const captured=[];
-    for(let i=0;i<3;i++){
+    for(let i=0;i<2;i++){
       await variant.selectOption({index:i});
       assert.equal(await view.getAttribute('data-road-mode'),String(i));
       captured.push(await view.screenshot({path:'.cache/road-lab/'+(mobile?'mobile':'desktop')+'-'+i+'.png'}));
     }
-    assert.ok(!captured[0].equals(captured[1])&&!captured[1].equals(captured[2]));
+    assert.ok(!captured[0].equals(captured[1]));
     await page.locator('#compare').check();
     await page.locator('#split').fill('50');
     const split=await view.screenshot({style:'#tools,#divider,#credit{visibility:hidden}'});
@@ -39,8 +39,8 @@ try{
     await page.getByRole('button',{name:'Restart from Calle Pelota'}).click();
     assert.equal(Number(await page.locator('.lil-gui input').inputValue()),0);
     if(mobile){
-      await page.getByRole('button',{name:'Measure the three renderings'}).click();
-      await page.waitForFunction(()=>document.querySelector('#metrics').textContent.includes('Geometric carriageway'),null,{timeout:120000});
+      await page.getByRole('button',{name:'Measure the two renderings'}).click();
+      await page.waitForFunction(()=>document.querySelector('#metrics').textContent.includes('Painted roads'),null,{timeout:120000});
       console.log(await page.locator('#metrics').textContent());
       assert.equal(await view.getAttribute('data-road-mode'),'1');
     }

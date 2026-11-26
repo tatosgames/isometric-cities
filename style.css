@@ -142,9 +142,8 @@ article[data-kind=card] h3{font-size:26px}
 .flight-stick i{width:24px;height:24px;background:#fffcebba;border-radius:50%;box-shadow:0 1px 4px #18272166}
 
 #quality-diagnostics { display: block; padding-top: .35rem; white-space: pre-wrap; font: 12px/1.4 monospace; }
-.quality-looks { display: flex; flex-wrap: wrap; gap: .25rem .65rem; padding: .35rem .55rem; }
-.quality-looks a { color: inherit; padding: .25rem 0; }
-.quality-looks a[aria-current] { font-weight: bold; text-decoration: none; }
+.look-lab .lil-gui.root { width: 100%; --background-color: #f7f5eb; --text-color: #27342c; --title-background-color: #e4e5d9; --title-text-color: #25372b; --widget-color: #e3e1d6; --hover-color: #d2d9c9; --focus-color: #cbd2bc; --number-color: #29634f; --string-color: #294c37; --font-size: 12px; --widget-height: 22px; --name-width: 44%; }
+.look-lab .lil-gui .lil-gui { --background-color: #f7f5eb; --title-background-color: #e4e5d9; --text-color: #27342c; --title-text-color: #25372b; --widget-color: #e3e1d6; --hover-color: #d2d9c9; --focus-color: #cbd2bc; --number-color: #29634f; --string-color: #294c37; }
 @media (pointer: coarse) {
-  .quality-looks a { display: inline-flex; align-items: center; min-width: 40px; min-height: 40px; }
+  .look-lab .lil-gui.root { --widget-height: 34px; }
 }

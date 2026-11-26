@@ -17,9 +17,13 @@ try{
   await ready();
   assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
   const titles=await page.locator('#drive-lab .title').allTextContents();
-  for(const title of ['Player','Patrols','Impacts and braking','Car on screen','Camera and effects','Chase','Surfaces','Drive views','Flight']){
+  for(const title of ['Player','Speed','Steering','Slide','Drift bonus','Patrols','Impacts and braking','Player car on screen',
+    'Patrol cars on screen','Camera','Aerial view','Chase view','Police chase','Surfaces','Flight']){
     assert.ok(titles.includes(title),'Missing folder '+title);
   }
+  // Shaping values of a control that stays are not in the panel.
+  const names=await page.locator('#drive-lab .controller .name').allTextContents();
+  for(const name of ['kickStiff','stopGap','sparkGap','poseYawLimit (°)','bonusLeast','playerHopGain'])assert.ok(!names.includes(name),name);
   assert.equal(await page.getByRole('navigation',{name:'Labs'}).locator('[aria-current=page]').textContent(),'Driving & flight');
   await page.getByText('Diagnostics',{exact:true}).click();
   await page.locator('#quality-diagnostics').waitFor();
@@ -33,7 +37,8 @@ try{
   await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.lab?.split(',')[0])>20,null,{timeout:30000});
 
   // A slider acts on the car that is already driving: a lower base speed caps it within a few seconds.
-  await page.locator('#drive-lab .title',{hasText:'Player'}).click();
+  await page.locator('#drive-lab .title').filter({hasText:/^Player$/}).click();
+  for(const part of ['Speed','Drift bonus'])await page.locator('#drive-lab .title').filter({hasText:new RegExp('^'+part+'$')}).click();
   await page.evaluate(()=>{
     const row=[...document.querySelectorAll('#drive-lab .controller')].find(c=>c.querySelector('.name').textContent==='baseSpeed (km/h)');
     const input=row.querySelector('input');
@@ -89,6 +94,11 @@ try{
   assert.equal(await fov.inputValue(),'75');
   await fov.fill('60');await fov.press('Enter');
   await page.waitForURL(url=>/flight\.fov:60/.test(decodeURIComponent(url.search)));
+  // View distance stretches the quality stage's horizon; the readout shows it once airborne.
+  const view=page.locator('#drive-lab .controller').filter({hasText:'View distance'}).locator('input');
+  assert.equal(await view.inputValue(),'1');
+  await view.fill('2');await view.press('Enter');
+  await page.waitForURL(url=>/flight\.viewScale:2/.test(decodeURIComponent(url.search)));
 
   // Outside the lab the same parameter is ignored: the published game keeps its own values.
   await page.goto(new URL('index.html?area=pilot&t=player.baseSpeed:30',origin).href);

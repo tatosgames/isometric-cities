@@ -65,22 +65,30 @@ try{
     assert.equal(await scene.getAttribute('data-view'),view);
     await page.locator('#rotate-right').click();
     await page.waitForSelector('#scene[data-moving="false"][data-map-angle="90.00"]');
-    const looks=page.getByRole('group',{name:'Rendering look'});
-    assert.equal(await looks.locator('[aria-current="true"]').textContent(),'Matcap');
-    for(const [label,look,tilt,shadows] of [
-      ['Base','base',false,'solar'],['Sole','sole',false,'solar'],
-      ['Matcap + tilt','matcap',true,'static'],['Matcap','matcap',false,'static']
-    ]){
-      await looks.getByRole('link',{name:label,exact:true}).click();
+    const lookSelect=()=>page.getByRole('combobox',{name:'Rendering look'});
+    assert.equal(await lookSelect().inputValue(),'Matcap');
+    for(const [label,look,shadows] of [['Base','base','solar'],['Sole','sole','solar'],['Matcap','matcap','static']]){
+      await lookSelect().selectOption(label);
+      await page.waitForURL(url=>new URL(url).searchParams.get('look')===look);
       await page.waitForSelector('#map[data-boot="ready"]');
-      await page.waitForSelector(`#scene[data-look="${look}"][data-tilt="${tilt}"][data-shadows="${shadows}"]`);
-      assert.equal(await looks.locator('[aria-current="true"]').textContent(),label);
+      await page.waitForSelector(`#scene[data-look="${look}"][data-tilt="false"][data-shadows="${shadows}"]`);
+      assert.equal(await lookSelect().inputValue(),label);
       assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
       assert.equal(await scene.getAttribute('data-map-angle'),'90.00');
       assert.equal(await scene.getAttribute('data-view'),view);
     }
+    // Matcap parameters apply live and stay in the URL; the default tune writes nothing.
+    await page.getByRole('combobox',{name:'Palette'}).selectOption('Cream day');
+    const blur=page.getByRole('spinbutton',{name:'Edge blur'});
+    await blur.fill('1');await blur.press('Enter');
+    await page.waitForSelector('#scene[data-tilt="true"]');
+    const tuned=new URL(page.url()).searchParams;
+    assert.equal(tuned.get('palette'),'cream');assert.equal(tuned.get('tilt'),'1');
+    await page.getByRole('button',{name:'Reset Matcap'}).click();
+    await page.waitForSelector('#scene[data-tilt="false"]');
+    assert.ok(!new URL(page.url()).searchParams.has('palette'));
     assert.deepEqual(errors,[]);
-    console.log('Matcap default, idle shadow and DPR drops, WebGL recovery and all four look options passed.');
+    console.log('Matcap default, idle shadow and DPR drops, WebGL recovery, the look dropdown and live Matcap tuning passed.');
   }else{
     const controls=page.getByRole('button',{name:'Controls',exact:true});
     assert.equal(await controls.getAttribute('aria-expanded'),'false');

@@ -23,7 +23,8 @@ export function labNavigation(current?:typeof labs[number]['id']|'editor'){
   nav.setAttribute('aria-label','Labs');
   const links=[
     ...(current?[{id:'catalog',title:'Labs',href:'./lab.html'},...labs]:[]),
-    {id:'editor',title:'Pilot editor',href:'./editor.html'},{id:'game',title:'Game',href:'./'}
+    // editor.html is deprecated: still built and reachable by URL, no longer linked from the labs.
+    {id:'game',title:'Game',href:'./'}
   ];
   for(const {id,title,href} of links){
     const link=document.createElement('a');

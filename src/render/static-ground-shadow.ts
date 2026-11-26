@@ -11,7 +11,13 @@ const SLICE_MS = 3;
 const SHADOW_AMOUNT = .28;
 const SHADOW_X = -sunOffset.x / sunOffset.y;
 const SHADOW_NORTH = sunOffset.z / sunOffset.y;
-const KEY = 'static-ground-shadow:v1';
+const KEY = 'static-ground-shadow:v2';
+
+/** Shared by every mask: the Matcap look scales the shadow and tints it (black is the plain darkening). */
+export const staticShadowStyle = {
+  strength: { value: 1 },
+  tint: { value: new T.Vector3(0, 0, 0) }
+};
 
 interface MaskUniforms {
   map: { value: T.Texture | null };
@@ -235,11 +241,15 @@ export function makeStaticGroundShadow(bounds: T.Vector4, buildings: BuildingSou
       shader.uniforms.staticGroundShadowMap = uniforms.map;
       shader.uniforms.staticGroundShadowBounds = uniforms.bounds;
       shader.uniforms.staticGroundShadowAmount = uniforms.amount;
+      shader.uniforms.staticGroundShadowStrength = staticShadowStyle.strength;
+      shader.uniforms.staticGroundShadowTint = staticShadowStyle.tint;
       const condition=terrainOnly?'staticGroundShadowAmount>0. && vKind>5.5 && vKind<100.':'staticGroundShadowAmount>0.';
-      const declarations='uniform sampler2D staticGroundShadowMap; uniform vec4 staticGroundShadowBounds; uniform float staticGroundShadowAmount;';
+      const declarations='uniform sampler2D staticGroundShadowMap; uniform vec4 staticGroundShadowBounds; uniform float staticGroundShadowAmount;'
+        +' uniform float staticGroundShadowStrength; uniform vec3 staticGroundShadowTint;';
       const sample=`if(${condition}){
         vec2 uv=(vec2(vWind.x,-vWind.y)-staticGroundShadowBounds.xy)/staticGroundShadowBounds.zw;
-        diffuseColor.rgb*=mix(1.,texture2D(staticGroundShadowMap,uv).r,staticGroundShadowAmount);
+        float shadow=min(1.,(1.-texture2D(staticGroundShadowMap,uv).r)*staticGroundShadowAmount*staticGroundShadowStrength);
+        diffuseColor.rgb*=mix(vec3(1.),staticGroundShadowTint,shadow);
       }`;
       const marker='#include <metalnessmap_fragment>';
       shader.fragmentShader=declarations+'\n'+shader.fragmentShader.replace(marker,sample+'\n'+marker);

@@ -1,5 +1,5 @@
 import {makeTerrainCeiling} from './flight/terrain-ceiling.ts';
-import { cityFillLight, citySun, sunOffset } from './render/city-light.ts';
+import { sunOffset } from './render/city-light.ts';
 import { parseViewState } from './data/load.ts';
 import type { ViewState, ZoneData } from './data/types.ts';
 import { element as el } from './map/dom.ts';
@@ -12,14 +12,15 @@ import { coastWindow, measureCoast, sampleFlight, type DragSample, type Flight }
 import * as T from 'three';
 import { makeCity } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
-import { compactScreen, renderPixelRatio, makeDynamicQuality, type DynamicQualityConfig } from './render/dynamic-quality.ts';
+import { compactScreen, type DynamicQualityConfig } from './render/dynamic-quality.ts';
 import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
-import { makeQualityOutput } from './render/quality-output.ts';
-import { lightLook, makeMatcapPatcher, readLook } from './render/look-lab.ts';
+import { makeGameRenderer } from './render/game-renderer.ts';
+import { writeTune } from './render/look-lab.ts';
+import { lookControls } from './lab/look-controls.ts';
+import { FLIGHT_TUNE } from './flight/flight.ts';
 import { runtimeLab } from './lab/lab-shell.ts';
 import { makeStatsOverlay } from './render/stats-overlay.ts';
 import { makeSkyEffects } from './render/sky-effects.ts';
-import { wind } from './render/wind.ts';
 import { makeSea, SEA_LEVEL } from './render/sea.ts';
 import { makeFlightArea } from './flight/flight-area.ts';
 import { propObstacles } from './render/port-props.ts';
@@ -55,9 +56,6 @@ async function start(){
   signal.throwIfAborted();
   const scene=new T.Scene(),host=el('scene'),camera=makeMapCamera();
   const compact=compactScreen();
-  const look=readLook(),tilt=look!=='base'&&query.has('tilt');
-  host.dataset.look=look;
-  host.dataset.tilt=String(tilt);
   const sessionKey='map-view:'+location.pathname+location.search;
   let resume: ReturnType<typeof parseViewState>=null;
   try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
@@ -79,37 +77,7 @@ async function start(){
   function showQualityLab(){
     if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,contextReport,...decisions].filter(Boolean).join('\n');
   }
-  if(tools && labOutput){
-    labOutput.id='quality-diagnostics';
-    labOutput.setAttribute('aria-label','Rendering quality');
-    if(qualityLab){
-      const looks=document.createElement('div');
-      looks.className='quality-looks';
-      looks.setAttribute('role','group');
-      looks.setAttribute('aria-label','Rendering look');
-      const options=[['matcap',false,'Matcap'],['base',false,'Base'],['sole',false,'Sole'],['matcap',true,'Matcap + tilt']] as const;
-      for(const [variant,blur,label] of options){
-        const link=document.createElement('a');
-        const href=(url:URL)=>{
-          url.searchParams.set('look',variant);
-          if(blur)url.searchParams.set('tilt','');else url.searchParams.delete('tilt');
-          return url.href;
-        };
-        link.href=href(new URL(location.href));
-        link.addEventListener('click',()=>{link.href=href(shareLabView());});
-        link.textContent=label;
-        if(variant===look && blur===tilt)link.setAttribute('aria-current','true');
-        looks.append(link);
-      }
-      tools.panel.append(looks);
-    }
-    const diagnostics=document.createElement('details'),summary=document.createElement('summary');
-    summary.textContent='Diagnostics';diagnostics.open=qualityLab || query.has('diagnostics');
-    diagnostics.append(summary,labOutput);tools.panel.append(diagnostics);
-    map.append(tools.root);
-    signal.addEventListener('abort',()=>tools.root.remove(),{once:true});
-  }
-  const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',solarShadows:look!=='matcap',
+  const game=makeGameRenderer({query,compact,losses,sky:query.get('sky')!=='0',
     preview:qualityLab?query.get('preview'):null,
     ...(labOutput && {onDecision({mode,action,reason,from,to,targetFps,fps,p95Ms}){
       const metrics=fps===null || p95Ms===null?'':` · ${fps.toFixed(0)} FPS · p95 ${p95Ms.toFixed(1)} ms`;
@@ -121,14 +89,30 @@ async function start(){
       if(decisions.length>4)decisions.shift();
       showQualityLab();
     }})});
+  const {look,tune,post,quality,renderer,fill,sun}=game;
+  host.dataset.look=look;
+  host.dataset.tilt=String(post().tilt>0);
+  if(tools && labOutput){
+    labOutput.id='quality-diagnostics';
+    labOutput.setAttribute('aria-label','Rendering quality');
+    if(qualityLab)tools.panel.append(lookControls({look,tune,
+      navigate(next){
+        const url=shareLabView();url.searchParams.set('look',next);
+        location.assign(url.href);
+      },
+      change(){
+        game.retune();host.dataset.tilt=String(post().tilt>0);
+        history.replaceState(history.state,'',writeTune(new URL(location.href),tune));
+        draw();
+      }}));
+    const diagnostics=document.createElement('details'),summary=document.createElement('summary');
+    summary.textContent='Diagnostics';diagnostics.open=qualityLab || query.has('diagnostics');
+    diagnostics.append(summary,labOutput);tools.panel.append(diagnostics);
+    map.append(tools.root);
+    signal.addEventListener('abort',()=>tools.root.remove(),{once:true});
+  }
   let physicalDpr=devicePixelRatio, nextDisplayCheck=0;
-  const renderer=new T.WebGLRenderer({antialias:quality.nativeAntialias,alpha:true,stencil:true});
-  const patchLook=look==='matcap'?makeMatcapPatcher():null;
-  let lookPatched=-Infinity;
-  const output=makeQualityOutput(renderer,{tilt});
   const stats=makeStatsOverlay(renderer,query);
-  renderer.shadowMap.type=T.PCFShadowMap;
-  renderer.shadowMap.autoUpdate=false;
   host.append(renderer.domElement);
   const residentZones=new Map<string,ZoneData>();
   const flightTerrain=makeTerrainCeiling(data.terrain,SEA_LEVEL);
@@ -149,10 +133,15 @@ async function start(){
   scene.add(group);
   const pilotMask=!streamed && city.groundMap?makeStaticGroundShadow(city.groundMap.bounds,()=>data.buildings,draw):null;
   pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
-  let flightRange:DynamicQualityConfig['flight'];
-  function applyQuality(config:DynamicQualityConfig){
-    const {antialias:aa,shadows}=config;
-    flightRange=config.flight;
+  if(streamed)game.onStaticShadows(streamed.setStaticShadows);
+  if(pilotMask)game.onStaticShadows(pilotMask.setEnabled);
+  let flightRange:DynamicQualityConfig['flight'],qualityFlight:DynamicQualityConfig['flight'],viewScale=FLIGHT_TUNE.viewScale;
+  // The quality stage sets the flight horizon; `FLIGHT_TUNE.viewScale` (driving lab) stretches it and the zones loaded for it.
+  function scaleFlight(){
+    viewScale=FLIGHT_TUNE.viewScale;
+    flightRange=qualityFlight && {...qualityFlight,visibility:Math.round(qualityFlight.visibility*viewScale),
+      zoneRadius:Math.round(qualityFlight.zoneRadius*viewScale)};
+    if(flightRange)host.dataset.flightHorizon=String(flightRange.visibility);else delete host.dataset.flightHorizon;
     const flightCamera=drive?.flightView?.camera;
     if(flightRange && flightCamera){
       flightHaze.near=flightRange.visibility*.4;
@@ -160,19 +149,16 @@ async function start(){
       flightCamera.far=flightRange.visibility;
       flightCamera.updateProjectionMatrix();
     }
+  }
+  function applyQuality(config:DynamicQualityConfig){
+    const {antialias:aa,shadows}=config;
+    qualityFlight=config.flight;
+    scaleFlight();
     host.dataset.qualityMode=flightRange?'flight':'ground';
     host.dataset.qualityStage=String(config.stage);
     const gl=labOutput?renderer.getContext():null;
     const before=gl?`${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`:'';
-    const ratio=renderPixelRatio(config);
-    if(ratio!==renderer.getPixelRatio())renderer.setPixelRatio(ratio);
-    output.configure(aa==='fxaa');
-    if(renderer.shadowMap.enabled!==(shadows==='solar')){
-      renderer.shadowMap.enabled=shadows==='solar';
-      renderer.shadowMap.needsUpdate=true;
-    }
-    streamed?.setStaticShadows(shadows==='static');
-    pilotMask?.setEnabled(shadows==='static');
+    const ratio=game.apply(config);
     host.dataset.aa=aa;
     host.dataset.shadows=shadows;
     host.dataset.dpr=String(ratio);
@@ -190,9 +176,7 @@ async function start(){
   bootPhase('Preparando la vista');
   await bootPaint();
   signal.throwIfAborted();
-  const fill=cityFillLight();scene.add(fill);
-  const sun=citySun();scene.add(sun,sun.target);
-  lightLook(look,renderer,fill,sun);
+  scene.add(fill,sun,sun.target);
   // Map controls: the ground stays under the pointer, the wheel and the pinch zoom towards where they point.
   // Rotation goes by the buttons in quarter turns, so the two-finger gesture pans and zooms only.
   // No damping: three.js damping applies a share of each move per update, so the map trails the finger.
@@ -357,8 +341,7 @@ async function start(){
     controls.dispose();
     sky.dispose();
     streamed?.disposeShadows();pilotMask?.dispose();
-    output.dispose();
-    renderer.dispose();
+    game.dispose();
     setDesaturation(0);
   },{once:true});
   renderer.domElement.addEventListener('webglcontextlost',event=>{
@@ -436,16 +419,13 @@ async function start(){
       }
     }
     if(labOutput && painted && time>painted)frameGaps.push(time-painted);
-    const speed=drive?.visualTimeScale??1;
-    const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
-    wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
     painted=time;
     const airborne=drive?.flightView;
     const lens=airborne?.camera??camera;
     scene.background=airborne?flightSky:null;
     scene.fog=airborne?flightHaze:null;
     sky.update(lens,airborne?.target??controls.target,!!drive?.active);
-    if(patchLook && time-lookPatched>400){lookPatched=time;patchLook(scene);}
+    if(viewScale!==FLIGHT_TUNE.viewScale)scaleFlight();
     if(map.dataset.boot==='ready' && !document.hidden){
       const changed=quality.sample(time,{
         mode:moving()?'moving':quality.calibrating?'calibration':'resting',
@@ -456,7 +436,7 @@ async function start(){
       if(changed)applyQuality(changed);
     }
     stats?.begin();
-    output.render(scene,lens);
+    game.render(scene,lens,time,drive?.visualTimeScale??1);
     stats?.end();
     if(!document.hidden)setDesaturation(drive?.desaturation??0);
   }

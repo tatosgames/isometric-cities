@@ -1,20 +1,18 @@
-import {compactScreen,makeDynamicQuality,renderPixelRatio} from '../render/dynamic-quality.ts';
-import { cityFillLight, citySun } from '../render/city-light.ts';
 import * as T from 'three';
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
-import {loadData,isCity,isSectorIndex,isRoofPalette,isLayers} from '../data/load.ts';
-import {zonesFromCity} from '../data/sector-index.ts';
-import {streamCity} from '../render/sectors/sector-stream.ts';
+import {loadData,isLayers} from '../data/load.ts';
 import {carGeometry,carVisualScale} from '../drive/car-model.ts';
 import {lodTransition} from '../render/sectors/lod-transition.ts';
-import {CAMERA_DISTANCE,fitPixels,makeMapCamera,mapViewDirection} from '../render/map-camera.ts';
+import {CAMERA_DISTANCE,fitPixels,mapViewDirection} from '../render/map-camera.ts';
+import {labCity} from './lab-city.ts';
 import type {Point} from '../data/types.ts';
 
 export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
   const el=(id:string)=>document.getElementById(id)!;
   const query=new URLSearchParams(location.search),host=el('view');
   el('tools').hidden=true;
-  const [city,index,palette]=await Promise.all([loadData('city.json.gz',isCity),loadData('city-index.json',isSectorIndex),loadData('roof-tones.json',isRoofPalette)]);
+  const lab=await labCity(host,query);
+  const {city,compact,renderer,scene,camera}=lab;
   const widths=scenarioId==='larghezze';
   type Section={name:string;line:Point[];cell:string;before:number;sides:number[]};
   const samples:Record<string,Section>=widths?await fetch('./data/road-width-lab/sections.json').then(r=>{if(!r.ok)throw Error('Samples missing');return r.json();}):{};
@@ -25,17 +23,7 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
   const path=way.line.map(p=>new T.Vector2(...p)),lengths=[0];
   for(let i=1;i<path.length;i++)lengths.push(lengths[i-1]+path[i-1].distanceTo(path[i]));
   const pair=new Set(section?[section.cell]:['-2_-2','-1_-2']);
-  const split=zonesFromCity(city,index,!widths&&query.has('intera')?undefined:id=>pair.has(id));
-  const layers={...split.core,...split.index};
-  if(previous)delete layers.roadCoverage;
-  const compact=compactScreen(), quality=makeDynamicQuality({compact}).config;
-  const renderer=new T.WebGLRenderer({antialias:quality.antialias==='native',stencil:true});
-  renderer.setPixelRatio(renderPixelRatio(quality));renderer.setClearColor(0xe7e5d5);
-  renderer.shadowMap.enabled=quality.shadows==='solar';renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
-  host.prepend(renderer.domElement);
-  const scene=new T.Scene(),camera=makeMapCamera(),toCamera=mapViewDirection();
-  scene.add(cityFillLight());
-  const sun=citySun();scene.add(sun,sun.target);
+  const toCamera=mapViewDirection();
   const car=new T.Mesh(carGeometry('#d8452f','#f4ead7',false),new T.MeshStandardMaterial({vertexColors:true,roughness:.8,flatShading:true}));
   car.scale.setScalar(carVisualScale);car.castShadow=true;scene.add(car);
   const ui={legacy:query.has('raster'),reverse:query.has('inverso'),drive:!query.has('mappa'),delay:query.has('ritardo'),
@@ -46,14 +34,10 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
     duration:Number(query.get('durata'))||250,span:Number(query.get('campo'))||185};
   let changes=0,previousFrame=0,switchGap=0,switchNext=false;
   const ready=new Set<string>();
-  const stream=streamCity({data:layers,compact,neutral:false,tones:palette.tones,host,legacyRoads:ui.legacy,
+  const stream=lab.stream({keep:!widths&&query.has('intera')?undefined:id=>pair.has(id),legacyRoads:ui.legacy,
+    widenedRoads:!previous,
     ...(lod?{lod:{stable:options.mode!=='attuale',...(options.mode==='visivo'?{attach:lodTransition(options)}:{}),
       observe(){changes++;}}}:{}),
-    async loadZone(z){
-      const zone=split.zones.get(z.id);
-      if(!zone)throw Error('Missing zone '+z.id);
-      return zone;
-    },
     async loadLayers(s,signal){
       if(ui.delay&&s.id==='-1_-2')await new Promise<void>(r=>setTimeout(r,1800));
       const result=await loadData('city-sectors/'+s.file,isLayers,signal);
@@ -66,7 +50,6 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
       if(result.carriageway)ready.add(s.id);
       return result;
     },refresh(){renderer.shadowMap.needsUpdate=true;schedule();}});
-  scene.add(stream.group);
   const gui=new GUI({container:el('gui'),title:widths?'Road width':'Calle San Nicolás boundary'});
   function currentParams(){
     const params=new URLSearchParams(query);
@@ -133,12 +116,12 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
     car.position.set(p.x,stream.altitude(p.x,p.y)+.1,-p.y);car.rotation.y=Math.atan2(path[i].y-path[i-1].y,path[i].x-path[i-1].x)+(ui.reverse?Math.PI:0);
     car.visible=ui.drive;
     const w=host.clientWidth,h=host.clientHeight;
-    if(renderer.domElement.clientWidth!==w||renderer.domElement.width!==Math.floor(w*renderer.getPixelRatio())||renderer.domElement.height!==Math.floor(h*renderer.getPixelRatio()))renderer.setSize(w,h,false);
+    if(renderer.domElement.width!==Math.floor(w*renderer.getPixelRatio())||renderer.domElement.height!==Math.floor(h*renderer.getPixelRatio()))lab.game.setSize(w,h);
     camera.zoom=Math.min(w,h)/(ui.drive?(compact?62:95):(lod?options.span:185));fitPixels(camera,w,h);
     camera.position.copy(car.position).addScaledVector(toCamera,CAMERA_DISTANCE);
     camera.lookAt(car.position);camera.updateMatrixWorld();
     const changesBefore=changes;
-    stream.update(camera,car.position,ui.drive);renderer.render(scene,camera);
+    stream.update(camera,car.position,ui.drive);lab.render(now,car.position);
     if(lod){
       host.dataset.scenario=scenario;
       if(switchNext && previousFrame){switchGap=now-previousFrame;switchNext=false;}
@@ -151,6 +134,6 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
     if(playing||scenario)schedule();
   }
   el('status').textContent=section?section.name+' · '+(previous?section.before:section.sides.reduce((a,b)=>a+b,0)).toLocaleString('en')+' m at the middle of the route':'Calle San Nicolás · boundary at −240 m';
-  new ResizeObserver(schedule).observe(host);draw(performance.now());host.dataset.ready='true';
+  new ResizeObserver(schedule).observe(host);draw(performance.now());lab.ambient(schedule);host.dataset.ready='true';
   return currentParams;
 }

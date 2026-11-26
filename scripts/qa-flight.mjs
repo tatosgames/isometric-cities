@@ -21,6 +21,7 @@ async function launch(page,touch){
   if(touch)await button.tap();else await button.click();
   await phase(page,'fly');
   await page.waitForSelector('#scene[data-quality-mode="flight"]',{timeout});
+  assert.ok(Number(await page.locator('#scene').getAttribute('data-flight-horizon'))>=1000,'flight horizon in metres');
   assert.equal(await button.getAttribute('aria-label'),'Volver al coche');
 }
 async function waitForTurn(page,heading){

@@ -14,17 +14,17 @@ Open http://127.0.0.1:5197/ . Drag to move, use wheel or pinch to zoom. The inde
 
 The home page opens a full-screen view of Triana. The menu at the top left lists 25 places, from Vegueta and Triana to La Isleta, Ciudad Alta, the cliffs, and the southern ring. The viewfinder at the top right shows the entire area. Use `/?area=pilot` for Santa Ana Square and add `&neutral` for an identical room comparison. With `?nopolice`, the "Drive" mode starts without patrols: no captures, and the race lasts until you exit.
 
-## Editor del pilota
+## Editor del pilota (deprecated)
 
-The editor opens on [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) or locally on `http://127.0.0.1:5197/editor.html`. Download the fixes in JSON and reload them in the editor or in **Test Drive**. The browser reads the file from the device.
+Deprecated and no longer linked from the labs; kept in the build in case it is needed again. The editor opens on [GitHub Pages](https://tatosgames.github.io/isometric-cities/editor.html) or locally on `http://127.0.0.1:5197/editor.html`. Download the fixes in JSON and reload them in the editor or in **Test Drive**. The browser reads the file from the device.
 
 ## Labs
 
-Open `lab.html` for the three labs and the pilot editor. The labs share navigation and a collapsible Controls panel. **Copy link** captures the current test parameters.
+Open `lab.html` for the three labs. The labs share navigation and a collapsible Controls panel. **Copy link** captures the current test parameters.
 
 | Lab | Entry and useful parameters |
 |---|---|
-| Rendering, effects & quality | `index.html?lab=qualita`. Use `look=base\|sole\|matcap`, `tilt`, `sky=0`, `stats` or `preview=base\|static\|fxaa&diagnostics`. Look links carry the current map view. |
+| Rendering, effects & quality | `index.html?lab=qualita`. Use `look=base\|sole\|matcap`, the Matcap panel parameters (`matcap`, `gain`, `bounce`, `shade`, `clouds`, `palette`, `tilt`, `glow`), `sky=0`, `stats` or `preview=base\|static\|fxaa&diagnostics`. The look dropdown carries the current map view. |
 | Driving & flight | `index.html?lab=guida&area=pilot`. Use `start=x,y`, `seed`, `nopolice`, `nobuses`, `t` and `diagnostics`. Use the plane button to switch to flight and the Flight folder for Piper tuning. |
 | Map, LOD & roads | `lab.html?lab=strade`. Pick `scenario=mercado\|larghezze\|settori\|lod` from the selector. The old `lab.html?test=…` links still open their original scenarios. |
 

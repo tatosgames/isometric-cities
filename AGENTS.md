@@ -7,7 +7,7 @@ Project roadmap
 | Percorso | Ruolo |
 |---|---|
 | `index.html`, `style.css` | Page shell and styles (minimal UI) |
-| `editor.html`, `src/editor/` | Local pilot editor: dragging buildings, vertices and props (`building-drag`, `pilot-preview`, `props`); test `scripts/qa-editor.mjs` |
+| `editor.html`, `src/editor/` | **Deprecated** (not linked from the labs, kept in the build for possible reuse). Local pilot editor: dragging buildings, vertices and props (`building-drag`, `pilot-preview`, `props`); test `scripts/qa-editor.mjs` |
 | `lab.html`, `src/lab/` | Visual lab (`?test=lod`, `?test=larghezze`, `?test=settori`): roadways and LOD transitions. Interface in English; URL identifiers are in Italian |
 | `src/lab/drive-lab.ts`, `scripts/qa-drive-lab.mjs` | `index.html?lab=guida&area=pilot` Driving simulator: the real game with a panel that changes `TUNE` live (player, patrols, cars, camera), police yes/no, values in the URL (`t=`) and copy for `drive-tune.ts` |
 | `src/main.ts` | Camera, input, filter by area and WebGL context recovery |

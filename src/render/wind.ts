@@ -6,7 +6,9 @@ import * as T from 'three';
 export const wind={
   time:{value:0},
   dir:{value:new T.Vector2(-.5,.866)},
-  clouds:{value:null as T.DataTexture | null}
+  clouds:{value:null as T.DataTexture | null},
+  /** Strength of the cloud shadows (the Matcap look tunes it). */
+  shade:{value:1}
 };
 
 export type Sway='none' | 'crown' | 'frond';
@@ -71,6 +73,7 @@ export function breezy<M extends T.Material>(material: M,sway: Sway='none'): M {
     inner.call(material,shader,renderer);
     windCloudTexture();
     shader.uniforms.windTime=wind.time;shader.uniforms.windDir=wind.dir;shader.uniforms.windClouds=wind.clouds;
+    shader.uniforms.windShade=wind.shade;
     const surface=sway==='frond' && !shader.vertexShader.includes('attribute float surface')?'attribute float surface;\n':'';
     shader.vertexShader=header+surface+shader.vertexShader
       .replace('#include <begin_vertex>','#include <begin_vertex>\n'+sways[sway])
@@ -80,9 +83,9 @@ export function breezy<M extends T.Material>(material: M,sway: Sway='none'): M {
           windPosition=instanceMatrix*windPosition;
         #endif
         vWind=(modelMatrix*windPosition).xz;`);
-    shader.fragmentShader='uniform sampler2D windClouds;\n'+header+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    shader.fragmentShader='uniform sampler2D windClouds;\nuniform float windShade;\n'+header+shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       ${cloudDensityGLSL}
-      diffuseColor.rgb*=mix(vec3(1.),vec3(.80,.84,.92),smoothstep(.54,.72,cloud));`);
+      diffuseColor.rgb*=mix(vec3(1.),vec3(.80,.84,.92),min(1.,smoothstep(.54,.72,cloud)*windShade));`);
   };
   material.customProgramCacheKey=()=>'wind:'+sway+':'+inner.toString();
   return material;

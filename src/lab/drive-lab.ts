@@ -16,18 +16,34 @@ const unitOf=(key: string)=>angles.test(key)?DEG:/^(baseSpeed|topSpeed)$/.test(k
 // -1, 0 or 1), and the side grip of a car rolling back from a wall, which hardly shows.
 // Also out: the patrols' bonus, which is none, the isometric view, which is the map's own, and the speed and grip
 // of paving, which drives as asphalt and only shakes the car.
+// Also out, as shaping values of a control that stays: the camera kick spring (kick and its limit stay), the least
+// gap between two hit-stops, the gap between sparks, the limit of the pose yaw, the shortest drift that earns a bonus
+// and the hop per m/s of impact (the hop's limit stays).
 const hidden=new Set(['treeClearance','player.steerDead','player.rollbackGrip','patrol.rollbackGrip','patrol.bonusMax',
-  'cameraModes.fixed.zoom','cameraModes.fixed.framing','surfaces.paving.speed','surfaces.paving.grip']);
+  'cameraModes.fixed.zoom','cameraModes.fixed.framing','surfaces.paving.speed','surfaces.paving.grip',
+  'kickStiff','stopGap','sparkGap','poseYawLimit','player.bonusLeast','playerHopGain']);
 // Sizes, spans and durations the game divides by: their sliders stop one step above zero.
 const positive=/^(radius|visualScale|viewSpan|baseSpeed|topSpeed|bonusTime|response|skidSpeed|coinStep|puffLife|hitStop|pose(Release|FullSpeed)|speed|grip)/;
-const folders: Record<string,string>={player:'Player',patrol:'Patrols',cameraModes:'Drive views',fixed:'Isometric',high:'Aerial',chase:'Chase',
+const folders: Record<string,string>={player:'Player',patrol:'Patrols',fixed:'Isometric view',high:'Aerial view',chase:'Chase view',
   surfaces:'Surfaces',paving:'Paving',grass:'Grass',dirt:'Dirt',sand:'Sand'};
-const groups: [title: string,keys: RegExp][]=[
-  ['Impacts and braking',/^(brake|hardImpact|deflect|radius|treeRadius|bounce|wallLoss|scrape)/],
-  ['Car on screen',/^(visualScale|slopeLean|roll|tailSwing|hop|playerHop|dive|skidSpeed|pose|puff|spark)/],
-  ['Camera and effects',/^(zoom|paceRate|leadRate|followRate|kick|viewSpan|hitStop|stopGap)/],
-  ['Chase',/^(catch|grace|chaser|wreck|stuckTime)/]
+// The player's values, by what they shape.
+const playerGroups: [title: string,keys: RegExp][]=[
+  ['Speed',/^(baseSpeed|topSpeed|gearAccel|accel|cruiseShare|coast|steerPush)$/],
+  ['Steering',/^(turn|turnLow|turnRamp|turnRelease)$/],
+  ['Slide',/^(recover|releaseRecover|maxSlip)$/],
+  ['Drift bonus',/^bonus/]
 ];
+const groups: [title: string,keys: RegExp][]=[
+  ['Impacts and braking',/^(brake|hardImpact|hitStop|deflect|radius|treeRadius|bounce|wallLoss|scrape)/],
+  ['Player car on screen',/^(visualScale|slopeLean|playerHop|skidSpeed|pose|puff|spark)/],
+  ['Patrol cars on screen',/^(roll|tailSwing|hop|dive)$/],
+  ['Camera',/^(zoom|paceRate|leadRate|followRate|kick|viewSpan)/],
+  ['Police chase',/^(catch|grace|chaser|wreck|stuckTime)/]
+];
+// Drive views: pitch is an angle above the ground, not a multiple of the default.
+const viewFields: Record<string,{unit:Unit;range:readonly [number,number];label:string}>={
+  pitch:{unit:DEG,range:[20,89],label:'pitch'},zoom:{unit:RAW,range:[.5,3],label:'zoom'},framing:{unit:RAW,range:[0,.3],label:'framing'}
+};
 // Coins, goal and slope stay out: they are not handling or how the car looks.
 const round=(v: number)=>Number(v.toPrecision(6));
 
@@ -72,7 +88,10 @@ export function driveLab({drive,host,compact,mount,begin}: {
   const controllers=new Map<string,ReturnType<typeof add>>();
   function walk(folder: GUI,node: Record<string,unknown>,prefix: string){
     for(const [key,value] of Object.entries(node)){
-      if(typeof value==='number'){if(!hidden.has(prefix+key))controllers.set(prefix+key,add(folder,node as Record<string,number>,key,prefix+key));}
+      if(typeof value==='number'){
+        const field=prefix.startsWith('cameraModes.')?viewFields[key]:undefined;
+        if(!hidden.has(prefix+key))controllers.set(prefix+key,add(folder,node as Record<string,number>,key,prefix+key,undefined,field));
+      }
       else if(value && typeof value==='object'){
         // A folder whose values are all hidden is left out.
         const inside=Object.entries(value).some(([k,v])=>typeof v!=='number' || !hidden.has(prefix+key+'.'+k));
@@ -88,24 +107,29 @@ export function driveLab({drive,host,compact,mount,begin}: {
   // and a player value they share moves both.
   const player=TUNE.player as Record<string,number>,patrol=TUNE.patrol as Record<string,number>;
   const playerFolder=gui.addFolder(folders.player).close(),patrolFolder=gui.addFolder(folders.patrol).close();
+  const playerParts=playerGroups.map(([title,keys])=>[playerFolder.addFolder(title).close(),keys] as const);
   for(const key of Object.keys(player)){
-    if(!hidden.has('player.'+key))controllers.set('player.'+key,add(playerFolder,player,key,'player.'+key,patrol[key]===player[key]?patrol:undefined));
+    const part=playerParts.find(([,keys])=>keys.test(key))?.[0]??playerFolder;
+    if(!hidden.has('player.'+key))controllers.set('player.'+key,add(part,player,key,'player.'+key,patrol[key]===player[key]?patrol:undefined));
     if((patrol[key]!==player[key] || key==='steerDead') && !hidden.has('patrol.'+key))controllers.set('patrol.'+key,add(patrolFolder,patrol,key,'patrol.'+key));
   }
+  const groupFolders=new Map<string,GUI>();
   for(const [title,keys] of groups){
-    const folder=gui.addFolder(title).close();
+    const folder=gui.addFolder(title).close();groupFolders.set(title,folder);
     for(const [key,value] of Object.entries(tree)){
       if(typeof value==='number' && keys.test(key) && !hidden.has(key))controllers.set(key,add(folder,tree as Record<string,number>,key,key));
     }
   }
+  // The isometric view is the map's own: the aerial and chase views sit in the camera folder.
+  walk(groupFolders.get('Camera')!,tree.cameraModes as Record<string,unknown>,'cameraModes.');
   const surfaceFolder=gui.addFolder(folders.surfaces).close();
   controllers.set('roughDrag',add(surfaceFolder,tree as Record<string,number>,'roughDrag','roughDrag'));
   walk(surfaceFolder,tree.surfaces as Record<string,unknown>,'surfaces.');
-  walk(gui.addFolder(folders.cameraModes).close(),tree.cameraModes as Record<string,unknown>,'cameraModes.');
   const flightFolder=gui.addFolder('Flight').close();
   const flightFields=[
     ['cruiseSpeed','Cruise speed',KMH,65,180],['bankLimit','Bank limit',DEG,10,55],
-    ['pitchLimit','Pitch limit',DEG,10,40],['fov','Camera FOV (°)',RAW,35,75]
+    ['pitchLimit','Pitch limit',DEG,10,40],['fov','Camera FOV (°)',RAW,35,75],
+    ['viewScale','View distance (×)',RAW,.5,2.5]
   ] as const;
   for(const [key,label,unit,min,max] of flightFields){
     const path='flight.'+key;
@@ -168,7 +192,8 @@ export function driveLab({drive,host,compact,mount,begin}: {
         +'\n'+SURFACES[car.ground]+' · patrols '+drive.patrols;
       if(host.dataset.flight){
         const [phase,,,altitude,heading]=host.dataset.flight.split(',');
-        next=`Flight · ${phase}\n${altitude} m · heading ${Math.round(Number(heading)*DEG.scale)}°`;
+        next=`Flight · ${phase}\n${altitude} m · heading ${Math.round(Number(heading)*DEG.scale)}°`
+          +(host.dataset.flightHorizon?`\nhorizon ${host.dataset.flightHorizon} m`:'');
       }
       host.dataset.lab=[(speed*3.6).toFixed(1),slip.toFixed(1),drive.patrols,car.ground].join(',');
     }

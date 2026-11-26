@@ -9,7 +9,8 @@ import type {FlightCeiling} from './terrain-ceiling.ts';
 
 type Phase='off'|'launch'|'fly'|'return'|'crash';
 type Sample=(x:number,y:number)=>number;
-export const FLIGHT_TUNE={cruiseSpeed:32,bankLimit:.74,pitchLimit:.48,fov:54};
+// viewScale stretches the horizon (fog and far plane) and the zones streamed for it, from the quality stage's own.
+export const FLIGHT_TUNE={cruiseSpeed:32,bankLimit:.74,pitchLimit:.48,fov:54,viewScale:1};
 const SPAN=10.7;
 const smooth=(t:number)=>T.MathUtils.smoothstep(t,0,1);
 const clamp=T.MathUtils.clamp;
