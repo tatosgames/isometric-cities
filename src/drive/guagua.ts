@@ -50,7 +50,7 @@ export function makeGuagua(data: GuaguaData){
 
 type BusPose=Pick<ReturnType<typeof makeGuagua>['state'],'x'|'y'|'h'|'speed'>;
 type CarBody=Pick<Body,'x'|'y'|'vx'|'vy'>;
-const HALF_LENGTH=3.6, HALF_WIDTH=1.1;
+export const HALF_LENGTH=3.6, HALF_WIDTH=1.1;
 export const BUS_AXLE=2.08;
 
 /** Resolve circle against moving oriented body, preserving tangential velocity. */

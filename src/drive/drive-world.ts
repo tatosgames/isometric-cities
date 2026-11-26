@@ -4,6 +4,7 @@ import type { BuildingBlock } from './building-occlusion.ts';
 import type { RoadNode } from './road-routing.ts';
 import {blocksCamera} from './building-occlusion.ts';
 import {indexPatrolSegments} from './police-road-entry.ts';
+import { rayPrism } from '../demolition/ray.ts';
 import { routesFrom, indexRoadNodes } from './road-routing.ts';
 import * as T from 'three';
 
@@ -57,46 +58,59 @@ export function solidWater(data: Pick<WorldData,'roads'|'surfaces'>){
 
 // The road graph covers the whole city. Walls, roofs and trees live in one layer per zone, so they can
 // come and go with the zones the map has loaded; the boundary and anything in `data` form the base layer.
-export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number;radius?:number},zoning?: Zoning){
+/** `gone`: buildings brought down (the drive's gun). A zone that arrives leaves them out until they are rebuilt. */
+export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeClearance: number;treeRadius: number;radius?:number},zoning?: Zoning,
+  gone: ReadonlySet<number>=new Set()){
   const layers=new Map<string,Grid>();
   const inCity=ringIndex(data.boundary);
   let stack: Grid[]=[];
   let highestRoof=-Infinity;
+  // Each building's walls and block in the grid of its layer, and the buildings of a layer that are down.
+  const placed=new Map<Building,{layer: string;segs: Set<Segment>;block: BuildingBlock}>();
+  const down=new Map<Building,string>();
   const span=(a: number,b: number)=>[Math.floor(Math.min(a,b)/CELL),Math.floor(Math.max(a,b)/CELL)];
+  function cellOf(grid: Grid,cx: number,cy: number){
+    const k=cx+','+cy;
+    let entry=grid.get(k);
+    if(!entry){entry={segs:[],trees:[],blocks:[],roofCeiling:-Infinity};grid.set(k,entry);}
+    return entry;
+  }
+  function wall(grid: Grid,ring: Ring,facade: boolean,owned?: Set<Segment>){
+    for(let i=1;i<ring.length;i++){
+      const [ax,ay]=ring[i-1],[bx,by]=ring[i];
+      if(ax===bx && ay===by)continue;
+      const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by,facade];
+      owned?.add(seg);
+      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cellOf(grid,cx,cy).segs.push(seg);
+    }
+  }
+  /** The grid cells under a footprint's box, grown by `pad` metres. */
+  function footprintCells(b: Building,visit: (cx: number,cy: number)=>void,pad=0){
+    const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
+    const [x0,x1]=span(Math.min(...xs)-pad,Math.max(...xs)+pad),[y0,y1]=span(Math.min(...ys)-pad,Math.max(...ys)+pad);
+    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)visit(cx,cy);
+  }
+  function place(layer: string,grid: Grid,b: Building){
+    const segs=new Set<Segment>();
+    for(const ring of b.rings)wall(grid,ring,true,segs);
+    const base=altitude(...b.rings[0][0]);
+    const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height),building:b};
+    highestRoof=Math.max(highestRoof,block.top);
+    footprintCells(b,(cx,cy)=>{const entry=cellOf(grid,cx,cy);entry.blocks.push(block);entry.roofCeiling=Math.max(entry.roofCeiling,block.top);});
+    placed.set(b,{layer,segs,block});
+  }
   function addLayer(id: string,buildings: Building[],trees: Point[],boundary?: Ring,water: Ring[]=[]){
     const grid: Grid=new Map();
-    const cell=(cx: number,cy: number)=>{
-      const k=cx+','+cy;
-      let entry=grid.get(k);
-      if(!entry){entry={segs:[],trees:[],blocks:[],roofCeiling:-Infinity};grid.set(k,entry);}
-      return entry;
-    };
-    function wall(ring: Ring,facade: boolean){
-      for(let i=1;i<ring.length;i++){
-        const [ax,ay]=ring[i-1],[bx,by]=ring[i];
-        if(ax===bx && ay===by)continue;
-        const [x0,x1]=span(ax,bx),[y0,y1]=span(ay,by),seg: Segment=[ax,ay,bx,by,facade];
-        for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++)cell(cx,cy).segs.push(seg);
-      }
-    }
     for(const b of buildings){
-      for(const ring of b.rings)wall(ring,true);
-      const xs=b.rings[0].map(p=>p[0]),ys=b.rings[0].map(p=>p[1]);
-      const [x0,x1]=span(Math.min(...xs),Math.max(...xs)),[y0,y1]=span(Math.min(...ys),Math.max(...ys));
-      const base=altitude(...b.rings[0][0]);
-      const block={rings:b.rings,base:base-2,top:base+(b.heightOverride??b.height)};
-      highestRoof=Math.max(highestRoof,block.top);
-      for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){
-        const entry=cell(cx,cy);entry.blocks.push(block);entry.roofCeiling=Math.max(entry.roofCeiling,block.top);
-      }
+      if(gone.has(b.id))down.set(b,id);else place(id,grid,b);
     }
-    if(boundary)wall(boundary,false);
-    for(const ring of water)wall(ring,false);
+    if(boundary)wall(grid,boundary,false);
+    for(const ring of water)wall(grid,ring,false);
     // Only free-standing trees are solid: a trunk beside a facade would wedge the cars.
     // Judged against the walls of the same layer, so the result does not depend on arrival order.
     stack=[grid];
     const solid=trees.filter(([x,y])=>!near(x,y,tune.treeClearance));
-    for(const [x,y] of solid)cell(Math.floor(x/CELL),Math.floor(y/CELL)).trees.push([x,y]);
+    for(const [x,y] of solid)cellOf(grid,Math.floor(x/CELL),Math.floor(y/CELL)).trees.push([x,y]);
     layers.set(id,grid);stack=[...layers.values()];
   }
   const zoneKey=(x: number,y: number)=>zoning?Math.floor(x/zoning.size)+'_'+Math.floor(y/zoning.size):'';
@@ -142,6 +156,11 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   const usable=(n: RoadNode)=>n.part===main && clear(n.x,n.y,1.7);
   for(const n of nodes)n.ok=usable(n);
   const roadIndex=indexRoadNodes(nodes);
+  const nodeCells=new Map<string,RoadNode[]>();
+  for(const n of nodes){
+    const key=Math.floor(n.x/CELL)+','+Math.floor(n.y/CELL),list=nodeCells.get(key);
+    if(list)list.push(n);else nodeCells.set(key,[n]);
+  }
   const roadSegments=indexPatrolSegments(nodes,main);
   const zoneNodes=new Map<string,RoadNode[]>();
   if(zoning)for(const n of nodes){
@@ -173,9 +192,63 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   function removeZone(id: string){
     if(!id || !layers.delete(id))return;
+    for(const [b,{layer}] of placed)if(layer===id)placed.delete(b);
+    for(const [b,layer] of down)if(layer===id)down.delete(b);
     passage.clear();
     stack=[...layers.values()];
     for(const n of zoneNodes.get(id)??[])n.ok=usable(n);
+  }
+  /** Takes a demolished building out: its walls and roof stop the cars, the camera and the shots no more. */
+  function removeBuilding(b: Building){
+    const entry=placed.get(b),grid=entry && layers.get(entry.layer);
+    if(!entry || !grid)return;
+    placed.delete(b);down.set(b,entry.layer);
+    footprintCells(b,(cx,cy)=>{
+      const c=grid.get(cx+','+cy);
+      if(!c)return;
+      c.segs=c.segs.filter(seg=>!entry.segs.has(seg));c.blocks=c.blocks.filter(block=>block!==entry.block);
+      c.roofCeiling=c.blocks.reduce((top,block)=>Math.max(top,block.top),-Infinity);
+    });
+    reopen(b);
+  }
+  /** Puts a rebuilt building back in its zone, if the zone is loaded. */
+  function restoreBuilding(b: Building){
+    const layer=down.get(b),grid=layer!==undefined && layers.get(layer);
+    down.delete(b);
+    if(!grid || layer===undefined)return;
+    place(layer,grid,b);
+    reopen(b);
+  }
+  // Roads round a building that came down or went up again: patrol links and nodes are checked anew.
+  function reopen(b: Building){
+    passage.clear();
+    footprintCells(b,(cx,cy)=>{for(const n of nodeCells.get(cx+','+cy)??[])n.ok=usable(n);},2);
+  }
+  /**
+   * The first building a ray meets, through its roof or a wall, and where: the ray parameter `t`. World axes, as
+   * the camera's. Without a building, `t` is where it meets the terrain, up to `range` metres along it.
+   */
+  function rayHit(o: T.Vector3,d: T.Vector3,range: number){
+    let ground=range;
+    if(d.y<0){
+      ground=(altitude(o.x,-o.z)-o.y)/d.y;
+      for(let k=0;k<4;k++)ground=(altitude(o.x+ground*d.x,-(o.z+ground*d.z))-o.y)/d.y;
+      ground=Math.min(range,Math.max(0,ground));
+    }
+    const top=d.y<0?Math.max(0,(highestRoof-o.y)/d.y):0,step=CELL/2/(Math.hypot(d.x,d.z)||1);
+    let t=ground,building: Building | null=null;
+    checked.clear();
+    for(let s=Math.min(top,ground);s<=ground+step;s+=step){
+      const key=Math.floor((o.x+s*d.x)/CELL)+','+Math.floor(-(o.z+s*d.z)/CELL);
+      for(const grid of stack)for(const block of grid.get(key)?.blocks??[]){
+        if(checked.has(block) || !block.building)continue;
+        checked.add(block);
+        const hit=rayPrism(o,d,block.rings[0],block.base,block.top);
+        if(hit<t){t=hit;building=block.building;}
+      }
+      if(s>t)break;
+    }
+    return {t,building};
   }
   function near(x: number,y: number,r: number){
     for(let cx=Math.floor((x-r)/CELL);cx<=Math.floor((x+r)/CELL);cx++)for(let cy=Math.floor((y-r)/CELL);cy<=Math.floor((y+r)/CELL);cy++){
@@ -309,6 +382,7 @@ export function buildDriveWorld(data: WorldData,altitude: Altitude,tune: {treeCl
   }
   return {
     nodes,validNodes:roadIndex.valid,roadSegments,nearestNode,near,free,sight,occluded,visitObstacles,addZone,removeZone,
+    removeBuilding,restoreBuilding,rayHit,
     roofAt,roofCeiling,landingCandidates,landingHeading,footprintsReady:(x:number,y:number)=>!unloaded(x,y),
     patrolRoutesFrom:(source:number)=>routesFrom(nodes,source,patrolLink,480),
     routesFrom:(source: number)=>routesFrom(nodes,source)

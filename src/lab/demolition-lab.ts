@@ -3,17 +3,19 @@ import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import { isLayers, loadData } from '../data/load.ts';
 import type { Building, Point } from '../data/types.ts';
 import { ringCenter } from '../data/sector-index.ts';
-import { DEBRIS_TUNE, makeDebris, type Blast } from '../demolition/debris.ts';
-import { fractureBuilding, rubbleSlab } from '../demolition/fracture.ts';
+import { DEBRIS_TUNE, type Blast } from '../demolition/debris.ts';
+import { makeDemolisher } from '../demolition/demolish.ts';
+import { rayPrism } from '../demolition/ray.ts';
+import { makeShake } from '../demolition/shake.ts';
+import { TUNE } from '../drive/drive-tune.ts';
+import { aimShot, makeSlug, shotBlast, type Shot } from '../drive/drive-weapon.ts';
 import { nearestOnRing, pointInRing } from '../geometry.ts';
 import { CAMERA_DISTANCE, GroundControls, fitPixels, mapViewDirection } from '../render/map-camera.ts';
-import { roofTone } from '../render/roof-tone.ts';
-import { wallTone } from '../render/scene.ts';
 import { labCity } from './lab-city.ts';
 
 /**
- * Demolition lab (`lab.html?lab=demolizione`): a wrecking ball that hangs under the mouse and dynamite placed with a
- * click, breaking the city's own buildings into the 2.5D pieces of `demolition/fracture.ts`. Debris is visual only.
+ * Demolition lab (`lab.html?lab=demolizione`): a wrecking ball that hangs under the mouse, dynamite placed with a
+ * click and the drive's gun fired at a clicked wall, all breaking the city's own buildings into the 2.5D pieces of `demolition/fracture.ts`. Debris is visual only.
  * Monuments (`landmark`) are drawn by their own models and stay standing. A reload brings the city back.
  */
 interface Target {
@@ -24,12 +26,13 @@ interface Target {
   /** Last `near` query that listed it: a query never lists a building twice, and allocates nothing. */
   seen: number;
 }
-type Tool = 'ball' | 'dynamite';
+type Tool = 'ball' | 'dynamite' | 'gun';
+const TOOLS: Record<string, Tool> = {palla: 'ball', dinamite: 'dynamite', sparo: 'gun'};
+const KEYS: Record<string, Tool> = {1: 'ball', 2: 'dynamite', 3: 'gun'};
 
 const GRID = 32;
 /** A numeric key for a grid cell: no string per lookup. */
 const key = (i: number, j: number) => (i + 32768) * 65536 + j + 32768;
-const RUBBLE = '#a39886';
 
 export async function demolitionLab() {
   const el = (id: string) => document.getElementById(id)!;
@@ -39,7 +42,7 @@ export async function demolitionLab() {
   const {city, renderer, scene, camera, tones} = lab;
 
   // Every building the streamed sectors bring, indexed on a 32 m grid for the ball, the picking and the blasts.
-  const targets = new Map<number, Target>(), grid = new Map<number, Target[]>(), demolished = new Set<number>();
+  const targets = new Map<number, Target>(), grid = new Map<number, Target[]>();
   let highest = 0, lookup = 0;
   function register(b: Building) {
     if (b.landmark || targets.has(b.id) || demolished.has(b.id)) return;
@@ -78,13 +81,14 @@ export async function demolitionLab() {
     refresh() { renderer.shadowMap.needsUpdate = true; }
   });
   const altitude = stream.altitude;
-  const debris = makeDebris(stream.materials.buildingMat, altitude);
+  const debris = makeDemolisher({material: stream.materials.buildingMat, altitude, tones, hide: stream.hideBuilding});
+  const demolished = debris.demolished;
   scene.add(debris.root);
 
   const settings = {
-    tool: (query.get('strumento') === 'dinamite' ? 'dynamite' : 'ball') as Tool,
+    tool: TOOLS[query.get('strumento') ?? ''] ?? 'ball',
     height: Number(query.get('quota')) || 9, rope: 24, radius: 2.4, threshold: 7,
-    power: 24, blastRadius: 7, fuse: 1.1
+    power: 24, blastRadius: 7, fuse: 1.1, standoff: Number(query.get('distanza')) || 25
   };
 
   /** The nearest point of a footprint's edge, and its distance, negative inside. */
@@ -112,33 +116,18 @@ export async function demolitionLab() {
     for (let t = t0; t <= tg + step; t += step) near(o.x + t * d.x, -(o.z + t * d.z), 0, crossed, true);
     let best = tg, found: Target | null = null;
     for (const target of crossed) {
-      const roof = (target.top - o.y) / d.y;
-      if (roof < best && pointInRing(target.ring, o.x + roof * d.x, -(o.z + roof * d.z))) { best = roof; found = target; }
-      const ring = target.ring;
-      for (let i = 0; i < ring.length; i++) {
-        const [ax, ay] = ring[i], [bx, by] = ring[(i + 1) % ring.length];
-        const ex = bx - ax, ey = by - ay, wx = ax - o.x, wy = ay + o.z, denom = d.x * ey + d.z * ex;
-        if (Math.abs(denom) < 1e-9) continue;
-        const t = (wx * ey - wy * ex) / denom, s = (wx * -d.z - wy * d.x) / denom, y = o.y + t * d.y;
-        if (t < best && s >= 0 && s <= 1 && y >= target.base - 1 && y <= target.top) { best = t; found = target; }
-      }
+      const t = rayPrism(o, d, target.ring, target.base - 1, target.top);
+      if (t < best) { best = t; found = target; }
     }
     raycaster.ray.at(best, hit);
     return found;
   }
 
-  let shake = 0, freeze = 0, shadows = true;
+  const shake = makeShake();
+  let freeze = 0, shadows = true;
   function demolish(target: Target, blast: Blast) {
-    const b = target.building;
-    if (demolished.has(b.id)) return;
-    demolished.add(b.id);
-    stream.hideBuilding(b.id);
-    debris.burst(fractureBuilding({
-      building: b, base: target.base, wall: wallTone(b), roof: roofTone(b, tones),
-      impact: [blast.point.x, -blast.point.z]
-    }), blast);
-    debris.slab(rubbleSlab(b, target.base, .9, RUBBLE));
-    shake = Math.min(1.6, shake + blast.strength / 18 + (blast.push?.length() ?? 0) / 30);
+    if (!debris.demolish(target.building, target.base, blast)) return;
+    shake.add(blast.strength / 18 + (blast.push?.length() ?? 0) / 30);
     freeze = Math.max(freeze, .05);
   }
 
@@ -218,6 +207,57 @@ export async function demolitionLab() {
     }
   }
 
+  // Gun: the drive's slug (`drive/drive-weapon.ts`, values in `TUNE.weapon`, shared with the drive). There is no car
+  // here, so it leaves the road `standoff` metres before the point clicked, on the viewer's side, out of any
+  // footprint, and flies level 1.1 m above the ground as from the car's nose: the first wall in reach on that line
+  // comes down with the drive's blast. One shot per cooldown.
+  const W = TUNE.weapon, SHOT_HEIGHT = 1.1, slug = makeSlug(scene), along: Target[] = [];
+  const rayFrom = new T.Vector3(), rayDir = new T.Vector3();
+  let shot: Shot | null = null, cool = 0, shots = 0;
+  /** Whether (x, y) stands inside a building's footprint. */
+  const indoors = (x: number, y: number) => near(x, y, 0, along).some(t => pointInRing(t.ring, x, y));
+  /** The first standing wall a level ray meets: its distance and building, Infinity and null when none does. */
+  function levelHit(x: number, y: number, z: number, heading: number, range: number) {
+    const c = Math.cos(heading), s = Math.sin(heading), step = GRID / 4;
+    lookup++; along.length = 0;
+    for (let t = 0; t <= range + step; t += step) near(x + c * t, y + s * t, step, along, true);
+    rayFrom.set(x, z, -y); rayDir.set(c, 0, -s);
+    let best = Infinity, building: Building | null = null;
+    for (const target of along) {
+      const t = rayPrism(rayFrom, rayDir, target.ring, target.base - 1, target.top);
+      if (t < best) { best = t; building = target.building; }
+    }
+    return {t: best, building};
+  }
+  function fire(clientX: number, clientY: number) {
+    if (cool > 0 || shot) return false;
+    pick(clientX, clientY);
+    const aimX = hit.x, aimY = -hit.z;
+    // Back towards the camera along the ground, then further out while that point is inside a building.
+    let bx = camera.position.x - controls.target.x, by = controls.target.z - camera.position.z;
+    const n = Math.hypot(bx, by) || 1; bx /= n; by /= n;
+    let back = settings.standoff;
+    while (back < settings.standoff + 60 && indoors(aimX + bx * back, aimY + by * back)) back += 2;
+    const x = aimX + bx * back, y = aimY + by * back, z = altitude(x, y) + SHOT_HEIGHT;
+    const heading = Math.atan2(aimY - y, aimX - x), {t, building} = levelHit(x, y, z, heading, W.range);
+    shot = aimShot(x, y, z, heading, t, building, W.range);
+    cool = W.cooldown; shots++;
+    shake.add(.25);
+    return true;
+  }
+  /** Moves the slug one step; at its wall or its reach it stops, and the wall comes down. */
+  function advanceShot(dt: number) {
+    cool = Math.max(0, cool - dt);
+    if (!shot) return;
+    const step = Math.min(shot.left, W.speed * dt);
+    shot.x += shot.dx * step; shot.y += shot.dy * step; shot.z = altitude(shot.x, shot.y) + SHOT_HEIGHT;
+    shot.left -= step;
+    if (shot.left > 1e-6) return;
+    const target = shot.building && targets.get(shot.building.id);
+    if (target) demolish(target, shotBlast(shot, W));
+    shot = null;
+  }
+
   // Camera: the map's, panned with the right button or the arrows, zoomed with the wheel. The left button is the tool.
   const controls = new GroundControls(camera, renderer.domElement);
   controls.enableRotate = false; controls.zoomToCursor = true;
@@ -247,7 +287,9 @@ export async function demolitionLab() {
   canvas.addEventListener('pointermove', event => { pointer = {x: event.clientX, y: event.clientY}; });
   canvas.addEventListener('pointerleave', () => { ghost.visible = false; });
   canvas.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || settings.tool !== 'dynamite') return;
+    if (event.button !== 0) return;
+    if (settings.tool === 'gun') { fire(event.clientX, event.clientY); return; }
+    if (settings.tool !== 'dynamite') return;
     const target = pick(event.clientX, event.clientY);
     if (!target) return;
     const mesh = new T.Mesh(stickGeometry, stickMaterial.clone());
@@ -256,13 +298,13 @@ export async function demolitionLab() {
     charges.push({target, point: hit.clone(), mesh, fuse: settings.fuse});
   });
   window.addEventListener('keydown', event => {
-    if (event.key !== '1' && event.key !== '2') return;
-    settings.tool = event.key === '1' ? 'ball' : 'dynamite';
+    if (!KEYS[event.key]) return;
+    settings.tool = KEYS[event.key];
     gui.controllersRecursive().forEach(c => c.updateDisplay());
   });
 
   const gui = new GUI({container: el('gui'), title: 'Demolition'});
-  gui.add(settings, 'tool', {'Wrecking ball (1)': 'ball', 'Dynamite (2)': 'dynamite'}).name('Tool');
+  gui.add(settings, 'tool', {'Wrecking ball (1)': 'ball', 'Dynamite (2)': 'dynamite', 'Gun (3)': 'gun'}).name('Tool');
   const ballFolder = gui.addFolder('Wrecking ball');
   ballFolder.add(settings, 'height', 1, 60, .5).name('Ball height (m)');
   ballFolder.add(settings, 'rope', 8, 60, 1).name('Rope (m)');
@@ -272,6 +314,15 @@ export async function demolitionLab() {
   dynamite.add(settings, 'power', 5, 60, 1).name('Power (m/s)');
   dynamite.add(settings, 'blastRadius', 0, 25, .5).name('Blast radius (m)');
   dynamite.add(settings, 'fuse', .2, 4, .1).name('Fuse (s)');
+  // The drive's own values: the drive lab's Gun folder edits the same `TUNE.weapon`.
+  const gunFolder = gui.addFolder('Gun');
+  gunFolder.add(W, 'cooldown', .2, 10, .1).name('Cooldown (s)');
+  gunFolder.add(W, 'speed', 10, 200, 1).name('Slug speed (m/s)');
+  gunFolder.add(W, 'range', 20, 300, 5).name('Range (m)');
+  gunFolder.add(W, 'blast', 0, 60, 1).name('Blast (m/s)');
+  gunFolder.add(W, 'blastReach', 2, 40, .5).name('Blast reach (m)');
+  gunFolder.add(W, 'push', 0, 60, 1).name('Push (m/s)');
+  gunFolder.add(settings, 'standoff', 4, 80, 1).name('Fired from (m)');
   const pieces = gui.addFolder('Debris');
   pieces.add(DEBRIS_TUNE, 'gravity', 4, 40, .5).name('Gravity (m/s²)');
   pieces.add(DEBRIS_TUNE, 'shock', 10, 300, 5).name('Shock speed (m/s)');
@@ -312,24 +363,24 @@ export async function demolitionLab() {
     if (usesBall && hasCursor && dt > 0) swing(dt);
     if (usesBall) ghost.visible = false;
     detonate(dt);
+    advanceShot(dt);
+    slug.show(shot);
     if (debris.update(dt)) shadows = true;
     if (shadows && renderer.shadowMap.enabled) renderer.shadowMap.needsUpdate = true;
     shadows = false;
     controls.update();
     const {busy} = stream.update(camera, controls.target, false);
-    // Shake in the plane of the screen, a metre or so at its strongest, gone in a third of a second.
-    if (shake > .01) {
-      offset.set(Math.random() - .5, Math.random() - .5, 0).multiplyScalar(shake * 1.4).applyQuaternion(camera.quaternion);
-      shake *= Math.exp(-9 * Math.max(dt, 1 / 120));
-    } else offset.set(0, 0, 0);
+    // Shake in the plane of the screen.
+    offset.set(Math.random() - .5, Math.random() - .5, 0).multiplyScalar(shake.offset(dt)).applyQuaternion(camera.quaternion);
     camera.position.add(offset); camera.updateMatrixWorld();
     lab.render(now, controls.target);
     camera.position.sub(offset);
-    report({demolished: demolished.size, pieces: debris.pieces, buildings: targets.size, busy: String(busy), tool: settings.tool},
-      demolished.size + ' demolished · ' + debris.pieces + ' pieces · ' + debris.dust + ' dust · ' + renderer.info.render.calls + ' draw calls');
+    report({demolished: demolished.size, pieces: debris.pieces, buildings: targets.size, busy: String(busy), tool: settings.tool, shots},
+      demolished.size + ' demolished · ' + debris.pieces + ' pieces · ' + debris.dust + ' dust · ' + renderer.info.render.calls + ' draw calls' +
+      (settings.tool === 'gun' ? ' · gun ' + (cool > 0 ? cool.toFixed(1) + ' s' : 'ready') : ''));
   }
   frame = requestAnimationFrame(draw);
-  el('status').textContent = 'Left button: swing the ball or place dynamite · right button: pan · wheel: zoom · 1/2: tool';
+  el('status').textContent = 'Left button: swing the ball, place dynamite or fire · right button: pan · wheel: zoom · 1/2/3: tool';
 
   // Checks (`scripts/qa-demolition.mjs`): the screen point of a building near the centre, and stopping the loop.
   const probe = new T.Vector3();
@@ -347,13 +398,15 @@ export async function demolitionLab() {
       }
       return best;
     },
+    gun() { return {cool, flying: !!shot, shots}; },
     stop() { cancelAnimationFrame(frame); }
   }});
   host.dataset.ready = 'true';
   return () => {
     const p = new URLSearchParams(query);
     p.set('x', controls.target.x.toFixed(1)); p.set('y', (-controls.target.z).toFixed(1)); p.set('zoom', camera.zoom.toFixed(2));
-    p.set('strumento', settings.tool === 'dynamite' ? 'dinamite' : 'palla'); p.set('quota', String(settings.height));
+    p.set('strumento', Object.keys(TOOLS).find(k => TOOLS[k] === settings.tool) ?? 'palla'); p.set('quota', String(settings.height));
+    p.set('distanza', String(settings.standoff));
     return p;
   };
 }

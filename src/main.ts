@@ -1,7 +1,7 @@
 import {makeTerrainCeiling} from './flight/terrain-ceiling.ts';
 import { sunOffset } from './render/city-light.ts';
 import { parseViewState } from './data/load.ts';
-import type { ViewState, ZoneData } from './data/types.ts';
+import type { Building, ViewState, ZoneData } from './data/types.ts';
 import { element as el } from './map/dom.ts';
 import { required } from './required.ts';
 import { lodTransition } from './render/sectors/lod-transition.ts';
@@ -10,7 +10,7 @@ import { createPlacesUI } from './map/places-ui.ts';
 import { loadStartupData } from './map/load-startup-data.ts';
 import { coastWindow, measureCoast, sampleFlight, type DragSample, type Flight } from './map/motion.ts';
 import * as T from 'three';
-import { makeCity } from './render/scene.ts';
+import { hideRanges, makeCity, type BuildingRange } from './render/scene.ts';
 import { makeDrive } from './drive/drive.ts';
 import { compactScreen, type DynamicQualityConfig } from './render/dynamic-quality.ts';
 import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
@@ -129,6 +129,7 @@ async function start(){
   if(core)for(const far of Object.values(core.far))flightTerrain.include(far.ground);
   const streamed=index&&core?streamCity({data:{...core,...index},stage,neutral,tones,compact,host,
     onGroundRings:flightTerrain.include,
+    trackBuildings:true,
     onZone(id,content){
       // The driving world knows trees as point obstacles: crane legs and chimneys join them.
       const solid=content?.props?.length?{...content,trees:[...content.trees,...propObstacles(content.props)]}:content;
@@ -137,10 +138,30 @@ async function start(){
     },
     lod:{stable:true,...(neutral?{}:{attach:lodTransition()})},
     refresh(){renderer.shadowMap.needsUpdate=true;if(!lost)draw();}}):null;
-  const city=streamed??makeCity(data,neutral,tones,compact);
+  // The pilot area is one city built at once: it keeps where each building lies, so a shot can take one away.
+  const pilotRanges=streamed?null:new Map<Building['rings'],BuildingRange[]>();
+  const city=streamed??makeCity(data,neutral,tones,compact,null,pilotRanges??undefined);
   const {group,altitude,groundAt}=city;
   scene.add(group);
-  const pilotMask=!streamed && city.groundMap?makeStaticGroundShadow(city.groundMap.bounds,()=>data.buildings,draw):null;
+  // Buildings a shot in the drive brought down, with the way back for the pilot city (the streamed one rebuilds
+  // the sector instead). The drive world leaves them out on its own.
+  const taken=new Map<number,()=>void>();
+  const pilotMask=!streamed && city.groundMap?makeStaticGroundShadow(city.groundMap.bounds,()=>data.buildings.filter(b=>!taken.has(b.id)),draw):null;
+  function hideBuilding(id: number){
+    if(streamed){streamed.hideBuilding(id);taken.set(id,()=>{});return;}
+    const b=data.buildings.find(b=>b.id===id);
+    if(!b)return;
+    taken.set(id,hideRanges(pilotRanges?.get(b.rings)??[]));
+    pilotMask?.invalidate();
+    renderer.shadowMap.needsUpdate=true;
+  }
+  /** False while the city cannot rebuild it yet (its sector is in view): ask again later. */
+  function showBuilding(id: number){
+    if(streamed && !streamed.showBuilding(id))return false;
+    taken.get(id)?.();taken.delete(id);
+    if(!streamed){pilotMask?.invalidate();renderer.shadowMap.needsUpdate=true;}
+    return true;
+  }
   pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
   if(streamed)game.onStaticShadows(streamed.setStaticShadows);
   if(pilotMask)game.onStaticShadows(pilotMask.setEnabled);
@@ -574,6 +595,7 @@ async function start(){
   }
   drive=makeDrive({scene,camera,renderer,host,data,locations,...flightArea,flightTerrainCeiling:flightTerrain.ceiling,redraw:draw,
     demandLanding:(x,y)=>streamed?.demand(x,y)??true,releaseLanding:()=>streamed?.undemand(),
+    hideBuilding,showBuilding,buildingMaterial:city.materials.buildingMat,tones,
     ...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');

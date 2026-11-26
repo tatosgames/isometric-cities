@@ -116,14 +116,20 @@ export function makeDebris(material: T.Material, altitude: (east: number, north:
     dust.puff(blast.point, 10, 3.5, 1.6);
   }
 
-  // The rubble left on the footprints, which stays: one mesh rebuilt with each slab, so one draw call for all.
-  const slabs: Chunk[] = [];
+  // The rubble left on the footprints, until the building is rebuilt: one mesh for all, rebuilt with each change.
+  const slabs = new Map<number, Chunk[]>();
   let rubble: T.Mesh | null = null;
-  function slab(chunks: Chunk[]) {
+  function remerge() {
+    if (rubble) { rubble.removeFromParent(); rubble.geometry.dispose(); rubble = null; }
+    const all = [...slabs.values()].flat();
+    if (all.length) root.add(rubble = merge(all, material));
+  }
+  function slab(id: number, chunks: Chunk[]) {
     if (!chunks.length) return;
-    slabs.push(...chunks);
-    if (rubble) { rubble.removeFromParent(); rubble.geometry.dispose(); }
-    root.add(rubble = merge(slabs, material));
+    slabs.set(id, chunks); remerge();
+  }
+  function clearSlab(id: number) {
+    if (slabs.delete(id)) remerge();
   }
 
   /** Writes the vertices of one piece where it now stands. */
@@ -198,7 +204,7 @@ export function makeDebris(material: T.Material, altitude: (east: number, north:
   }
 
   return {
-    root, burst, slab, update,
+    root, burst, slab, clearSlab, update,
     get pieces() { let n = 0; for (const b of bursts) n += b.pieces.length; return n; },
     get dust() { return dust.count; }
   };

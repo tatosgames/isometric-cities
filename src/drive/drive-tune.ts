@@ -62,7 +62,14 @@ export const TUNE={
   catchSpeed:4.5, catchReach:4, grace:2.5,
   chaserSight:45, chaserLost:170, wreckTime:3, stuckTime:2,
   coinStep:8, coinReach:2.6, magnet:6, coinPullSpeed:25, arriveReach:16, arriveBonus:10, wreckBonus:2,
-  viewSpanCompact:62, viewSpanWide:95
+  viewSpanCompact:62, viewSpanWide:95,
+  // The car's gun. Seconds between shots, speed (m/s) and reach (m) of the slug. A struck patrol or guagua is
+  // thrown at `launch`/`busLaunch` m/s along the shot and `lift`/`busLift` m/s up, under `gravity`; a guagua lies
+  // `busRest` s, then sinks in `busSink` s. A demolished building is rebuilt after `rebuild` s out of view.
+  // A wall struck breaks outwards at `blast` m/s, fading over `blastReach` m, pushed `push` m/s along the shot:
+  // the same values in the drive and in the demolition lab's gun (`shotBlast`).
+  weapon:{cooldown:3, speed:55, range:120, launch:9, lift:10, busLaunch:5, busLift:7, gravity:16, busRest:3, busSink:1,
+    rebuild:20, blast:22, blastReach:12, push:18}
 };
 /** What the wheels roll on. Asphalt is the carriageway; paving covers pavements, squares and pedestrian streets. */
 export const SURFACES=['asphalt','paving','grass','dirt','sand'] as const;

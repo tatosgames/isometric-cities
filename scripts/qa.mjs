@@ -17,6 +17,7 @@ import './qa-dynamic-quality.mjs';
 // software-renderer contention out of the camera and driving timing checks.
 await import('./qa-drive-surface.mjs');
 await import('./qa-map-camera.mjs');
+await import('./qa-drive-fire.mjs');
 const browser=await launchBrowser();
 const {server,origin:served}=await serveMap();
 const origin=served.replace(/\/$/,'');

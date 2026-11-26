@@ -116,6 +116,8 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
   occupied:(x:number,y:number,h:number)=>boolean,fetcher:typeof fetch=fetch){
   const base='./data/guaguas/'+area+'/';
   const active:Bus[]=[],errors:string[]=[];
+  // Runs thrown off the road by a shot: the timetable must not put them back.
+  const knocked=new Set<string>();
   const cache=new Map<string,Clock>();
   const zones=new Map<string,Index>(),bundles=new Map<string,Bundle>(),pending=new Map<string,Promise<void>>();
   const failed=new Map<string,number>(),controller=new AbortController();
@@ -210,7 +212,7 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
       const earliest=Math.ceil((elapsed-ref.phase-clock.timeAt(to,true)-.00001)/ref.period);
       for(let k=earliest;k<=latest;k++){
         const id=piece+':'+k;
-        if(present.has(id)||candidates.has(id))continue;
+        if(present.has(id)||candidates.has(id)||knocked.has(id))continue;
         const age=Math.max(0,elapsed-ref.phase-k*ref.period);
         if(age>clock.duration+.00001)continue;
         const state=clock.sample(age,emptyBusState());
@@ -247,7 +249,7 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
 
   async function reset(x:number,y:number){
     const current=++epoch;
-    scan++;elapsed=0;nextScan=.5;px=x;py=y;active.length=0;failed.clear();errors.length=0;
+    scan++;elapsed=0;nextScan=.5;px=x;py=y;active.length=0;failed.clear();errors.length=0;knocked.clear();
     if(!directory){
       indexRequest??=read('index.json').then(value=>{
         if(!validFleetDirectory(value))throw Error('invalid network directory');
@@ -316,7 +318,13 @@ export function makeLocalFleet(area:'city'|'pilot',visible:(x:number,y:number)=>
     }
     if(elapsed>=nextScan){nextScan=elapsed+.5;void select(false);}
   }
-  return {reset,step,active,errors,dispose(){
+  /** Takes a bus off the road for good: its run does not come back. */
+  function knock(bus:Bus){
+    const at=active.indexOf(bus);
+    if(at>=0)active.splice(at,1);
+    knocked.add(bus.id);
+  }
+  return {reset,step,knock,active,errors,dispose(){
     disposed=true;epoch++;scan++;controller.abort();active.length=0;cache.clear();zones.clear();bundles.clear();pending.clear();
   }};
 }

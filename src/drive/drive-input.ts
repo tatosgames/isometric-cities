@@ -1,4 +1,5 @@
-export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () => void,onCamera: () => void,canDrive: () => boolean){
+export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () => void,onCamera: () => void,canDrive: () => boolean,
+  onFire: () => void){
   const pointers=new Map<number,{side: number;anchor: number}>(),keys=new Set<string>();
   function read(){
     let left=keys.has('ArrowLeft')||keys.has('a'),right=keys.has('ArrowRight')||keys.has('d');
@@ -26,6 +27,7 @@ export function makeDriveInput(host: HTMLElement,onDrive: () => void,onExit: () 
     if(k==='Escape'){onExit();return;}
     if(!canDrive())return;
     if(k==='c' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onCamera();e.preventDefault();return;}
+    if(k==='f' && !e.ctrlKey && !e.metaKey && !e.altKey){if(!e.repeat)onFire();e.preventDefault();return;}
     if(!['ArrowLeft','ArrowRight','ArrowDown','a','d',' '].includes(k) || e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement)return;
     keys.add(k);onDrive();e.preventDefault();
   }

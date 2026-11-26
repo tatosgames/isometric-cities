@@ -29,17 +29,14 @@ function extent(layers: Layers): [number,number,number,number]{
 /** Where each building lies in the merged meshes of a sector, by building id. */
 export type SectorBuildings=Map<number,BuildingRange[]>;
 
-/** Decodes `packRanges`. The positions of those meshes will be rewritten: they are uploaded as dynamic. */
+/** Decodes `packRanges`. */
 function unpackRanges(r: Int32Array,group: T.Group): SectorBuildings {
   const buildings: SectorBuildings=new Map();
   for(let k=0;k<r.length;k+=4){
     const mesh=group.children[r[k+1]];
     if(!(mesh instanceof T.Mesh))continue;
     let list=buildings.get(r[k]);
-    if(!list){
-      buildings.set(r[k],list=[]);
-      mesh.geometry.getAttribute('position').setUsage(T.DynamicDrawUsage);
-    }
+    if(!list)buildings.set(r[k],list=[]);
     list.push({mesh,start:r[k+2],count:r[k+3]});
   }
   return buildings;

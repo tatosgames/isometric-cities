@@ -1,6 +1,6 @@
 // Demolition lab (`lab.html?lab=demolizione`): dynamite placed with a click brings the building down into pieces
 // that fly, settle and sink, the building leaves the sector meshes, and a fast swing of the wrecking ball breaks
-// another one while a slow one only leans on it. Screenshots go to QA_SCREENSHOT_DIR (docs/screenshots).
+// another one while a slow one only leans on it, and the drive's gun brings down a wall. Screenshots go to QA_SCREENSHOT_DIR (docs/screenshots).
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {launchBrowser,serveMap} from './qa-browser.mjs';
@@ -27,7 +27,7 @@ try{
 
   // Dynamite on the building nearest the centre: a stick, a fuse, then pieces and dust.
   await page.keyboard.press('2');
-  assert.equal(await view.getAttribute('data-tool'),'dynamite');
+  await page.waitForFunction(()=>document.querySelector('#view').dataset.tool==='dynamite');
   const first=await page.evaluate(()=>window.demolitionLab.target());
   assert.ok(first,'No building under the centre of the view');
   await page.mouse.move(first.x,first.y);
@@ -55,6 +55,21 @@ try{
   await page.waitForTimeout(400);
   await view.screenshot({path:dir+'/demolition-ball.png'});
 
+  // The drive's gun: a click fires the slug level at the wall, it flies, and a wall comes down. A second click
+  // during the cooldown does nothing.
+  const before=await data('demolished');
+  await page.keyboard.press('3');
+  await page.waitForFunction(()=>document.querySelector('#view').dataset.tool==='gun');
+  const third=await page.evaluate(()=>window.demolitionLab.target());
+  assert.ok(third,'No building for the gun');
+  await page.mouse.click(third.x,third.y);
+  await page.mouse.click(third.x,third.y);
+  assert.equal(await data('shots'),1,'The cooldown let a second shot through');
+  await page.waitForFunction(n=>Number(document.querySelector('#view').dataset.demolished)>n,before,{timeout:8000});
+  assert.equal((await page.evaluate(()=>window.demolitionLab.gun())).flying,false);
+  await page.waitForTimeout(400);
+  await view.screenshot({path:dir+'/demolition-gun.png'});
+
   assert.deepEqual(errors,[]);
-  console.log('demolition lab: dynamite, rubble and wrecking ball ok');
+  console.log('demolition lab: dynamite, rubble, wrecking ball and gun ok');
 }finally{await browser.close();if(server)await server.close();}

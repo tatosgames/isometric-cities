@@ -40,6 +40,29 @@ export function wallTone(b: Building){
 }
 
 /**
+ * Takes a building out of merged meshes at once: its vertices collapse to a point, and only they are uploaded.
+ * A buffer whose copy was dropped after upload gets, for that one upload, an array of zeros of its size; only a
+ * rebuilt mesh brings it back. Buffers that keep their copy return the way back.
+ */
+export function hideRanges(ranges: readonly BuildingRange[]){
+  const kept: (()=>void)[]=[];
+  for(const {mesh,start,count} of ranges){
+    const position=mesh.geometry.getAttribute('position');
+    if(!(position instanceof T.BufferAttribute))continue;
+    const first=start*3,length=count*3;
+    if(position.array){
+      const array=position.array,copy=array.slice(first,first+length);
+      kept.push(()=>{array.set(copy,first);position.addUpdateRange(first,length);position.needsUpdate=true;});
+      array.fill(0,first,first+length);
+    }else{
+      (position as unknown as {array: Float32Array}).array=new Float32Array(position.count*3);
+    }
+    position.addUpdateRange(first,length);position.needsUpdate=true;
+  }
+  return ()=>{for(const back of kept)back();};
+}
+
+/**
  * The ranges of `makeCity` by building id, as quadruples of id, mesh index in `meshes`, first vertex and vertex
  * count: the form that crosses from the sector worker, and the one the main thread decodes.
  */

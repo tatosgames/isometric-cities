@@ -30,6 +30,10 @@ The values ​​are those of `TUNE` in `src/drive/drive-tune.ts` as of November
 | Crash of a patrol | – | Thrust towards the wreckage within 40 m, weaker from afar | Dark wreck spinning, smoke for 3 s | «+2» with impact icon | – |
 | Pedestrian near an oncoming vehicle | – | – | The pedestrian dashes sideways at 6.2 m/s for 0.9 s, hopping; if a wall leaves no room, jump over the car | – | – |
 | Arrival at destination | Freeze 100 ms | – | Crown of dust, new beam of light | «+10» large; the drop of the new goal flies from the car to its place in 0.45 s | 40 ms |
+| Shot (button or F, every 3 s) | – | Light shake (0.25) | Fat yellow slug, level 1.1 m above the road along the car, 55 m/s up to 120 m, smoke trail every 4 m, puff at the muzzle, small hop | The ring inside the button fills in 3 s, icon dimmed meanwhile | – |
+| Shot into a building | Freeze 80 ms (not within the gap of another) | Push towards the impact, strong shake (1.2) | The building breaks into 2.5D pieces from the impact (demolition lab), dust, rubble slab; rebuilt after 20 s out of view, once its pieces have sunk | – | 30 ms |
+| Shot into a patrol | – | As a patrol crash, plus shake (0.6) | Wrecked as in a crash, thrown 9 m/s along the shot and 10 m/s up, rolls over, one bounce, stops at walls | «+2» with impact icon | – |
+| Shot into a guagua | – | Push towards it, at 50%, shake (0.8) | Thrown 5 m/s along the shot and 7 m/s up, rolls, lies 3 s as an obstacle, sinks in 1 s; its run does not come back | – | – |
 | Capture | Stopped for 220 ms, then end of game | Full push towards the patrol; after the shutdown, slow approach of 14% | Powder on release | Panel after another 420 ms, record that pulsates if broken | 140 ms |
 
 ## Steering and drifting
@@ -100,7 +104,7 @@ Simple figures without legs, a colored body and a head, which move in hops: they
 
 ## Don't do it
 
-- Reset the random tremor, even a small one, or add it to the thrust.
+- Reset the random tremor, even a small one, or add it to the thrust. Exception, asked by Luca on 26 November 2026: the gun shakes the screen as the demolition lab does (shot, building, patrol, guagua; catalogue above), only for its own events.
 - Use hit-stop for coins or every contact - it becomes a continuous stutter and feels like a performance hit.
 - Stretch a stop beyond 0.12 s. Beyond that threshold the game is read as blocked.
 - Slow motion, full-screen flashes, colored edges, aberrations or blurring. The first two would change the character of the model, the others require a post-processing step that the project does not have.

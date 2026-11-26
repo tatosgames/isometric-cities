@@ -60,7 +60,11 @@ export function driveLab({drive,host,compact,mount,begin}: {
     policeRoadRun:(x:number,y:number,h:number,stars:number)=>drive.roadRunLab(x,y,h,stars),
     policeAdvance:(seconds:number,steer=0,brake=false)=>drive.advanceLab(seconds,steer,brake),
     policeInputs:()=>drive.inputLog(),
-    replayPolice:(inputs:Parameters<typeof drive.replayInputs>[0])=>drive.replayInputs(inputs)
+    replayPolice:(inputs:Parameters<typeof drive.replayInputs>[0])=>drive.replayInputs(inputs),
+    // The gun (`scripts/qa-drive-fire.mjs`): a shot at a map point, and what it did.
+    gunFireAt:(x:number,y:number)=>drive.fireAt(x,y),
+    gunState:()=>drive.gun,
+    gunPlayer:()=>({x:drive.player.x,y:drive.player.y,h:drive.player.h})
   });
   const leaves: Leaf[]=[];
   // The panel shows degrees and km/h; `TUNE` keeps radians and metres per second.
@@ -125,6 +129,7 @@ export function driveLab({drive,host,compact,mount,begin}: {
   const surfaceFolder=gui.addFolder(folders.surfaces).close();
   controllers.set('roughDrag',add(surfaceFolder,tree as Record<string,number>,'roughDrag','roughDrag'));
   walk(surfaceFolder,tree.surfaces as Record<string,unknown>,'surfaces.');
+  walk(gui.addFolder('Gun').close(),tree.weapon as Record<string,unknown>,'weapon.');
   const flightFolder=gui.addFolder('Flight').close();
   const flightFields=[
     ['cruiseSpeed','Cruise speed',KMH,65,180],['bankLimit','Bank limit',DEG,10,55],

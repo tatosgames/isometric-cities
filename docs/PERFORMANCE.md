@@ -78,7 +78,13 @@ Measured with the same script before and after: main-thread time per animation f
 | All rubble slabs in one mesh, rebuilt with each slab | `slab()` in `debris.ts` | One draw call however many buildings come down |
 | Ground shadows of a zone repainted once a frame for however many buildings a blast takes, instead of once per building | `hideBuilding()` and `update()` in `sector-stream.ts` | One repaint per blast |
 
-Left as is: the CPU copies of the building positions kept by `trackBuildings` (only the lab asks for them; zeroing the ranges on the GPU without them would reach into three.js internals), and the per-charge material clone (a handful at a time, same program).
+Left as is: the per-charge material clone (a handful at a time, same program).
+
+| Makeup | Where | Measured effect |
+|---|---|---|
+| `trackBuildings` on the map (for the drive's gun) keeps no copy of the positions: a buffer already uploaded and released gets, for one upload, an array of zeros of its own size, which its release callback drops again. A hidden building comes back with its sector rebuilt from the file once the sector is out of view | `hideRanges()` in `scene.ts`, `showBuilding()` in `sector-stream.ts` | 390 px phone at the place view (`heap-profile.mjs -80,-560,1.59`): ArrayBuffers 20.7 MB without tracking, 33.2 MB keeping the copies, 20.7 MB with the shared zeros; heap 36.8 → 38.2 MB (the ranges). Widest view unchanged (21.9 MB) |
+| Demolished buildings are rebuilt after 20 s out of view, once their pieces have sunk; rubble, ruins and hidden ids go with them. A city that cannot rebuild yet (sector in view) is asked again every 0.5 s, not every frame | `rebuild()` in `drive.ts` | What a drive demolishes does not pile up over a session |
+| Gun bookkeeping: one set of buildings that are down, the demolisher's, read by the drive world when a zone arrives (no rewriting of the resident zones in `main.ts`); a building's walls and block found by reference, its roads re-checked through a node grid instead of all nodes; the cooldown ring animated by a CSS transition, so the frame writes nothing to the DOM while it fills; no allocation per step for lying guaguas; the shake shared with the demolition lab (`demolition/shake.ts`) | `drive-world.ts`, `drive.ts`, `main.ts`, `style.css` | Shorter `main.ts` and `drive-world.ts`; no per-frame DOM writes from the gun |
 
 ## Proven things that are useless
 

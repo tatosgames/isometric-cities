@@ -1,6 +1,7 @@
-import type { Ring } from '../data/types.ts';
+import type { Building, Ring } from '../data/types.ts';
 
-export interface BuildingBlock {rings: Ring[]; base: number; top: number}
+/** `building`: the footprint it came from, for the drive's shots. */
+export interface BuildingBlock {rings: Ring[]; base: number; top: number; building?: Building}
 
 /** Intersect an upward camera ray with a building's extruded footprint, including courtyards.
  * Coordinates are east/north. dx and dy are horizontal metres per metre of elevation.

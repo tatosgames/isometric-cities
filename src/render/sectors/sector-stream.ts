@@ -7,7 +7,7 @@ import {surfaceStencil} from '../building-stencil.ts';
 import { sectorBuilder, type SectorBuildings } from './sector-builder.ts';
 import { overviewGround, overviewSilhouettes } from '../overview.ts';
 import * as T from 'three';
-import { makeCity } from '../scene.ts';
+import { hideRanges, makeCity } from '../scene.ts';
 import { breezy } from '../wind.ts';
 import {makeStaticGroundShadow} from '../static-ground-shadow.ts';
 import { makeGroundMap } from '../ground-map.ts';
@@ -40,7 +40,7 @@ interface StreamOptions {
   /** Footprints of a zone arrive with `data`, and leave with `null`. Collision follows the same residency. */
   onGroundRings?:(rings:Ring[])=>void;
   onZone?:(id:string,data:ZoneData|null)=>void;
-  /** Keep where each building lies in the sector meshes, so that `hideBuilding` can take one away (demolition lab). */
+  /** Keep where each building lies in the sector meshes, so that `hideBuilding` can take one away. */
   trackBuildings?: boolean;
 }
 
@@ -71,7 +71,7 @@ interface ResidentSector {
   prefetch: T.Box3;
   detail: T.Group | null;
   assets: Assets | null;
-  /** With `trackBuildings`: the vertices of each building in `detail`, whose positions stay in memory. */
+  /** With `trackBuildings`: the vertices of each building in `detail`, for `hideBuilding`. */
   buildings: SectorBuildings | null;
   used: number;
   failed: number;
@@ -116,17 +116,17 @@ function resources(group: T.Object3D): Assets {
 // are rebuilt from their files instead (see `forget`), so the copy goes as soon as it is uploaded. Geometry that is
 // still read afterwards, such as the ground a sampler walks, is left out by the caller.
 function release(this: T.BufferAttribute){(this as unknown as {array: null}).array=null;}
-function gpuOnly(root: T.Object3D,keep?: ReadonlySet<T.BufferAttribute>){
+function gpuOnly(root: T.Object3D){
   root.traverse(mesh=>{
     if(!(mesh instanceof T.Mesh))return;
     const geometry=mesh.geometry;
     // Culling needs the bounds, and they are computed from the positions about to go.
     if(!geometry.boundingSphere)geometry.computeBoundingSphere();
-    for(const a of [...Object.values(geometry.attributes),geometry.index])if(a instanceof T.BufferAttribute && !keep?.has(a))a.onUpload(release);
+    for(const a of [...Object.values(geometry.attributes),geometry.index])if(a instanceof T.BufferAttribute)a.onUpload(release);
     // A buffer is uploaded at its first draw, and a mesh outside the view is never drawn: its copy would stay
     // for as long as the zone. Draw it once wherever it is; culling returns with the upload.
     const position=geometry.getAttribute('position');
-    if(!mesh.frustumCulled || !(position instanceof T.BufferAttribute) || keep?.has(position))return;
+    if(!mesh.frustumCulled || !(position instanceof T.BufferAttribute))return;
     mesh.frustumCulled=false;
     position.onUpload(function(this: T.BufferAttribute){release.call(this);mesh.frustumCulled=true;});
   });
@@ -162,18 +162,12 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
    */
   const hidden=new Set<number>();
   let shadowsStale=false;
+  // Footprints taken out of a zone's baked shadows, to put back when the building is rebuilt.
+  const shaded=new Map<number,{zone: string;building: Building}>();
   function standing(zone: ZoneData): ZoneData {
     if(!hidden.size)return zone;
     const keep=zone.buildings.map(b=>!hidden.has(b.id));
     return {...zone,buildings:zone.buildings.filter((_,i)=>keep[i]),owners:zone.owners.filter((_,i)=>keep[i])};
-  }
-  function collapse(ranges: SectorBuildings,id: number){
-    for(const {mesh,start,count} of ranges.get(id)??[]){
-      const position=mesh.geometry.getAttribute('position');
-      if(!(position instanceof T.BufferAttribute) || !position.array)continue;
-      position.array.fill(0,start*3,(start+count)*3);
-      position.addUpdateRange(start*3,count*3);position.needsUpdate=true;
-    }
   }
   const streetPriority=!!data.carriageways&&!legacyRoads,coverage=legacyRoads?undefined:data.roadCoverage;
   // The far ground is painted once from the whole city; merged blocks leave its contact shadows.
@@ -410,13 +404,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       mask?.attach(local.materials.mat,true);mask?.attach(local.materials.road);
       const detail=local.group;
       const assets=resources(detail);
-      const tracked=local.buildings;
-      const keep=new Set<T.BufferAttribute>();
-      for(const ranges of tracked?.values()??[])for(const {mesh} of ranges){
-        const position=mesh.geometry.getAttribute('position');
-        if(position instanceof T.BufferAttribute)keep.add(position);
-      }
-      gpuOnly(detail,keep);
+      gpuOnly(detail);
       const texture=local.groundMap?.texture;
       if(texture){
         assets.bytes+=textureBytes(texture);
@@ -430,7 +418,7 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
         release(other);
       }
       if(bytes+assets.bytes>budget){assets.dispose();return;}
-      s.detail=detail;s.assets=assets;s.buildings=tracked;bytes+=assets.bytes;base.group.add(detail);
+      s.detail=detail;s.assets=assets;s.buildings=local.buildings;bytes+=assets.bytes;base.group.add(detail);
       if(lod?.attach && s.zone.map)transitions.set(s.id,lod.attach(s.low,local,s.zone.map));
       s.low.visible=false;s.failed=0;
     }catch(error){
@@ -494,7 +482,9 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
       shadowsStale=false;
       for(const [zone,list] of casters){
         const kept=list.filter(b=>!hidden.has(b.id));
-        if(kept.length!==list.length){casters.set(zone,kept);masks.get(zone)?.invalidate();}
+        if(kept.length===list.length)continue;
+        for(const building of list)if(hidden.has(building.id))shaded.set(building.id,{zone,building});
+        casters.set(zone,kept);masks.get(zone)?.invalidate();
       }
     }
     const airborne=camera instanceof T.PerspectiveCamera;
@@ -650,9 +640,25 @@ export function streamCity({data,stage='city',neutral,tones,compact,refresh,host
      */
     hideBuilding(id: number){
       hidden.add(id);
-      for(const s of sectors)if(s.buildings)collapse(s.buildings,id);
+      for(const s of sectors)hideRanges(s.buildings?.get(id)??[]);
       shadowsStale=true;
       refresh();
+    },
+    /**
+     * Brings a hidden building back. The sectors that draw it are rebuilt from their files, so this waits (false)
+     * while any of them is in view: call it again later. The zone's silhouettes get it when the zone reloads.
+     */
+    showBuilding(id: number){
+      const holders=sectors.filter(s=>s.buildings?.has(id));
+      if(holders.some(s=>s.inView))return false;
+      hidden.delete(id);
+      for(const s of holders)release(s);
+      const back=shaded.get(id);
+      shaded.delete(id);
+      const list=back && casters.get(back.zone);
+      if(back && list){casters.set(back.zone,[...list,back.building]);masks.get(back.zone)?.invalidate();}
+      refresh();
+      return true;
     },
     get shadowsPending(){return staticEnabled && (requestedZones.length?requestedZones.some(z=>masks.get(z.id)?.pending):!!farMask?.pending);},
     disposeShadows(){farMask?.dispose();for(const mask of masks.values())mask.dispose();},

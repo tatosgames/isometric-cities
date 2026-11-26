@@ -1,8 +1,9 @@
 import type * as T from 'three';
-import type { Altitude, CityData, Place, Ring, ZoneData } from '../data/types.ts';
+import type { Altitude, CityData, Place, Ring, RoofTones, ZoneData } from '../data/types.ts';
 import type { Body } from './drive-physics.ts';
 import type { routesFrom } from './road-routing.ts';
 import type { Zoning } from './drive-world.ts';
+import type { Thrown } from './drive-weapon.ts';
 
 export interface DriveOptions {
   scene: T.Scene;
@@ -31,11 +32,18 @@ export interface DriveOptions {
   demandLanding: (x:number,y:number)=>boolean;
   releaseLanding: ()=>void;
   onExit: () => void;
+  /** Takes a demolished building out of the city meshes, and out of everything loaded later. */
+  hideBuilding: (id: number) => void;
+  /** Puts it back; false while the city cannot rebuild it yet, to ask again later. */
+  showBuilding: (id: number) => boolean;
+  /** The city's building material and roof palette, for the pieces of a demolished building. */
+  buildingMaterial: T.Material;
+  tones: RoofTones | null;
   /** Streamed city: footprints arrive per zone. `resident` holds the zones loaded right now. */
   zoning?: Zoning & {resident: ReadonlyMap<string,ZoneData>};
 }
 
-export interface Vehicle extends Body {
+export interface Vehicle extends Body, Thrown {
   mesh: T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;
   blob: T.Mesh;
   hop: number;

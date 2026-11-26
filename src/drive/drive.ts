@@ -2,7 +2,7 @@ import {makeFlight} from '../flight/flight.ts';
 import {settleTrees,shakeTree} from '../render/wind.ts';
 import {cityDetail} from '../render/dynamic-quality.ts';
 import { carGeometry, carShellHeight, carShellParts, carShellPivot, carWheelParts, tint } from './car-model.ts';
-import type { Point } from '../data/types.ts';
+import type { Building, Point } from '../data/types.ts';
 import { element as el } from '../map/dom.ts';
 import { required } from '../required.ts';
 import {BUILDING_BIT,surfaceStencil} from '../render/building-stencil.ts';
@@ -25,8 +25,13 @@ import {makePedestrians,PEDESTRIANS} from './pedestrians.ts';
 import {DEBRIS,makeDriveEffects,type ParticleKind} from './drive-effects.ts';
 import {makeSurfaceMap,type SurfaceMap} from './drive-surface.ts';
 import {makeCrowdView} from './drive-crowd.ts';
-import {BUS_AXLE,makeGuaguaViews,resolveGuaguaContact} from './guagua.ts';
+import {BUS_AXLE,HALF_LENGTH,HALF_WIDTH,makeGuaguaViews,resolveGuaguaContact} from './guagua.ts';
 import {makeLocalFleet} from './guagua-fleet.ts';
+import {aimShot,fly,launch,makeSlug,segmentBox,segmentCircle,shotBlast,type Shot,type Thrown} from './drive-weapon.ts';
+import {makeDemolisher} from '../demolition/demolish.ts';
+import {makeShake} from '../demolition/shake.ts';
+import {DEBRIS_TUNE} from '../demolition/debris.ts';
+import {ringCenter} from '../data/sector-index.ts';
 import {CAPTURE,COINS,SURFACES,TUNE,wrap} from './drive-tune.ts';
 
 // Ratios that keep a single tuning value for related effects. At the defaults they give the earlier separate
@@ -56,7 +61,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 
 
-export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,flightTerrainCeiling,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false}: DriveOptions){
+export function makeDrive({scene,camera,renderer,host,data,locations,streets,altitude,groundAt,view,mapDirection,compact,busArea,buses,onExit,flightArea,flightGround,flightTerrainCeiling,redraw,demandLanding,releaseLanding,zoning,police=true,endless=false,hideBuilding,showBuilding,buildingMaterial,tones}: DriveOptions){
   let world: ReturnType<typeof buildDriveWorld> | null=null;
   let location: ReturnType<typeof makeDriveLocation> | undefined;
   const street=el('drive-street'),barrio=el('drive-barrio');
@@ -77,17 +82,17 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     rig.cycle();showMode();
     for(const c of chasers)c.visibleFor=-1;
   }
-  // A second finger can tap while the primary pointer keeps steering.
-  button.onpointerup=e=>{
-    if(e.pointerType==='touch' && document.elementFromPoint(e.clientX,e.clientY)?.closest('button')===button){
-      cycleCamera();host.focus({preventScroll:true});
-    }
-  };
-  button.onclick=e=>{
-    if(e instanceof PointerEvent && e.pointerType==='touch')return;
-    cycleCamera();host.focus({preventScroll:true});
-  };
-  const controls=makeDriveInput(host,go,onExit,cycleCamera,()=>state!=='caught');
+  // A second finger can tap a HUD button while the primary pointer keeps steering: a touch acts on pointerup, the
+  // mouse on click.
+  function tapped(target: HTMLElement,action: ()=>void){
+    return (e: MouseEvent)=>{
+      const touch=e instanceof PointerEvent && e.pointerType==='touch';
+      if(e.type==='pointerup'?!touch || document.elementFromPoint(e.clientX,e.clientY)?.closest('button')!==target:touch)return;
+      action();host.focus({preventScroll:true});
+    };
+  }
+  button.onpointerup=button.onclick=tapped(button,cycleCamera);
+  const controls=makeDriveInput(host,go,onExit,cycleCamera,()=>state!=='caught',()=>fire());
 
 
   // ---- scene objects ----
@@ -109,16 +114,16 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     const mesh=new T.Mesh(geometry,paint),blob=new T.Mesh(blobGeometry,blobMaterial);
     mesh.scale.setScalar(TUNE.visualScale);group.add(mesh,blob);
     mesh.rotation.order='YXZ';blob.rotation.order='YXZ';
-    return {...restBody(),...feel(),hop:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0,treeHit:{x:0,y:0,speed:0}};
+    return {...restBody(),...feel(),hop:0,lift:0,lv:0,tumble:0,tumbleRate:0,mesh,blob,wreck:0,stuck:0,trail:null,puff:0,node:-1,tilt:0,treeHit:{x:0,y:0,speed:0}};
   }
   const lightGeometry=new T.BoxGeometry(.3,.24,1.05).translate(-.2,1.66,0);
   const lightRed=new T.MeshBasicMaterial({...surfaceStencil(),color:'#ff3b30'}),lightBlue=new T.MeshBasicMaterial({...surfaceStencil(),color:'#2f7bff'});
   let busViews:ReturnType<typeof makeGuaguaViews>|undefined;
   let fleet:ReturnType<typeof makeLocalFleet>|undefined;
   let fleetSteps=0,fleetCpu=0,runGeneration=0;
-  function inCameraFrame(x:number,y:number){
+  function inCameraFrame(x:number,y:number,reach=0){
     const [px,py]=project(x,y,2);
-    const margin=7*camera.zoom;
+    const margin=(7+reach)*camera.zoom;
     return px>=-margin && py>=-margin && px<=host.clientWidth+margin && py<=host.clientHeight+margin;
   }
   function busOccupied(x:number,y:number,h:number){
@@ -138,6 +143,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     if(fleet)for(const bus of fleet.active){
       if(resolveGuaguaContact(bus.state,car,TUNE.radius))hit=true;
     }
+    // A thrown guagua blocks the road where it lies, until it sinks.
+    for(const k of knocked)if(!k.lift && k.rest>0 && resolveGuaguaContact(k,car,TUNE.radius))hit=true;
     if(start)fleetCpu+=performance.now()-start;
     return hit;
   }
@@ -197,8 +204,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     // The whole car, wheels and shadow included, follows the road: it pivots on the ground under its centre.
     const slope=groundPitch(groundAt,b.x,b.y,yaw,HALF_BASE*TUNE.visualScale,TILT_LIMIT);
     b.tilt+=(slope-b.tilt)*approach(TILT_RATE,dt);
-    b.mesh.position.set(b.x,z+.72+b.hop+b.shake*SHAKE_LIFT*(Math.sin(b.odo*2.9)+.5*Math.sin(b.odo*7.3+1.1)),-b.y);
-    b.mesh.rotation.set(roll,yaw,pitch+b.tilt);
+    b.mesh.position.set(b.x,z+.72+b.hop+b.lift+b.shake*SHAKE_LIFT*(Math.sin(b.odo*2.9)+.5*Math.sin(b.odo*7.3+1.1)),-b.y);
+    b.mesh.rotation.set(roll+b.tumble,yaw,pitch+b.tilt);
     b.blob.position.set(b.x,z+.76,-b.y);
     b.blob.rotation.set(0,yaw,b.tilt);
     return z;
@@ -364,7 +371,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     redraw();
   }
   function clearCapture(){
-    flightButton.hidden=false;
+    flightButton.hidden=fireButton.hidden=false;
     capture=null;
     over.hidden=actions.hidden=true;
     over.inert=false;
@@ -403,6 +410,105 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     if(d<1e-5)return;
     kickVX+=dx/d*strength*TUNE.kick;kickVY+=dy/d*strength*TUNE.kick;
   }
+  // ---- gun ----
+  const W=TUNE.weapon,SHOT_HEIGHT=1.1;
+  const slug=makeSlug(group),quake=makeShake();
+  // The rubble outlives the run: it stays in the scene until its building is rebuilt.
+  const demolisher=makeDemolisher({material:buildingMaterial,altitude,tones,hide:hideBuilding});
+  scene.add(demolisher.root);
+  const fireButton=el('drive-fire'),coolRing=required(fireButton.querySelector('circle'),'cooldown ring');
+  let cool=0,cooling=false,shot: Shot | null=null,trailLeft=0;
+  // Demolished buildings wait to be rebuilt; guaguas thrown off the road lie there, then sink.
+  const ruins: {building: Building;x: number;y: number;reach: number;away: number;age: number}[]=[];
+  const knocked: (Thrown & {line: string;x: number;y: number;h: number;speed: number;rest: number})[]=[];
+  const rayFrom=new T.Vector3(),rayDir=new T.Vector3();
+  /** A slug level from the nose, along the car or (lab checks) towards a world point. False while it cools. */
+  function fire(at?: T.Vector3){
+    if(state!=='playing' || capture || held || cool>0 || (aircraft && aircraft.phase!=='off'))return false;
+    const heading=at?Math.atan2(-at.z-player.y,at.x-player.x):player.h;
+    const c=Math.cos(heading),s=Math.sin(heading),x=player.x+c*2.2,y=player.y+s*2.2,z=groundAt(x,y)+SHOT_HEIGHT;
+    const {t,building}=activeWorld().rayHit(rayFrom.set(x,z,-y),rayDir.set(c,0,-s),W.range);
+    shot=aimShot(x,y,z,heading,t,building,W.range);
+    cool=W.cooldown;
+    player.hop=Math.max(player.hop,.12);quake.add(.25);
+    puff(x,y,'smoke',c*6,s*6);
+    // The ring fills by itself, a CSS transition over the cooldown.
+    cooling=true;fireButton.classList.add('cooling');fireButton.setAttribute('aria-disabled','true');
+    coolRing.style.transition='none';fireButton.style.setProperty('--cool','0');void coolRing.getBoundingClientRect();
+    coolRing.style.transition='stroke-dashoffset '+W.cooldown+'s linear';fireButton.style.setProperty('--cool','100');
+    return true;
+  }
+  /** Moves the slug one step; it stops at the first patrol or guagua on its way, else at its wall or its reach. */
+  function advanceShot(dt: number){
+    if(!shot)return;
+    const length=Math.min(shot.left,W.speed*dt),ax=shot.x,ay=shot.y,dx=shot.dx,dy=shot.dy;
+    const bx=ax+dx*length,by=ay+dy*length;
+    let first=1,patrolHit: Patrol | undefined,busHit: NonNullable<typeof fleet>['active'][number] | undefined;
+    for(const c of chasers){
+      if(c.wreck)continue;
+      const t=segmentCircle(ax,ay,bx,by,c.x,c.y,TUNE.radius+.4);
+      if(t<=first){first=t;patrolHit=c;}
+    }
+    for(const bus of fleet?.active??[]){
+      const t=segmentBox(ax,ay,bx,by,bus.state.x,bus.state.y,bus.state.h,HALF_LENGTH+.1,HALF_WIDTH+.15);
+      if(t<=first){first=t;busHit=bus;patrolHit=undefined;}
+    }
+    const travelled=length*first;
+    trailLeft-=travelled;
+    if(trailLeft<=0){trailLeft=4;puff(shot.x,shot.y,'smoke',-dx*2,-dy*2);}
+    shot.x+=dx*travelled;shot.y+=dy*travelled;shot.z=groundAt(shot.x,shot.y)+SHOT_HEIGHT;shot.left-=travelled;
+    if(patrolHit){
+      // Wrecked as in a crash, then thrown along the shot.
+      wreck(patrolHit);launch(patrolHit,dx,dy,W.launch,W.lift);quake.add(.6);
+      shot=null;return;
+    }
+    if(busHit && fleet){
+      fleet.knock(busHit);
+      const {x,y,h}=busHit.state,k={line:busHit.line,x,y,h,speed:0,rest:W.busRest,lift:0,lv:0,tumble:0,tumbleRate:0,vx:0,vy:0};
+      launch(k,dx,dy,W.busLaunch,W.busLift);knocked.push(k);
+      kick(x-player.x,y-player.y,.5);quake.add(.8);
+      for(let i=0;i<6;i++)puff(x+Math.cos(i)*2,y+Math.sin(i)*2,'smoke');
+      shot=null;return;
+    }
+    if(shot.left>1e-6)return;
+    const b=shot.building;
+    if(b){
+      const [cx,cy]=ringCenter(b.rings[0]);
+      activeWorld().removeBuilding(b);
+      demolisher.demolish(b,altitude(...b.rings[0][0]),shotBlast(shot,W));
+      ruins.push({building:b,x:cx,y:cy,reach:Math.max(...b.rings[0].map(([x,y])=>Math.hypot(x-cx,y-cy))),away:0,age:0});
+      kick(shot.x-player.x,shot.y-player.y,.6);buzz(30);quake.add(1.2);
+      if(!stopCool){stop(.08);stopCool=TUNE.stopGap;}
+    }else for(let i=0;i<4;i++)puff(shot.x,shot.y,'dirt',(Math.random()-.5)*4,(Math.random()-.5)*4);
+    shot=null;
+  }
+  /** A thrown body moves along its throw until a wall or a tree stops it: it never lands inside a building. */
+  function glide(b: {x: number;y: number;vx: number;vy: number},dt: number,radius: number){
+    if(!b.vx && !b.vy)return;
+    const x=b.x+b.vx*dt,y=b.y+b.vy*dt;
+    if(activeWorld().free(x,y,radius)){b.x=x;b.y=y;}else b.vx=b.vy=0;
+  }
+  function throwBuses(dt: number){
+    for(let i=knocked.length-1;i>=0;i--){
+      const k=knocked[i];
+      glide(k,dt,1.3);
+      if(!fly(k,dt,W.gravity) && (k.rest-=dt)< -W.busSink)knocked.splice(i,1);
+    }
+  }
+  /**
+   * A building out of view for `W.rebuild` seconds, its pieces sunk, stands again and its rubble goes: nothing piles
+   * up. `force` (leaving the drive) skips the waits. The city may not rebuild it yet: then it asks again in 0.5 s.
+   */
+  function rebuild(dt: number,force=false){
+    for(let i=ruins.length-1;i>=0;i--){
+      const r=ruins[i];
+      r.age+=dt;r.away=inCameraFrame(r.x,r.y,r.reach)?0:r.away+dt;
+      if(!force && (r.away<W.rebuild || r.age<DEBRIS_TUNE.life+DEBRIS_TUNE.sink))continue;
+      if(!showBuilding(r.building.id)){r.away=W.rebuild-.5;continue;}
+      world?.restoreBuilding(r.building);demolisher.restore(r.building.id);ruins.splice(i,1);
+    }
+  }
+  fireButton.onpointerup=fireButton.onclick=tapped(fireButton,()=>fire());
   function trail(){
     const world=activeWorld();
     const from=world.nearestNode(player.x,player.y);
@@ -580,7 +686,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     for(const c of chasers)group.remove(c.mesh,c.blob);
     chasers=[];held=false;freeze=stopCool=kickX=kickY=kickVX=kickVY=0;release=null;score=0;time=0;grace=TUNE.grace;acc=0;routeAge=1;field=null;route.clear();
     puffArmed=true;
-    sparkCool=0;
+    sparkCool=0;cool=0;shot=null;knocked.length=0;quake.clear();
     playerPose.reset();
     resetEffects();
     Object.assign(player,restBody(),feel(),{x:n.x,y:n.y,trail:null,hop:0,tilt:0,slopeAccel:undefined});
@@ -619,7 +725,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     kick(by.x-player.x,by.y-player.y,1);
     // The contact holds for a beat; dust and the push-in start when it lets go.
     stop(TUNE.hitStop*STOP_CAUGHT,()=>{for(let k=0;k<6;k++)puff(player.x+Math.cos(k)*1.5,player.y+Math.sin(k)*1.5);});
-    flightButton.hidden=true;finishResult('Atrapado');
+    flightButton.hidden=fireButton.hidden=true;finishResult('Atrapado');
   }
   function finishResult(title:string){
     el('over-title').textContent=title;
@@ -657,7 +763,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   function step(dt: number){
     const world=activeWorld();
     landingTruce=Math.max(0,landingTruce-dt);
-    time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);
+    time+=dt;grace=Math.max(0,grace-dt);stopCool=Math.max(0,stopCool-dt);cool=Math.max(0,cool-dt);
+    advanceShot(dt);throwBuses(dt);
     if(fleet){
       const start=endless?performance.now():0;
       fleet.step(dt,player.x,player.y);
@@ -705,6 +812,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       const c=chasers[i];
       if(c.wreck>0){
         c.wreck=Math.max(0,c.wreck-dt);c.puff-=dt;c.h+=dt*14*Math.max(0,c.wreck-TUNE.wreckTime+.45);
+        if(c.lift>0 || c.lv){glide(c,dt,TUNE.radius);fly(c,dt,W.gravity);}
         if(c.puff<=0 && c.wreck>0){c.puff=.12;puff(c.x,c.y,'smoke');}
         if(!c.wreck)retire(c);
         continue;
@@ -744,7 +852,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     }
     for(let i=0;i<chasers.length;i++){
       const a=chasers[i];
+      if(a.lift>0)continue;
       for(let j=i+1;j<chasers.length;j++){
+        if(chasers[j].lift>0)continue;
         const impact=bump(a,chasers[j]);
         if(impact>TUNE.hardImpact && !a.wreck && !chasers[j].wreck){wreck(a);wreck(chasers[j]);}
       }
@@ -909,6 +1019,13 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       busView.mesh.rotation.set(0,h,groundPitch(groundAt,x,y,h,BUS_AXLE,TILT_LIMIT));
       busView.brake.visible=braking;
     }
+    for(const k of knocked){
+      busViews??=makeGuaguaViews(group,paint,lightRed);
+      const view=busViews.show(busSlot++,k.line),sink=k.rest<0?-k.rest/W.busSink*3.6:0;
+      view.mesh.position.set(k.x,groundAt(k.x,k.y)+.72+k.lift-sink,-k.y);
+      view.mesh.rotation.set(k.tumble,k.h,0);
+      view.brake.visible=false;
+    }
     busViews?.hideAfter(busSlot);
     if(fleetRenderStart)fleetCpu+=performance.now()-fleetRenderStart;
     const shake=player.shake,odo=player.odo;
@@ -926,6 +1043,10 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     });
     beacon.scale.set(1+Math.sin(spin*.8)*.08,1,1+Math.sin(spin*.8)*.08);beacon.visible=!!route.target && !capture;
     updateEffects(dt);
+    if(demolisher.update(freeze?0:dt) && renderer.shadowMap.enabled)renderer.shadowMap.needsUpdate=true;
+    slug.show(shot);
+    if(!freeze)rebuild(dt);
+    if(cooling && !cool){cooling=false;fireButton.classList.remove('cooling');fireButton.setAttribute('aria-disabled','false');}
     // Pedestrians hold with the simulation during a hit-stop, and keep strolling before the start and after a capture.
     let walking=0,clearance=99;
     if(people){
@@ -966,6 +1087,8 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     const zoom=base*zoomNow*pose.zoom;
     // Aim at the ground point the camera shows above the car, so the car sits lower on screen by `framing`.
     targetPoint.set(focus.x+kickX,focus.y,focus.z-kickY);
+    const sway=quake.offset(wallDt);
+    if(sway){targetPoint.x+=(Math.random()-.5)*sway;targetPoint.z+=(Math.random()-.5)*sway;}
     view(screenOffsetOnGround(targetPoint,targetPoint,0,-host.clientHeight*pose.framing,zoom,pose.direction),zoom,pose.direction);
     // Coins spin about the screen's vertical axis, facing the camera at the start of each turn:
     // seen from above, a coin spinning about the world's vertical never shows its whole face.
@@ -1036,7 +1159,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
   // Road graph, surface map, walls of the zones in memory, walkers: seconds of work on a slow phone, in steps that
   // leave room for a frame between them. The walkers come last, so they tell that all of it is there.
   function* build(){
-    if(!world){world=buildDriveWorld(data,altitude,TUNE,zoning);yield;}
+    if(!world){world=buildDriveWorld(data,altitude,TUNE,zoning,demolisher.demolished);yield;}
     if(!surfaceMap){surfaceMap=makeSurfaceMap(data.roads,data.surfaces,streets);yield;}
     for(const [id,zone] of zoning?.resident??[]){world.addZone(id,zone.buildings,zone.trees);yield;}
     people??=makePedestrians(data.roads,data.surfaces,world,WALKERS);
@@ -1103,6 +1226,15 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
       secondsOutOfView=0;policing=on;director.reset();staging=undefined;arrivalPending=false;perceptionAge=0;spawnDelay=0;showStars(on?1:0);
       if(!on){for(const c of chasers)group.remove(c.mesh,c.blob);chasers=[];}
     },
+    /** Lab checks: a shot at a map point as if it were at the centre of the screen. False while the gun cools. */
+    fireAt(x: number,y: number){
+      if(!endless)return false;
+      go();
+      return fire(new T.Vector3(x,altitude(x,y),-y));
+    },
+    /** Lab checks: the gun, what it brought down and threw. */
+    get gun(){return {cool,flying:!!shot,demolished:demolisher.demolished.size,pieces:demolisher.pieces,ruins:ruins.length,
+      knockedBuses:knocked.length,wrecks:chasers.filter(c=>c.wreck).length};},
     /** Every run from now on starts at the road node nearest to this point. */
     startAt(point: Point){fixedStart=point;},
     /** Back to the start with a fresh run. */
@@ -1149,6 +1281,9 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     exit(){
       if(state==='off')return;
       endFlight();state='off';runGeneration++;cancelAnimationFrame(raf);raf=0;scene.remove(group);group.visible=true;
+      // The pieces in the air settle at once; buildings whose sectors are out of view stand again.
+      demolisher.update(Infinity);rebuild(0,true);
+      shot=null;knocked.length=0;
       settleTrees(Infinity);
       fleet?.dispose();fleet=undefined;busViews?.dispose();busViews=undefined;
       controls.deactivate();
