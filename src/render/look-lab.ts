@@ -103,21 +103,32 @@ export function writeTune(url: URL, tune: MatcapTune) {
 }
 
 /**
- * The toon matcap computed from the normal in the shader, instead of read from a painted texture.
- * Some Android drivers (Adreno 630 on the Pixel 3) sampled the sRGB matcap texture painted on a canvas as black,
- * which turned every lit surface black. The formula is the one the texture was painted with: three bands on the
- * cosine to a light from the upper left, plus a rim, in sRGB and then decoded to linear like the texture was.
+ * The toon matcap computed in the shader instead of read from a texture painted on a canvas.
+ * Some Android drivers (Adreno 630 on the Pixel 3) sampled that sRGB canvas texture as black,
+ * which turned every lit surface black. To keep the image identical, the shader rebuilds what the texture gave:
+ * the four 128 px texels around the normal, each painted with the same formula (three bands on the cosine to a
+ * light from the upper left, plus a rim) and rounded to 8 bits as the canvas stored it, decoded from sRGB and
+ * blended bilinearly as the GPU filtered it.
  */
+const matcapSize = 128;
+const matcapFunctions = `
+  vec3 lookTexel(vec2 index) {
+    vec2 n = (index + .5) / ${matcapSize / 2}. - 1.;
+    float r2 = dot(n, n);
+    if (r2 > .999) { n *= sqrt(.999 / r2); r2 = .999; }
+    float z = sqrt(1. - r2);
+    float d = dot(vec3(n, z), vec3(-.35, .55, .76) / length(vec3(-.35, .55, .76)));
+    float a = smoothstep(lookBands.x, lookBands.y, d), b = smoothstep(lookBands.z, lookBands.w, d);
+    vec3 srgb = min(vec3(255.), (lookShade + (lookMid - lookShade) * a) * (1. - b) + lookLit * b + pow(1. - z, 3.) * lookRim * 255.);
+    srgb = floor(srgb + .5) / 255.;
+    return mix(pow((srgb + .055) / 1.055, vec3(2.4)), srgb / 12.92, vec3(lessThanEqual(srgb, vec3(.04045))));
+  }`;
 const matcapShader = `
-  vec2 lookN = normal.xy * .99;
-  float lookR2 = dot(lookN, lookN);
-  if (lookR2 > .999) { lookN *= sqrt(.999 / lookR2); lookR2 = .999; }
-  float lookZ = sqrt(1. - lookR2);
-  float lookD = dot(vec3(lookN, lookZ), vec3(-.35, .55, .76) / length(vec3(-.35, .55, .76)));
-  float lookA = smoothstep(lookBands.x, lookBands.y, lookD), lookB = smoothstep(lookBands.z, lookBands.w, lookD);
-  float lookRimGlow = pow(1. - lookZ, 3.) * lookRim;
-  vec3 lookSrgb = min(vec3(1.), mix(lookShade, lookMid, lookA) * (1. - lookB) + lookLit * lookB + lookRimGlow);
-  vec3 lookMatcap = sRGBTransferEOTF(vec4(lookSrgb, 1.)).rgb;`;
+  vec2 lookTexelPos = (normal.xy * .495 + .5) * ${matcapSize}. - .5;
+  vec2 lookCell = floor(lookTexelPos), lookT = lookTexelPos - lookCell;
+  vec2 lookP0 = clamp(lookCell, 0., ${matcapSize - 1}.), lookP1 = clamp(lookCell + 1., 0., ${matcapSize - 1}.);
+  vec3 lookMatcap = mix(mix(lookTexel(lookP0), lookTexel(vec2(lookP1.x, lookP0.y)), lookT.x),
+    mix(lookTexel(vec2(lookP0.x, lookP1.y)), lookTexel(lookP1), lookT.x), lookT.y);`;
 
 /** Post-processing settings of a tune, for `makeQualityOutput().setPost`. */
 export function tunePost(tune: MatcapTune) {
@@ -126,7 +137,7 @@ export function tunePost(tune: MatcapTune) {
 }
 
 export function makeMatcapLook(initial: MatcapTune) {
-  const rgb = (c: RGB) => new T.Vector3(c[0] / 255, c[1] / 255, c[2] / 255);
+  const rgb = (c: RGB) => new T.Vector3(...c);
   const shade = {value: new T.Vector3()}, mid = {value: new T.Vector3()}, light = {value: new T.Vector3()};
   const bands = {value: new T.Vector4()}, rim = {value: 0}, gain = {value: 1}, bounce = {value: 0};
   function set(tune: MatcapTune) {
@@ -151,7 +162,7 @@ export function makeMatcapLook(initial: MatcapTune) {
       Object.assign(shader.uniforms, {lookShade: shade, lookMid: mid, lookLit: light, lookBands: bands, lookRim: rim,
         lookGain: gain, lookBounce: bounce});
       shader.fragmentShader = 'uniform vec3 lookShade, lookMid, lookLit; uniform vec4 lookBands;'
-        + ' uniform float lookRim, lookGain, lookBounce;\n'
+        + ' uniform float lookRim, lookGain, lookBounce;\n' + matcapFunctions + '\n'
         + shader.fragmentShader.replace('#include <opaque_fragment>', `
         // Orthographic: one view direction, so the matcap depends on the normal only.
         ${matcapShader}
@@ -160,7 +171,7 @@ export function makeMatcapLook(initial: MatcapTune) {
         outgoingLight += diffuseColor.rgb * vec3(1., .82, .64) * lookBounce * .45 * smoothstep(-.1, .6, -normal.y);
         #include <opaque_fragment>`);
     };
-    material.customProgramCacheKey = () => innerKey + '/look-matcap-2';
+    material.customProgramCacheKey = () => innerKey + '/look-matcap-3';
     material.needsUpdate = true;
   };
   return {
