@@ -1471,6 +1471,10 @@ La build, il typecheck e la suite generale (`npm test`) sono passati su Chromium
 
 `node scripts/qa-dynamic-quality.mjs` verifica 30 FPS uniformi, intervalli alternati da circa 17 e 50 ms, calo da 60 a 30 durante il movimento, ritorno ai 60 FPS dopo un alleggerimento e annullamento di una promozione troppo costosa. La regolarità osservata permette di scegliere un obiettivo operativo. La causa fisica del limite e il consumo energetico richiedono misure su dispositivo.
 
+### Estrazione del controller riutilizzabile
+
+La prova della città confronta gli indici esatti dei fotogrammi in cui il controller cambia livello con una traccia raccolta prima dell’estrazione. La sequenza include calibrazione, riposo, caricamento, movimento fluido e rallentamento. Coincidono dieci transizioni sul profilo compatto e quattro sul desktop. La cartella copiata da sola in una directory temporanea supera i tre test con Node 24, usando un profilo particellare e nessuna dipendenza installata. Per ripetere la prova eseguire `node --test adaptive-quality.test.mjs` dalla copia.
+
 ## Piper
 
 In tre scenari sintetici, la simulazione riproduceva 9,28 s di arresto davanti a una fascia di 14 m fuori copertura, un salto di quota da 582 a 460 m sopra una scarpata e una facciata alta 110 m fra il Piper e la camera. Le regressioni verificano il movimento lungo il confine, la quota costante in volo livellato e la visuale fino alla coda. Una quarta prova misura la salita della camera durante la picchiata e il ritorno alla distanza verticale di crociera al rilascio del comando.
@@ -1485,3 +1489,10 @@ La simulazione delle scie verifica a 30 e 120 FPS il volo livellato, la lunghezz
 `node scripts/qa-flight.mjs` usa Chrome sulla build. Sul pilota verifica decollo da fermo, virata, perdita e recupero WebGL, rientro, nuovo decollo, incidente e nuova partita. Sulla città a settori verifica la virata con un dito a 390×844, il passaggio in orizzontale e il rientro su strada. [Vista sul pilota](screenshots/piper-pilot.png) · [Vista verticale sulla città](screenshots/piper-city.png).
 
 Nella prova costiera il Piper è passato da (186,5; −1011) a (346,8; −1011), attraversando il bordo di un settore da 240 m. Il comando di rientro è partito a 40,1 m di quota, sopra un poligono di mare di `sea.json`. L’auto ha ripreso su Avenida Marítima a 0,92 m da un nodo della rete. Il cronometro è avanzato da 0:06 a 0:10 conservando le monete.
+Typecheck, build e calibrazioni Chromium a 30 e 60 Hz simulati superati. La suite completa è passata su una build isolata con timeout di navigazione di 120 secondi. Due esecuzioni precedenti si erano fermate rispettivamente durante una navigazione HTTP e sul controllo del colore della scena alla fine della guida.
+
+### Decisioni del controller e buffer WebGL
+
+Il test portabile controlla ordine degli eventi, target e p95 del rallentamento, interruzione da input, caricamento e scadenza durante la preparazione. Il test della città prova il passaggio tra schermi a DPR 1 e 2, in entrambi i sensi. La prova browser del laboratorio confronta il pannello con `drawingBufferWidth` e `drawingBufferHeight` del contesto WebGL e cambia il DPR lasciando uguale il viewport CSS.
+
+La revisione del controller copre quattro regressioni con test deterministici: un solo callback al reset durante una prova, calibrazione coerente con il massimo consentito, motivo distinto per la fascia FPS neutra e scarto dei timestamp fuori ordine. Il confronto della città continua a controllare i fotogrammi delle 14 transizioni di riferimento.

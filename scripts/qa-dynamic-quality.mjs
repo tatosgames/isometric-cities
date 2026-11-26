@@ -122,3 +122,11 @@ function stageTrace(compact){
 assert.deepEqual(stageTrace(true),[[181,1],[981,2],[1583,3],[1702,2],[1751,1],[1800,0],[1849,-1],[1898,-2],[2522,-1],[2824,0]]);
 assert.deepEqual(stageTrace(false),[[1749,1],[1798,0],[1847,-1],[1896,-2]]);
 console.log('Dynamic quality: profiles, timing, recovery, interrupts and cooldowns passed.');
+
+const display=device();
+display.policy.updateViewport(390,844,1);
+assert.equal(display.run(60,40).stage,2,'DPR 1.25 would render the same pixels on this display');
+display.policy.updateViewport(390,844,2);
+assert.equal(display.run(60,12).stage,3,'retina display makes the next step available');
+display.policy.updateViewport(390,844,1);
+assert.equal(display.policy.config.stage,2,'changing back to DPR 1 clamps only the redundant step');

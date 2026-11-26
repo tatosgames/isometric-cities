@@ -77,3 +77,81 @@ test('flag presets apply at startup, trial, rollback and reset, once per transit
   quality.reset();
   assert.equal(applied.at(-1),flags[0]);
 });
+
+test('decision events describe each transition once with the last completed measurement',()=>{
+  const events=[];
+  const q=createAdaptiveQuality({...profile,onDecision:event=>events.push(event)});
+  q.beginCalibration(0);
+  const run=timeline(q);
+  run(30,170,'calibration');
+  run(30,300,'resting');
+  run(24,75);
+  assert.deepEqual(events.map(e=>[e.action,e.reason]),[
+    ['calibration','startup'],['trial','stable'],['confirm','stable'],['reduce','slow']
+  ]);
+  assert.equal(events[0].fps,null);
+  const last=events.at(-1);
+  assert.equal(last.targetFps,30);
+  assert.equal(last.from,levels[2]);
+  assert.equal(last.to,levels[1]);
+  assert.ok(Math.abs(last.p95Ms-1000/24)<.01);
+});
+
+test('input, loading, and preparation timeout explain separate cancellations',()=>{
+  for(const reason of ['input','loading','preparing']){
+    const events=[];
+    const q=createAdaptiveQuality({...profile,onDecision:event=>events.push(event)});
+    q.beginCalibration(0);
+    timeline(q)(60,200,'calibration');
+    if(reason==='input')q.interrupt('input');
+    else q.sample(reason==='loading'?3500:6100,{mode:'calibration',ready:reason!=='loading',preparing:reason==='preparing'});
+    assert.equal(events.at(-1).action,'cancel');
+    assert.equal(events.at(-1).reason,reason);
+    assert.equal(events.at(-1).to,levels[1]);
+    q.interrupt();
+    assert.equal(events.length,3);
+  }
+});
+
+test('reset during a trial applies the starting level once, directly from the trial',()=>{
+  const applied=[],events=[];
+  const q=createAdaptiveQuality({...profile,applyLevel:v=>applied.push(v),onDecision:e=>events.push(e)});
+  q.beginCalibration(0);
+  timeline(q)(60,200,'calibration');
+  applied.length=events.length=0;
+  q.reset();
+  assert.deepEqual(applied,[levels[1]]);
+  assert.deepEqual(events.map(e=>[e.action,e.from,e.to]),[['reset',levels[2],levels[1]]]);
+});
+
+test('an unavailable promotion never leaves a calibration pending or running',()=>{
+  const q=createAdaptiveQuality(profile);
+  q.setMaxIndex(1);
+  assert.equal(q.calibrationPending,false);
+  q.setMaxIndex(2);
+  assert.equal(q.calibrationPending,true);
+  q.beginCalibration(0);
+  q.setMaxIndex(1);
+  assert.equal(q.calibrating,false);
+  q.setMaxIndex(2);
+  assert.equal(q.calibrationPending,false);
+});
+
+test('a neutral measurement cancels a probe without reporting a slow frame rate',()=>{
+  const events=[];
+  const q=createAdaptiveQuality({...profile,onDecision:e=>events.push(e)});
+  q.beginCalibration(0);
+  timeline(q)(55,200,'calibration');
+  assert.equal(events.at(-1).reason,'insufficient-headroom');
+});
+
+test('a stale timestamp cannot inflate the following measured frame',()=>{
+  const q=createAdaptiveQuality({...profile,calibrate:false});
+  const frame={mode:'moving',ready:true};
+  for(let t=0;t<=1000;t+=20){
+    q.sample(t,frame);
+    q.sample(t-100,frame);
+  }
+  assert.equal(q.state.fps,50);
+  assert.equal(q.state.p95Ms,20);
+});

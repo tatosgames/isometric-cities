@@ -20,12 +20,31 @@ try{
       fn(clock);
     });
   },fps);
-  await page.goto(origin+'?area=pilot');
+  await page.goto(origin+'?area=pilot&lab=qualita');
   await page.waitForSelector('#scene[data-shadows="off"][data-aa="off"][data-dpr="1"]');
   await page.waitForSelector('#scene[data-shadows="static"][data-aa="off"][data-dpr="1"]',{timeout:30000});
   await page.waitForTimeout(4000);
   assert.equal(await page.locator('#scene').getAttribute('data-shadows'),'static');
   assert.equal(await page.locator('#scene').getAttribute('data-aa'),'off');
+  const report=page.locator('#quality-diagnostics');
+  await page.waitForFunction(()=>document.getElementById('quality-diagnostics')?.textContent.includes('confirm (stable)'));
+  const size=await page.locator('#scene canvas').evaluate(canvas=>{
+    const gl=canvas.getContext('webgl2');
+    return `${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`;
+  });
+  assert.ok((await report.innerText()).includes(`Buffer ${size} px`));
+  assert.ok((await report.innerText()).includes(`target ${fps}`));
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride',{
+    width:390,height:844,mobile:true,deviceScaleFactor:.8
+  });
+  await page.waitForFunction(old=>document.getElementById('quality-diagnostics')?.textContent.includes(old+' → '),size);
+  const resized=await page.locator('#scene canvas').evaluate(canvas=>{
+    const gl=canvas.getContext('webgl2');
+    return `${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`;
+  });
+  assert.notEqual(resized,size);
+  assert.ok((await report.innerText()).includes(`${size} → ${resized} px`));
   assert.deepEqual(errors,[]);
   console.log(`Mobile calibration retained static shadows at a simulated stable ${fps} Hz.`);
 }finally{await browser.close();await server?.close();}

@@ -1,4 +1,4 @@
-import {createAdaptiveQuality, type QualityMode} from '../quality/adaptive-quality.ts';
+import {createAdaptiveQuality, type QualityMode, type QualityDecision, type InterruptReason} from '../quality/adaptive-quality.ts';
 export type {QualityMode} from '../quality/adaptive-quality.ts';
 export interface DynamicQualityConfig {
   shadows: 'off' | 'static' | 'solar';
@@ -31,9 +31,9 @@ export function cityDetail(compact:boolean){return compact?compactDetail:standar
 // The authoring viewport uses a fixed resolution for precise placement at any device size.
 export const editorQuality={antialias:'native',dprCap:2,dprScale:1} as const;
 
-type Level=Pick<DynamicQualityConfig,'stage'|'shadows'|'antialias'|'dprScale'>;
+export type CityQualityLevel=Pick<DynamicQualityConfig,'stage'|'shadows'|'antialias'|'dprScale'>;
 
-const compactLevels: readonly Level[] = [
+const compactLevels: readonly CityQualityLevel[] = [
   {stage:-2, shadows:'off', antialias:'off', dprScale:.7},
   {stage:-1, shadows:'off', antialias:'off', dprScale:.85},
   {stage:0, shadows:'off', antialias:'off', dprScale:1},
@@ -42,7 +42,7 @@ const compactLevels: readonly Level[] = [
   {stage:3, shadows:'static', antialias:'fxaa', dprScale:1.25}
 ];
 
-const desktopLevels: readonly Level[] = [
+const desktopLevels: readonly CityQualityLevel[] = [
   {stage:-2, shadows:'off', antialias:'native', dprScale:.7},
   {stage:-1, shadows:'off', antialias:'native', dprScale:.85},
   {stage:0, shadows:'off', antialias:'native', dprScale:1},
@@ -50,8 +50,8 @@ const desktopLevels: readonly Level[] = [
   {stage:3, shadows:'solar', antialias:'native', dprScale:1}
 ];
 
-export function makeDynamicQuality({compact,losses=0,preview,sky=true}:{
-  compact:boolean;losses?:number;preview?:string|null;sky?:boolean;
+export function makeDynamicQuality({compact,losses=0,preview,sky=true,onDecision}:{
+  compact:boolean;losses?:number;preview?:string|null;sky?:boolean;onDecision?:(event:QualityDecision<CityQualityLevel>)=>void;
 }){
   const levels=compact?compactLevels:desktopLevels;
   const baseIndex=levels.findIndex(entry=>entry.stage===0);
@@ -61,7 +61,7 @@ export function makeDynamicQuality({compact,losses=0,preview,sky=true}:{
     return createAdaptiveQuality({
       levels:safe?levels.slice(0,baseIndex+1):levels,
       initialIndex:compact||safe?baseIndex:levels.length-1,baseIndex,
-      calibrate:calibrate && compact && !safe && !fixed,detect30Fps:compact
+      calibrate:calibrate && compact && !safe && !fixed,detect30Fps:compact,...(onDecision && {onDecision})
     });
   }
   let monitor=controller(true);
@@ -84,11 +84,27 @@ export function makeDynamicQuality({compact,losses=0,preview,sky=true}:{
       const change=monitor.sample(now,{mode,ready,preparing:preparingShadows});
       return change && config(change);
     },
-    interrupt(){
-      const change=monitor.interrupt();
+    updateViewport(width:number,height:number,physical:number){
+      if(!compact || safe || fixed || width<=0 || height<=0)return;
+      const top=levels.length-1;
+      const previous=config(levels[top-1]), highest=config(levels[top]);
+      const low=renderPixelRatio(previous,physical), high=renderPixelRatio(highest,physical);
+      const identical=previous.shadows===highest.shadows && previous.antialias===highest.antialias
+        && Math.floor(width*high)===Math.floor(width*low) && Math.floor(height*high)===Math.floor(height*low);
+      monitor.setMaxIndex(identical?top-1:top);
+    },
+    interrupt(reason?:InterruptReason){
+      const change=monitor.interrupt(reason);
       return change && config(change);
     },
-    restore(lossCount:number){safe=lossCount>=2;monitor=controller(false);return config();},
+    restore(lossCount:number){
+      const from=config();
+      safe=lossCount>=2;
+      monitor=controller(false);
+      const to=config();
+      onDecision?.({action:'reset',reason:'context-restored',from,to,targetFps:60,fps:null,p95Ms:null});
+      return to;
+    },
     allowSky(allowed:boolean){skyAllowed=allowed;return sky && skyAllowed;}
   };
 }

@@ -6,24 +6,40 @@ export interface QualitySample {
   preparing?: boolean;
 }
 
+export type InterruptReason = 'input' | 'hidden' | 'context-lost' | 'interrupted';
+type DecisionReason = InterruptReason | 'stable' | 'slow' | 'insufficient-headroom' | 'loading' | 'preparing'
+  | 'timeout' | 'resting' | 'moving' | 'startup' | 'capability' | 'reset' | 'context-restored';
+
+export interface QualityDecision<T> {
+  action: 'calibration' | 'trial' | 'confirm' | 'reduce' | 'cancel' | 'reset';
+  reason: DecisionReason;
+  from: T;
+  to: T;
+  targetFps: 30|60;
+  fps: number|null;
+  p95Ms: number|null;
+}
+
 export interface QualityProfile<T> {
   levels: readonly T[];
   initialIndex: number;
   baseIndex: number;
   calibrate?: boolean;
   detect30Fps?: boolean;
+  onDecision?: (event:QualityDecision<T>)=>void;
   /** Applies the initial level, each transition (including rollback), and reset. */
   applyLevel?: (level:T)=>void;
 }
 
 /** Levels are ordered from cheapest to most expensive. Timestamps are in milliseconds. */
 export function createAdaptiveQuality<T extends NonNullable<unknown>>({
-  levels, initialIndex, baseIndex, calibrate=false, detect30Fps=false, applyLevel
+  levels, initialIndex, baseIndex, calibrate=false, detect30Fps=false, applyLevel, onDecision
 }: QualityProfile<T>){
   for(const index of [initialIndex,baseIndex]){
     if(!Number.isInteger(index) || index<0 || index>=levels.length)
       throw new RangeError('Quality indices must identify a level in the profile');
   }
+  let maxIndex=levels.length-1;
   let index=initialIndex;
   function applyCurrentLevel(){
     const level=levels[index];
@@ -31,7 +47,7 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     return level;
   }
   let pending=canCalibrate();
-  function canCalibrate(){return calibrate && index===baseIndex && index+1<levels.length;}
+  function canCalibrate(){return calibrate && index===baseIndex && index<maxIndex;}
   let lastFps:number|null=null, lastP95:number|null=null;
   let probeStart:number|null=null, trial=false;
   let trialDeadline=0;
@@ -40,30 +56,43 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
   let targetFps:30|60=60, observedFast=false, reducedForLoad=false, fastMs=0, steady30Ms=0;
   const intervals:number[]=[];
   function clearWindow(){previous=null;total=0;intervals.length=0;goodMs=badMs=trialMs=fastMs=steady30Ms=0;}
-  function interrupt(){
+  function notify(action:QualityDecision<T>['action'],reason:DecisionReason,from=index){
+    onDecision?.({action,reason,from:levels[from],to:levels[index],targetFps,fps:lastFps,p95Ms:lastP95});
+  }
+  function cancel(reason:DecisionReason){
+    const active=(pending && canCalibrate()) || trial || probeStart!==null;
+    const from=index;
     pending=false;
     const rollback=trial;
     if(rollback){index--;backoff=30000;}
     trial=false;probeStart=null;clearWindow();
+    if(active)notify('cancel',reason,from);
     return rollback?applyCurrentLevel():null;
   }
   function reset(){
-    interrupt();
-    index=initialIndex;pending=canCalibrate();mode='resting';backoff=0;
+    const from=index;
+    trial=false;
+    probeStart=null;
+    clearWindow();
+    index=Math.min(initialIndex,maxIndex);pending=canCalibrate();mode='resting';backoff=0;
     targetFps=60;observedFast=false;reducedForLoad=false;
     lastFps=lastP95=null;
+    notify('reset','reset',from);
     return applyCurrentLevel();
   }
   function sample(now:number,input:QualitySample):T|null{
     if(!Number.isFinite(now))return null;
-    if(trial && now>=trialDeadline)return interrupt();
+    const timeoutReason=input.preparing?'preparing':!input.ready?'loading':'timeout';
+    if(trial && now>=trialDeadline)return cancel(timeoutReason);
     const probeAge=probeStart===null?null:now-probeStart;
     const probing=probeAge!==null;
-    if(probing && (input.mode!=='calibration'||!input.ready||probeAge>=6000))return interrupt();
+    if(probing && input.mode!=='calibration')return cancel(input.mode);
+    if(probing && !input.ready)return cancel('loading');
+    if(probing && probeAge>=6000)return cancel(timeoutReason);
     if(input.mode==='resting'){
       if(mode!=='resting'){
         mode='resting';
-        if(trial)return interrupt();
+        if(trial)return cancel('resting');
         clearWindow();
       }
       return null;
@@ -71,8 +100,10 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     if(mode!==input.mode){clearWindow();mode=input.mode;}
     if(!input.ready || (trial && input.preparing)){clearWindow();return null;}
     if(probing && probeAge<1000){previous=null;return null;}
-    const last=previous;previous=now;
-    if(last===null || now<=last)return null;
+    const last=previous;
+    if(last!==null && now<=last)return null;
+    previous=now;
+    if(last===null)return null;
     const dt=now-last;
     intervals.push(dt);total+=dt;
     backoff=Math.max(0,backoff-dt);
@@ -98,18 +129,18 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     if(trial){
       trialMs+=elapsed;
       goodMs=good?goodMs+elapsed:0;
-      if(goodMs+.01>=2000){trial=false;probeStart=null;clearWindow();return null;}
-      if(trialMs+.01>=2000)return interrupt();
+      if(goodMs+.01>=2000){trial=false;probeStart=null;clearWindow();notify('confirm','stable');return null;}
+      if(trialMs+.01>=2000)return cancel(bad?'slow':'insufficient-headroom');
       return null;
     }
     goodMs=good?goodMs+elapsed:0;
     badMs=bad && steady30Ms===0?badMs+elapsed:0;
-    if(probing && !good){interrupt();return null;}
+    if(probing && !good)return cancel(bad?'slow':'insufficient-headroom');
     if(!probing && badMs+.01>=2000 && index>0){
-      index--;reducedForLoad=true;clearWindow();return applyCurrentLevel();
+      index--;reducedForLoad=true;clearWindow();notify('reduce','slow',index+1);return applyCurrentLevel();
     }
-    if(goodMs+.01>=(probing?2000:8000) && backoff===0 && index+1<levels.length){
-      index++;trial=true;trialDeadline=now+6000;clearWindow();return applyCurrentLevel();
+    if(goodMs+.01>=(probing?2000:8000) && backoff===0 && index<maxIndex){
+      index++;trial=true;trialDeadline=now+6000;clearWindow();notify('trial','stable',index-1);return applyCurrentLevel();
     }
     return null;
   }
@@ -120,13 +151,24 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
       return {index,level:levels[index],targetFps,fps:lastFps,p95Ms:lastP95,
         trial,cooldownMs:backoff};
     },
-    get calibrationPending(){return pending;},
+    get calibrationPending(){return pending && canCalibrate();},
     get calibrating(){return probeStart!==null;},
     beginCalibration(now:number){
       if(pending && canCalibrate() && Number.isFinite(now)){
-        pending=false;clearWindow();probeStart=now;mode='calibration';
+        pending=false;clearWindow();probeStart=now;mode='calibration';notify('calibration','startup');
       }
     },
-    sample,interrupt,reset
+    setMaxIndex(limit:number){
+      if(!Number.isInteger(limit) || limit<0 || limit>=levels.length)throw new RangeError('Invalid quality ceiling');
+      maxIndex=limit;
+      if(index===limit && probeStart!==null && !trial)return cancel('capability');
+      if(index<=limit)return null;
+      const from=index;
+      index=limit;trial=false;probeStart=null;clearWindow();
+      notify('reduce','capability',from);
+      return applyCurrentLevel();
+    },
+    interrupt(reason:InterruptReason='interrupted'){return cancel(reason);},
+    sample,reset
   };
 }

@@ -36,7 +36,7 @@ Gli indici partono da zero. `initialIndex` sceglie il primo livello visibile. `b
 
 Usa `moving` per il gioco attivo e `resting` per il ciclo ambientale. Passa `ready: false` durante il caricamento e `preparing: true` mentre un effetto in prova prepara le sue risorse. Nei periodi di riposo il cooldown conserva il tempo residuo.
 
-Per la prova iniziale, configura `calibrate: true` e avvia il gioco al livello base. Quando la scena è pronta e ferma, chiama `beginCalibration(time)` se `calibrationPending` è vero. Finché `calibrating` è vero, disegna a cadenza libera e passa `mode: 'calibration'`. Un input o la sospensione della pagina può interrompere la prova con `interrupt()`. Per ricominciare usa `reset()`. Con applicazione manuale, applica il livello restituito se diverso da `null`.
+Per la prova iniziale, configura `calibrate: true` e avvia il gioco al livello base. Quando la scena è pronta e ferma, chiama `beginCalibration(time)` se `calibrationPending` è vero. Finché `calibrating` è vero, disegna a cadenza libera e passa `mode: 'calibration'`. Un input o la sospensione della pagina può interrompere la prova con `interrupt()`. Per ricominciare usa `reset()`. Anche durante una prova, il reset applica il profilo iniziale in un solo passaggio, entro il massimo consentito dal dispositivo. Con applicazione manuale, applica il livello restituito se diverso da `null`.
 
 Con `detect30Fps` il controller può riconoscere 30 FPS regolari sul profilo base o su uno più leggero. Durante il movimento una promozione richiede 8 secondi fluidi e una prova di 2 secondi. Una prova fallita avvia 30 secondi di attesa attiva. Per la diagnostica, `state` espone indice, livello, target FPS, ultimi FPS e p95 in millisecondi, prova in corso e cooldown residuo.
 
@@ -48,6 +48,16 @@ Con `detect30Fps` il controller può riconoscere 30 FPS regolari sul profilo bas
 | 30 FPS | Almeno 29 FPS e p95 ≤ 38 ms | Meno di 27 FPS oppure p95 > 42 ms |
 
 Il p95 è il tempo entro cui si completa il 95% dei frame misurati. In movimento servono due secondi consecutivi sotto soglia per scendere. Nella fascia intermedia il livello resta stabile.
+
+## Diagnostica delle decisioni
+
+Passa `onDecision(event)` a `createAdaptiveQuality` per ricevere eventi di calibrazione, prova, conferma, riduzione, annullamento e reset. Ogni evento riporta `action`, `reason`, i profili `from` e `to`, `targetFps`, `fps` e `p95Ms`. Le misure si riferiscono all’ultima finestra completata e possono essere `null` all’avvio. Ad esempio, `cancel / input` indica un’interruzione esplicita con `interrupt('input')`; `cancel / preparing` indica che alla scadenza della prova l’effetto era ancora in preparazione.
+
+Una prova annullata con `insufficient-headroom` non ha soddisfatto i requisiti per la promozione. Se l’ultima finestra supera la soglia di rallentamento, il motivo è `slow`.
+
+L’adattatore può chiamare `setMaxIndex(indice)` per aggiornare il livello massimo disponibile quando cambia il dispositivo di uscita. Abbassare il massimo sotto il livello corrente applica subito il livello consentito ed emette `reduce / capability`. Alzarlo rende di nuovo possibile una prova attraverso le normali soglie.
+
+Nel progetto Isometric Cities apri **Rendering quality** da `lab.html`, oppure `?lab=qualita`. Il pannello mostra le ultime quattro decisioni e le dimensioni del buffer WebGL in pixel. Per vedere il pannello anche con una preview fissa, aggiungi `&diagnostics`.
 
 ## Riferimenti
 

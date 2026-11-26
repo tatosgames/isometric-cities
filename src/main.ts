@@ -53,8 +53,33 @@ async function start(){
   let resume: ReturnType<typeof parseViewState>=null;
   try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
   let losses=Number(resume?.losses)||0;
+  const labOutput=query.get('lab')==='qualita' && (!query.has('preview') || query.has('diagnostics'))
+    ? document.createElement('output'):null;
+  const decisions:string[]=[];
+  let bufferReport='';
+  let lastDprChange='';
+  function showQualityLab(){
+    if(labOutput)labOutput.textContent=[bufferReport,...decisions].filter(Boolean).join('\n');
+  }
+  if(labOutput){
+    labOutput.id='quality-diagnostics';
+    labOutput.setAttribute('aria-label','Rendering quality');
+    map.append(labOutput);
+    signal.addEventListener('abort',()=>labOutput.remove(),{once:true});
+  }
   const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',
-    preview:query.get('lab')==='qualita'?query.get('preview'):null});
+    preview:query.get('lab')==='qualita'?query.get('preview'):null,
+    ...(labOutput && {onDecision({action,reason,from,to,targetFps,fps,p95Ms}){
+      const metrics=fps===null || p95Ms===null?'':` · ${fps.toFixed(0)} FPS · p95 ${p95Ms.toFixed(1)} ms`;
+      const effect=(entry:typeof from)=>`L${entry.stage} ${entry.shadows}/${entry.antialias}`;
+      const detail=reason==='preparing'?'effect preparation timed out':reason;
+      const before=effect(from), after=effect(to);
+      const transition=before===after?after:`${before} → ${after}`;
+      decisions.push(`${action} (${detail}) · ${transition} · target ${targetFps}${metrics}`);
+      if(decisions.length>4)decisions.shift();
+      showQualityLab();
+    }})});
+  let physicalDpr=devicePixelRatio, nextDisplayCheck=0;
   const renderer=new T.WebGLRenderer({antialias:quality.nativeAntialias,alpha:true,stencil:true});
   const output=makeQualityOutput(renderer);
   renderer.shadowMap.type=T.PCFShadowMap;
@@ -77,6 +102,8 @@ async function start(){
   pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
   function applyQuality(config:DynamicQualityConfig){
     const {shadows,antialias:aa}=config;
+    const gl=labOutput?renderer.getContext():null;
+    const before=gl?`${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`:'';
     const ratio=renderPixelRatio(config);
     if(ratio!==renderer.getPixelRatio())renderer.setPixelRatio(ratio);
     output.configure(aa==='fxaa');
@@ -89,6 +116,12 @@ async function start(){
     host.dataset.aa=aa;
     host.dataset.shadows=shadows;
     host.dataset.dpr=String(ratio);
+    if(gl){
+      const after=`${gl.drawingBufferWidth}×${gl.drawingBufferHeight}`;
+      if(before!==after)lastDprChange=`\nLast DPR change: ${before} → ${after} px`;
+      bufferReport=`Buffer ${after} px · DPR ${ratio.toFixed(2)} · shadows ${shadows} · AA ${aa}${lastDprChange}`;
+      showQualityLab();
+    }
   }
   if(edited)for(const prop of edited.props(groundAt))group.add(prop);
   if(sea)scene.add(makeSea(sea));
@@ -222,12 +255,12 @@ async function start(){
   }
   let gesture=false, streamBusy=true;
   const moving=()=>gesture || coasting || !!flight || !!drive?.active;
-  function interruptProbe(){
-    const changed=quality.interrupt();
+  function interruptProbe(reason:'input'|'context-lost'|'hidden'){
+    const changed=quality.interrupt(reason);
     if(changed && !lost)applyQuality(changed);
   }
   for(const type of ['pointerdown','wheel','keydown']){
-    document.addEventListener(type,()=>{if(quality.calibrationPending || quality.calibrating)interruptProbe();},{capture:true,passive:true,signal});
+    document.addEventListener(type,()=>{if(quality.calibrationPending || quality.calibrating)interruptProbe('input');},{capture:true,passive:true,signal});
   }
   function stopGesture(){gesture=false;}
   const credits=required(map.querySelector('footer'),'data attribution');
@@ -270,7 +303,7 @@ async function start(){
   renderer.domElement.addEventListener('webglcontextlost',event=>{
     // A run in progress is held, not ended: score, patrols and position survive the loss.
     event.preventDefault();lost=true;streamed?.forget();losses++;flight=null;coasting=false;drive?.suspend();
-    cancelAnimationFrame(frame);frame=0;gesture=false;interruptProbe();
+    cancelAnimationFrame(frame);frame=0;gesture=false;interruptProbe('context-lost');
     controls.enabled=false;controls.disconnect();
     remember();
     if(map.dataset.boot!=='ready'){
@@ -285,6 +318,8 @@ async function start(){
   });
   function syncSize(){
     if(signal.aborted)return;
+    physicalDpr=devicePixelRatio;
+    quality.updateViewport(host.clientWidth,host.clientHeight,physicalDpr);
     renderer.setSize(host.clientWidth,host.clientHeight);
     applyQuality(quality.config);
     sizeCamera();
@@ -310,10 +345,15 @@ async function start(){
     drive?.visibilityChanged();
     // A hidden page is the first the browser closes for memory: the drive's world goes unless a run is on.
     if(document.hidden && !building)drive?.release();
-    if(document.hidden){interruptProbe();if(!flight?.driveOrbit)flight=null;coasting=false;stopGesture();remember();}
+    if(document.hidden){interruptProbe('hidden');if(!flight?.driveOrbit)flight=null;coasting=false;stopGesture();remember();}
     else if(!lost)syncSize();
   });
   function paint(time: number){
+    // A screen change can leave the CSS viewport unchanged. Reuse the live loop.
+    if(time>=nextDisplayCheck){
+      nextDisplayCheck=time+1000;
+      if(devicePixelRatio!==physicalDpr)syncSize();
+    }
     const speed=drive?.visualTimeScale??1;
     const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
     wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;
@@ -520,6 +560,7 @@ async function start(){
   },{once:true});
   const openingPlace=places.point(query.get('focus'));
   const initialZoom=()=>openingPlace ? Math.min(host.clientWidth,host.clientHeight)/270 : openingZoom();
+  quality.updateViewport(host.clientWidth,host.clientHeight,physicalDpr);
   applyQuality(quality.config);
   let firstView=true;
   new ResizeObserver(()=>{

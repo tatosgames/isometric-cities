@@ -217,6 +217,8 @@ Ancora aperti: fotogramma doppio a Santa Ana e Santo Domingo (causa GPU non diag
 
 **Audit della qualità.** Mappa, laboratori ed editor leggono i profili da `dynamic-quality.ts`. Streaming, dettagli degli edifici, vegetazione e pedoni condividono i limiti iniziali. Le zone visibili hanno priorità nella memoria riservata alle maschere statiche.
 
+**Controller riutilizzabile.** La cartella [src/quality](src/quality/README.md) contiene il monitor TypeScript, un esempio e i test eseguibili con Node 24. Mappa e guida usano un’unica istanza attraverso il profilo della città, che ordina ombre, antialiasing e DPR.
+
 ## Volo libero sopra Las Palmas
 
 Il Piper anticipa le interruzioni strette della copertura e conserva la quota assoluta sorvolando una valle. La camera protegge la visuale sulla coda passando dietro le facciate e mostra il tratto in discesa davanti all’aereo durante una picchiata.
@@ -224,3 +226,7 @@ Il Piper anticipa le interruzioni strette della copertura e conserva la quota as
 Il pulsante con l’aereo nell’HUD di guida avvia il decollo del Piper. Frecce, WASD o trascinamento con un dito controllano direzione e quota. Il pulsante con l’auto avvia il rientro su strada mantenendo monete e destinazione. Gli urti contro tetti, terreno e mare terminano la partita. [Prove e viste desktop e mobile](docs/QA.md#piper).
 
 Il passaggio di game feel del Piper rende visibili il regime dell’elica, la richiamata di rientro e la curva appena percorsa dalle ali. Parametri e durate sono nel [catalogo degli effetti](docs/JUICE.md#assetto-e-scie-del-piper).
+
+**Diagnostica della qualità.** Il laboratorio Rendering quality mostra i motivi delle ultime quattro decisioni e confronta le dimensioni reali del buffer prima e dopo un cambio DPR. Sul profilo compatto l’ultimo livello diventa disponibile solo se produce più pixel rispetto a FXAA a scala 1.
+
+**Revisione del controller qualità.** Reset diretto durante una prova, gestione della calibrazione quando cambia il tetto disponibile e motivazione distinta per le promozioni senza margine sufficiente. Il confronto del DPR legge i profili della città.
