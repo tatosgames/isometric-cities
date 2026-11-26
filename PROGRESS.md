@@ -1,6 +1,8 @@
 # Checkpoints
 
-Look prototypes for the drive, selected by URL and absent without it: `?look=sole` (Neutral tone mapping, warmer and stronger sun, weaker sky fill), `?look=matcap` (three-band toon matcap in the style of Soso Mart and folio-2019, painted static shadow instead of the shadow map), `&tilt` for the folio edge blur. `?stats` adds the three.js Stats panel (FPS, ms, MB, draw calls, thousands of triangles). Pending: choice of direction for phase 1 of the visual audit. [Comparison](docs/QA.md#drive-look-prototypes--november-26-2026).
+Matcap without tilt is the default for the map, drive and flight. Rendering quality offers Matcap, Base, Sole and Matcap + tilt. The desktop Matcap profile starts at static shadows and drops directly to shadows off when needed. `?stats` adds the three.js Stats panel. [Comparison and verification](docs/QA.md#pilot-rendering-benchmark).
+
+The Sole prototype now uses a stronger sky fill for more detail in shade. On the Intel UHD pilot benchmark, Matcap halved median GPU time compared with Base and sustained 60 FPS. Tilt adds three fullscreen draws. [Published and local benchmark](docs/QA.md#pilot-rendering-benchmark).
 
 From the second star, on the straights traveled at high speed, reinforcements can enter off-road along a section of road. The lane is checked from the camera's point of view in the oncoming traffic section. [Test across five neighborhoods](docs/QA.md#city-straight-lines-and-visibility-of-patrols).
 

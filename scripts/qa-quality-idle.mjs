@@ -38,15 +38,14 @@ try{
   if(idleDrop){
     const scene=page.locator('#scene');
     const report=page.locator('#quality-diagnostics');
-    await page.waitForSelector('#scene[data-shadows="solar"]');
+    await page.waitForSelector('#scene[data-look="matcap"][data-tilt="false"][data-shadows="static"][data-quality-stage="1"]');
     await page.waitForFunction(()=>window.testFrameTime!==undefined);
     const start=await page.evaluate(()=>window.testFrameTime);
     await page.waitForFunction(start=>window.testFrameTime>=start+7000,start);
-    assert.equal(await scene.getAttribute('data-shadows'),'solar','a 40 Hz display can sustain the 30 FPS cap');
+    assert.equal(await scene.getAttribute('data-shadows'),'static','a 40 Hz display can sustain the 30 FPS cap');
     assert.match(await report.innerText(),/Now (?:29|30|31) FPS/);
     const view=await scene.getAttribute('data-view');
     await page.evaluate(()=>{window.testRefreshRate=20;});
-    await page.waitForSelector('#scene[data-shadows="static"]');
     await page.waitForSelector('#scene[data-shadows="off"]');
     assert.equal(await scene.getAttribute('data-view'),view);
     assert.match(await report.innerText(),/reduce \(slow\).*L1 static\/native → L0 off\/native · target 30 · 20 FPS/);
@@ -64,7 +63,20 @@ try{
     await page.waitForFunction(()=>document.getElementById('quality-diagnostics').textContent.includes('WebGL context restored'));
     await page.waitForSelector('#status[hidden]',{state:'attached'});
     assert.equal(await scene.getAttribute('data-view'),view);
-    console.log('Desktop idle kept solar shadows at 40 Hz, rendered both DPR drops at 20 FPS, and reported forced WebGL loss and recovery.');
+    const looks=page.getByRole('group',{name:'Rendering look'});
+    assert.equal(await looks.locator('[aria-current="true"]').textContent(),'Matcap');
+    for(const [label,look,tilt,shadows] of [
+      ['Base','base',false,'solar'],['Sole','sole',false,'solar'],
+      ['Matcap + tilt','matcap',true,'static'],['Matcap','matcap',false,'static']
+    ]){
+      await looks.getByRole('link',{name:label,exact:true}).click();
+      await page.waitForSelector('#map[data-boot="ready"]');
+      await page.waitForSelector(`#scene[data-look="${look}"][data-tilt="${tilt}"][data-shadows="${shadows}"]`);
+      assert.equal(await looks.locator('[aria-current="true"]').textContent(),label);
+      assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');
+    }
+    assert.deepEqual(errors,[]);
+    console.log('Matcap default, idle shadow and DPR drops, WebGL recovery and all four look options passed.');
   }else{
     await page.waitForSelector('#scene[data-shadows="off"][data-aa="off"][data-dpr="1"]');
     await page.waitForSelector('#scene[data-shadows="static"][data-aa="off"][data-dpr="1"]',{timeout:30000});

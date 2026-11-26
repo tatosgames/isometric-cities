@@ -13,7 +13,7 @@ const tests = [
     description:'Compares the current rendering, the 4 px/m texture and the geometric carriageway along the same route.',
     start:async()=>{const {roadLab}=await import('./road-lab.ts');await roadLab();}},
   {id:'qualita',title:'Rendering quality',href:'./index.html?lab=qualita',
-    description:'Inspect shadow and antialiasing changes, frame times and the drawing buffer during map movement and driving.'},
+    description:'Compare Matcap, Base, Sole and Matcap + tilt, with frame times, shadows and drawing-buffer diagnostics.'},
   {id:'guida',title:'Drive · tuning',href:'./index.html?lab=guida&area=pilot',
     description:'Drive in the Vegueta pilot while changing the values of player, patrols, car and camera live, with or without police.'}
 ];

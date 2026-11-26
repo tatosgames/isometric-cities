@@ -52,6 +52,9 @@ async function start(){
   signal.throwIfAborted();
   const scene=new T.Scene(),host=el('scene'),camera=makeMapCamera();
   const compact=compactScreen();
+  const look=readLook(),tilt=look!=='base'&&query.has('tilt');
+  host.dataset.look=look;
+  host.dataset.tilt=String(tilt);
   const sessionKey='map-view:'+location.pathname+location.search;
   let resume: ReturnType<typeof parseViewState>=null;
   try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
@@ -68,10 +71,26 @@ async function start(){
   if(labOutput){
     labOutput.id='quality-diagnostics';
     labOutput.setAttribute('aria-label','Rendering quality');
-    map.append(labOutput);
-    signal.addEventListener('abort',()=>labOutput.remove(),{once:true});
+    const panel=document.createElement('section'),looks=document.createElement('div');
+    panel.id='quality-lab';
+    looks.className='quality-looks';
+    looks.setAttribute('role','group');
+    looks.setAttribute('aria-label','Rendering look');
+    const options=[['matcap',false,'Matcap'],['base',false,'Base'],['sole',false,'Sole'],['matcap',true,'Matcap + tilt']] as const;
+    for(const [variant,blur,label] of options){
+      const params=new URLSearchParams(query),link=document.createElement('a');
+      params.set('look',variant);
+      if(blur)params.set('tilt','');else params.delete('tilt');
+      link.href='?'+params.toString();
+      link.textContent=label;
+      if(variant===look && blur===tilt)link.setAttribute('aria-current','true');
+      looks.append(link);
+    }
+    panel.append(looks,labOutput);
+    map.append(panel);
+    signal.addEventListener('abort',()=>panel.remove(),{once:true});
   }
-  const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',
+  const quality=makeDynamicQuality({compact,losses,sky:query.get('sky')!=='0',solarShadows:look!=='matcap',
     preview:query.get('lab')==='qualita'?query.get('preview'):null,
     ...(labOutput && {onDecision({mode,action,reason,from,to,targetFps,fps,p95Ms}){
       const metrics=fps===null || p95Ms===null?'':` · ${fps.toFixed(0)} FPS · p95 ${p95Ms.toFixed(1)} ms`;
@@ -85,9 +104,9 @@ async function start(){
     }})});
   let physicalDpr=devicePixelRatio, nextDisplayCheck=0;
   const renderer=new T.WebGLRenderer({antialias:quality.nativeAntialias,alpha:true,stencil:true});
-  const look=readLook(),patchLook=look==='matcap'?makeMatcapPatcher():null;
-  let lookPatched=0;
-  const output=makeQualityOutput(renderer,{tilt:look!=='base'&&query.has('tilt')});
+  const patchLook=look==='matcap'?makeMatcapPatcher():null;
+  let lookPatched=-Infinity;
+  const output=makeQualityOutput(renderer,{tilt});
   const stats=makeStatsOverlay(renderer,query);
   renderer.shadowMap.type=T.PCFShadowMap;
   renderer.shadowMap.autoUpdate=false;
@@ -113,9 +132,7 @@ async function start(){
   pilotMask?.attach(city.materials.mat,true);pilotMask?.attach(city.materials.road);
   let flightRange:DynamicQualityConfig['flight'];
   function applyQuality(config:DynamicQualityConfig){
-    const {antialias:aa}=config;
-    // The matcap look ignores lights, so it shows the painted static shadow instead of the shadow map.
-    const shadows=look==='matcap'&&config.shadows==='solar'?'static':config.shadows;
+    const {antialias:aa,shadows}=config;
     flightRange=config.flight;
     const flightCamera=drive?.flightView?.camera;
     if(flightRange && flightCamera){

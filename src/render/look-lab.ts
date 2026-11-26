@@ -1,7 +1,7 @@
 import * as T from 'three';
 
 /**
- * Look prototypes, chosen with `?look=` (`base` is the shipped look):
+ * Looks chosen with `?look=` (`matcap` is the default and `base` uses the original lighting):
  * - `sole`: the same lit materials with tone mapping, a warmer and stronger sun and a weaker sky fill.
  * - `matcap`: the folio/Soso Mart style. Lit materials read a three-band toon matcap instead of the lights;
  *   anything that darkens `diffuseColor` (static ground shadow, cloud shadows, contact darkening) still shows.
@@ -11,14 +11,14 @@ export type Look = 'base' | 'sole' | 'matcap';
 
 export function readLook(): Look {
   const value = new URLSearchParams(location.search).get('look');
-  return value === 'sole' || value === 'matcap' ? value : 'base';
+  return value === 'base' || value === 'sole' ? value : 'matcap';
 }
 
 export function lightLook(look: Look, renderer: T.WebGLRenderer, fill: T.HemisphereLight, sun: T.DirectionalLight) {
   if (look !== 'sole') return;
   renderer.toneMapping = T.NeutralToneMapping;
   renderer.toneMappingExposure = 1.05;
-  fill.color.set('#dce6ff'); fill.groundColor.set('#a88f78'); fill.intensity = .62;
+  fill.color.set('#dce6ff'); fill.groundColor.set('#a88f78'); fill.intensity = .88;
   sun.color.set('#ffe2b8'); sun.intensity = 3.35;
 }
 

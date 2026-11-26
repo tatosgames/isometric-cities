@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {makeDynamicQuality,compactScreen,renderPixelRatio} from '../src/render/dynamic-quality.ts';
 
-function device(compact=true){
-  const policy=makeDynamicQuality({compact});
+function device(compact=true,solarShadows=true){
+  const policy=makeDynamicQuality({compact,solarShadows});
   let now=0;
   const steps=[];
   function run(fps,seconds,mode='moving',ready=true){
@@ -45,6 +45,11 @@ for(const reason of ['input','busy','timeout','slow']){
   assert.equal(run(60,6).stage,1);
 }
 const desktop=device(false);
+const matcap=device(false,false);
+assert.equal(matcap.policy.config.stage,1);
+assert.equal(matcap.policy.config.shadows,'static');
+assert.equal(matcap.run(20,3.2,'resting').shadows,'off','the first Matcap reduction changes the rendered shadows');
+assert.equal(matcap.run(60,12).stage,1,'the Matcap profile cannot promote to a duplicate level');
 const idleDesktop=device(false);
 assert.equal(idleDesktop.run(30,10,'resting').shadows,'solar');
 assert.equal(idleDesktop.policy.state.targetFps,30);

@@ -48,11 +48,15 @@ const compactLevels: readonly CityQualityLevel[] = [
   {stage:3, shadows:'static', antialias:'fxaa', dprScale:1.25}
 ];
 
-const desktopLevels: readonly CityQualityLevel[] = [
+const desktopStaticLevels: readonly CityQualityLevel[] = [
   {stage:-2, shadows:'off', antialias:'native', dprScale:.7},
   {stage:-1, shadows:'off', antialias:'native', dprScale:.85},
   {stage:0, shadows:'off', antialias:'native', dprScale:1},
-  {stage:1, shadows:'static', antialias:'native', dprScale:1},
+  {stage:1, shadows:'static', antialias:'native', dprScale:1}
+];
+
+const desktopSolarLevels: readonly CityQualityLevel[] = [
+  ...desktopStaticLevels,
   {stage:3, shadows:'solar', antialias:'native', dprScale:1}
 ];
 
@@ -71,9 +75,11 @@ function flightLevels(compact:boolean):CityQualityLevel[]{
 type GraphicsMode='ground'|'flight';
 export type CityQualityDecision=QualityDecision<CityQualityLevel> & {mode:GraphicsMode};
 
-export function makeDynamicQuality({compact,losses=0,preview,sky=true,onDecision}:{
-  compact:boolean;losses?:number;preview?:string|null;sky?:boolean;onDecision?:(event:CityQualityDecision)=>void;
+export function makeDynamicQuality({compact,losses=0,preview,sky=true,solarShadows=true,onDecision}:{
+  compact:boolean;losses?:number;preview?:string|null;sky?:boolean;solarShadows?:boolean;
+  onDecision?:(event:CityQualityDecision)=>void;
 }){
+  const desktopLevels=solarShadows?desktopSolarLevels:desktopStaticLevels;
   const groundLevels=compact?compactLevels:desktopLevels;
   const airLevels=flightLevels(compact);
   const fixed=preview==='base'||preview==='static'||preview==='fxaa';

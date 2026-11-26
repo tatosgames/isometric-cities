@@ -24,6 +24,23 @@ After the build, run `node scripts/qa-police-straights.mjs` for four stars with 
 
 Same pilot start in Vegueta, Chromium 1440 × 900, isometric and chase views after 2.5 s of driving: shipped look, `?look=sole`, `?look=matcap`, `?look=matcap&tilt`. No errors on the page. The matcap ignores the lights: tree and cloud shadows remain, building shadows depend on the static mask. The sole look shows real shadows that are too dark under the trees and needs a stronger fill. With `&tilt&stats` the drive ran at 60 FPS with 40 draw calls per frame (desktop GPU). The captures are not kept in the repository.
 
+### Pilot rendering benchmark
+
+Chrome on Intel UHD Graphics via ANGLE D3D11, rendering at 1440 × 900 and DPR 1. Three runs of 180 rendered frames per look on Carretera del Centro, with the isometric camera, seed 7, and patrols and buses disabled. The benchmark gives the game 60 Hz simulation timestamps to match the route and keep quality at L3. FPS comes from the browser's original frame timestamps. CPU is the median run's mean Chrome main-thread task time per frame. GPU p50 and p95 pool 180 asynchronous WebGL timer queries per look.
+
+| Look | Published FPS | Published CPU (ms) | Published GPU p50 / p95 (ms) | Local FPS | Local CPU (ms) | Local GPU p50 / p95 (ms) |
+|---|---:|---:|---:|---:|---:|---:|
+| Base | 59.9 | 3.34 | 12.14 / 14.41 | 57.4 | 3.70 | 12.77 / 18.66 |
+| Sole | 59.9 | 2.94 | 13.17 / 15.31 | 59.9 | 3.39 | 13.08 / 19.35 |
+| Matcap | 59.9 | 3.50 | 6.47 / 8.50 | 59.9 | 3.43 | 6.80 / 13.14 |
+| Matcap + tilt | 59.9 | 3.82 | 7.09 / 9.59 | 59.9 | 3.66 | 7.24 / 13.64 |
+
+Matcap cut median GPU time by about 47% versus Base in both builds. The variants differ in shading and shadow mode. Tilt adds three fullscreen draws and raises median GPU time by 0.62 ms on the published build and 0.44 ms locally. All four published looks were close to the browser's 60 Hz cadence on this route. The local Base runs ranged from 52.3 to 58 FPS, Sole from 48.5 to 59.9 FPS, and both Matcap variants ran at 59.9 FPS in all three runs at reported precision. This benchmark covers the pilot route on Intel UHD, with separate captures from the isometric and aerial cameras.
+
+The local Sole look raises hemisphere fill from 0.62 to 0.88. Matching screenshots show more detail beneath trees and on shaded façades, with the warmer direct light still visible. Typecheck, build and `npm test` passed. Reproduce with `node scripts/benchmark-drive-looks.mjs dist .cache/drive-look-comparison/local 3`. The script also accepts the GitHub Pages URL as the first argument and writes per-frame measurements and PNGs to the selected directory.
+
+Matcap is the default for map, drive and flight. In `?lab=qualita` the four look links preserve the current test parameters. `look=base` selects the original lighting and `preview=base` still selects the fixed preview with shadows off. Desktop Matcap skips the solar level since its highest shadow mode is static. The benchmark requests Base explicitly. Typecheck, build, the full QA suite and the dedicated quality checks passed, including simulated 30 and 60 Hz mobile calibration.
+
 ## Python Regeneration · November 26, 2026
 
 Comparison with `7c7dfa91` in isolated checkouts, with Python 3.14 and the same cached inputs. The absolute times are affected by the concurrent load. Equality is verified with the SHA-256 of the generated files, comparing two regenerations from the same input or the canonical files in Git.
@@ -1481,7 +1498,7 @@ The city test compares the exact indices of the frames where the controller chan
 
 ### Quality at rest
 
-`node scripts/qa-quality-idle.mjs dist idle-drop` runs the desktop map in Chromium with synthetic refresh timestamps. A 40 Hz display sustains the ambient cadence near 30 FPS and keeps solar shadows. At 20 FPS the still map switches to static shadows after about three seconds and turns them off after about three more. The quality panel reports a 30 FPS target for those decisions.
+`node scripts/qa-quality-idle.mjs dist idle-drop` runs the default desktop Matcap map in Chromium with synthetic refresh timestamps. A 40 Hz display sustains the ambient cadence near 30 FPS and keeps static shadows. At 20 FPS the still map turns them off after about three seconds and then lowers the DPR in two steps. The quality panel reports a 30 FPS target for those decisions. The test also opens each of the four looks from the panel.
 
 `node scripts/qa-dynamic-quality.mjs` also checks that a brief slowdown or a single long stall leaves the current level in place, that steady 30 FPS at rest leaves the confirmed level in place, and that moving starts a fresh measurement. The existing Chromium calibration checks passed at simulated 30 and 60 Hz.
 
