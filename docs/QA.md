@@ -1361,3 +1361,22 @@ Misure su Chrome, GPU NVIDIA GeForce RTX 4060 (ANGLE D3D11), viewport mobile emu
 In un controllo separato a camera e contenuto fissi, i 30 fotogrammi disegnati a La Isleta hanno tutti 161 draw call e 241.207 triangoli, in entrambe le build. In guida sulla Carretera del Centro, alla stessa posizione, orientamento e tick, i 30 fotogrammi hanno tutti 37 draw call e 82.844 triangoli in entrambe le build. Le modifiche usano le luci e gli attributi colore già presenti. Restano da misurare su un telefono fisico.
 
 Verifiche superate: typecheck, build con validazione dei dati, suite browser completa e circuito di sei giri dei settori con attraversamento in guida nei due sensi. La suite completa e il circuito finale usano Chromium di Playwright tramite `CHROME_PATH`. La prova dei settori riproduce ora anche acqua e ostacoli portuali quando ricostruisce i nodi di partenza disponibili: la precedente discrepanza faceva fallire la stessa asserzione anche sulla build iniziale.
+
+## Controlli dopo l'unione delle due sessioni · 26 novembre 2026
+
+Sul commit `7c7dfa91`, che unisce il comune intero con polizia, luce e guaguas dell'altra sessione, Chrome desktop su questa macchina.
+
+- `typecheck`, `build` con validazione dei dati e `npm.cmd test` verdi.
+- `qa-sectors.mjs` verde: sei giri tra Santa Ana, Plaza de la Feria, Parque Doramas e Metropole con memoria di dettaglio stabile fra 58 e 60 MiB, e attraversamento in guida nei due sensi con pattuglia attiva. Chiude il fallimento segnalato nei blocchi sud e nord-ovest.
+- `qa-drive-lab.mjs` verde (pannello, cursore dal vivo, polizia, copia, URL).
+
+`heap-profile.mjs`, rifatto anche nei quartieri nuovi (heap JavaScript della pagina + memoria esterna; worker a parte):
+
+| Vista | Heap | Memoria esterna | Dettaglio | Zone | Worker |
+|---|---|---|---|---|---|
+| Santa Ana, vista del luogo | 33,3 MB | 20,6 MB | 57,8 MB, 18 settori | 26,5 MB, 5 zone | 2,8 MB |
+| Centro di Tamaraceite (settore più pesante dei quartieri nuovi, 216 KB) | 32,2 MB | 22,3 MB | 57,4 MB, 21 settori | 31,3 MB, 7 zone | 2,7 MB |
+| Tamaraceite, vista più ampia | 32,9 MB | 26,2 MB | nessuno | 68,4 MB, 16 zone | 1,6 MB |
+| Marzagán | 29,4 MB | 21,1 MB | 56,0 MB, 23 settori | 25,8 MB, 7 zone | 2,6 MB |
+
+`benchmark.mjs`: apertura in 9,7 s, p95 18,1 ms, heap dopo la raccolta 67,7 MB (67,5 dopo il passaggio di ottimizzazione), picco campionato 148 MB. Nessun quartiere nuovo supera i settori di La Isleta (fino a 317 KB), già trattati nel passaggio di `PERFORMANCE.md`: niente da alleggerire. Restano da misurare su telefono fisico.
