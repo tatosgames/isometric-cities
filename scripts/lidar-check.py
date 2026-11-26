@@ -10,20 +10,50 @@ Dipendenza solo locale: laspy[lazrs] in .cache/pylib (non in requirements.txt).
 import csv, json, sys
 from collections import Counter
 from math import floor
+from io import BytesIO
 from pathlib import Path
-sys.path.insert(0, '.cache/pylib')
+sys.path[:0] = [str(Path('.cache/pylib').resolve()), str(Path(__file__).resolve().parent)]
 import numpy as np
 import laspy
 import shapely
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from geo import origin
 from city_layers import read_layers
+from generation_cache import digest, file_digest, read_entry, write_entry
 
 OUT = Path('.cache/lidar-control')
 GROUND, BUILDING = 2, 6
 ORIGIN = origin()
+
+def tile_points(path):
+    cache = Path('.cache/generation/lidar') / f'{digest(str(path.resolve()))}.npz'
+    key = digest('lidar-points-v1', path.name, file_digest(path), laspy.__version__, GROUND, BUILDING)
+    payload = read_entry(cache, key)
+    if payload is not None:
+        with np.load(BytesIO(payload), allow_pickle=False) as tile:
+            metadata = json.loads(tile['metadata'].item())
+            metadata['classes'] = {int(value): count for value, count in metadata['classes'].items()}
+            return tile['x'], tile['y'], tile['z'], tile['classes'], metadata
+
+    las = laspy.read(path)
+    classes = np.asarray(las.classification)
+    keep = np.isin(classes, (GROUND, BUILDING))
+    points = tuple(np.asarray(coordinates[keep]) for coordinates in (las.x, las.y, las.z, classes))
+    n = len(las.points)
+    bounds = las.header
+    area = (bounds.maxs[0] - bounds.mins[0]) * (bounds.maxs[1] - bounds.mins[1])
+    values, counts = np.unique(classes, return_counts=True)
+    metadata = dict(file=path.name, points=int(n), density_per_m2=round(n / area, 2),
+                    classes={int(value): int(count) for value, count in zip(values, counts)},
+                    bbox=[round(float(v), 1) for v in (*bounds.mins[:2], *bounds.maxs[:2])])
+    payload = BytesIO()
+    np.savez(payload, x=points[0], y=points[1], z=points[2], classes=points[3],
+             metadata=json.dumps(metadata))
+    write_entry(cache, key, payload.getvalue())
+    return (*points, metadata)
+
 
 def load_points(paths):
     files = []
@@ -32,16 +62,15 @@ def load_points(paths):
     if not files:
         sys.exit('Nessun file LAZ/LAS trovato: mettilo in .cache/lidar/')
     xs, ys, zs, cs, meta = [], [], [], [], []
-    for f in files:
-        las = laspy.read(f)
-        keep = np.isin(las.classification, (GROUND, BUILDING))
-        xs.append(las.x[keep]); ys.append(las.y[keep]); zs.append(las.z[keep]); cs.append(np.asarray(las.classification)[keep])
-        n = len(las.points)
-        b = las.header
-        area = (b.maxs[0]-b.mins[0])*(b.maxs[1]-b.mins[1])
-        meta.append(dict(file=f.name, points=int(n), density_per_m2=round(n/area, 2), classes={int(c): int((np.asarray(las.classification) == c).sum()) for c in np.unique(las.classification)},
-                         bbox=[round(float(v), 1) for v in (b.mins[0], b.mins[1], b.maxs[0], b.maxs[1])]))
+    for path in files:
+        x, y, z, c, metadata = tile_points(path)
+        xs.append(x)
+        ys.append(y)
+        zs.append(z)
+        cs.append(c)
+        meta.append(metadata)
     return np.concatenate(xs), np.concatenate(ys), np.concatenate(zs), np.concatenate(cs), meta
+
 
 def part_key(building):
     """Names one part of a municipal footprint: the same OBJECTID can be cut into several polygons."""
@@ -72,31 +101,39 @@ def main():
     tree = STRtree(padded)
     rows = []
     for b, g in polys:
-        x0, y0, x1, y1 = g.buffer(8).bounds
+        halo = g.buffer(8)
+        x0, y0, x1, y1 = halo.bounds
         i0, i1 = np.searchsorted(x, [x0, x1])
         strip = slice(i0, i1)
         m = (y[strip] >= y0) & (y[strip] <= y1)
         px, py, pz, pc = x[strip][m], y[strip][m], z[strip][m], c[strip][m]
         roof = pz[(pc == BUILDING) & shapely.contains_xy(g, px, py)]
-        halo = g.buffer(8)
         ring = halo.difference(unary_union([padded[i] for i in tree.query(halo)]))
         gr = pz[(pc == GROUND) & shapely.contains_xy(ring, px, py)]
         if len(roof) < 5 or len(gr) < 5:
             rows.append(dict(id=b['id'], key=part_key(b), area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr), status='insufficient'))
             continue
         ground = float(np.median(gr))
-        h50, h95, h99 = (float(np.percentile(roof, q))-ground for q in (50, 95, 99))
+        h50, h95, h99 = (float(height)-ground for height in np.percentile(roof, [50, 95, 99]))
         rows.append(dict(id=b['id'], key=part_key(b), area_m2=round(g.area, 1), municipal_m=b['height'], source=b.get('source', ''), roof_pts=len(roof), ground_pts=len(gr),
                          ground_z=round(ground, 2), lidar_p50=round(h50, 2), lidar_p95=round(h95, 2), lidar_p99=round(h99, 2),
                          delta_p95=round(h95-b['height'], 2), status='ok'))
     ok = [r for r in rows if r['status'] == 'ok' and r['area_m2'] >= 30]
     d = np.array([r['delta_p95'] for r in ok]) if ok else np.array([0.0])
+    footprints = STRtree([g for _, g in polys])
+    def near_poi(point):
+        query = box(point.x - 3, point.y - 3, point.x + 3, point.y + 3)
+        for index in sorted(footprints.query(query)):
+            _, polygon = polys[index]
+            if polygon.contains(point) or polygon.distance(point) < 3:
+                yield rows[index]
+
     report = dict(tiles=meta, buildings_in_tiles=len(polys), measured=len(ok), insufficient=sum(r['status'] != 'ok' for r in rows),
                   delta_p95_m=dict(median=round(float(np.median(d)), 2), mean=round(float(d.mean()), 2), mae=round(float(np.abs(d).mean()), 2),
                                    within_2m=round(float((np.abs(d) <= 2).mean()), 3), within_5m=round(float((np.abs(d) <= 5).mean()), 3)),
                   by_source={s: dict(n=len(v), median_delta=round(float(np.median([r['delta_p95'] for r in v])), 2)) for s in sorted({r['source'] for r in ok}) for v in [[r for r in ok if r['source'] == s]]},
                   poi={k: [dict(id=r['id'], municipal_m=r['municipal_m'], lidar_p95=r.get('lidar_p95'), lidar_p99=r.get('lidar_p99'), delta_p95=r.get('delta_p95'), area_m2=r['area_m2'])
-                           for (b, g), r in zip(polys, rows) if g.contains(p) or g.distance(p) < 3] for k, p in poi_xy.items()} )
+                           for r in near_poi(p)] for k, p in poi_xy.items()} )
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT/'report.json').write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding='utf8')
     with (OUT/'buildings.csv').open('w', newline='', encoding='utf8') as f:
@@ -135,4 +172,5 @@ def main():
     print(json.dumps({k: v for k, v in report.items() if k != 'poi'}, indent=1))
     print('POI:', json.dumps(report['poi'], ensure_ascii=False))
 
-main()
+if __name__ == '__main__':
+    main()

@@ -1,6 +1,7 @@
 """Build local metric scene layers. Run from the project root."""
-import json, math, sys, time
+import argparse, json, math, sys, time
 started=time.perf_counter()
+from itertools import chain
 from pathlib import Path
 from urllib.parse import urlencode
 sys.path.insert(0, str(Path('.cache/pylib').resolve()))
@@ -9,11 +10,11 @@ from shapely.ops import transform, unary_union, polygonize, nearest_points
 import shapely
 from shapely import make_valid, maximum_inscribed_circle
 from shapely.strtree import STRtree
-from geo import from_crs, origin, to_crs
+from geo import clip_to_area, from_crs, origin, to_crs
 import numpy as np
 import rasterio
 from source_cache import fetch
-from osm_extract import acquire
+from osm_extract import acquire_projected, tags
 from osm_buildings import osm_buildings
 from city_layers import write_layers
 
@@ -26,7 +27,14 @@ def save(name, data):
 
 catalog=json.loads(Path('content/las-palmas.json').read_text(encoding='utf8'))
 coverage=catalog['coverage']
-osm=acquire(coverage)
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('stage', nargs='?', choices=('city','pilot','barrios','sea'), default='city')
+parser.add_argument('--gzip-level', type=int, choices=(6,9))
+args=parser.parse_args()
+stage=args.stage
+if args.gzip_level is not None and stage!='city':
+    parser.error('--gzip-level applies only to city')
+nodes,node_tags,ways_refs,osm=acquire_projected(coverage)
 utm = to_crs()
 geo = from_crs()
 ox,oy = origin()
@@ -35,10 +43,8 @@ def project(lon,lat):
     return x-ox,y-oy
 def inverse(x,y):
     return geo.transform(x+ox,y+oy)
-def tags(e):
-    return {t.get('k'):t.get('v') for t in e.findall('tag')}
-nodes={e.get('id'):project(float(e.get('lon')),float(e.get('lat'))) for e in osm.findall('node')}
-ways={e.get('id'):(tags(e),[nodes[n.get('ref')] for n in e.findall('nd')]) for e in osm.findall('way')}
+ways={ident:(tag,[nodes[ref] for ref in refs]) for ident,(tag,refs) in ways_refs.items()}
+del ways_refs
 def place_polygon(reference):
     kind, ref = reference.split('/')
     if kind == 'way':
@@ -107,7 +113,6 @@ def save_barrios():
             for p in polygons]))
     save('barrios.json',barrios)
 
-stage=sys.argv[1] if len(sys.argv)>1 else 'city'
 if stage in ('city','barrios'): save_barrios()
 if stage=='barrios': sys.exit()
 if stage!='sea': save('poi.geojson',dict(type='FeatureCollection',features=features))
@@ -146,12 +151,11 @@ if stage in ('city','sea'):
     # The full coastal ways in the supplementary cell close the wider window to the west.
     sea_coast=shorelines.copy()
     if 'seaCoastBounds' in coverage:
-        supplement=acquire(dict(bounds=coverage['seaCoastBounds'],lattice=coverage['lattice']))
-        extra_nodes={e.get('id'):project(float(e.get('lon')),float(e.get('lat'))) for e in supplement.findall('node')}
+        extra_nodes,_,extra_ways,_=acquire_projected(dict(bounds=coverage['seaCoastBounds'],lattice=coverage['lattice']))
         extra_nodes.update(nodes)
-        for way in supplement.findall('way'):
-            if way.get('id') not in ways and tags(way).get('natural')=='coastline':
-                sea_coast.append(LineString([extra_nodes[n.get('ref')] for n in way.findall('nd')]))
+        for ident,(tag,refs) in extra_ways.items():
+            if ident not in ways and tag.get('natural')=='coastline':
+                sea_coast.append(LineString([extra_nodes[ref] for ref in refs]))
     # Allow for a square viewport at maximum zoom-out, including during rotation.
     west,south,east,north=aoi.bounds
     # To the south the coast runs on past the model: the sea stops where the acquired coastline does.
@@ -192,7 +196,7 @@ lidar_file=Path('content/lidar-heights.json')
 lidar=json.loads(lidar_file.read_text(encoding='utf8')) if lidar_file.exists() else {}
 lidar_heights,lidar_parts=lidar.get('heights',{}),lidar.get('parts',{})
 # Storage tanks and silos mapped in OpenStreetMap are municipal footprints too: plain pale shells, no windows.
-tanks=[Point(nodes[e.get('id')]) for e in osm.findall('node') if tags(e).get('man_made') in ('storage_tank','silo')]
+tanks=[Point(nodes[ident]) for ident,tag in node_tags.items() if tag.get('man_made') in ('storage_tank','silo')]
 tanks+=[LineString(v).centroid for t,v in ways.values() if t.get('man_made') in ('storage_tank','silo') and len(v)>1]
 tank_index=STRtree(tanks) if tanks else None
 tank_style=dict(windows=False,roofFurniture=False,wallColor='#e3e3dc')
@@ -209,15 +213,18 @@ mapped_index=STRtree([p for p,_ in mapped])
 def kind_of(p,height):
     best,kind=0,None
     for i in mapped_index.query(p):
-        a=mapped[i][0].intersection(p).area
-        if mapped[i][1] and a>.5*p.area and a>best: best,kind=a,mapped[i][1]
+        candidate,archetype=mapped[i]
+        if not archetype: continue
+        a=candidate.intersection(p).area
+        if a>.5*p.area and a>best: best,kind=a,archetype
     # A plan deeper than any dwelling under a low roof is a hall, whatever the map says.
     if not kind and p.area>=1200 and height<=16 and maximum_inscribed_circle(p).length>=15: kind='hall'
     return kind
+shapely.prepare(area)
 for f in features:
     g=make_valid(transform(project,shape(f['geometry'])))
     h=f['properties']['MAX_BLDGHEIGHT_1']
-    clipped=g.intersection(area)
+    clipped=clip_to_area(g, area)
     style=catalog['buildings'].get(str(f['properties']['OBJECTID']),{}).copy()
     split=style.pop('split',None)
     if style.pop('footprint',None)=='osm':
@@ -274,32 +281,31 @@ for i,(t,vs) in ways.items():
     # Playgrounds and sports pitches at street level are ground of their own; those on a roof are not.
     play=t.get('leisure') in ('playground','pitch') and t.get('layer','0') in ('0','-1')
     if vs[0]==vs[-1] and len(vs)>3 and (beach or water):
-        for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
+        for p in parts(clip_to_area(make_valid(Polygon(vs)), area),'Polygon'):
             if p.area>50 if beach else 4<p.area<20000: surfaces.append(dict(id=i,kind='beach' if beach else 'water',rings=rings(p)))
     elif vs[0]==vs[-1] and len(vs)>3 and (green or t.get('area')=='yes' and road or play or t.get('place')=='square'):
         # The ground of the area: the catalogue first, then the `surface` tag, then what a playground or a pitch is made of.
         made=catalog.get('grounds',{}).get(i) or cover(t) or ('rubber' if t.get('leisure')=='playground' else 'pitch' if play else None)
-        for p in parts(make_valid(Polygon(vs)).intersection(area),'Polygon'):
+        for p in parts(clip_to_area(make_valid(Polygon(vs)), area),'Polygon'):
             surfaces.append(dict(id=i,kind='park' if green else 'plaza',paved=i in catalog['pavedParks'],rings=rings(p),**({'ground':made} if made and not (green and made=='grass') else {})))
     elif road and road not in ('construction','proposed','elevator') and not underground(t):
-        for l in parts(LineString(vs).intersection(area),'LineString'):
+        for l in parts(clip_to_area(LineString(vs), area),'LineString'):
             grade={key:t[key] for key in ('bridge','layer') if key in t}
             if any(tuple(l.coords[k]) in portals for k in (0,-1)): grade['portal']=True
             roads.append(dict(id=i,name=t.get('name'),kind=road,line=coords(l.coords),**grade))
 # Painted from the largest to the smallest, so a flower bed shows on the paved park around it; water last.
 surfaces.sort(key=lambda s:(s['kind']=='water',-Polygon(s['rings'][0]).area))
-for e in osm.findall('node'):
-    if tags(e).get('natural')=='tree' and area.contains(Point(nodes[e.get('id')])):
-        trees+=coords([nodes[e.get('id')]])
+for ident,tag in node_tags.items():
+    if tag.get('natural')=='tree' and area.contains(Point(nodes[ident])):
+        trees+=coords([nodes[ident]])
 # Port objects exactly where OpenStreetMap maps them: quay cranes and chimneys. A crane heads for the nearest
 # quay edge; its mapped place is approximate. Tanks and silos are municipal buildings already.
 props=[]
 if stage=='city':
     quays=unary_union(shorelines).intersection(window)
-    for kind,e in [(e.tag,e) for e in osm.findall('node')]+[(e.tag,e) for e in osm.findall('way')]:
-        t=tags(e)
-        if t.get('man_made') not in ('crane','chimney'): continue
-        p=Point(nodes[e.get('id')]) if kind=='node' else LineString(ways[e.get('id')][1]).centroid
+    point_props=((tag,Point(nodes[ident])) for ident,tag in node_tags.items() if tag.get('man_made') in ('crane','chimney'))
+    way_props=((tag,LineString(points).centroid) for tag,points in ways.values() if tag.get('man_made') in ('crane','chimney'))
+    for t,p in chain(point_props,way_props):
         if not area.contains(p): continue
         if t['man_made']=='chimney':
             props.append(['chimney',round(p.x,1),round(p.y,1),0,float(t.get('height',25))])
@@ -322,7 +328,6 @@ with rasterio.open(fetch(stage+'-dem.tif',url)) as dem:
 def ground_cells():
     """The land in 15 m squares. Only the squares on the edge are clipped: one wholly inside is the square itself, with
     the vertices in the order GEOS gives them, and a million clips against the whole outline took twenty minutes."""
-    shapely.prepare(area)
     ys=list(range(15*math.floor(y0/15),math.ceil(y1),15))
     for x in range(15*math.floor(x0/15),math.ceil(x1),15):
         squares=shapely.box(x,ys,x+15,[y+15 for y in ys])
@@ -330,7 +335,8 @@ def ground_cells():
             if inside: yield coords((float(a),float(b)) for a,b in ((x,y),(x,y+15),(x+15,y+15),(x+15,y),(x,y)))
             elif touch: yield from (coords(p.exterior.coords) for p in parts(area.intersection(square),'Polygon') if p.area>0.01)
 ground=list(ground_cells())
-write_layers(stage,dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,props=props,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None))
+write_layers(stage,dict(ground=ground,boundary=rings(area)[0],buildings=buildings,roads=roads,surfaces=surfaces,trees=trees,props=props,terrain=elev,focus=catalog['pilotFocus'] if stage=='pilot' else None),
+             compresslevel=args.gzip_level or 9)
 print(stage,count,len(buildings),len(roads),len(trees),elev['step'],round(time.perf_counter()-started,2),'s')
 
 

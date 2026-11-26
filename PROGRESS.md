@@ -2,6 +2,8 @@
 
 Dalla seconda stella, sui rettilinei percorsi a velocità sostenuta i rinforzi possono entrare fuori campo lungo un segmento stradale. La corsia viene verificata dal punto di vista della camera nel tratto di incontro. [Prova su cinque quartieri](docs/QA.md#rettifili-della-città-e-visibilità-delle-pattuglie).
 
+La rigenerazione Python riusa gli estratti OSM proiettati, le maschere e le mesh delle carreggiate, le tessere ortofoto e i dati LiDAR decodificati. Sono disponibili il calcolo delle sole tinte dei tetti e gzip 6 su richiesta. I generatori predefiniti mantengono i file canonici. [Guida](docs/EXPAND_CITY.md#generazione-riproducibile) · [Misure](docs/QA.md#rigenerazione-python--26-novembre-2026).
+
 La luce diurna del plastico è condivisa fra mappa, guida, editor e laboratori. I parapetti riprendono il colore delle coperture e le giunzioni di muri, cabine e balconi usano i colori dei vertici. [Sei confronti a camera fissa](docs/QA.md#luce-diurna-bordi-delle-coperture-e-contatto).
 
 Le nuvole passano 400 m sopra il punto inquadrato e sfumano avvicinandosi alla strada.

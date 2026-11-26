@@ -2,6 +2,7 @@
 import hashlib
 import subprocess
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 
 def fetch(name, url, *, offline=False):
@@ -13,7 +14,11 @@ def fetch(name, url, *, offline=False):
     if not path.exists():
         if offline:
             raise FileNotFoundError(f"Missing offline source: {path} ({url})")
-        tmp = path.with_suffix(path.suffix + ".part")
-        subprocess.run(["curl", "-fsSL", "--retry", "2", "--max-time", "120", url, "-o", str(tmp)], check=True)
-        tmp.replace(path)
+        with NamedTemporaryFile(dir=cache, prefix=path.name + ".", suffix=".part", delete=False) as stream:
+            tmp = Path(stream.name)
+        try:
+            subprocess.run(["curl", "-fsSL", "--retry", "2", "--max-time", "120", url, "-o", str(tmp)], check=True)
+            tmp.replace(path)
+        finally:
+            tmp.unlink(missing_ok=True)
     return path

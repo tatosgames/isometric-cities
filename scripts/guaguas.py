@@ -31,13 +31,23 @@ def rows(archive, table):
         yield from csv.DictReader(stream)
 
 
+def bounds_overlap(coords, bounds):
+    if not coords:
+        return False
+    x0, y0, x1, y1 = bounds
+    xs, ys = zip(*coords)
+    return min(xs) <= x1 and max(xs) >= x0 and min(ys) <= y1 and max(ys) >= y0
+
+
 def check_sweep(path, city, style):
     # Sweep the entire 7.2 x 2.2 m body along every exported segment. Use the
     # original road widths shared by the pilot and city, including intersections.
     region = path.envelope.buffer(12)
+    bounds = region.bounds
+    x0, y0, x1, y1 = bounds
     streets = []
     for road in city["roads"]:
-        if road["kind"] in style["pedestrian"]:
+        if road["kind"] in style["pedestrian"] or not bounds_overlap(road["line"], bounds):
             continue
         line = LineString(road["line"])
         if region.intersects(line):
@@ -47,10 +57,16 @@ def check_sweep(path, city, style):
     obstacles = []
     for item in city["buildings"]:
         ring, *holes = item["rings"]
+        if not bounds_overlap(ring, bounds):
+            continue
         footprint = Polygon(ring, holes)
         if region.intersects(footprint):
             obstacles.append(make_valid(footprint))
-    obstacles.extend(Point(x, y).buffer(.3) for x, y in city["trees"] if region.covers(Point(x,y)))
+    for x, y in city["trees"]:
+        if x0 <= x <= x1 and y0 <= y <= y1:
+            point = Point(x, y)
+            if region.covers(point):
+                obstacles.append(point.buffer(.3))
     clear = pavement.intersection(Polygon(city["boundary"])).difference(union_all(obstacles))
     for a,b in zip(path.coords, list(path.coords)[1:]):
         dx, dy = b[0]-a[0], b[1]-a[1]
@@ -74,19 +90,29 @@ def extract(feed):
         times = sorted((r for r in rows(archive,"stop_times") if r["trip_id"] == TRIP),
                        key=lambda r:int(r["stop_sequence"]))
         sequence = [r["stop_id"] for r in times]
-        first = sequence.index(STOP_IDS[0])
-        if sequence[first:first+2] != STOP_IDS:
-            raise ValueError("Reviewed stops are no longer consecutive")
-        stops = {r["stop_id"]: r for r in rows(archive,"stops") if r["stop_id"] in STOP_IDS}
+        stops = {r["stop_id"]: (r["stop_name"],metres(r,"stop"))
+                 for r in rows(archive,"stops") if r["stop_id"] in STOP_IDS}
         shape = sorted((r for r in rows(archive,"shapes") if r["shape_id"] == trip["shape_id"]),
                        key=lambda r:int(r["shape_pt_sequence"]))
-        source = LineString([metres(row,"shape_pt") for row in shape])
-    official = [Point(metres(stops[i],"stop")) for i in STOP_IDS]
+        coords = [metres(row,"shape_pt") for row in shape]
+    city_dir = ROOT/"public/data"
+    datasets = {area: read_layers(area, city_dir) for area in ("pilot", "city")}
+    style = json.loads((ROOT/"src/data/road-style.json").read_bytes())
+    reviewed_trip = (route["route_short_name"], trip["trip_headsign"], trip["shape_id"], sequence)
+    return extract_reviewed(reviewed_trip, coords, stops, datasets, style, hashlib.sha256(feed.read_bytes()).hexdigest())
+
+
+def extract_reviewed(trip, shape, stops, datasets, style, source_hash):
+    line, direction, shape_id, sequence = trip
+    first = sequence.index(STOP_IDS[0])
+    if list(sequence[first:first+2]) != STOP_IDS:
+        raise ValueError("Reviewed stops are no longer consecutive")
+    source = LineString(shape)
+    official = [Point(stops[i][1]) for i in STOP_IDS]
     distances = [source.project(p) for p in official]
     if distances[0] >= distances[1] or any(source.distance(p)>12 for p in official):
         raise ValueError("Stop positions or direction have changed")
-    city_dir = ROOT/"public/data"
-    pilot = json.loads((city_dir/"pilot.json").read_bytes())
+    pilot = datasets["pilot"]
     roads = {road["id"]:road["line"] for road in pilot["roads"]}
     # Keep to the right in the direction of service on the surveyed OSM way.
     lane = LineString(roads[ROAD_ID]).offset_curve(-.45)
@@ -100,14 +126,12 @@ def extract(feed):
         raise ValueError("Published shape has moved away from reviewed streets")
     coords = [[round(x,2),round(y,2)] for x,y in path.simplify(.03).coords]
     path = LineString(coords)
-    style = json.loads((ROOT/"src/data/road-style.json").read_bytes())
-    for city in [pilot, read_layers("city", city_dir)]:
-        check_sweep(path,city,style)
-    return dict(line=route["route_short_name"],direction=trip["trip_headsign"],path=coords,
-                stops=[dict(id=i,name=stops[i]["stop_name"],position=[round(v,2) for v in p.coords[0]],
+    for area in ("pilot", "city"):
+        check_sweep(path,datasets[area],style)
+    return dict(line=line,direction=direction,path=coords,
+                stops=[dict(id=i,name=stops[i][0],position=[round(v,2) for v in p.coords[0]],
                             distance=round(path.project(p),2)) for i,p in zip(STOP_IDS,official)],
-                source=dict(url=SOURCE,sha256=hashlib.sha256(feed.read_bytes()).hexdigest(),
-                            trip=TRIP,shape=trip["shape_id"],osmWays=[ROAD_ID]))
+                source=dict(url=SOURCE,sha256=source_hash,trip=TRIP,shape=shape_id,osmWays=[ROAD_ID]))
 
 
 if __name__ == "__main__":

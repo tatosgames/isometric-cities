@@ -7,14 +7,14 @@ from collections import Counter
 from pathlib import Path
 
 sys.path[:0] = [str(Path(".cache/pylib").resolve()), str(Path(__file__).resolve().parent)]
-from geo import from_crs, origin, to_crs
+from geo import from_crs, origin
 from city_layers import read_layers
 from shapely import make_valid, union_all
 from shapely.geometry import LineString, Polygon, mapping
 from shapely.ops import transform
 from shapely.strtree import STRtree
 
-from osm_extract import acquire
+from osm_extract import acquire_projected
 
 
 def read(path):
@@ -51,24 +51,16 @@ def main():
     out = parser.parse_args().out
     data = read_layers("city")
     catalog = read("content/las-palmas.json")
-    osm = acquire(catalog["coverage"], offline=True)
-    forward = to_crs()
+    nodes, _, ways, _relations = acquire_projected(catalog["coverage"], offline=True)
     inverse = from_crs()
     ox, oy = origin()
-    nodes = {}
-    for e in osm.iterfind("node"):
-        x, y = forward.transform(float(e.get("lon")), float(e.get("lat")))
-        nodes[e.get("id")] = x - ox, y - oy
     land = make_valid(Polygon(data["boundary"]))
     tags_by_id, masks, mask_ids = {}, [], []
-    for e in osm.iterfind("way"):
-        key = e.get("id")
-        tags = {t.get("k"): t.get("v") for t in e.iterfind("tag")}
+    for key, (tags, refs) in ways.items():
         tags_by_id[key] = tags
         if not (building_use(tags) or cover(tags) or tags.get("amenity") in
                 {"parking", "bus_station"} or tags.get("highway") == "pedestrian"):
             continue
-        refs = [nd.get("ref") for nd in e.iterfind("nd")]
         if len(refs) < 4 or refs[0] != refs[-1] or tags.get("area") == "no":
             continue
         if tags.get("highway") and tags.get("area") != "yes" and not tags.get("amenity"):
@@ -77,7 +69,7 @@ def main():
         if geom.area > 0:
             masks.append(geom)
             mask_ids.append(key)
-    del osm, nodes
+    del nodes, ways
     masks_index = STRtree(masks)
     features = []
 

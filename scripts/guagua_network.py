@@ -9,13 +9,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
-from guaguas import ROOT, SOURCE, extract, rows
+from guaguas import ROOT, SOURCE, TRIP, extract_reviewed, rows
 from city_layers import read_layers
 from guagua_roads import BusRoads, RoadClearance
 from guagua_index import index_piece
 from geo import origin, to_crs
 from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, Polygon
+
+MIN_INTERVAL_METRES = .0001
 
 def encode(obj):
     return (json.dumps(obj,ensure_ascii=False,separators=(',',':'),allow_nan=False)+'\n').encode()
@@ -36,21 +38,35 @@ def read_feed(feed):
         orders=defaultdict(list)
         for r in rows(z,'stop_times'):orders[r['trip_id']].append((int(r['stop_sequence']),r['stop_id']))
         patterns={}
+        reviewed=None
         for r in rows(z,'trips'):
             key=(routes[r['route_id']],r['direction_id'],r['trip_headsign'],r['shape_id'],
                  tuple(s for _,s in sorted(orders[r['trip_id']])))
             patterns.setdefault(key,r['trip_id'])
-    return shapes,patterns,stops
+            if r['trip_id']==TRIP and reviewed is None:
+                order=tuple(s for _,s in sorted(orders[TRIP],key=lambda item:item[0]))
+                reviewed=(key[0],key[2],key[3],order)
+    if reviewed is None:
+        raise ValueError('Missing reviewed trip '+TRIP)
+    return shapes,patterns,stops,reviewed
 
 def intervals_within(shape,boundary):
+    if boundary.disjoint(shape):
+        return []
+    coords=list(shape.coords)
+    # At the border an intersection can split even a wholly covered segment.
+    # The overlay also drops intervals at the length cutoff, so keep it for
+    # tiny segments rather than comparing two different distance routines there.
+    if boundary.contains_properly(shape) and all(math.dist(a,b)>2*MIN_INTERVAL_METRES for a,b in zip(coords,coords[1:])):
+        return [(0.0,shape.length)]
     intervals=[];current=0
-    for a,b in zip(shape.coords,list(shape.coords)[1:]):
+    for a,b in zip(coords,coords[1:]):
         line=LineString([a,b]);length=line.length
         inside=line.intersection(boundary)
         parts=inside.geoms if hasattr(inside,'geoms') else [inside]
         spans=[]
         for part in parts:
-            if part.geom_type=='LineString' and part.length>.0001:
+            if part.geom_type=='LineString' and part.length>MIN_INTERVAL_METRES:
                 s,e=sorted([line.project(Point(part.coords[0])),line.project(Point(part.coords[-1]))])
                 spans.append((current+s,current+e))
         for s,e in sorted(spans):
@@ -59,26 +75,41 @@ def intervals_within(shape,boundary):
         current+=length
     return intervals
 
-def stop_locations(shape,order,stops):
+def stop_segments(coords):
+    """Cache projection inputs and end measures in travel order."""
+    segments=[];ends=[];cursor=0
+    for a,b in zip(coords,coords[1:]):
+        length=math.dist(a,b)
+        if length:
+            segments.append((a,b,length,cursor))
+            cursor+=length
+            ends.append(cursor)
+    return segments,ends
+
+
+def stop_locations(path_segments,order,stops):
     """Advance along source measures, including repeated stops on loops."""
+    segments,ends=path_segments
     start=0;result=[]
     for sid in order:
         name,p=stops[sid];point=Point(p)
         # On a looping route pick the first occurrence close to the official stop.
-        options=[];cursor=0
-        for a,b in zip(shape.coords,list(shape.coords)[1:]):
-            length=math.dist(a,b)
-            if length and cursor+length>=start:
-                u=max(0,min(1,((p[0]-a[0])*(b[0]-a[0])+(p[1]-a[1])*(b[1]-a[1]))/length**2))
-                m=cursor+u*length
-                err=math.hypot(p[0]-a[0]-u*(b[0]-a[0]),p[1]-a[1]-u*(b[1]-a[1]))
-                if m>=start and err<=25:options.append((m,err))
-            cursor+=length
-        if options:
-            earliest=options[0][0]
-            m,_=min((o for o in options if o[0]<earliest+75),key=lambda o:o[1])
-            start=m+1
-            result.append((m,sid,name,point))
+        limit=math.inf;best=None
+        for i in range(bisect_left(ends,start),len(segments)):
+            a,b,length,cursor=segments[i]
+            if cursor>=limit:
+                break
+            u=max(0,min(1,((p[0]-a[0])*(b[0]-a[0])+(p[1]-a[1])*(b[1]-a[1]))/length**2))
+            m=cursor+u*length
+            err=math.hypot(p[0]-a[0]-u*(b[0]-a[0]),p[1]-a[1]-u*(b[1]-a[1]))
+            if m>=start and m<limit and err<=25:
+                if best is None:
+                    limit=m+75
+                if best is None or err<best[1]:
+                    best=(m,err)
+        if best is not None:
+            start=best[0]+1
+            result.append((best[0],sid,name,point))
     return result
 
 def clipped_verified(chains,clearance,reviewed):
@@ -149,8 +180,10 @@ def generate(feed,out):
     datasets={area:read_layers(area,public) for area in ('city','pilot')}
     style=json.loads((ROOT/'src/data/road-style.json').read_bytes())
     catalog=json.loads((ROOT/'content/las-palmas.json').read_bytes())
-    shapes,patterns,stops=read_feed(feed)
-    reviewed=extract(feed);source={'url':SOURCE,'sha256':hashlib.sha256(feed.read_bytes()).hexdigest()}
+    shapes,patterns,stops,reviewed_trip=read_feed(feed)
+    source={'url':SOURCE,'sha256':hashlib.sha256(feed.read_bytes()).hexdigest()}
+    reviewed=extract_reviewed(reviewed_trip,shapes[reviewed_trip[2]],stops,datasets,style,source['sha256'])
+    segments={shape_id:stop_segments(coords) for shape_id,coords in shapes.items()}
     ids={r['id'] for d in datasets.values() for r in d['roads']}
     print('Loading directed street network',flush=True)
     roads=BusRoads(catalog['coverage'],ids)
@@ -179,7 +212,7 @@ def generate(feed,out):
             for variant,key in enumerate(variants):
                 _,_,direction,shape_id,order=key
                 shape,runs,inside,served,gaps=geometry[shape_id]
-                positions=stop_locations(shape,order,stops) if runs else []
+                positions=stop_locations(segments[shape_id],order,stops) if runs else []
                 all_stops=set();period=90*len(variants)
                 group_phase=int.from_bytes(hashlib.sha256((line+'|'+dir_id).encode()).digest()[:3],'big')%90
                 pieces=[]

@@ -20,3 +20,14 @@ def from_crs(epsg=UTM):
 def origin(epsg=UTM):
     """The map origin expressed in `epsg`."""
     return to_crs(epsg).transform(*ORIGIN_LONLAT)
+
+
+def clip_to_area(geometry, area):
+    """Clip against a prepared area, preserving GEOS overlay ordering for interior shapes."""
+    from shapely import contains_properly
+    from shapely.geometry import box
+
+    if contains_properly(area, geometry):
+        x0, y0, x1, y1 = geometry.bounds
+        return geometry.intersection(box(x0 - 1, y0 - 1, x1 + 1, y1 + 1))
+    return geometry.intersection(area)

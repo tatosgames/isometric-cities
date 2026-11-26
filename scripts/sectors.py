@@ -10,15 +10,17 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(".cache/pylib").resolve()))
 from array import array
-from PIL import Image
+from PIL import Image, __version__ as pillow_version, features
 # The roof atlas is our own mosaic: the whole municipality is larger than PIL's guard against foreign images.
 Image.MAX_IMAGE_PIXELS = None
+from shapely import contains_properly, intersects, prepare
 from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from road_sections import select_sections
 from city_layers import read_layers
 from carriageways import Carriageways, grade_separated, polygon_rings
+from generation_cache import atomic_write, digest, file_digest, read_entry, write_entry
 
 SIZE = 240
 ZONE = SIZE * 4
@@ -125,11 +127,20 @@ def encode(value):
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def write_if_changed(path, payload):
+    try:
+        if path.read_bytes() == payload:
+            return
+    except FileNotFoundError:
+        pass
+    atomic_write(path, payload)
+
+
 def write_versioned(directory, name, value):
     payload = encode(value)
     digest = sha256(payload).hexdigest()[:12]
     path = directory / f"{name}-{digest}.json"
-    path.write_bytes(payload)
+    write_if_changed(path, payload)
     return path.name
 
 
@@ -217,10 +228,110 @@ def fused(buildings, altitude, tones):
     return out
 
 
+def sector_bounds(detail):
+    points = [p for b in detail["buildings"] for p in b["rings"][0]]
+    points.extend(detail["trees"])
+    # A quay crane reaches about 60 m from its place.
+    points.extend([p[1] + dx, p[2] + dy] for p in detail["props"] for dx in (-60, 60) for dy in (-60, 60))
+    points.extend(p for ring in detail["ground"] for p in ring)
+    xs, ys = zip(*points)
+    west, south, east, north = min(xs), min(ys), max(xs), max(ys)
+    bounds = [west - 7, south - 7, east + 7, north + 7]
+    left, bottom, right, top = floor(west) - 2, floor(south) - 2, ceil(east) + 2, ceil(north) + 2
+    return bounds, [left, bottom, right - left, top - bottom]
+
+
+def atlas_crop(atlas_bounds, roof_bounds):
+    west, south, width, height = atlas_bounds
+    left, bottom, tile_width, tile_height = roof_bounds
+    x0, y1 = left - west, south + height - bottom
+    return x0, y1 - tile_height, x0 + tile_width, y1
+
+
+def open_atlas(bounds, roof_bounds):
+    atlas = Path(".cache/roof-atlas.png")
+    try:
+        meta = json.loads(atlas.with_suffix(".json").read_bytes())
+        if meta["bounds"] != bounds or file_digest(atlas) != meta["sha256"]:
+            return None, None
+        for crop in roof_bounds:
+            x0, y0, x1, y1 = atlas_crop(bounds, crop)
+            if not (0 <= x0 < x1 <= bounds[2] and 0 <= y0 < y1 <= bounds[3]):
+                return None, None
+        roof = Image.open(atlas)
+        if roof.size == tuple(bounds[2:]):
+            source = digest(meta["sha256"], pillow_version, features.version("webp"), file_digest(__file__))
+            return roof, source
+        roof.close()
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None, None
+
+
+def roof_file_matches(directory, name, file):
+    if not isinstance(file, str) or not re.fullmatch(re.escape(name) + r"-[0-9a-f]{12}\.webp", file):
+        return False
+    try:
+        return file_digest(directory / file).startswith(Path(file).stem.rsplit("-", 1)[1])
+    except OSError:
+        return False
+
+
+def previous_roofs(directory, candidates):
+    kept = {}
+    try:
+        entries = json.loads((directory.parent / "city-index.json").read_bytes())["sectors"]
+    except (OSError, ValueError, KeyError, TypeError):
+        entries = []
+    for entry in entries:
+        name = entry["id"]
+        if name not in candidates:
+            continue
+        try:
+            old = json.loads((directory / entry["file"]).read_bytes())
+        except (OSError, ValueError):
+            continue
+        file = old.get("roofFile")
+        if old.get("roofBounds") == candidates[name] and roof_file_matches(directory, name, file):
+            kept[name] = file
+    if missing := candidates.keys() - kept.keys():
+        raise SystemExit(f"Sector {min(missing)} needs a new roof tile: run roof-colours.py to build .cache/roof-atlas.png")
+    return kept
+
+
+def bake_roof(directory, name, roof, source, crop):
+    path = Path(".cache/sector-roofs") / f"{name}.txt"
+    key = digest(source, crop)
+    cached = read_entry(path, key)
+    if cached is not None:
+        file = cached.decode("ascii", errors="replace")
+        if roof_file_matches(directory, name, file):
+            return file
+    with BytesIO() as image:
+        roof.crop(crop).save(image, "WEBP", quality=85)
+        payload = image.getvalue()
+    file = f"{name}-{sha256(payload).hexdigest()[:12]}.webp"
+    write_if_changed(directory / file, payload)
+    write_entry(path, key, file.encode("ascii"))
+    return file
+
+
+def far_ground(land, square):
+    cells = [(gx, gy) for gx in range(square[0], square[2], FAR) for gy in range(square[1], square[3], FAR)]
+    squares = [box(x, y, x + FAR, y + FAR) for x, y in cells]
+    inside, touched = contains_properly(land, squares), intersects(land, squares)
+    ground = []
+    for (x, y), cell, interior, hit in zip(cells, squares, inside, touched):
+        if hit:
+            # An overlay with a local enclosing box keeps GEOS's exterior ring order.
+            clip = box(x - 1, y - 1, x + FAR + 1, y + FAR + 1) if interior else land
+            ground.extend(ring_of(p) for p in parts(clip.intersection(cell)) if p.area > 1)
+    return ground
+
+
 def partition(stage, road_cells=None):
     data = read_layers(stage)
     directory = ROOT / f"{stage}-sectors"
-    directory.mkdir(exist_ok=True)
     tiles = defaultdict(lambda: {"buildings": [], "trees": [], "props": [], "ground": [], "roads": [], "surfaces": []})
 
     def cell(x, y):
@@ -242,11 +353,11 @@ def partition(stage, road_cells=None):
         row = min(max((relief["origin"][1] - y) / (relief.get("stepY") or relief["step"]), 0), relief["h"] - 1.001)
         i, u, t, v, w = floor(row) * relief["w"] + floor(col), col % 1, row % 1, relief["values"], relief["w"]
         return (v[i] * (1 - u) + v[i + 1] * u) * (1 - t) + (v[i + w] * (1 - u) + v[i + w + 1] * u) * t
-    roof_tones = json.loads((ROOT / "roof-tones.json").read_bytes())["tones"]
+    palette = json.loads((ROOT / "roof-tones.json").read_bytes())
     # The fused list rides beside the full one: the small-screen profile draws it, the zones and the desktop do not.
     for name, detail in tiles.items():
         if len(detail["buildings"]) >= DENSE:
-            detail["fused"] = fused(detail["buildings"], altitude, roof_tones)
+            detail["fused"] = fused(detail["buildings"], altitude, palette["tones"])
             print("dense sector", name, len(detail["buildings"]), "buildings,", len(detail["fused"]), "fused")
     for point in data["trees"]:
         tiles[cell(*point)]["trees"].append(point)
@@ -269,59 +380,38 @@ def partition(stage, road_cells=None):
                     if (x,y) in tiles:
                         tiles[x,y][layer].append(feature)
     published = stage == "city"
-    palette = json.loads((ROOT/"roof-tones.json").read_bytes())
-    west,south,width,height=palette["bounds"]
-    atlas=Path(".cache/roof-atlas.png")
-    roof=Image.open(atlas) if published and atlas.exists() else None
-    # Without the orthophoto atlas (a checkout with no cache) each sector keeps its published roof tile.
-    # That holds only while its buildings, and so the tile bounds, are unchanged.
-    kept={}
-    if published and roof is None:
-        for path in (ROOT/"city-sectors").glob("*.json"):
-            old=json.loads(path.read_bytes())
-            kept[path.name.rsplit("-",1)[0]]=(old.get("roofBounds"),old.get("roofFile"))
-    carriageways = Carriageways(data)
+    layout = {f"{cx}_{cy}": sector_bounds(detail) for (cx, cy), detail in tiles.items()}
+    roof, roof_source, kept = None, None, {}
+    if published:
+        candidates = {name: crop for name, (_, crop) in layout.items()}
+        roof, roof_source = open_atlas(palette["bounds"], candidates.values())
+        if roof is None:
+            kept = previous_roofs(directory, candidates)
+    directory.mkdir(exist_ok=True)
+    carriageways = Carriageways(data, stage)
     sample_cells=set()
     if published:
         samples=select_sections(data,carriageways,SIZE)
         lab=ROOT/"road-width-lab"
         lab.mkdir(exist_ok=True)
-        (lab/"sections.json").write_bytes(encode(samples))
+        write_if_changed(lab / "sections.json", encode(samples))
         sample_cells={s["cell"] for s in samples.values()}
     entries = []
     generated = set()
     for (cx, cy), detail in sorted(tiles.items()):
         name = f"{cx}_{cy}"
-        points = [p for b in detail["buildings"] for p in b["rings"][0]]
-        points.extend(detail["trees"])
-        # A quay crane reaches about 60 m from its place.
-        points.extend([p[1] + dx, p[2] + dy] for p in detail["props"] for dx in (-60, 60) for dy in (-60, 60))
-        points.extend(p for ring in detail["ground"] for p in ring)
-        xs, ys = zip(*points)
-        bounds = [min(xs) - 7, min(ys) - 7, max(xs) + 7, max(ys) + 7]
+        bounds, roof_bounds = layout[name]
         detail["textureBounds"]=[cx*SIZE-5,cy*SIZE-5,(cx+1)*SIZE+5,(cy+1)*SIZE+5]
         if road_cells is None or name in road_cells:
             detail["carriageway"]=carriageways.tile(detail,[cx*SIZE,cy*SIZE,(cx+1)*SIZE,(cy+1)*SIZE])
         if name in sample_cells:
             baseline=carriageways.tile(detail,[cx*SIZE,cy*SIZE,(cx+1)*SIZE,(cy+1)*SIZE],original=True)
-            (lab/(name+".json")).write_bytes(encode(baseline))
-        left,bottom,right,top=floor(min(xs))-2,floor(min(ys))-2,ceil(max(xs))+2,ceil(max(ys))+2
-        roof_file=None
-        if roof:
-            tile=roof.crop((left-west,south+height-top,right-west,south+height-bottom))
-            image=BytesIO()
-            tile.save(image,"WEBP",quality=85)
-            payload=image.getvalue()
-            roof_file=f"{name}-{sha256(payload).hexdigest()[:12]}.webp"
-            (directory/roof_file).write_bytes(payload)
-            detail["roofBounds"]=[left,bottom,right-left,top-bottom]
-            detail["roofFile"]=roof_file
-        elif published:
-            bounds_then,roof_file=kept.get(name,(None,None))
-            if bounds_then!=[left,bottom,right-left,top-bottom] or not (directory/roof_file).exists():
-                raise SystemExit(f"Sector {name} needs a new roof tile: run roof-colours.py to build .cache/roof-atlas.png")
-            detail["roofBounds"]=bounds_then
-            detail["roofFile"]=roof_file
+            write_if_changed(lab / (name + ".json"), encode(baseline))
+        roof_file = None
+        if published:
+            roof_file = bake_roof(directory, name, roof, roof_source, atlas_crop(palette["bounds"], roof_bounds)) if roof else kept[name]
+            detail["roofBounds"] = roof_bounds
+            detail["roofFile"] = roof_file
         file = write_versioned(directory, name, detail)
         # Elevation samples cover every object in the ownership bounds, including overhang.
         d=data["terrain"]
@@ -335,6 +425,8 @@ def partition(stage, road_cells=None):
         vertical=[min(samples)-5,max(samples)+max(50,tallest+6)]
         entries.append(dict(id=name, bounds=bounds, vertical=vertical, file=file))
         generated.update(f for f in (file, roof_file) if f)
+    if roof:
+        roof.close()
     # Zones hold the per-building overview and the collision footprints, fetched on demand.
     def zone_of(cx, cy):
         return cx // 4, cy // 4
@@ -349,6 +441,7 @@ def partition(stage, road_cells=None):
     zone_directory = ROOT / f"{stage}-zones"
     zone_directory.mkdir(exist_ok=True)
     land = Polygon(data["boundary"]).buffer(0)
+    prepare(land)
     zone_entries, far, zone_files = [], {}, set()
     for (zx, zy), zone in sorted(zones.items()):
         name = f"{zx}_{zy}"
@@ -360,26 +453,22 @@ def partition(stage, road_cells=None):
         members = [e for e in entries if zone_of(*map(int, e["id"].split("_"))) == (zx, zy)]
         zone_entries.append(dict(id=name, bounds=square, file=file,
                                  vertical=[min(e["vertical"][0] for e in members), max(e["vertical"][1] for e in members)]))
-        ground = []
-        for gx in range(square[0], square[2], FAR):
-            for gy in range(square[1], square[3], FAR):
-                ground += [ring_of(p) for p in parts(land.intersection(box(gx, gy, gx + FAR, gy + FAR))) if p.area > 1]
-        far[name] = dict(blocks=far_blocks(zone["buildings"], palette["tones"]), ground=ground)
+        far[name] = dict(blocks=far_blocks(zone["buildings"], palette["tones"]), ground=far_ground(land, square))
     for path in zone_directory.iterdir():
         if re.fullmatch(r"-?\d+_-?\d+-[0-9a-f]{12}\.json", path.name) and path.name not in zone_files:
             path.unlink()
     # The core is everything the viewer needs before any zone arrives.
     terrain = data["terrain"]
     kept, heights = terrain_tiles(terrain, data["boundary"])
-    (ROOT / f"{stage}-terrain.bin").write_bytes(heights.tobytes())
+    write_if_changed(ROOT / f"{stage}-terrain.bin", heights.tobytes())
     core = dict(boundary=data["boundary"], roads=data["roads"], surfaces=data["surfaces"], focus=data.get("focus"),
                 terrain={**{k: v for k, v in terrain.items() if k != "values"}, "file": f"{stage}-terrain.bin", "tile": TILE, "tiles": kept}, far=far)
-    (ROOT / f"{stage}-core.json").write_bytes(encode(core))
+    write_if_changed(ROOT / f"{stage}-core.json", encode(core))
     # The same footprint index serves collision, the low LOD and the route graph.
     # Detail files remain independently cacheable on static hosting.
     index = dict(sectors=entries, sectorSize=SIZE, zones=zone_entries, zoneSize=ZONE, buildingCount=len(owners), carriageways=True,
                  roadCoverage=polygon_rings(carriageways.coverage.simplify(1.5)), roadFallback=carriageways.fallback(), roadExceptions=sorted({r["id"] for r in data["roads"] if grade_separated(r)}))
-    (ROOT / f"{stage}-index.json").write_bytes(encode(index))
+    write_if_changed(ROOT / f"{stage}-index.json", encode(index))
     for path in directory.iterdir():
         if re.fullmatch(r"-?\d+_-?\d+-[0-9a-f]{12}\.(json|webp)",path.name) and path.name not in generated:
             path.unlink()

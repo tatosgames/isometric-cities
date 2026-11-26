@@ -4,7 +4,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 sys.path.insert(0,str(Path(".cache/pylib").resolve()))
-from shapely import STRtree, union_all
+from shapely import STRtree, get_parts, union_all
 from shapely.geometry import Polygon, LineString, box
 from carriageways import grade_separated, Carriageways
 from city_layers import read_layers
@@ -17,7 +17,9 @@ protected=STRtree([LineString(r["line"]).buffer(8-0.001) for r in special])
 seams=defaultdict(dict)
 meshed=set()
 count=0
-roads=Carriageways(city)
+roads=Carriageways(city, 'city')
+obstacle_parts=get_parts(roads.obstacles)
+obstacle_index=STRtree(obstacle_parts)
 samples=json.loads((root/"road-width-lab/sections.json").read_bytes())
 assert set(samples)=={"ordinaria","principale","vincolata"}
 
@@ -46,8 +48,12 @@ for entry in index["sectors"]:
     bounds=box(x*240,y*240,(x+1)*240,(y+1)*240)
     old=roads.original.intersection(bounds)
     added=surface.difference(old.buffer(.001))
-    assert added.intersection(roads.obstacles.intersection(bounds).buffer(-.001)).area<1e-6,(cell,"obstacle")
-    assert added.difference(roads.land.intersection(bounds).buffer(.001)).area<1e-6,(cell,"land")
+    if not added.is_empty:
+        # Clip the components that can reach the cell. Join before shrinking so
+        # the test still checks the buffer of the same local obstacle union.
+        local_obstacles=union_all([obstacle_parts[i].intersection(bounds) for i in obstacle_index.query(bounds)])
+        assert added.intersection(local_obstacles.buffer(-.001)).area<1e-6,(cell,"obstacle")
+        assert added.difference(roads.land.intersection(bounds).buffer(.001)).area<1e-6,(cell,"land")
     for kind,s in samples.items():
         if s["cell"]!=entry["id"]:continue
         (ax,ay),(bx,by)=s["line"];cx,cy=(ax+bx)/2,(ay+by)/2

@@ -54,6 +54,10 @@ python scripts/roof-colours.py
 python scripts/sectors.py
 ```
 
+Per aggiornare solo le tinte lette dal viewer, esegui `python scripts/roof-colours.py --palette-only`. Per aggiornare anche le tinte della vista lontana, rigenera i settori. Il comando completo dei tetti aggiorna anche l'atlante e il WebP legacy. Le tessere filtrate si riusano finché coincidono le JPEG sorgente, incluse quelle confinanti. Prima di tagliare i WebP di settore, il generatore verifica estensione, impronta dell'atlante e limiti dei ritagli. Se riutilizza i WebP pubblicati, controlla i loro limiti e il digest nel nome. Quando serve un nuovo ritaglio, rigenera prima l'atlante completo.
+
+Le rigenerazioni riusano l'OSM proiettato, le maschere delle carreggiate, le facce del terreno e le mesh dei settori in base ai dati da cui dipendono. Le cache derivate sono locali e si ricostruiscono al primo uso se mancano o sono illeggibili. Dagli stessi strati, `python scripts/data.py city` produce il gzip canonico al livello 9. Per un file di lavoro, `python scripts/data.py city --gzip-level 6` usa lo stesso percorso di output e produce lo stesso JSON decompresso. Riesegui il comando predefinito per ripristinare il gzip canonico prima di confrontare i file di rilascio.
+
 Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson` condiviso e i due file dei tetti. Entrambi gli stage riscrivono i POI condivisi. L’atlante usa entrambe le scene già generate. Confronta i confini prima/dopo e le coordinate dei luoghi preesistenti. Per un’estensione verifica su ogni nuovo bordo la continuità di strade, suolo, edifici e colori.
 
 ## Edifici pubblici e case dei quartieri storici
@@ -68,7 +72,7 @@ Controlla in `public/data` le due scene, i due `*-aoi.geojson`, il `poi.geojson`
 - **Acqua:** `data.py` scrive come superficie `water` le aree OSM `leisure=swimming_pool` e `natural=water` tra 4 e 20.000 m²; `ground-map.ts` le dipinge per ultime con `color.water`. Una piscina dentro un'impronta comunale resta coperta dall'edificio: abbassa quella parte con `split.polygon` (Club Metropole).
 - **Sabbia:** `data.py` scrive come superficie `beach` ogni area OSM `natural=beach` di sabbia; `ground-map.ts` la dipinge con `color.beach` di `src/data/road-style.json` e lo shader del suolo le dà increspature invece dei giunti del selciato.
 - **Paseo:** una via pedonale il cui nome è in `promenade.names` di `road-style.json` viene disegnata alla larghezza e nel colore indicati lì, con la fascia chiara al centro. Larghezza e colori vengono da fotografie di riferimento; il tracciato resta quello di OSM.
-- **Settori senza atlante dei tetti:** se `.cache/roof-atlas.png` manca, `sectors.py` conserva la piastrella dei tetti pubblicata di ogni settore e si ferma con un errore se un settore ha cambiato edifici. Basta per rigenerare dopo modifiche a superfici e strade.
+- **Settori senza atlante dei tetti:** se l'atlante PNG e i suoi metadati mancano o sono incompatibili, `sectors.py` conserva la piastrella dei tetti pubblicata di ogni settore e si ferma con un errore se un settore ha cambiato edifici. Basta per rigenerare dopo modifiche a superfici e strade.
 
 ## Oggetti e modelli dedicati
 
@@ -140,6 +144,6 @@ Il contorno risultante alimenta la panoramica e il taglio delle mesh sui triango
 
 ## Controllo delle altezze con il LiDAR
 
-Il catalogo completo di fonti, licenze e modi di accesso è in [GEODATA_SOURCES.md](GEODATA_SOURCES.md). L'ortofoto 20 cm del SITCAN si legge a finestra da remoto (`python -I scripts/roof-compare-20cm.py`) e va usata come seconda fonte di colori e controllo visivo, non scaricata per intero.
+Il catalogo completo di fonti, licenze e modi di accesso è in [GEODATA_SOURCES.md](GEODATA_SOURCES.md). L'ortofoto 20 cm del SITCAN si legge a strisce da remoto (`python -I scripts/roof-compare-20cm.py`) per confrontare i colori. Le strisce ricampionate a 1 m si riusano dalla cache. Con `--refresh` vengono rilette dalla fonte.
 
-Per ogni nuova area scarica dal Centro de Descargas del CNIG (LiDAR, 3ª copertura) i tile da 1×1 km che la coprono: filtra per coordinate UTM 28N. Il download richiede la verifica anti-bot, quindi va fatto dal browser. Metti i `.laz` in `.cache/lidar/` e lancia `python -I scripts/lidar-check.py` (serve `laspy[lazrs]` in `.cache/pylib`, fuori da `requirements.txt`). Il rapporto in `.cache/lidar-control/` confronta le altezze comunali con il LiDAR per edificio e per luogo. Con `--export` aggiorna `content/lidar-heights.json`, che `data.py` legge per gli edifici senza altezza comunale. Rigenera poi `data.py city` e `sectors.py`. Cattedrale e complessi con più parti vanno letti per parte, non per OBJECTID.
+Per ogni nuova area scarica dal Centro de Descargas del CNIG (LiDAR, 3ª copertura) i tile da 1×1 km che la coprono: filtra per coordinate UTM 28N. Il download richiede la verifica anti-bot, quindi va fatto dal browser. Metti i `.laz` in `.cache/lidar/` e lancia `python -I scripts/lidar-check.py` (serve `laspy[lazrs]` in `.cache/pylib`, fuori da `requirements.txt`). I punti classificati già decodificati si riusano per tessera, in base ai byte del file LAS/LAZ. Il rapporto in `.cache/lidar-control/` confronta le altezze comunali con il LiDAR per edificio e per luogo. Con `--export` aggiorna `content/lidar-heights.json`, che `data.py` legge per gli edifici senza altezza comunale. Rigenera poi `data.py city` e `sectors.py`. Cattedrale e complessi con più parti vanno letti per parte, non per OBJECTID.

@@ -3,7 +3,7 @@ from collections import defaultdict
 from functools import lru_cache
 from heapq import heappop, heappush
 import math
-from shapely import STRtree, make_valid, prepare, union_all
+from shapely import STRtree, intersects, make_valid, prepare, union_all
 from shapely.geometry import LineString, Point, Polygon, box
 from osm_extract import acquire
 from geo import origin, to_crs
@@ -163,8 +163,12 @@ class RoadClearance:
     def tile(self,x,y):
         region=box(x*120-35,y*120-35,(x+1)*120+35,(y+1)*120+35)
         roads=union_all([self.pavement[i] for i in self.road_tree.query(region)])
-        obstacles=union_all([self.obstacles[i] for i in self.obstacle_tree.query(region)])
-        free=roads.intersection(self.boundary).difference(obstacles)
+        pavement=roads.intersection(self.boundary)
+        prepare(pavement)
+        candidates=[self.obstacles[i] for i in self.obstacle_tree.query(region)]
+        # The indexed halo contains many obstacles outside actual roadway.
+        obstacles=union_all([o for o,hit in zip(candidates,intersects(pavement,candidates)) if hit])
+        free=pavement.difference(obstacles)
         prepare(free)
         return free
 

@@ -20,6 +20,30 @@ In una partita ordinaria su viewport mobile con traffico attivo sono state verif
 
 Dopo la build, eseguire `node scripts/qa-police-straights.mjs` per quattro stelle con camera isometrica. Ripetere con `--aerial` per la camera alta e con `--two-stars` per due stelle. Il campo `longest` è espresso in secondi, `seen` è il tempo con una pattuglia leggibile, `fast` il tempo di guida valutato e `forward` la distanza percorsa lungo il rettilineo in metri.
 
+## Rigenerazione Python · 26 novembre 2026
+
+Confronto con `7c7dfa91` in checkout isolati, con Python 3.14 e gli stessi input in cache. I tempi assoluti risentono del carico concorrente. L'eguaglianza è verificata con gli SHA-256 dei file generati, confrontando due rigenerazioni dallo stesso input oppure i file canonici in Git.
+
+| Generatore | Misura | Confronto |
+|---|---|---|
+| Strati della città | 406 → 93 s trascorsi, 280 → 81 s di CPU. Il candidato riusa OSM e gzip. | I cinque file coincidono. |
+| Strati del pilota | 27 → 14 s trascorsi. Il riferimento comprende il primo recupero delle fonti mancanti. | I tre file coincidono a parità di snapshot. |
+| Settori e zone | 1.201 s per il riferimento, 1.102 s a cache fredda e 142 s a cache calda. | Tutti i 2.212 artefatti emessi coincidono byte per byte. |
+| Tetti PNOA | 609 s per il riferimento completo, 685 s per il primo giro che popola la cache. A cache calda, 181 s per la generazione completa e 38 s per le sole tinte. | Atlante PNG, WebP e palette coincidono con il riferimento. La palette coincide anche in modalità rapida. |
+| Rete guaguas | 309 → 158 s trascorsi. | I 136 JSON, inclusi i nomi versionati, coincidono. 10.098 tratti in città e 122 nel pilota. |
+| Audit | 578 candidati in entrambe le esecuzioni. | CSV e GeoJSON identici. |
+| LiDAR e SITCAN | Una tessera PNOA si rilegge in 0,46–0,95 s contro 1,96–2,05 s per la decodifica. Il confronto SITCAN usa una finestra GeoTIFF riproducibile. | Report e CSV LiDAR, anteprima PNG e report SITCAN identici. |
+
+Nel confronto dei settori entrambe le versioni riusano le tessere WebP pubblicate. Il riferimento conserva le letture originali e intercetta le scritture per calcolare i digest. Il candidato confronta su disco i file prima di riscriverli. La prova integrata con l'atlante verificato e le cache stradali calde, inclusa la prima codifica dei ritagli WebP, è durata 239 s e ha lasciato i geodati canonici identici.
+
+Il filtro spaziale sperimentale delle carreggiate cittadine riduceva gli ostacoli candidati da 106.513 a 9.489. Produceva una maschera WKB e un contorno dell'indice diversi dal riferimento. La versione di consegna riusa le maschere calcolate con l'algoritmo esistente. Il filtro della rete guaguas supera il confronto dei 136 file e fa parte della consegna.
+
+La cache delle carreggiate occupa circa 112 MB, di cui 45 MB per le maschere e 39 MB per le facce del terreno. La cache PNOA per l'intera estensione occupa circa 680 MB e contiene 221 tessere filtrate. L'OSM proiettato occupa circa 54 MB per gli estratti principali e di costa. La tessera LiDAR campione occupa circa 103 MB decodificata. Gzip 6 produce 14.477.594 byte, contro 14.058.069 byte per il gzip canonico. I due payload decompressi coincidono e il comando predefinito ripristina il file canonico.
+
+Passati 22 test Python (`python -m unittest discover -s scripts -p 'test_*.py'`), `typecheck`, `build` e la suite `npm test` nel checkout isolato. La suite browser è passata al secondo giro con una cache Vite indipendente.
+
+Il controllo Python delle carreggiate seleziona ora i componenti della maschera esatta che raggiungono ciascun settore. Ha completato le verifiche sui 2.041 settori e si è fermato al controllo dei bordi. Lo stesso controllo sui file di `HEAD` rileva un solo errore su 2.720 giunzioni, tra `-4_22` e `-3_22`, per il vertice aggiuntivo (5416,2214 m, 28,1449 m). La tolleranza e l'asserzione sono quelle originali.
+
 **Nuvole sopra i tetti.** Verificata la nuova quota a Parque Doramas con una vista mobile di 390 × 844 px. La prova del cielo passa su desktop e mobile, compresi disattivazione, recupero WebGL e ingresso in guida.
 
 ## Polizia a difficoltà crescente · 25 novembre 2026
