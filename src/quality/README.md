@@ -34,7 +34,7 @@ Indices are zero-based. `initialIndex` selects the initial quality level. `baseI
 
 ## Connect the render loop
 
-Use `moving` while the game is active and `resting` for ambient updates. Set `ready: false` while loading and `preparing: true` while a trial effect prepares its resources. The cooldown timer pauses while resting.
+Use `moving` while the game is active and `resting` for ambient updates. Set `ready: false` while loading and `preparing: true` while a trial effect prepares its resources. Loading frames still count towards a downgrade, because streaming hitches are what the player feels, but never towards a promotion or a 30 FPS cadence; a trial pauses until loading ends. The cooldown timer pauses while resting.
 
 For initial calibration, set `calibrate: true` and start the game at the baseline level. Once the scene is ready and idle, call `beginCalibration(time)` when `calibrationPending` is true. While `calibrating` is true, render without an idle frame cap and pass `mode: 'calibration'`. An input event or a hidden page can interrupt calibration with `interrupt()`. Use `reset()` to start over. Reset applies the initial profile in one step, within the device's quality ceiling, even during a trial. If you apply levels manually, apply a returned level when it is not `null`.
 
@@ -57,7 +57,7 @@ A trial cancelled with `insufficient-headroom` did not meet the requirements for
 
 The adapter can call `setMaxIndex(index)` to update the highest available level when the output device changes. Lowering the ceiling below the current level immediately applies the allowed level and emits `reduce / capability`. Raising it allows trials again under the normal thresholds.
 
-In Isometric Cities, open **Rendering quality** from `lab.html` or visit `?lab=qualita`. The panel shows the four latest decisions and the WebGL drawing-buffer dimensions in pixels. To keep the panel visible with a fixed preview, add `&diagnostics`.
+In Isometric Cities, open **Rendering quality** from `lab.html` or visit `?lab=qualita`. The panel shows the frame rate and p95 of every painted frame in the last second (`Now`, with `loading` while sectors stream and the 30 FPS cap at rest), the last controller window, the four latest decisions and the WebGL drawing-buffer dimensions in pixels. To keep the panel visible with a fixed preview, add `&diagnostics`.
 
 ## References
 

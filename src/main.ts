@@ -60,6 +60,7 @@ async function start(){
     ? document.createElement('output'):null;
   const decisions:string[]=[];
   let bufferReport='', cadenceReport='';
+  const frameGaps:number[]=[];
   let lastDprChange='';
   function showQualityLab(){
     if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,...decisions].filter(Boolean).join('\n');
@@ -279,7 +280,6 @@ async function start(){
   }
   let gesture=false, streamBusy=true, flightPreparing=false;
   const moving=()=>gesture || coasting || !!flight || !!drive?.active;
-  (window as any).__qdbg={busy:()=>streamBusy,moving:()=>moving()}; // TEMP-DEBUG
   function interruptProbe(reason:'input'|'context-lost'|'hidden'){
     const changed=quality.interrupt(reason);
     if(changed && !lost)applyQuality(changed);
@@ -379,13 +379,20 @@ async function start(){
       nextDisplayCheck=time+1000;
       if(devicePixelRatio!==physicalDpr)syncSize();
       if(labOutput){
+        // Every painted frame of the last second, whatever the controller is doing with them.
+        const gaps=frameGaps.splice(0).sort((a,b)=>a-b);
+        const span=gaps.reduce((sum,gap)=>sum+gap,0);
+        const now=gaps.length?`Now ${(1000*gaps.length/span).toFixed(0)} FPS · p95 ${gaps[Math.ceil(gaps.length*.95)-1].toFixed(1)} ms`
+          +(moving()?'':' · resting, 30 FPS cap')+(streamBusy?' · loading':''):'Now —';
         const {targetFps,fps,p95Ms,trial}=quality.state;
-        cadenceReport=`Target ${targetFps} FPS`+(fps===null?'':` · ${fps.toFixed(0)} FPS`)
+        cadenceReport=`${now}\nController target ${targetFps} FPS`
+          +(fps===null?' · no window yet':` · last window ${fps.toFixed(0)} FPS`)
           +(p95Ms===null?'':` · p95 ${p95Ms.toFixed(1)} ms`)+(trial?' · trial':'')
           +(flightRange?` · detail ${flightRange.detailRadius} m · horizon ${flightRange.visibility} m`:'');
         showQualityLab();
       }
     }
+    if(labOutput && painted && time>painted)frameGaps.push(time-painted);
     const speed=drive?.visualTimeScale??1;
     const elapsed=painted?Math.max(0,time-painted)/1000:time/1000;
     wind.time.value+=speed===1?elapsed:Math.min(.05,elapsed)*speed;

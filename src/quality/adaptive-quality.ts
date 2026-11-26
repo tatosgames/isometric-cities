@@ -55,7 +55,8 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
   let total=0,goodMs=0,badMs=0,trialMs=0,backoff=0;
   let targetFps:30|60=60, observedFast=false, reducedForLoad=false, fastMs=0, steady30Ms=0;
   const intervals:number[]=[];
-  function clearWindow(){previous=null;total=0;intervals.length=0;goodMs=badMs=trialMs=fastMs=steady30Ms=0;}
+  let windowLoading=false;
+  function clearWindow(){previous=null;windowLoading=false;total=0;intervals.length=0;goodMs=badMs=trialMs=fastMs=steady30Ms=0;}
   function notify(action:QualityDecision<T>['action'],reason:DecisionReason,from=index){
     onDecision?.({action,reason,from:levels[from],to:levels[index],targetFps,fps:lastFps,p95Ms:lastP95});
   }
@@ -98,7 +99,10 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
       return null;
     }
     if(mode!==input.mode){clearWindow();mode=input.mode;}
-    if(!input.ready || (trial && input.preparing)){clearWindow();return null;}
+    // Loading keeps measuring: its hitches count towards a reduction, but a window with any loading frame
+    // never counts towards a promotion or a 30 Hz cadence. A trial still waits for the scene it is judged on.
+    if(trial && (!input.ready || input.preparing)){clearWindow();return null;}
+    if(!input.ready)windowLoading=true;
     if(probing && probeAge<1000){previous=null;return null;}
     const last=previous;
     if(last!==null && now<=last)return null;
@@ -120,12 +124,13 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
     // A 60 Hz session first tries a cheaper frame before accepting a new cadence.
     const p05=intervals[Math.floor((intervals.length-1)*.05)];
     const steady30=fps>=29 && fps<=31.5 && p05>=29 && p95<=36;
-    const canLearn30=detect30Fps && !trial && targetFps===60 && index<=baseIndex && (!observedFast || reducedForLoad || index===0);
+    const loading=windowLoading;
+    const canLearn30=detect30Fps && !loading && !trial && targetFps===60 && index<=baseIndex && (!observedFast || reducedForLoad || index===0);
     steady30Ms=canLearn30 && steady30?steady30Ms+elapsed:0;
     if(steady30Ms+.01>=(observedFast?4000:2000)){targetFps=30;observedFast=false;}
     const good=targetFps===60?fast:fps>=29 && p95<=38;
     const bad=targetFps===60?fps<54 || p95>25:fps<27 || p95>42;
-    total=0;intervals.length=0;
+    total=0;intervals.length=0;windowLoading=false;
     if(trial){
       trialMs+=elapsed;
       goodMs=good?goodMs+elapsed:0;
@@ -133,7 +138,7 @@ export function createAdaptiveQuality<T extends NonNullable<unknown>>({
       if(trialMs+.01>=2000)return cancel(bad?'slow':'insufficient-headroom');
       return null;
     }
-    goodMs=good?goodMs+elapsed:0;
+    goodMs=good && !loading?goodMs+elapsed:0;
     badMs=bad && steady30Ms===0?badMs+elapsed:0;
     if(probing && !good)return cancel(bad?'slow':'insufficient-headroom');
     if(!probing && badMs+.01>=2000 && index>0){

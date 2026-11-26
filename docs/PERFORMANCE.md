@@ -42,7 +42,7 @@ Catalog of tricks already applied to the model, with the measure that justifies 
 |---|---|---|
 | Initial compact profile (can add static masks after calibration): contact shadow painted in ground texture, occlusion at base of walls in vertex colors, flat shadow patch under trees | `main.ts`, `ground-map.ts`, `scene.ts` | One step drawing |
 | On desktop the shadow map updates only when needed (`autoUpdate=false`) | `main.ts` | — |
-| Adaptive quality shared by map and guide. The phone starts with maximum DPR 1, then tries static silhouettes, FXAA and maximum DPR 1.25 | `src/render/dynamic-quality.ts` | Initial calibration up to 6 s. Subsequent promotions require at least 8 s of smooth movement. On the compact profile the controller can recognize a smooth 30 FPS at the base level or lower. Below 27 FPS or with p95 over 42 ms for two seconds reduces quality. |
+| Adaptive quality shared by map and guide. The phone starts with maximum DPR 1, then tries static silhouettes, FXAA and maximum DPR 1.25 | `src/render/dynamic-quality.ts` | Initial calibration up to 6 s. Subsequent promotions require at least 8 s of smooth movement. On the compact profile the controller can recognize a smooth 30 FPS at the base level or lower. Below 27 FPS or with p95 over 42 ms for two seconds reduces quality. Frames painted while sectors load count towards a reduction, never towards a promotion. |
 | 30 fps cycle with map still for wind and clouds | `src/render/wind.ts` | — |
 
 ## Streaming

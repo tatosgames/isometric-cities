@@ -155,3 +155,21 @@ test('a stale timestamp cannot inflate the following measured frame',()=>{
   assert.equal(q.state.fps,50);
   assert.equal(q.state.p95Ms,20);
 });
+
+test('slow frames while loading still reduce quality, but smooth loading never promotes',()=>{
+  const top={...profile,calibrate:false,detect30Fps:false,initialIndex:2};
+  const slow=createAdaptiveQuality(top);
+  // Streaming flips readiness every few frames, as a panned map does.
+  let now=0;
+  for(let i=0;i<150;i++){now+=1000/40;slow.sample(now,{mode:'moving',ready:i%3===0});}
+  assert.equal(slow.level,levels[1]);
+  assert.equal(slow.state.fps!==null,true);
+
+  const smooth=createAdaptiveQuality({...top,initialIndex:1});
+  const run=timeline(smooth);
+  run(60,700,'moving',{ready:false});
+  assert.equal(smooth.level,levels[1]);
+  assert.equal(smooth.state.trial,false);
+  run(60,700);
+  assert.equal(smooth.level,levels[2]);
+});
