@@ -102,4 +102,23 @@ for(let t=0;t<=8500;t+=1000/60)stalled.sample(t,{mode:'moving',ready:true});
 assert.equal(stalled.config.stage,1);
 stalled.sample(15000,{mode:'moving',ready:true,preparingShadows:true});
 assert.equal(stalled.config.stage,0,'a pending mask must not block rollback');
+function stageTrace(compact){
+  const quality=makeDynamicQuality({compact});
+  const rows=[];
+  let frame=0,now=0;
+  function run(fps,count,mode,ready=true){
+    for(let n=0;n<count;n++){
+      frame++;now+=1000/fps;
+      const change=quality.sample(now,{mode,ready});
+      if(change)rows.push([frame,change.stage]);
+    }
+  }
+  quality.beginCalibration(now);
+  run(60,330,'calibration');run(30,90,'resting');run(60,80,'moving',false);
+  run(60,1200,'moving');run(24,350,'moving');run(30,850,'moving');
+  return rows;
+}
+// Frame indices recorded from the original city controller for this sequence.
+assert.deepEqual(stageTrace(true),[[181,1],[981,2],[1583,3],[1702,2],[1751,1],[1800,0],[1849,-1],[1898,-2],[2522,-1],[2824,0]]);
+assert.deepEqual(stageTrace(false),[[1749,1],[1798,0],[1847,-1],[1896,-2]]);
 console.log('Dynamic quality: profiles, timing, recovery, interrupts and cooldowns passed.');
