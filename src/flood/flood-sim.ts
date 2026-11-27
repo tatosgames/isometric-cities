@@ -1,4 +1,5 @@
-import { damageShare, hazardClass, hazardRating } from './flood-impact.ts';
+import { hydrograph, HYDROGRAPH_SHAPE } from './flood-hydrology.ts';
+import { buildingState, damageShare, hazardClass, hazardRating, type BuildingState } from './flood-impact.ts';
 import { makeFlood, type FloodForcing, type FloodGrid, type FloodOptions } from './flood-solver.ts';
 
 /**
@@ -9,8 +10,12 @@ import { makeFlood, type FloodForcing, type FloodGrid, type FloodOptions } from 
 export interface FloodScenario {
   /** Peak of the flood hydrograph entering the channel (m³/s); 0 for none. */
   peak: number;
-  /** Time from the start to the peak (s). */
+  /** Time from the start of the hydrograph to its peak (s). */
   rise: number;
+  /** Where on the hydrograph the clock starts (s): skips the trickle of the rising limb. */
+  start: number;
+  /** Gamma shape of the hydrograph (3.7: the SCS dimensionless unit hydrograph). */
+  shape?: number;
   /** What the covered channel still carries under the street (m³/s): only the rest overflows on the surface. */
   culvert: number;
   /** Rain intensity (mm/h) and how long it lasts (s). */
@@ -20,19 +25,9 @@ export interface FloodScenario {
   runoff: number;
 }
 
-/**
- * Discharge (m³/s) at time `t` (s) of a gamma-shaped flood hydrograph, Q = Qp (t/tp)^m e^{m(1 − t/tp)}, the form of
- * the synthetic unit hydrographs (SCS 1972, NEH-4). With m = 3 it is back under 1% of the peak after four rises.
- */
-export function hydrograph(t: number, peak: number, rise: number, m = 3) {
-  if (t <= 0 || peak <= 0 || rise <= 0) return 0;
-  const k = t / rise;
-  return peak * Math.pow(k, m) * Math.exp(m * (1 - k));
-}
-
 export function forcing(s: FloodScenario, t: number): FloodForcing {
   return {
-    inflow: Math.max(0, hydrograph(t, s.peak, s.rise) - s.culvert),
+    inflow: Math.max(0, hydrograph(t + s.start, s.peak, s.rise, s.shape ?? HYDROGRAPH_SHAPE) - s.culvert),
     rain: t < s.rainFor ? s.rain / 1000 / 3600 * s.runoff : 0
   };
 }
@@ -68,15 +63,31 @@ export interface FloodStats {
   deepBuildings: number;
   /** Share of the value of the buildings of the grid lost, weighted by footprint (JRC curve). */
   damage: number;
+  /** Buildings past partial structural damage and collapse (Clausen & Clark 1990). */
+  damagedBuildings: number;
+  collapsedBuildings: number;
+  /** Indices of the buildings collapsed so far, in order. */
+  collapsed: number[];
+  /** For each watched building: highest depth (m) and depth × velocity (m²/s) at its walls, and its state. */
+  watched: {building: number; depth: number; force: number; state: BuildingState}[];
+  /** For each gauge: depth (m), speed (m/s) and water surface (m). */
+  gauges: {depth: number; speed: number; surface: number}[];
 }
 
+/**
+ * `watch` lists buildings (indices into the grid's building list) reported one by one, such as hospitals and
+ * schools; `gauges` lists cells read every frame, like stream gauges on the street.
+ */
 export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: number, sources: ArrayLike<number>,
-  scenario: FloodScenario, options: FloodOptions = {}) {
+  scenario: FloodScenario, options: FloodOptions = {}, watch: ArrayLike<number> = [], gauges: number[] = []) {
   const flood = makeFlood(grid, sources, options);
   const {w, h, z, wall, owner} = grid, n = w * h;
   const {depth, peak, ledger} = flood;
   const now = (t: number) => forcing(scenario, t);
   const buildingPeak = new Float32Array(buildings), footprint = new Float32Array(buildings);
+  /** Highest depth × velocity (m²/s) seen at each building's walls, and the speed with it: Clausen & Clark's terms. */
+  const buildingForce = new Float32Array(buildings), buildingFlow = new Float32Array(buildings);
+  const states = new Uint8Array(buildings), collapsed: number[] = [];
   for (let i = 0; i < n; i++) if (owner[i]) footprint[owner[i] - 1]++;
 
   /** The cell west, east, north or south of `i` (k = 0–3), or −1 off the grid. */
@@ -86,6 +97,11 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
     if (k === 1) return c < w - 1 ? i + 1 : -1;
     if (k === 2) return i >= w ? i - w : -1;
     return i + w < n ? i + w : -1;
+  }
+
+  /** A building that has come down is no longer a wall: the water runs through its ruins. */
+  function breach(b: number) {
+    for (let i = 0; i < n; i++) if (owner[i] === b + 1) wall[i] = 0;
   }
 
   function advance(seconds: number, budget = Infinity) {
@@ -142,13 +158,19 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
     const cell = flood.area, hazard: [number, number, number, number] = [0, 0, 0, 0];
     let wet = 0, reached = 0, deepest = 0, fastest = 0, froude = 0, active = 0;
     const {r0, r1, c0, c1} = around();
+    // The peak depth is read again from the cells' own peaks; the force is kept from frame to frame.
     buildingPeak.fill(0);
     for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
       const b = owner[i] - 1;
       if (b >= 0) {
         for (let k = 0; k < 4; k++) {
           const j = neighbour(i, k);
-          if (j >= 0 && !wall[j] && peak[j] > buildingPeak[b]) buildingPeak[b] = peak[j];
+          if (j < 0 || wall[j]) continue;
+          if (peak[j] > buildingPeak[b]) buildingPeak[b] = peak[j];
+          const d = depth[j];
+          if (d <= .05) continue;
+          const v = flood.speed(j), force = d * v;
+          if (force > buildingForce[b]) { buildingForce[b] = force; buildingFlow[b] = v; }
         }
         continue;
       }
@@ -163,20 +185,28 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
       const k = hazardClass(hazardRating(d, v));
       if (k) hazard[k - 1] += cell;
     }
-    let wetBuildings = 0, deepBuildings = 0, lost = 0, all = 0;
+    let wetBuildings = 0, deepBuildings = 0, damagedBuildings = 0, lost = 0, all = 0;
     for (let b = 0; b < buildings; b++) {
       const d = buildingPeak[b];
       if (d > .1) wetBuildings++;
       if (d > 1) deepBuildings++;
-      lost += damageShare(d) * footprint[b]; all += footprint[b];
+      const state = buildingState(d, buildingForce[b], buildingFlow[b]);
+      if (state === 'collapsed' && states[b] !== 4) { states[b] = 4; collapsed.push(b); breach(b); }
+      else if (state === 'damaged') { states[b] = 3; damagedBuildings++; }
+      // A building down is a total loss.
+      lost += (states[b] === 4 ? 1 : damageShare(d)) * footprint[b]; all += footprint[b];
     }
     const entered = ledger.inflow + ledger.rain, stored = flood.volume();
     const left = ledger.sea + ledger.edge;
     for (let r = flood.box.r0, last = flood.box.r1; r <= last; r++) active += Math.max(0, flood.spans.to[r] - flood.spans.from[r] + 1);
     return {time: ledger.time, step: flood.stable(), active, froude, inflow: now(ledger.time).inflow, entered, toSea: ledger.sea, pastEdges: ledger.edge, stored,
       balance: entered > 0 ? (entered - left - stored) / entered : 0,
-      wet, reached, deepest, fastest, hazard, buildings, wetBuildings, deepBuildings, damage: all ? lost / all : 0};
+      wet, reached, deepest, fastest, hazard, buildings, wetBuildings, deepBuildings, damage: all ? lost / all : 0,
+      damagedBuildings, collapsedBuildings: collapsed.length, collapsed: collapsed.slice(),
+      watched: Array.from(watch, b => ({building: b, depth: buildingPeak[b], force: buildingForce[b],
+        state: buildingState(buildingPeak[b], buildingForce[b], buildingFlow[b])})),
+      gauges: gauges.map(i => ({depth: depth[i], speed: flood.speed(i), surface: z[i] + depth[i]}))};
   }
 
-  return {flood, scenario, advance, pack, stats};
+  return {flood, scenario, gauges, advance, pack, stats};
 }

@@ -1,0 +1,27 @@
+/* Event report of the flood module (flood-panel.ts). Scoped under .flood-panel; inherits the host's colours. */
+.flood-panel{--fp-rule:rgba(36,46,40,.16);--fp-muted:rgba(36,46,40,.62);--chart-grid:rgba(36,46,40,.12);
+  padding:12px 12px 4px;font:12px/1.4 "Segoe UI",system-ui,sans-serif;color:inherit;border-bottom:1px solid var(--fp-rule)}
+.flood-panel h2{margin:0;font:600 13px/1.3 "Segoe UI",system-ui,sans-serif}
+.flood-panel .fp-sub{margin:2px 0 0;color:var(--fp-muted);font-variant-numeric:tabular-nums}
+.flood-panel .fp-clock{float:right;font:600 13px ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums}
+.flood-panel .fp-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin:10px 0;background:var(--fp-rule);border:1px solid var(--fp-rule)}
+.flood-panel .fp-kpi{background:#f7f5eb;padding:6px 7px}
+.flood-panel .fp-kpi b{display:block;font:600 15px/1.2 ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums}
+.flood-panel .fp-kpi span{display:block;color:var(--fp-muted);font-size:10px;letter-spacing:.02em}
+.flood-panel h3{margin:12px 0 4px;font:600 10px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--fp-muted)}
+.flood-panel canvas{display:block;width:100%;height:118px;color:#242e28}
+.flood-panel .fp-legend{display:flex;flex-wrap:wrap;gap:4px 10px;margin:3px 0 0;color:var(--fp-muted);font-size:10px}
+.flood-panel .fp-legend i{display:inline-block;width:10px;height:2px;margin-right:4px;vertical-align:middle}
+.flood-panel .fp-hint{margin:2px 0 0;color:var(--fp-muted);font-size:10px}
+.flood-panel ol{list-style:none;margin:0;padding:0}
+.flood-panel li{display:grid;grid-template-columns:10px 1fr auto;gap:6px;align-items:center;padding:3px 0;border-top:1px solid var(--fp-rule)}
+.flood-panel li .fp-dot{width:8px;height:8px;border-radius:50%}
+.flood-panel li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flood-panel li small{color:var(--fp-muted);font:10px ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums}
+.flood-panel details{margin:10px 0 6px}
+.flood-panel summary{cursor:pointer;font:600 10px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--fp-muted)}
+.flood-panel table{width:100%;border-collapse:collapse;margin-top:6px;font-variant-numeric:tabular-nums}
+.flood-panel td{padding:2px 0;border-top:1px solid var(--fp-rule);vertical-align:top}
+.flood-panel td:last-child{text-align:right;font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+.flood-panel .fp-sources{margin:6px 0 0;padding-left:14px;color:var(--fp-muted);font-size:10px}
+.flood-panel .fp-sources li{display:list-item;border:0;padding:1px 0}

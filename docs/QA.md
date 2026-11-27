@@ -1,5 +1,26 @@
 # Local Verification · November 21, 2026
 
+## Flood lab: return periods, gauges, critical buildings · November 27, 2026
+
+Luca asked for return periods, more data, a hydrograph, critical buildings that get damaged or collapse, a more professional look that stays light, and a module easy to take out.
+
+**Return periods.** The Guiniguada has no official discharge: it is not an ARPSI (EPRI, 3rd cycle, 2025). The lab now takes the design floods from Norma 5.2-IC with the sources of Gran Canaria (see [FLOOD.md](FLOOD.md#return-periods)): T10 156, T100 281 and T500 367 m³/s, peaking 4.1 h in. The observed 1954 rain gives 273 m³/s. `qa-flood-solver.mjs` checks the method by hand values (tc 6.09 h, Kt 1.406, KA 0.879) and the Clausen & Clark states.
+
+**Critical buildings.** 383 facilities came from OSM via Overpass (`scripts/flood_facilities.py`); 65 match a building in the Guiniguada grid.
+
+**Browser runs, 1440 × 900, software WebGL:**
+- **T500 at its peak (3 h 11 min):** 45.3 ha under water, 57 buildings collapsed and 44 damaged, 6 critical buildings reached, 7.4% of the built value lost.
+- **T100:** 32 collapsed and 42 damaged.
+- **Close-up of the channel's east bank at T100:** the ruins and dust of the collapsed buildings, and the red marker of a damaged school.
+- **Solver:** ×61 real time at the widest; balance under 10⁻⁸.
+
+`qa-flood.mjs` now also checks:
+- the T100 peak, the panel title and the history for the charts;
+- the first gauge (wet at the barranco);
+- more than 20 critical buildings matched and at least one reached.
+
+The cloudburst runs at T500 (61 mm/h). Typecheck and build passed.
+
 ## Flood lab: water look · November 27, 2026
 
 Luca could not see the water on the published lab. Muddy brown over the sandy ground, it read as earth. It is now turquoise to blue, with:

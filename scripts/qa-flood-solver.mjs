@@ -3,7 +3,9 @@
 // water that runs downhill into the sea is booked as gone, and the impact curves keep their published values.
 import assert from 'node:assert/strict';
 import {makeFlood} from '../src/flood/flood-solver.ts';
-import {makeFloodSim,hydrograph} from '../src/flood/flood-sim.ts';
+import {makeFloodSim} from '../src/flood/flood-sim.ts';
+import {hydrograph,rationalFlood,GUINIGUADA,riseTo,designRain} from '../src/flood/flood-hydrology.ts';
+import {buildingState} from '../src/flood/flood-impact.ts';
 import {damageShare,hazardClass,hazardRating} from '../src/flood/flood-impact.ts';
 import {fillPolygon} from '../src/flood/flood-grid.ts';
 
@@ -50,7 +52,7 @@ function closed(g){
   const owner=new Int32Array(80*30);
   for(let r=8;r<12;r++)for(let c=40;c<44;c++){g.wall[r*80+c]=1;owner[r*80+c]=1;}
   const sources=[15*80+2,14*80+2,16*80+2];
-  const sim=makeFloodSim({...g,owner},1,sources,{peak:40,rise:300,culvert:0,rain:20,rainFor:600,runoff:.9});
+  const sim=makeFloodSim({...g,owner},1,sources,{peak:40,rise:300,start:0,shape:3,culvert:0,rain:20,rainFor:600,runoff:.9});
   sim.advance(3600);
   const s=sim.stats();
   assert.ok(s.toSea>.5*s.entered,'Little water reached the sea: '+s.toSea.toFixed(0)+' of '+s.entered.toFixed(0));
@@ -70,9 +72,18 @@ function closed(g){
   assert.equal(hazardClass(hazardRating(.5,1)),3);
   assert.equal(hazardClass(hazardRating(1,2)),4);
   assert.ok(Math.abs(hydrograph(300,10,300)-10)<1e-9);
+  // Norma 5.2-IC on the Guiniguada, checked by hand: tc 6.09 h, Kt 1.406, KA 0.879, T100 281 m³/s, T500 367 m³/s.
+  const t100=rationalFlood(GUINIGUADA,GUINIGUADA.rainfall[100]),t500=rationalFlood(GUINIGUADA,GUINIGUADA.rainfall[500]);
+  assert.ok(Math.abs(t100.concentration-6.09)<.01 && Math.abs(t100.uniformity-1.406)<.001 && Math.abs(t100.areal-.879)<.001);
+  assert.equal(Math.round(t100.peak),281);assert.equal(Math.round(t500.peak),367);
+  assert.ok(Math.abs(hydrograph(riseTo(.1,3600),1,3600)-.1)<1e-6);
+  assert.equal(designRain(GUINIGUADA,142.63,1,1.64).toFixed(1),'46.9');
+  // Clausen & Clark: partial damage from d·v 3, collapse from d·v 7 at 2 m/s or more.
+  assert.equal(buildingState(.05,0,0),'dry');assert.equal(buildingState(1.5,2,1.3),'flooded');
+  assert.equal(buildingState(2,4,2),'damaged');assert.equal(buildingState(4,8,2),'collapsed');assert.equal(buildingState(8,8,1),'damaged');
   // Scan-line fill: a 20 m square with a 10 m hole on a 5 m grid.
   const out=new Uint8Array(100);
   fillPolygon([[[0,0],[20,0],[20,-20],[0,-20]],[[5,-5],[15,-5],[15,-15],[5,-15]]],{w:10,h:10,dx:5,dy:5,west:-2.5,north:2.5},out,1);
   assert.equal(out.reduce((a,b)=>a+b,0),16-4);
 }
-console.log('flood solver: lake at rest, dam break, valley to the sea, impact curves ok');
+console.log('flood solver: lake at rest, dam break, valley to the sea, impact curves, Norma 5.2-IC ok');

@@ -4,10 +4,14 @@ import { makeFloodSim, type FloodScenario, type FloodStats, type FloodView } fro
 /** Messages to the flood worker. */
 export type FloodRequest =
   | {type: 'init'; w: number; h: number; dx: number; dy: number; z: Float32Array; wall: Uint8Array; sea: Uint8Array;
-    owner: Int32Array; buildings: number; sources: Int32Array; scenario: FloodScenario; options: FloodOptions}
+    owner: Int32Array; buildings: number; sources: Int32Array; scenario: FloodScenario; options: FloodOptions;
+    /** Buildings reported one by one, and cells read as gauges. */
+    watch: Int32Array; gauges: number[]}
   | {type: 'scenario'; scenario: FloodScenario; options: FloodOptions}
   /** Run at `speed` times real time, or hold; draw as `view`. */
   | {type: 'control'; playing: boolean; speed: number; view: FloodView}
+  /** The cells read as gauges from now on. */
+  | {type: 'gauges'; cells: number[]}
   /** A frame's buffer, back from the page once drawn: the next frame can go. */
   | {type: 'buffer'; buffer: ArrayBuffer};
 
@@ -65,13 +69,15 @@ function schedule(delay: number) {
 
 scope.onmessage = ({data}: MessageEvent<FloodRequest>) => {
   if (data.type === 'init') {
-    const {type: _, buildings, sources, scenario, options, ...grid} = data;
-    sim = makeFloodSim(grid, buildings, sources, {...scenario}, options);
+    const {type: _, buildings, sources, scenario, options, watch, gauges, ...grid} = data;
+    sim = makeFloodSim(grid, buildings, sources, {...scenario}, options, watch, gauges.slice());
     owed = 0; drawn = null; lastTick = rateFrom = performance.now(); rateTime = 0;
   } else if (!sim) throw new Error('Flood worker is not initialized');
   else if (data.type === 'scenario') {
     Object.assign(sim.scenario, data.scenario);
     Object.assign(sim.flood.settings, data.options);
+  } else if (data.type === 'gauges') {
+    sim.gauges.splice(0, sim.gauges.length, ...data.cells);
   } else if (data.type === 'control') {
     if (data.playing && !control.playing) lastTick = performance.now();
     const {type: _, ...next} = data;

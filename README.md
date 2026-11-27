@@ -28,7 +28,7 @@ Open `lab.html` for the five labs. The labs share navigation and a collapsible C
 | Driving & flight | `index.html?lab=guida&area=pilot`. Use `start=x,y`, `seed`, `nopolice`, `nobuses`, `t` and `diagnostics`. Use the plane button to switch to flight and the Flight folder for Piper tuning. |
 | Map, LOD & roads | `lab.html?lab=strade`. Pick `scenario=mercado\|larghezze\|settori\|lod` from the selector. The old `lab.html?test=…` links still open their original scenarios. |
 | Demolition | `lab.html?lab=demolizione`. Left button swings the wrecking ball, places dynamite or fires the drive's gun (keys 1, 2 and 3), right button pans, wheel zooms. Use `x`, `y`, `zoom`, `strumento=palla\|dinamite\|sparo`, `quota` (ball height, m) and `distanza` (m from which the gun fires). Reload to rebuild the city. |
-| Flood | `lab.html?lab=inondazione`. `scenario=guiniguada\|pioggia`; the panel changes discharge, culvert, rain, roughness, speed and colour (depth, hazard to people, highest depth) live. URL values and the model in [FLOOD.md](docs/FLOOD.md). |
+| Flood | `lab.html?lab=inondazione`. `scenario=guiniguada\|pioggia`, `ritorno=10\|25\|50\|100\|500\|1000\|1954\|1989` (design floods by Norma 5.2-IC, or observed rains). Shift + click places a gauge. The report shows the hydrograph, gauges, critical buildings, and the method with its sources. Model, URL values, and how to reuse or remove the module: [FLOOD.md](docs/FLOOD.md). |
 
 ## Replay the data
 

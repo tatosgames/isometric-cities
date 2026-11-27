@@ -78,3 +78,15 @@ Sources evaluated but not yet in production (SITCAN 20 cm orthophotos, other dat
 **Guaguas Municipales.** Static GTFS of Guaguas Municipales S.A., acquired on November 25, 2026. Line 13 towards Tres Palmas, run `LA0130001`, track `013_A`. The consecutive stops 73 and 75 retain the Spanish names and the official coordinates converted to local meters. The centre of the vehicle stops at the projection of each stop on the route. The 230.8 m section follows OSM road 30913504 with a slight shift to the right. Frequencies are simulated. SHA-256 of the feed `e1d916ffb8faa867541bcb2291b5291dbf73c91b441d30e03dcd13eda88ee13e`. [Guaguas Municipales](https://www.guaguas.com/transit/google_transit.zip) · [Municipal conditions](https://datosabiertos.laspalmasgc.es/dataset/?id=guaguas-municipales-paradas) · [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright) · [Update procedure](GEODATA_SOURCES.md#guaguas-municipales--driving-mode).
 
 **Network in Driving.** The same ZIP powers the 117 city fleet service schemes. The pipeline uses the nodes, gait senses, and restrictions from the project’s OSM extracts; also check for the bump of the rotated bus in the turns. The reports preserve reference course, GTFS shape, discarded traces, and OSM paths. [Procedure and coverage](GUAGUAS.md).
+
+**Floods** (`src/flood/`, [FLOOD.md](FLOOD.md)). Values used by the flood lab, with no data downloaded into the map except `flood-facilities.json`:
+
+| Source | Use |
+|---|---|
+| [Consejo Insular de Aguas de Gran Canaria](https://aguasgrancanaria.com/inundaciones.php): EPRI 3rd cycle (memoria 2025), Plan Hidrológico (description of the demarcation 2.3.4) | Guiniguada not an ARPSI; coastal ARPSI ES120_ARPSI_0009 Barrio de Triana; historical events 2018–2023; AR6 sea level figures; basin area 65 km² and highest point 1,891 m |
+| Decreto 2/2019, Plan Hidrológico de Gran Canaria, arts. 39 and 46 | Runoff coefficient 0.75 (Zona Este); Norma 5.2-IC as the flood method |
+| Norma 5.2-IC Drenaje superficial (Orden FOM/298/2016) | Rational method formulas |
+| Cabildo de Gran Canaria, Salto del Negro project, hydrology annex | I1/Id = 8; daily rainfall quantiles of station 183 (Capón), Gumbel |
+| Máyer Suárez (2001), *Lluvias e inundaciones en la ciudad de Las Palmas de Gran Canaria (1950–1999)*, AEMET repository | Observed daily rainfalls of 22 Nov 1954 (138.5 mm) and 16 Feb 1989 (117.5 mm) |
+| [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright) | ODbL. `public/data/flood-facilities.json`: hospitals, clinics, schools, emergency services and care homes (`amenity`, `healthcare`, `emergency`, `social_facility`) in the city's bounds, by Overpass; `scripts/flood_facilities.py` regenerates it. The Guiniguada's mapped length (9.3 km) |
+

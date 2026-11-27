@@ -37,3 +37,18 @@ export const hazardRating = (depth: number, speed: number) => depth > 0 ? depth 
 export function hazardClass(rating: number) {
   return rating <= 0 ? 0 : rating < .75 ? 1 : rating < 1.25 ? 2 : rating < 2 ? 3 : 4;
 }
+
+/**
+ * Structural damage from depth × velocity, the criteria of Clausen & Clark (1990), "The development of criteria for
+ * predicting dambreak flood damages using modelling of historical dam failures", in International Conference on River
+ * Flood Hydraulics, Wiley, 369–380, for masonry and brick houses: partial damage above d·v = 3 m²/s, total
+ * destruction above d·v = 7 m²/s with v above 2 m/s. Below that, damage is by inundation (the JRC curve).
+ */
+export const PARTIAL_DAMAGE = 3, COLLAPSE = 7, COLLAPSE_SPEED = 2;
+export type BuildingState = 'dry' | 'wet' | 'flooded' | 'damaged' | 'collapsed';
+/** The state of a building from the highest depth (m) at its walls and the highest d·v (m²/s) with its speed (m/s). */
+export function buildingState(depth: number, force: number, speed: number): BuildingState {
+  if (force >= COLLAPSE && speed >= COLLAPSE_SPEED) return 'collapsed';
+  if (force >= PARTIAL_DAMAGE) return 'damaged';
+  return depth > 1 ? 'flooded' : depth > .1 ? 'wet' : 'dry';
+}

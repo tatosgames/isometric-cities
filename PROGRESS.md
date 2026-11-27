@@ -1,5 +1,13 @@
 # Checkpoints
 
+**Flood lab, phase 2.** The flood module is self-contained in `src/flood/` behind one entry point (`index.ts`, `createFlood`), so it can be reused or removed (see [FLOOD.md](docs/FLOOD.md#module)).
+- **Return periods:** the flood comes from Norma 5.2-IC with sources of Gran Canaria. The Guiniguada is not an ARPSI, so there is no official discharge. T100 gives 281 m³/s and T500 gives 367; the observed rains of 1954 and 1989 are replayed too.
+- **Collapse:** buildings reach partial damage or collapse by Clausen & Clark's criteria and come down with the demolition code.
+- **Critical buildings:** hospitals, schools and emergency services from OSM carry markers coloured by state.
+- **Event report:** figures, a hydrograph against the design curve, gauges placed with Shift + click, and the method with its sources.
+
+The main map is not touched. [Verification](docs/QA.md#flood-lab-return-periods-gauges-critical-buildings--november-27-2026).
+
 **Flood lab, phase 1.** `lab.html?lab=inondazione` sends a flood down the barranco Guiniguada, or a cloudburst over the view, onto the city's own 5 m terrain, with buildings as walls and the sea as the outlet. The solver is LISFLOOD-FP's inertial formulation (Bates et al. 2010, with the θ of de Almeida et al. 2012 and a Froude limiter) and runs in a worker with its own clock. The panel changes peak discharge, culvert capacity, rain, roughness and speed live, and colours the water by depth, by hazard to people (Defra FD2320) or by highest depth. Damage to buildings follows the JRC depth-damage curve. The 250 m³/s peak is a placeholder until it is checked against the PGRI of Gran Canaria and the SNCZI maps. Next: buttons on the main map (area in view; sea level for the whole city), then damage on the buildings and people and cars swept away. [Model and limits](docs/FLOOD.md) · [Verification](docs/QA.md#flood-lab--november-27-2026).
 
 **Gun in the demolition lab.** A third tool (key 3, `strumento=sparo`) fires the drive's own slug at the clicked wall, level from the road 25 m before it, with the drive's cooldown, speed, range and blast; the blast values left `drive.ts` for `TUNE.weapon` and both share `shotBlast`. The lab's Gun folder edits them. [Verification](docs/QA.md#gun-in-the-demolition-lab--november-26-2026).
