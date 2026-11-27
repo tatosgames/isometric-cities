@@ -13,8 +13,6 @@
 export const GRAVITY = 9.81;
 /** Below this depth (m) a face carries nothing: the wet/dry front. */
 const DRY = 1e-4;
-/** Steps between two shrinks of the spans to the water as it drains. */
-const SHRINK = 64;
 
 export interface FloodGrid {
   /** Cells across (west to east) and down (north to south); row 0 is the northern edge. */
@@ -92,52 +90,18 @@ export function makeFlood(grid: FloodGrid, sources: ArrayLike<number>, options: 
   /**
    * The cells that hold water or may get it at the next step, row by row: from `from[r]` to `to[r]` inclusive (empty
    * while from > to). They cover the wet cells and a ring of one around them, since with a Courant number under 1
-   * water moves at most one cell a step. A face outside them reads 0 (`shrink` clears those it leaves behind), so
-   * the loops can ignore it. They grow with the water and shrink back every `SHRINK` steps as it drains.
+   * water moves at most one cell a step. Spans only grow, so a face outside them has never carried anything and
+   * reads 0: the loops can ignore it.
    */
   const from = new Int32Array(h).fill(w), to = new Int32Array(h).fill(-1);
   let top = h, bottom = -1;
-  /** Everywhere the spans have ever reached, which only grows: where the page reads and draws. */
-  let everTop = h, everBottom = -1, everLeft = w, everRight = -1;
   function include(r: number, c: number) {
-    const c0 = Math.max(0, c - 1), c1 = Math.min(w - 1, c + 1);
     for (let k = Math.max(0, r - 1); k <= Math.min(h - 1, r + 1); k++) {
-      if (c0 < from[k]) from[k] = c0;
-      if (c1 > to[k]) to[k] = c1;
+      if (c - 1 < from[k]) from[k] = Math.max(0, c - 1);
+      if (c + 1 > to[k]) to[k] = Math.min(w - 1, c + 1);
     }
     if (r - 1 < top) top = Math.max(0, r - 1);
     if (r + 1 > bottom) bottom = Math.min(h - 1, r + 1);
-    if (top < everTop) everTop = top;
-    if (bottom > everBottom) everBottom = bottom;
-    if (c0 < everLeft) everLeft = c0;
-    if (c1 > everRight) everRight = c1;
-  }
-  /**
-   * Spans back to the cells with more than `DRY` of water and their ring. Water at or under `DRY` with no deeper
-   * neighbour cannot move (every face of it is under `DRY`), so the cells left out lose nothing. The fluxes on the
-   * faces of the cells left out, and on the faces from the new spans outwards, are set to 0: the loops take a face
-   * outside the spans to carry nothing.
-   */
-  const oldFrom = new Int32Array(h), oldTo = new Int32Array(h);
-  let steps = 0;
-  function shrink() {
-    const r0 = top, r1 = bottom;
-    if (r0 > r1) return;
-    oldFrom.set(from); oldTo.set(to);
-    from.fill(w); to.fill(-1); top = h; bottom = -1;
-    for (let r = r0; r <= r1; r++) for (let c = oldFrom[r], i = r * w + c; c <= oldTo[r]; c++, i++) if (depth[i] > DRY) include(r, c);
-    for (const i of land) include(Math.floor(i / w), i % w);
-    for (let r = r0; r <= r1; r++) {
-      const row = r * w;
-      for (let c = oldFrom[r]; c <= oldTo[r]; c++) {
-        const i = row + c;
-        if (c < from[r] || c > to[r]) { qx[i] = qy[i] = edgeOut[i] = 0; continue; }
-        if (c === to[r]) qx[i] = 0;
-        if (r === h - 1 || c < from[r + 1] || c > to[r + 1]) qy[i] = 0;
-        if (c === from[r] && c > 0) qx[i - 1] = 0;
-        if (r > 0 && (c < from[r - 1] || c > to[r - 1])) qy[i - w] = 0;
-      }
-    }
   }
   /** Whether the ring of cells around (r, c) is already inside the spans. */
   function covered(r: number, c: number) {
@@ -145,9 +109,10 @@ export function makeFlood(grid: FloodGrid, sources: ArrayLike<number>, options: 
     for (let k = Math.max(0, r - 1); k <= Math.min(h - 1, r + 1); k++) if (from[k] > a || to[k] < b) return false;
     return true;
   }
-  /** Rows and columns the water has ever reached, with its ring: what the page reads and redraws. */
-  const box = {get r0() { return everTop; }, get r1() { return everBottom; },
-    get c0() { return everLeft; }, get c1() { return everRight; }};
+  /** Rows top–bottom, columns the widest span: what the page has to redraw. */
+  const box = {get r0() { return top; }, get r1() { return bottom; },
+    get c0() { let c = w; for (let r = top; r <= bottom; r++) c = Math.min(c, from[r]); return c; },
+    get c1() { let c = -1; for (let r = top; r <= bottom; r++) c = Math.max(c, to[r]); return c; }};
 
   /** Discharge across one face, from the cell `a` to the cell `b` `span` metres apart. */
   function face(q: number, a: number, b: number, span: number, before: number, after: number, dt: number) {
@@ -185,50 +150,53 @@ export function makeFlood(grid: FloodGrid, sources: ArrayLike<number>, options: 
     // Water put in before the first step (a dam break, a lake) is found once by a scan of the whole grid.
     if (!ledger.time) for (let i = 0; i < n; i++) if (depth[i] > 0) include(Math.floor(i / w), i % w);
     if (forcing.rain > 0 && (top > 0 || bottom < h - 1 || from.some(c => c > 0) || to.some(c => c < w - 1))) {
-      for (let r = 0; r < h; r++) include(r, 0), include(r, w - 1);
-      from.fill(0); to.fill(w - 1);
-    } else if (++steps % SHRINK === 0) shrink();
+      from.fill(0); to.fill(w - 1); top = 0; bottom = h - 1;
+    }
     if (forcing.inflow > 0) for (const i of land) include(Math.floor(i / w), i % w);
     if (top > bottom) { ledger.time += dt; return dt; }
-    const r0 = top, r1 = bottom;
-    for (let r = r0; r <= r1; r++) {
+    for (let r = top; r <= bottom; r++) {
       if (from[r] > to[r]) continue;
       const a = r * w + from[r], b = r * w + to[r] + 1;
       oldX.set(qx.subarray(a, b), a); oldY.set(qy.subarray(a, b), a);
     }
-    // Pass 1, row by row: the fluxes from the previous ones and the water surface on the faces between two cells of
-    // the spans, the outflow past the grid's edge, and the share of its outgoing fluxes each cell can afford, so
-    // that none runs below zero. A row's afford needs its own faces and the north faces of the row before, both done.
-    for (let r = r0; r <= r1; r++) {
-      const row = r * w, c0 = from[r], c1 = to[r];
-      if (c0 > c1) continue;
-      for (let c = c0; c < c1; c++) {
+    // Fluxes from the previous ones and the water surface, on the faces between two cells of the spans.
+    for (let r = top; r <= bottom; r++) {
+      const row = r * w;
+      for (let c = from[r]; c < to[r]; c++) {
         const i = row + c;
         qx[i] = face(oldX[i], i, i + 1, dx, c > 0 ? oldX[i - 1] : oldX[i], c < w - 2 ? oldX[i + 1] : oldX[i], dt);
       }
-      if (r < h - 1) {
-        const s0 = Math.max(c0, from[r + 1]), s1 = Math.min(c1, to[r + 1]);
-        for (let c = s0; c <= s1; c++) {
-          const i = row + c;
-          qy[i] = face(oldY[i], i, i + w, dy, r > 0 ? oldY[i - w] : oldY[i], r < h - 2 ? oldY[i + w] : oldY[i], dt);
-        }
+      if (r === bottom || r === h - 1) continue;
+      const c0 = Math.max(from[r], from[r + 1]), c1 = Math.min(to[r], to[r + 1]);
+      for (let c = c0; c <= c1; c++) {
+        const i = row + c;
+        qy[i] = face(oldY[i], i, i + w, dy, r > 0 ? oldY[i - w] : oldY[i], r < h - 2 ? oldY[i + w] : oldY[i], dt);
       }
-      if (r === 0 || r === h - 1) {
-        for (let c = c0; c <= c1; c++) {
-          const i = row + c;
-          let out = 0;
-          if (r === 0) out += leave(i, i + w, dy) * dx;
-          if (r === h - 1) out += leave(i, i - w, dy) * dx;
-          if (c === 0) out += leave(i, i + 1, dx) * dy;
-          if (c === w - 1) out += leave(i, i - 1, dx) * dy;
-          edgeOut[i] = out;
-        }
-      } else {
-        if (c0 === 0) edgeOut[row] = leave(row, row + 1, dx) * dy;
-        if (c1 === w - 1) edgeOut[row + w - 1] = leave(row + w - 1, row + w - 2, dx) * dy;
+    }
+    // Edges of the grid that the spans touch.
+    const edges = (r: number) => {
+      const row = r * w;
+      for (let c = from[r]; c <= to[r]; c++) {
+        const i = row + c;
+        let out = 0;
+        if (r === 0) out += leave(i, i + w, dy) * dx;
+        if (r === h - 1) out += leave(i, i - w, dy) * dx;
+        if (c === 0) out += leave(i, i + 1, dx) * dy;
+        if (c === w - 1) out += leave(i, i - 1, dx) * dy;
+        edgeOut[i] = out;
       }
-      for (let c = c0, i = row + c0; c <= c1; c++, i++) {
-        const east = qx[i], west = c > 0 ? qx[i - 1] : 0, south = qy[i], north = r > 0 ? qy[i - w] : 0;
+    };
+    for (let r = top; r <= bottom; r++) {
+      if (r === 0 || r === h - 1) { edges(r); continue; }
+      if (from[r] === 0) edgeOut[r * w] = leave(r * w, r * w + 1, dx) * dy;
+      if (to[r] === w - 1) edgeOut[r * w + w - 1] = leave(r * w + w - 1, r * w + w - 2, dx) * dy;
+    }
+    // No cell may give more than it holds: its outgoing faces are scaled down together. Faces outside the spans,
+    // and past the grid's edge, read 0.
+    for (let r = top; r <= bottom; r++) {
+      const row = r * w;
+      for (let c = from[r]; c <= to[r]; c++) {
+        const i = row + c, east = qx[i], west = c > 0 ? qx[i - 1] : 0, south = qy[i], north = r > 0 ? qy[i - w] : 0;
         let out = edgeOut[i];
         if (east > 0) out += east * dy;
         if (west < 0) out -= west * dy;
@@ -238,7 +206,29 @@ export function makeFlood(grid: FloodGrid, sources: ArrayLike<number>, options: 
         afford[i] = out * dt > have ? have / (out * dt) : 1;
       }
     }
-    // Pass 2: what enters, from the hydrograph and the rain.
+    for (let r = top; r <= bottom; r++) {
+      const row = r * w;
+      for (let c = from[r]; c <= to[r]; c++) {
+        const i = row + c;
+        if (qx[i] !== 0) qx[i] *= afford[qx[i] > 0 ? i : i + 1];
+        if (qy[i] !== 0) qy[i] *= afford[qy[i] > 0 ? i : i + w];
+        edgeOut[i] *= afford[i];
+      }
+    }
+    // Continuity, then the sea.
+    let edge = 0;
+    for (let r = top; r <= bottom; r++) {
+      const row = r * w;
+      for (let c = from[r]; c <= to[r]; c++) {
+        const i = row + c;
+        if (wall[i]) continue;
+        const net = ((c > 0 ? qx[i - 1] : 0) - qx[i]) * dy + ((r > 0 ? qy[i - w] : 0) - qy[i]) * dx - edgeOut[i];
+        edge += edgeOut[i] * dt;
+        const d = depth[i] + net * dt / area;
+        depth[i] = d > 0 ? d : 0;
+      }
+    }
+    ledger.edge += edge;
     if (forcing.inflow > 0 && land.length) {
       const add = forcing.inflow * dt / (land.length * area);
       for (const i of land) depth[i] += add;
@@ -249,32 +239,20 @@ export function makeFlood(grid: FloodGrid, sources: ArrayLike<number>, options: 
       for (let i = 0; i < n; i++) if (!wall[i] && !sea[i]) depth[i] += add;
       ledger.rain += add * open * area;
     }
-    // Pass 3, row by row: each cell scales its east and south faces by what their upstream cell affords (its west
-    // and north faces are scaled already), takes its net flux, gives what reached the sea, and grows the spans
-    // around new water.
-    let edge = 0;
     deepest = 0;
+    const r0 = top, r1 = bottom;
     for (let r = r0; r <= r1; r++) {
       const row = r * w, c0 = from[r], c1 = to[r];
       for (let c = c0; c <= c1; c++) {
-        const i = row + c;
-        if (qx[i] !== 0) qx[i] *= afford[qx[i] > 0 ? i : i + 1];
-        if (qy[i] !== 0) qy[i] *= afford[qy[i] > 0 ? i : i + w];
-        edgeOut[i] *= afford[i];
-        if (wall[i]) continue;
-        const net = ((c > 0 ? qx[i - 1] : 0) - qx[i]) * dy + ((r > 0 ? qy[i - w] : 0) - qy[i]) * dx - edgeOut[i];
-        edge += edgeOut[i] * dt;
-        let d = depth[i] + net * dt / area;
-        if (d <= 0) { depth[i] = 0; continue; }
+        const i = row + c, d = depth[i];
+        if (d <= 0) continue;
         if (sea[i]) { ledger.sea += d * area; depth[i] = 0; continue; }
-        depth[i] = d;
         if (d > deepest) deepest = d;
         if (d > peak[i]) peak[i] = d;
         // Grow the spans around new water only (inner cells are already covered).
         if (!covered(r, c)) include(r, c);
       }
     }
-    ledger.edge += edge;
     ledger.time += dt;
     return dt;
   }

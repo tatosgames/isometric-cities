@@ -195,6 +195,10 @@ Node, one core, 592 × 452 grid (`scripts/qa-flood-solver.mjs` for the checks): 
 
 At ×300, about 150 ms a second goes to frames and readings instead of about 450.
 
+**The worker rests.** When the solver cannot keep up with the speed asked (a wide flood at ×300 holds ×60–100 on one core), the worker works at most 65% of the time and sleeps the rest, instead of holding a core flat out for a speed it will not reach; the rate in the readout is the one it gets. When it keeps up it sleeps 10 ms between slices instead of spinning on `setTimeout(0)`.
+
+**Tried and dropped** (27 November 2026, same grid, recession included): fusing the solver's seven passes into three, shrinking the spans every 64 steps to the cells over `DRY`, and skipping faces with both cells under `DRY`. Same results to the last digit, same time within noise (±5%): the cost is the arithmetic of each wet face (`cbrt`, `sqrt`, divisions), not the passes over memory, and the receding water leaves films over `DRY` everywhere, so the spans do not shrink. Faster hydraulics need WebAssembly with SIMD or the GPU.
+
 ## Next
 
 1. **Main map:** buttons for flood, rain and sea level on the area in view, plus sea level for the whole city on a coarser grid.
