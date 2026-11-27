@@ -44,10 +44,12 @@ URL: `portata` (m³/s), `salita` (min to peak), `tombino` (m³/s carried by the 
 ## Look
 
 `flood-water.ts` draws the water opaque and low poly in one draw call. Being opaque, it needs no blending or sorting.
-- **Facets:** a swell in the vertex shader tilts the 5 m triangles. It is taller and faster where the current runs, and none at the edge. Each triangle has its own normal (from screen derivatives), so its facets turn pale, dark or bright against the sun.
-- **Colour:** turquoise to blue with depth, with a little silt where the current is fast.
-- **Foam:** a white rim where the water meets the ground, and crisp whitecaps drifting downstream at the speed of currents above 1.5 m/s. The worker packs each cell's velocity next to its depth for this.
-- **Hazard view:** keeps the four classes on the same facets.
+- **Palette:** the sea's own (`render/sea.ts`): `#74c4bd` in shallow water to `#2b7888` in deep water, with a touch of silt where the current is fast. Flood and sea read as the same water.
+- **Facets:** a low swell in the vertex shader tilts the 5 m triangles, each with its own normal, for a gentle light and shade.
+- **Movement:** a slow swell of tone runs along the current.
+- **Foam:** soft, and only where the water meets the ground, as on the shore.
+
+There are no mirror glints and no whitecaps: from afar they speckled the water (Luca, 27 November 2026).
 
 **Technical parameters.** The Solver folder of the panel changes the scheme's constants live: Manning n, θ, Courant number and Froude limit (URL `manning`, `theta`, `courant`, `froude`). The readout shows:
 - the current Δt;

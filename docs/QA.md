@@ -11,6 +11,8 @@ The defaults are more dramatic: a 500 m³/s peak at 15 min, ×90 speed, and the 
 
 Second pass, after Luca asked for opaque, low-poly water (to save work) with acceptable physics and the technical parameters in view. The water is now opaque, with no blending. A vertex swell tilts the 5 m triangles, drawn one normal per triangle; there is a white rim and crisp whitecaps on fast currents. The panel gains the scheme's θ, Courant number and Froude limit, and the readout gains Δt, the highest Froude number and the cells computed. Checked at zoom 3 on the mouth.
 
+Third pass (Luca): from afar the white glints and whitecaps made the water look dotted. Both are removed. The water now takes the sea's palette, gentle facets, a slow swell of tone and soft foam at the edge only. Checked at zoom 1.4 over Triana.
+
 ## Flood lab · November 27, 2026
 
 `scripts/qa-flood-solver.mjs` (Node, now first in `npm test`):
