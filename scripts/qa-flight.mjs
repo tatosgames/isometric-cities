@@ -51,7 +51,7 @@ try{
     const page=await browser.newPage({viewport:run.viewport,hasTouch:run.touch,isMobile:run.touch});
     try{
       page.on('pageerror',error=>errors.push(run.name+' '+error.message));
-      await page.goto(new URL('index.html?nopolice&'+run.query,origin).href,{waitUntil:'domcontentloaded',timeout});
+      await page.goto(new URL('index.html?off=police&'+run.query,origin).href,{waitUntil:'domcontentloaded',timeout});
       await page.waitForSelector('#map[data-boot=ready]',{timeout});
       const drive=page.locator('#drive');
       if(run.touch)await drive.tap();else await drive.click();

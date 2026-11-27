@@ -25,7 +25,7 @@ try{
       }).observe(document,{attributes:true,subtree:true,attributeFilter:['data-dpr','data-aa','data-shadows']});
       sessionStorage.setItem('map-view:'+location.pathname+location.search,JSON.stringify({target:[x,0,-y],zoom,turn:0}));
     },{x,y,zoom});
-    const query=profile==='before'||profile==='auto'?'':'?lab=qualita&preview='+profile;
+    const query=profile==='before'||profile==='auto'?'':'?lab=quality&mode='+profile;
     await page.goto(origin+query);
     await page.waitForSelector('#scene[data-view]',{timeout:90000});
     await page.waitForFunction(()=>{

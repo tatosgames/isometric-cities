@@ -25,8 +25,8 @@ try{
         const dx=to[0]-from[0],dy=to[1]-from[1],length=Math.hypot(dx,dy),h=Math.atan2(dy,dx);
         const offset=level===2 && district!=='Santa Catalina-Canteras'?135:10;
         const x=from[0]+dx*offset/length,y=from[1]+dy*offset/length;
-        const url=new URL('?lab=guida&nobuses',origin);
-        url.searchParams.set('start',[x,y].join(','));url.searchParams.set('seed',String(701+index));
+        const url=new URL('?lab=drive&off=buses',origin);
+        url.searchParams.set('at',[x,y].join(','));url.searchParams.set('tune','seed:'+(701+index));
         await page.goto(url.href);
         await page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
         const stats=await page.evaluate(async({x,y,h,length,level})=>{

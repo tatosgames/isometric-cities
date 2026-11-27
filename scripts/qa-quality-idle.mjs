@@ -34,7 +34,7 @@ try{
       }
     });
   },{fps,idleDrop});
-  await page.goto(origin+'?area=pilot&lab=qualita');
+  await page.goto(origin+'?area=pilot&lab=quality');
   if(idleDrop){
     const scene=page.locator('#scene');
     const report=page.locator('#quality-diagnostics');
@@ -69,7 +69,7 @@ try{
     assert.equal(await lookSelect().inputValue(),'Matcap');
     for(const [label,look,shadows] of [['Base','base','solar'],['Sole','sole','solar'],['Matcap','matcap','static']]){
       await lookSelect().selectOption(label);
-      await page.waitForURL(url=>new URL(url).searchParams.get('look')===look);
+      await page.waitForURL(url=>(new URL(url).searchParams.get('look')??'matcap').split(',')[0]===look);
       await page.waitForSelector('#map[data-boot="ready"]');
       await page.waitForSelector(`#scene[data-look="${look}"][data-tilt="false"][data-shadows="${shadows}"]`);
       assert.equal(await lookSelect().inputValue(),label);
@@ -82,11 +82,11 @@ try{
     const blur=page.getByRole('spinbutton',{name:'Edge blur'});
     await blur.fill('1');await blur.press('Enter');
     await page.waitForSelector('#scene[data-tilt="true"]');
-    const tuned=new URL(page.url()).searchParams;
-    assert.equal(tuned.get('palette'),'cream');assert.equal(tuned.get('tilt'),'1');
+    const tuned=new URL(page.url()).searchParams.get('look')?.split(',')??[];
+    assert.ok(tuned.includes('palette:cream') && tuned.includes('tilt:1'),'Matcap values in ?look=');
     await page.getByRole('button',{name:'Reset Matcap'}).click();
     await page.waitForSelector('#scene[data-tilt="false"]');
-    assert.ok(!new URL(page.url()).searchParams.has('palette'));
+    assert.ok(!new URL(page.url()).searchParams.has('look'));
     assert.deepEqual(errors,[]);
     console.log('Matcap default, idle shadow and DPR drops, WebGL recovery, the look dropdown and live Matcap tuning passed.');
   }else{

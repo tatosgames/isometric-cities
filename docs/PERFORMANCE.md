@@ -67,7 +67,7 @@ Catalog of tricks already applied to the model, with the measure that justifies 
 
 ## Demolition lab
 
-Measured with the same script before and after: main-thread time per animation frame and GL draws per frame (shadow passes included), desktop 1280 × 800, software WebGL, `lab.html?lab=demolizione&zoom=6`. Windows: 60 pointer moves with dynamite (hover), 60 with the ball, 4 s from a dynamite click (blast), 3 s after.
+Measured with the same script before and after: main-thread time per animation frame and GL draws per frame (shadow passes included), desktop 1280 × 800, software WebGL, `lab.html?lab=demolition` (zoom 6). Windows: 60 pointer moves with dynamite (hover), 60 with the ball, 4 s from a dynamite click (blast), 3 s after.
 
 | Makeup | Where | Measured effect |
 |---|---|---|
@@ -128,4 +128,4 @@ The flight uses a dedicated [adaptive quality](../src/quality/README.md) system 
 
 100% in flight has a ceiling of 1920×1080, even vertically with the axes reversed. The monitor receives frames during ordinary streaming. The measurement is suspended when the Piper has to wait for the collision tracks or the landing road. During a promotion also waits for the visible details required by the new layer and the preparation of the shadows. Returning to the car recovers the confirmed terrestrial level.
 
-To repeat the urban route at 1080p run `node scripts/benchmark-flight.mjs dist` after the build. The `?lab=qualita` lab shows mode, level, effective buffer, FPS and p95.
+To repeat the urban route at 1080p run `node scripts/benchmark-flight.mjs dist` after the build. The `?lab=quality` lab shows mode, level, effective buffer, FPS and p95.

@@ -20,7 +20,7 @@ try{
         gl[method]=function(...args){window.drawCalls++;return original.apply(this,args);};
       }
     });
-    await page.goto(new URL('?lab=guida&start='+start+'&nopolice'+(enabled?'':'&nobuses'),origin).href);
+    await page.goto(new URL('?lab=drive&at='+start+'&off=police'+(enabled?'':',buses'),origin).href);
     const host=page.locator('#scene[data-guaguas]');
     await host.waitFor({timeout:120000});
     await host.focus();await page.keyboard.down('ArrowUp');

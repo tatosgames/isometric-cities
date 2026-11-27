@@ -52,7 +52,7 @@ try {
     },[width,near]);
   }
   await settle();
-  await page.goto(origin+'?neutral');
+  await page.goto(origin+'?on=neutral');
   await settle();
   assert.deepEqual(errors,[]);
   console.log('Main LOD: stationary arrival, loss during fade, restoration, hysteresis, idle completion and neutral mode passed');

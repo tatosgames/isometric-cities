@@ -37,7 +37,7 @@ try{
     }
     requestAnimationFrame(sample);
    });
-   const url=origin+'lab.html?test=settori'+(legacy&&!widths?'&raster=1':'')+(full?'&intera=1':'');
+   const url=origin+'lab.html?lab=roads&case=sectors&on='+[legacy&&!widths?'raster':'',full?'whole':''].filter(Boolean).join(',');
    const settled=()=>page.waitForFunction(()=>{
     const s=JSON.parse(document.querySelector('#view').dataset.sectors||'{}');return s.visible>0&&!s.pending;
    },null,{timeout:90000});
@@ -67,7 +67,7 @@ try{
    const stats=JSON.parse(await page.locator('#view').getAttribute('data-sectors'));
    assert.ok(stats.bytes<=stats.budget);
    if(!legacy&&mobile){
-    await page.goto(url+'&mappa=1&inverso=1&ritardo=1&pos=95');
+    await page.goto(url+(url.endsWith('=')?'':',')+'map,reverse,delay&tune=pos:95');
     await page.waitForFunction(()=>{const s=JSON.parse(document.querySelector('#view').dataset.sectors||'{}');return s.visible>=1&&s.pending==='-1_-2';},null,{timeout:15000});
     await page.locator('#view').screenshot({path:out+'/mixed.png'});await settled();
    }
@@ -81,7 +81,7 @@ try{
  const faults=[];
  local.on('pageerror',e=>faults.push(e.message));
  local.on('console',m=>{if(m.type()==='warning'&&m.text().startsWith('Sector '))faults.push(m.text());});
- await local.goto(origin+'lab.html?test=settori');
+ await local.goto(origin+'lab.html?lab=roads&case=sectors');
  await local.waitForFunction(()=>{
    const host=document.querySelector('#view'),s=JSON.parse(host.dataset.sectors||'{}');
    return s.visible===2&&!s.pending&&host.dataset.meshCells.split(',').length===2;

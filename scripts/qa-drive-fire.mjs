@@ -1,6 +1,6 @@
 // The car's gun. In Node, on the pilot world: a ray finds the building it meets, a demolished building stops
 // blocking and comes back when rebuilt, the slug meets cars on its way, a thrown body lands. In the browser
-// (`index.html?lab=guida&area=pilot`): F or Space fires straight ahead, the ring fills inside the button and a second F
+// (`index.html?lab=drive&area=pilot`): F or Space fires straight ahead, the ring fills inside the button and a second F
 // waits for it, and a shot towards a building brings it down into pieces. Screenshot in QA_SCREENSHOT_DIR (docs/screenshots).
 import assert from 'node:assert/strict';
 import {mkdir,readFile} from 'node:fs/promises';
@@ -101,7 +101,7 @@ const browser=await launchBrowser();
 try{
   const page=await browser.newPage({viewport:{width:1280,height:800}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await page.goto(new URL('index.html?lab=guida&area=pilot&nopolice&nobuses',origin).href);
+  await page.goto(new URL('index.html?lab=drive&area=pilot&off=police,buses',origin).href);
   await page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
   const gun=()=>page.evaluate(()=>window.gunState());
   const button=page.locator('#drive-fire');

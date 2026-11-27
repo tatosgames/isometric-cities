@@ -10,7 +10,7 @@ const browser=await launchBrowser();
 const percentile=(a,q)=>a.toSorted((x,y)=>x-y)[Math.ceil(a.length*q)-1];
 try{
  for(const mobile of (city?[true]:[true,false])){
-  for(const mode of ['attuale','stabile','visivo']){
+  for(const mode of ['current','stable','visual']){
    const page=await browser.newPage({viewport:mobile?{width:390,height:844}:{width:1024,height:720},isMobile:mobile,hasTouch:mobile});
    const errors=[];
    page.on('console',m=>{if(m.type()==='error'||m.text().startsWith('Sector '))errors.push(m.text());});
@@ -24,7 +24,7 @@ try{
     }
     requestAnimationFrame(measure);
    });
-   await page.goto(server.resolvedUrls.local[0]+'lab.html?test=lod&mappa=1&ritardo=1&inverso=1&pos=95&modo='+mode+(city?'&intera=1':''));
+   await page.goto(server.resolvedUrls.local[0]+'lab.html?lab=roads&case=lod&on=map,delay,reverse'+(city?',whole':'')+'&tune=pos:95&mode='+mode);
    const settled=()=>page.waitForFunction(city=>{
     const s=JSON.parse(document.querySelector('#view').dataset.sectors||'{}');
     return (city?s.visible>0:s.visible===2)&&!s.pending;
@@ -40,7 +40,7 @@ try{
     await page.getByRole('button',{name:'Oscillate on the zoom'}).click();
     await page.waitForTimeout(5600);
     const zoom=await sample();swaps=zoom.changes-cold.changes;
-    if(mode==='attuale')assert.ok(swaps>=4,'Oscillation should cross default threshold');
+    if(mode==='current')assert.ok(swaps>=4,'Oscillation should cross default threshold');
     else assert.equal(swaps,0);
    }
    await page.getByRole('button',{name:'Bend and reversal'}).click();
@@ -52,7 +52,7 @@ try{
    await page.locator('#view').screenshot({path:out+'/'+device+'-'+mode+'.png'});
    const drawCalls=async()=>Number((await page.locator('#metrics').textContent()).match(/(\d+) draw call/)[1]);
    const settledCalls=await drawCalls();let halfCalls=null;
-   if(mode==='visivo'){
+   if(mode==='visual'){
     const view=page.locator('#view');
     const check=text=>page.getByText(text,{exact:true}).locator('..').locator('input');
     await check('Inspect transition').check();

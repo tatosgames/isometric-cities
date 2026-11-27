@@ -263,7 +263,7 @@ try {
     fresh.waitForEvent('popup'),fresh.getByRole('link',{name:'Test Drive'}).click()
   ]);
   observe(viewer);
-  assert.equal(viewer.url(),new URL('?area=pilot&editorPreview',mapRoot).href);
+  assert.equal(viewer.url(),new URL('?area=pilot&on=editor',mapRoot).href);
   await viewer.getByLabel('Load pilot map edits').setInputFiles(file({...patch,base:'other'}));
   await viewer.getByText(/different version/).waitFor();
   await viewer.getByLabel('Load pilot map edits').setInputFiles(file(patch));

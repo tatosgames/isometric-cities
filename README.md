@@ -12,7 +12,7 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5197
 ```
 Open http://127.0.0.1:5197/ . Drag to move, use wheel or pinch to zoom. The index and markers open the place card. With the focus on the map, use arrows, +, − and Home. The viewfinder resets the overview.
 
-The home page opens a full-screen view of Triana. The menu at the top left lists 25 places, from Vegueta and Triana to La Isleta, Ciudad Alta, the cliffs, and the southern ring. The viewfinder at the top right shows the entire area. Use `/?area=pilot` for Santa Ana Square and add `&neutral` for an identical room comparison. With `?nopolice`, the "Drive" mode starts without patrols: no captures, and the race lasts until you exit.
+The home page opens a full-screen view of Triana. The menu at the top left lists 25 places, from Vegueta and Triana to La Isleta, Ciudad Alta, the cliffs, and the southern ring. The viewfinder at the top right shows the entire area. Use `/?area=pilot` for Santa Ana Square and add `&on=neutral` for an identical room comparison. With `?off=police`, the "Drive" mode starts without patrols: no captures, and the race lasts until you exit.
 
 ## Editor del pilota (deprecated)
 
@@ -22,13 +22,15 @@ Deprecated and no longer linked from the labs; kept in the build in case it is n
 
 Open `lab.html` for the five labs. The labs share navigation and a collapsible Controls panel. **Copy link** captures the current test parameters.
 
+Every page reads the same nine parameters: `lab`, `case` (scenario, parts separated by dots), `mode` (the one exclusive choice), `area`, `at` (`x,y[,zoom[,turn]]` or a place id), `on` and `off` (lists of switches), `look` and `tune` (`key:value` lists). Old links with the previous Italian names are rewritten when the page opens ([`src/url-state.ts`](src/url-state.ts)).
+
 | Lab | Entry and useful parameters |
 |---|---|
-| Rendering, effects & quality | `index.html?lab=qualita`. Use `look=base\|sole\|matcap`, the Matcap panel parameters (`matcap`, `gain`, `bounce`, `shade`, `clouds`, `palette`, `tilt`, `glow`), `sky=0`, `stats` or `preview=base\|static\|fxaa&diagnostics`. The look dropdown carries the current map view. |
-| Driving & flight | `index.html?lab=guida&area=pilot`. Use `start=x,y`, `seed`, `nopolice`, `nobuses`, `t` and `diagnostics`. Use the plane button to switch to flight and the Flight folder for Piper tuning. |
-| Map, LOD & roads | `lab.html?lab=strade`. Pick `scenario=mercado\|larghezze\|settori\|lod` from the selector. The old `lab.html?test=…` links still open their original scenarios. |
-| Demolition | `lab.html?lab=demolizione`. Left button swings the wrecking ball, places dynamite or fires the drive's gun (keys 1, 2 and 3), right button pans, wheel zooms. Use `x`, `y`, `zoom`, `strumento=palla\|dinamite\|sparo`, `quota` (ball height, m) and `distanza` (m from which the gun fires). Reload to rebuild the city. |
-| Flood | `lab.html?lab=inondazione`. `scenario=guiniguada\|pioggia`, `ritorno=10\|25\|50\|100\|500\|1000\|1954\|1989` (design floods by Norma 5.2-IC, or observed rains). Shift + click places a gauge. The report shows the hydrograph, gauges, critical buildings, and the method with its sources. Model, URL values, and how to reuse or remove the module: [FLOOD.md](docs/FLOOD.md). |
+| Rendering, effects & quality | `index.html?lab=quality`. Use `look=base\|sole`, then the Matcap panel values as `key:value` (`preset`, `gain`, `bounce`, `shade`, `clouds`, `palette`, `tilt`, `glow`), `off=sky`, `on=stats` or `mode=base\|static\|fxaa&on=diagnostics`. The look dropdown carries the current map view (`at=x,y,zoom,turn[,place]`). |
+| Driving & flight | `index.html?lab=drive&area=pilot`. Use `at=x,y`, `off=police,buses`, `on=diagnostics` and `tune=seed:7,player.baseSpeed:30` (any `TUNE` path). Use the plane button to switch to flight and the Flight folder for Piper tuning. |
+| Map, LOD & roads | `lab.html?lab=roads`. Pick `case=mercado\|widths\|sectors\|lod` from the selector (`widths.principale` picks a section). |
+| Demolition | `lab.html?lab=demolition`. Left button swings the wrecking ball, places dynamite or fires the drive's gun (keys 1, 2 and 3), right button pans, wheel zooms. Use `at=x,y,zoom`, `mode=ball\|dynamite\|gun`, `tune=height:9,standoff:25` (ball height and the distance the gun fires from, m). Reload to rebuild the city. |
+| Flood | `lab.html?lab=flood`. `case=guiniguada\|rain` followed by the event, `.10\|.25\|.50\|.100\|.500\|.1000\|.1954\|.1989` (design floods by Norma 5.2-IC, or observed rains): `case=guiniguada.1954`. Shift + click places a gauge. The report shows the hydrograph, gauges, critical buildings, and the method with its sources. Model, URL values, and how to reuse or remove the module: [FLOOD.md](docs/FLOOD.md). |
 
 ## Replay the data
 

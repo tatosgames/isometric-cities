@@ -1,6 +1,6 @@
 # Floods
 
-A simplified, explainable flood simulator on the city's own terrain. It runs in the lab `lab.html?lab=inondazione`; the buttons on the main map come next (see [Next](#next)). The floods are **design estimates made with the official method, not an official map**: the barranco Guiniguada has no official flood study (see [Return periods](#return-periods)).
+A simplified, explainable flood simulator on the city's own terrain. It runs in the lab `lab.html?lab=flood`; the buttons on the main map come next (see [Next](#next)). The floods are **design estimates made with the official method, not an official map**: the barranco Guiniguada has no official flood study (see [Return periods](#return-periods)).
 
 ## Module
 
@@ -100,7 +100,7 @@ Formulas:
 
 Constants for this basin: tc = 6.09 h, KA = 0.879, Kt = 1.406, so Q ≈ 1.97·Pd and the peak comes 4.06 h after the start.
 
-| Event (`ritorno=`) | Pd (mm/24 h) | Qp (m³/s) | Storm over the view, 1 h (mm/h) |
+| Event (second part of `case=`) | Pd (mm/24 h) | Qp (m³/s) | Storm over the view, 1 h (mm/h) |
 |---|---|---|---|
 | T = 10 | 79.4 | 156 | 26.1 |
 | T = 25 | 104.9 | 207 | 34.5 |
@@ -133,18 +133,17 @@ These are the figures for a coastal scenario on the Triana ARPSI.
 
 ## Scenarios
 
-| `scenario=` | What |
+| `case=` | What |
 |---|---|
 | `guiniguada` | The design flood enters on the barranco's OSM line 2.3 km above the mouth (−2309, −1582). The grid is 2950 × 2250 m (592 × 452 cells), down to Vegueta–Triana. A first gauge stands at (−1010, −420), where the barranco meets the city. |
-| `pioggia` | One hour of the design storm of the same return period, on a 1280 m square around the view. |
+| `rain` | One hour of the design storm of the same return period, on a 1280 m square around the view. |
 
 The lower Guiniguada runs covered under the GC-110 (its OSM line has `layer=-1`). The DEM only sees the surface, so the scenario is the water that the covered channel cannot take.
 
-**URL parameters:**
-- `scenario`, `ritorno` (10, 25, 50, 100, 500, 1000, 1954 or 1989);
-- the "what if" values `portata` (m³/s), `tombino` (m³/s carried by the culvert), `pioggia` (mm/h), `deflusso` (runoff share);
-- the solver's `manning`, `theta`, `courant`, `froude`;
-- `velocita` (× real time, default 300), `vista=profondita|pericolo|massimo`, `pausa=1`, `x`, `y`, `zoom`.
+**URL parameters** (the shared names of [`src/url-state.ts`](../src/url-state.ts)):
+- `case=<scenario>.<event>`, the event being 10, 25, 50, 100, 500, 1000, 1954 or 1989: `case=guiniguada.1954`, `case=rain.500`;
+- `tune=` with the "what if" values `peak` (m³/s), `culvert` (m³/s carried by the culvert), `rain` (mm/h), `runoff` (runoff share), the solver's `manning`, `theta`, `courant`, `froude` and `speed` (× real time, default 300): `tune=speed:1200,manning:0.04`;
+- `mode=depth|hazard|peak`, `off=play` (opens paused), `at=x,y,zoom`.
 
 **Report** (`flood-panel.ts`):
 - the event and its peak, with the clock;

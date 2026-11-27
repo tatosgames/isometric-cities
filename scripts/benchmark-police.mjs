@@ -11,7 +11,7 @@ try{
     const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
     await page.addInitScript(()=>{let s=7;Math.random=()=>((s=(Math.imul(s,1664525)+1013904223)>>>0)/4294967296);});
     // Both runs hold the player at the same start and use the pilot without bus traffic.
-    await page.goto(new URL('?lab=guida&area=pilot&nobuses&start=-60,-818&seed=7&t=chaserEvery:8',server.origin).href);
+    await page.goto(new URL('?lab=drive&area=pilot&off=buses&at=-60,-818&tune=seed:7,chaserEvery:8',server.origin).href);
     const scene=page.locator('#scene[data-drive][data-lab-ready]');
     await scene.waitFor({timeout:120000});await scene.focus();await page.keyboard.down('ArrowDown');
     if(version==='candidate'){

@@ -13,6 +13,7 @@ import './qa-drive-location.mjs';
 import './qa-pedestrians.mjs';
 import './qa-ground.mjs';
 import './qa-dynamic-quality.mjs';
+import './qa-url-state.mjs';
 // Each of these starts its own WebGL browser. Running them in sequence keeps
 // software-renderer contention out of the camera and driving timing checks.
 await import('./qa-drive-surface.mjs');
@@ -54,7 +55,7 @@ try{
   if(process.argv.includes('pilot')){
     if(mobile)break;
     for(const mode of ['styled','neutral']){
-      await visit('/?area=pilot'+(mode==='neutral'?'&neutral':''));await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="santa-ana"]').click();await page.locator('#close').click();await snap('santa-ana-'+mode);
+      await visit('/?area=pilot'+(mode==='neutral'?'&on=neutral':''));await page.locator('#index-toggle').click();await page.locator('#places [data-place-id="santa-ana"]').click();await page.locator('#close').click();await snap('santa-ana-'+mode);
     }
   }else{
     const start=Date.now();await visit('/');console.log(mobile?'mobile':'desktop','load ms',Date.now()-start);

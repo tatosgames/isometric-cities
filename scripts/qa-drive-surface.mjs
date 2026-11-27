@@ -48,7 +48,7 @@ try{
 
   // In the game: off the promenade onto the sand of Las Canteras, one side or the other.
   const lab=async()=>(await page.evaluate(()=>document.querySelector('#scene').dataset.lab)).split(',').map(Number);
-  await page.goto(origin+'index.html?lab=guida&nopolice&start=-2085,3861');
+  await page.goto(origin+'index.html?lab=drive&off=police&at=-2085,3861');
   await page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
   await page.locator('#scene').focus();
   await page.keyboard.press('ArrowLeft');

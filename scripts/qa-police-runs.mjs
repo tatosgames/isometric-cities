@@ -16,8 +16,8 @@ try{
   page.on('pageerror',error=>faults.push(error.message));
   for(let seed=1;seed<=10;seed++){
     const {x,y}=world.nodes[starts[Math.floor((seed-.5)*starts.length/10)]];
-    const url=new URL('?lab=guida&area=pilot&nobuses',origin);
-    url.searchParams.set('seed',String(seed));url.searchParams.set('start',[x,y].join(','));
+    const url=new URL('?lab=drive&area=pilot&off=buses',origin);
+    url.searchParams.set('tune','seed:'+seed);url.searchParams.set('at',[x,y].join(','));
     await page.goto(url.href);
     await page.waitForSelector('#scene[data-drive][data-lab-ready]');
     for(const policy of ['straight','evasive','poi']){
@@ -59,7 +59,7 @@ try{
     }
     console.log('Completed seed',seed);
   }
-  await page.goto(new URL('?lab=guida&area=pilot&nopolice&nobuses',origin).href);
+  await page.goto(new URL('?lab=drive&area=pilot&off=police,buses',origin).href);
   await page.waitForSelector('#scene[data-drive][data-lab-ready]');
   const off=await page.evaluate(()=>({sample:window.policeAdvance(3,0,false),hidden:document.querySelector('#wanted-stars').hidden}));
   assert.ok(off.hidden && !off.sample.patrols.length && off.sample.level===0);

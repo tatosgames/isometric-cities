@@ -4,12 +4,12 @@ Start the local Vite server, open one of these drives and press a driving key. T
 
 | Drive | What to look for |
 |---|---|
-| [Vegueta](http://127.0.0.1:5197/?lab=guida&area=pilot&start=-60,-818) | The original line 13 passes stops 73 and 75 towards Tres Palmas. |
-| [Pedro Hidalgo](http://127.0.0.1:5197/?lab=guida&start=-360,-3720) | Both directions of line 13 serve this neighbourhood, alongside other lines. |
-| [Guanarteme](http://127.0.0.1:5197/?lab=guida&start=-3400,2700) | The L2 has a continuous 2.07 km stretch. |
-| [Hoya de La Plata](http://127.0.0.1:5197/?lab=guida&start=-296,-3975) | Buses turn back when they reach the end of a visible open piece. |
-| [Triana](http://127.0.0.1:5197/?lab=guida&start=120,120) | Several overlapping services near Teatro. |
-| [La Isleta](http://127.0.0.1:5197/?lab=guida&start=-1040,6048) | Calle Coronel Rocha starts outside the 300 m service radius. |
+| [Vegueta](http://127.0.0.1:5197/?lab=drive&area=pilot&at=-60,-818) | The original line 13 passes stops 73 and 75 towards Tres Palmas. |
+| [Pedro Hidalgo](http://127.0.0.1:5197/?lab=drive&at=-360,-3720) | Both directions of line 13 serve this neighbourhood, alongside other lines. |
+| [Guanarteme](http://127.0.0.1:5197/?lab=drive&at=-3400,2700) | The L2 has a continuous 2.07 km stretch. |
+| [Hoya de La Plata](http://127.0.0.1:5197/?lab=drive&at=-296,-3975) | Buses turn back when they reach the end of a visible open piece. |
+| [Triana](http://127.0.0.1:5197/?lab=drive&at=120,120) | Several overlapping services near Teatro. |
+| [La Isleta](http://127.0.0.1:5197/?lab=drive&at=-1040,6048) | Calle Coronel Rocha starts outside the 300 m service radius. |
 
 ## Coverage
 
@@ -50,4 +50,4 @@ node scripts/qa-guagua-network-browser.mjs
 node scripts/qa-guagua-network-benchmark.mjs
 ```
 
-The benchmark compares the same seeded mobile drive with the fleet enabled and disabled. The optional argument is the starting point in map metres. The lab supports `&nobuses` and exposes its active vehicles, loading errors, local update count and fleet CPU time in the scene dataset.
+The benchmark compares the same seeded mobile drive with the fleet enabled and disabled. The optional argument is the starting point in map metres. The lab supports `&off=buses` and exposes its active vehicles, loading errors, local update count and fleet CPU time in the scene dataset.

@@ -30,7 +30,7 @@ try{
       };
     }
   });
-  await page.goto(origin+'?lab=guida&start=186.5,-1011&seed=1&nopolice&nobuses',
+  await page.goto(origin+'?lab=drive&at=186.5,-1011&tune=seed:1&off=police,buses',
     {waitUntil:'domcontentloaded',timeout:120000});
   await page.waitForSelector('#scene[data-drive^="ready,"]',{timeout:120000});
   const gpu=await page.evaluate(()=>{

@@ -38,12 +38,12 @@ try{
       }
     });
     const open=async query=>{
-      await page.goto(new URL('index.html?focus=parque-doramas&'+query,origin).href);
+      await page.goto(new URL('index.html?at=parque-doramas&'+query,origin).href);
       await page.waitForSelector('#scene[data-view]',{timeout:120000});
     };
     const quality=enabled=>page.evaluate(value=>window.dispatchEvent(new CustomEvent('atlas:sky-quality',{detail:value})),enabled);
     const draws=()=>page.evaluate(()=>({...window.skyDraws}));
-    await open('sky=0');await quality(true);await page.waitForTimeout(700);
+    await open('off=sky');await quality(true);await page.waitForTimeout(700);
     assert.deepEqual(await draws(),{birds:0,clouds:0});
     const view=await page.locator('#scene').getAttribute('data-view');
     await open('');
@@ -62,7 +62,7 @@ try{
     await page.waitForFunction(n=>skyDraws.birds>n,before.birds,{timeout:90000});
     await page.mouse.move(160,300);await page.mouse.down();await page.mouse.move(180,315,{steps:5});await page.mouse.up();
     await page.mouse.wheel(0,-120);await page.waitForTimeout(500);
-    await page.goto(new URL('index.html?lab=guida&sky=1&nopolice&nobuses&start=-1340,1762',origin).href);
+    await page.goto(new URL('index.html?lab=drive&off=police,buses&at=-1340,1762',origin).href);
     await page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
     await page.locator('#scene').focus();await page.keyboard.press('ArrowLeft');
     await page.waitForFunction(()=>document.querySelector('#scene').dataset.drive.startsWith('playing'));

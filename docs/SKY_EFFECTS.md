@@ -2,7 +2,7 @@
 
 The cloud layer sits 400 m above the camera target. Its opacity fades as the view narrows and reaches zero when the vertical span is 160 m or less.
 
-Open `/?focus=parque-doramas` to see three gulls circling the park and wisps drifting over the city. Switch to `sky=0` for the same camera with sky effects disabled. Omitting `sky` or setting `sky=1` enables the effects by default. The other flock is at `focus=parque-santa-catalina`. For a drive near Doramas use `/?lab=guida&start=-1340,1762`.
+Open `/?at=parque-doramas` to see three gulls circling the park and wisps drifting over the city. Add `off=sky` for the same camera with sky effects disabled; without it the effects are on. The other flock is at `at=parque-santa-catalina`. For a drive near Doramas use `/?lab=drive&at=-1340,1762`.
 
 **Quality control.** The renderer calls `sky.setEnabled(skyRequested && allowed)`. A quality policy can change `allowed` after the map opens:
 

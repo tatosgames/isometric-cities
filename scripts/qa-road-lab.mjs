@@ -4,7 +4,7 @@ import {preview} from 'vite';
 import {launchBrowser} from './qa-browser.mjs';
 
 const server=process.env.LAB_URL?null:await preview({preview:{port:0,host:'127.0.0.1'}});
-const url=process.env.LAB_URL||new URL('lab.html?test=strade',server.resolvedUrls.local[0]).href;
+const url=process.env.LAB_URL||new URL('lab.html?lab=roads',server.resolvedUrls.local[0]).href;
 const browser=await launchBrowser();
 try{
   await mkdir('.cache/road-lab',{recursive:true});
@@ -53,7 +53,7 @@ try{
       await page.waitForSelector('#view[data-ready=true][data-road-mode="1"]');
       await page.getByLabel('Scenario',{exact:true}).selectOption('lod');
       await page.waitForSelector('#view[data-ready=true][data-lod-changes]');
-      assert.equal(new URL(page.url()).searchParams.get('scenario'),'lod');
+      assert.equal(new URL(page.url()).searchParams.get('case'),'lod');
     }
     assert.deepEqual(errors,[]);await page.close();
   }

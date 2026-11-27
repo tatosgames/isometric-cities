@@ -2,7 +2,7 @@
 
 What responds to what in the «Conducir» mode, with what values and with what limits. It should be read before adding or tweaking an effect. Modeled after Butter Run's `doc/JUICE.md` and Smash Royale's juice rules, keeping only what is needed for an arcade guide seen from above.
 
-The values ​​are those of `TUNE` in `src/drive/drive-tune.ts` as of November 25, 2026; they are tested live in the `index.html?lab=guida&area=pilot` laboratory. If they change in the code, the code applies and this file must be updated. For the interface see [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), for the shot [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
+The values ​​are those of `TUNE` in `src/drive/drive-tune.ts` as of November 25, 2026; they are tested live in the `index.html?lab=drive&area=pilot` laboratory. If they change in the code, the code applies and this file must be updated. For the interface see [UI_ANTI_SLOP.md](UI_ANTI_SLOP.md), for the shot [CAMERA_FRAMING.md](CAMERA_FRAMING.md).
 
 ## Rules
 

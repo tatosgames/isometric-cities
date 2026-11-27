@@ -678,7 +678,8 @@ async function start(){
   // `at=<place>` opens on a place, `at=x,y,zoom[,turn[,place]]` on a saved view (a quality lab link).
   const openingPlace=at.point ? new T.Vector3(at.point[0],altitude(...at.point),-at.point[1]) : places.point(at.place);
   if(!resume && openingPlace && at.zoom)resume={target:openingPlace.toArray(),zoom:at.zoom,turn:at.turn??0,selected:at.place??null,losses:0};
-  const initialZoom=()=>openingPlace ? Math.min(host.clientWidth,host.clientHeight)/270 : openingZoom();
+  // A place opens close up; bare coordinates (the drive lab's street) keep the opening zoom.
+  const initialZoom=()=>openingPlace && !at.point ? Math.min(host.clientWidth,host.clientHeight)/270 : openingZoom();
   quality.updateViewport(host.clientWidth,host.clientHeight,physicalDpr);
   applyQuality(quality.config);
   let firstView=true;

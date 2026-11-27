@@ -1,4 +1,4 @@
-// Driving lab (`index.html?lab=guida&area=pilot`): the panel opens on the running game, a slider changes the
+// Driving lab (`index.html?lab=drive&area=pilot`): the panel opens on the running game, a slider changes the
 // handling at once, the values survive a reload through the URL, and patrols can be turned off and on.
 import assert from 'node:assert/strict';
 import {launchBrowser,serveMap} from './qa-browser.mjs';
@@ -46,7 +46,7 @@ try{
     // The URL is written when the change ends, as it does when the field loses the keyboard.
     input.focus();input.value='30';input.dispatchEvent(new Event('input',{bubbles:true}));input.blur();
   });
-  await page.waitForURL(url=>/t=player\.baseSpeed:30/.test(decodeURIComponent(url.search)));
+  await page.waitForURL(url=>/tune=player\.baseSpeed:30/.test(decodeURIComponent(url.search)));
   // A drag is hundreds of steps: the URL is written once at its end, and a duration cannot reach zero.
   const drag=await page.evaluate(()=>{
     const row=[...document.querySelectorAll('#drive-lab .controller')].find(c=>c.querySelector('.name').textContent==='bonusTime');
@@ -71,7 +71,7 @@ try{
   await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.lab.split(',')[2])>0,null,{timeout:30000});
   await page.locator('#drive-lab').getByLabel('Police').uncheck();
   await page.waitForFunction(()=>Number(document.querySelector('#scene').dataset.lab.split(',')[2])===0);
-  assert.ok(new URL(page.url()).searchParams.has('nopolice'));
+  assert.equal(new URL(page.url()).searchParams.get('off'),'police');
 
   // Copy gives the changed values as they are written in drive-tune.ts.
   await page.locator('#drive-lab').getByRole('button',{name:'Copy values'}).click();
@@ -86,8 +86,8 @@ try{
 
   // Flight tuning uses the same URL and controls without changing ordinary gameplay defaults.
   const flightUrl=new URL(page.url());
-  flightUrl.searchParams.append('diagnostics','1');
-  flightUrl.searchParams.set('t',(flightUrl.searchParams.get('t')??'')+',flight.fov:200');
+  flightUrl.searchParams.set('on','diagnostics');
+  flightUrl.searchParams.set('tune',(flightUrl.searchParams.get('tune')??'')+',flight.fov:200');
   await page.goto(flightUrl.href);
   await ready();
   await page.locator('#drive-lab .title',{hasText:'Flight'}).click();
@@ -102,7 +102,7 @@ try{
   await page.waitForURL(url=>/flight\.viewScale:2/.test(decodeURIComponent(url.search)));
 
   // Outside the lab the same parameter is ignored: the published game keeps its own values.
-  await page.goto(new URL('index.html?area=pilot&t=player.baseSpeed:30',origin).href);
+  await page.goto(new URL('index.html?area=pilot&tune=player.baseSpeed:30',origin).href);
   await page.waitForSelector('#map[data-boot=ready]',{timeout:120000});
   assert.equal(await page.locator('#drive-lab').count(),0);
   assert.deepEqual(errors,[]);

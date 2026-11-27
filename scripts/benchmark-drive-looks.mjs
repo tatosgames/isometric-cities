@@ -8,7 +8,7 @@ import {serveMap} from './qa-browser.mjs';
 const [target='dist',out='.cache/drive-look-comparison',rounds='3',start='-96.5,-377.3']=process.argv.slice(2);
 const {server,origin}=/^https?:\/\//.test(target)?{origin:target}:await serveMap({outDir:target,env:null});
 const browser=await chromium.launch({channel:'chrome'});
-const looks=[['base','&look=base'],['sole','&look=sole'],['matcap','&look=matcap'],['matcap-tilt','&look=matcap&tilt']];
+const looks=[['base','&look=base'],['sole','&look=sole'],['matcap','&look=matcap'],['matcap-tilt','&look=matcap,tilt:1']];
 const report={target:origin,start,viewport:[1440,900],dpr:1,framesPerRun:180,simulationHz:60,rows:[]};
 const shotStyle='.lab-runtime,#drive-lab{visibility:hidden}';
 
@@ -79,7 +79,7 @@ try{
         };
         bench.pending=()=>pending.length;
       });
-      await page.goto(new URL(`?lab=guida&area=pilot&stats&start=${start}&seed=7&nopolice&nobuses${query}`,origin).href,
+      await page.goto(new URL(`?lab=drive&area=pilot&on=stats&at=${start}&tune=seed:7&off=police,buses${query}`,origin).href,
         {waitUntil:'domcontentloaded',timeout:90000});
       await page.waitForSelector('#scene[data-lab-ready="true"][data-drive^="ready,"]',{timeout:90000});
       await page.waitForFunction(()=>document.querySelector('#scene').dataset.shadows!=='off');

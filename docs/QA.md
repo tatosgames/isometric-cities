@@ -1,5 +1,26 @@
 # Local Verification · November 21, 2026
 
+## One query string for map, drive and labs · November 27, 2026
+
+Requested by Luca: the URLs had 60 parameter names in Italian, English and camelCase, with four ways to write a switch and five to write a position. They now share nine English names, read and written by `src/url-state.ts`:
+
+| Name | Holds | Example |
+|---|---|---|
+| `lab` | which lab | `quality`, `drive`, `roads`, `demolition`, `flood` |
+| `case` | scenario, parts separated by dots | `guiniguada.1954`, `rain.500`, `widths.principale`, `lod` |
+| `mode` | the lab's one exclusive choice | `hazard`, `gun`, `painted`, `visual`, `fxaa` |
+| `area` | dataset | `pilot`, `stress` |
+| `at` | camera: `x,y[,zoom[,turn[,place]]]` or a place id | `-60,-818`, `santa-ana` |
+| `on`, `off` | lists of switches | `on=stats,diagnostics`, `off=police,buses,sky,play` |
+| `look` | look, then its Matcap values | `sole`, `preset:clay,tilt:1` |
+| `tune` | numbers as `key:value` | `seed:7,speed:1200,player.baseSpeed:30` |
+
+Old links are rewritten once when the page opens (`upgradeUrl`), so saved links and the URLs in older entries below still open the same view: `lab.html?lab=inondazione&scenario=guiniguada&ritorno=1954` becomes `lab.html?lab=flood&case=guiniguada.1954`.
+
+- `scripts/qa-url-state.mjs` (in `npm test`): readers, writers, 9 old links and 3 current ones that must come back unchanged.
+- Browser tests with the new URLs pass: `qa-flood`, `qa-demolition`, `qa-road-lab`, `qa-road-width-lab`, `qa-drive-lab`, `qa-quality-idle`, `qa-quality-views`, `qa-editor`, `qa-drive-surface`.
+- `qa-sky` fails, as before this change: it drops the WebGL context on purpose and then expects no console errors, but since the GL diagnostics of November 26 the drop is logged as an error.
+
 ## Flood lab: a lighter worker · November 27, 2026
 
 Reported by Luca: the flood lab is heavy on a PC. Measured in Node on a 592 × 452 grid like the Guiniguada's: at about 100k cells computed a step takes about 11 ms and the solver holds ×67 real time on one core, below the default ×300, so the worker never rested. Packing the state (about 10 ms) and the statistics (about 7 ms) every 40 ms took almost half its time, and it ran on forever after the event. Now the state goes every 100 ms with only the wet rows uploaded, the statistics every 250 ms; chart samples and the buildings' readings run once a simulated minute; nothing runs while paused, and the worker holds at the end of the event (see [FLOOD.md](FLOOD.md#measures)). At ×300 frames and readings take about 150 ms a second instead of about 450. The hydraulics are unchanged; the walls' depth × velocity is now read once a simulated minute instead of once a frame (every 12 s of flood at ×300, 80 s at ×2000), so collapses no longer depend on the speed chosen.

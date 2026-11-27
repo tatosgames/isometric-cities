@@ -15,14 +15,14 @@ try {
     const h=document.querySelector('#view'),s=JSON.parse(h.dataset.sectors||'{}');
     return s.visible===1&&!s.pending&&h.dataset.position==='50';
   });
-  await page.goto(server.resolvedUrls.local[0]+'lab.html?test=larghezze');
+  await page.goto(server.resolvedUrls.local[0]+'lab.html?lab=roads&case=widths');
   for(const [section,wide,old] of [['ordinaria','5','4.5'],['principale','9','8'],['vincolata','4.75','4.5']]){
     await page.locator('.lil-gui select').selectOption({label:section});
     await settle();
     const before=page.getByText('Previous width',{exact:true}).locator('..').locator('input');
     for(const [previous,width] of [[true,old],[false,wide]]){
       await before.setChecked(previous);
-      await page.waitForURL(url=>url.searchParams.has('prima')===previous);
+      await page.waitForURL(url=>(url.searchParams.get('on')??'').split(',').includes('before')===previous);
       await settle();
       assert.ok((await page.locator('#status').textContent()).includes(' '+width+' m'));
       await host.screenshot({path:out+'/'+section+(previous?'-prima':'-dopo')+'.png'});

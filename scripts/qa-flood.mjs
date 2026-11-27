@@ -1,4 +1,4 @@
-// Flood lab (`lab.html?lab=inondazione`): the Guiniguada design flood (T = 100 years, Norma 5.2-IC) runs fast in
+// Flood lab (`lab.html?lab=flood`): the Guiniguada design flood (T = 100 years, Norma 5.2-IC) runs fast in
 // the worker, the water reaches the coast between Vegueta and Triana and wets buildings, the balance of volumes stays
 // within a few per mille, the report shows its gauge, history and watched buildings, and the hazard view and the
 // cloudburst scenario draw. Screenshots go to QA_SCREENSHOT_DIR (docs/screenshots).
@@ -57,7 +57,7 @@ try{
   await view.screenshot({path:dir+'/flood-guiniguada-hazard.png'});
 
   // Cloudburst over Triana.
-  await page.goto(new URL('lab.html?lab=inondazione&scenario=pioggia&ritorno=500&x=-150&y=0&velocita=1200',origin).href);
+  await page.goto(new URL('lab.html?lab=flood&case=rain.500&at=-150,0&tune=speed:1200',origin).href);
   await ready();
   await page.waitForFunction(()=>Number(document.querySelector('#view').dataset.time)>=3600,null,{timeout:240000});
   const r=await stats();

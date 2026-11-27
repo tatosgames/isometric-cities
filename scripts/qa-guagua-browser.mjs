@@ -19,7 +19,7 @@ try {
       external.push(url.href);return r.abort();
     });
     await page.addInitScript(()=>localStorage.setItem('drive-camera','high'));
-    await page.goto(new URL('index.html?lab=guida&area=pilot&start=-60,-818&nopolice&t=cameraModes.high.pitch:84',origin).href);
+    await page.goto(new URL('index.html?lab=drive&area=pilot&at=-60,-818&off=police&tune=cameraModes.high.pitch:84',origin).href);
     const scene=page.locator('#scene[data-lab-ready=true][data-drive][data-guagua]');
     await scene.waitFor({timeout:120000});
     assert.equal(Number((await scene.getAttribute('data-drive')).split(',')[5]),0);

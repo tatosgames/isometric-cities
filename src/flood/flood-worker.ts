@@ -42,8 +42,12 @@ export interface FloodFrame {
  * back, and the statistics every `STATS_GAP` ms (the report redraws four times a second): packing them every 40 ms
  * took as long as the hydraulics. Nothing is sent, and nothing runs, while the water is still.
  * At the end of the event (`eventLength`) the worker holds: playing again goes on past it.
+ *
+ * When the solver cannot keep up with `speed` (a wide flood at ×300), it works at most `DUTY` of the time and rests
+ * for the rest, rather than holding a core flat out for a speed it will not reach: the flood then runs at about
+ * `DUTY` of what the core could give, and the rate shown says so. When it keeps up it sleeps `IDLE` ms between slices.
  */
-const SLICE = 20, STATE_GAP = 100, STATS_GAP = 250;
+const SLICE = 20, STATE_GAP = 100, STATS_GAP = 250, DUTY = .65, IDLE = 10;
 const scope = self as DedicatedWorkerGlobalScope;
 let sim: ReturnType<typeof makeFloodSim> | null = null;
 let control: Omit<Extract<FloodRequest, {type: 'control'}>, 'type'> = {playing: false, speed: 60, view: 'depth'};
@@ -88,7 +92,9 @@ function tick() {
   // Keep going while there is work, come back for what is still to send, otherwise sleep until a message.
   const running = control.playing && ledger.time < end;
   const pending = statsDirty || ledger.time !== statsTime || (!out && (drawn !== control.view || ledger.time !== packedTime));
-  if (running || owed > 0) schedule(0);
+  const worked = performance.now() - now;
+  if (owed > 0) schedule(worked * (1 - DUTY) / DUTY);
+  else if (running) schedule(IDLE);
   else if (pending) schedule(Math.max(0, Math.min(STATE_GAP - (now - lastState), STATS_GAP - (now - lastStats))));
 }
 function schedule(delay: number) {

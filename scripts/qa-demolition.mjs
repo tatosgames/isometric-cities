@@ -1,4 +1,4 @@
-// Demolition lab (`lab.html?lab=demolizione`): dynamite placed with a click brings the building down into pieces
+// Demolition lab (`lab.html?lab=demolition`): dynamite placed with a click brings the building down into pieces
 // that fly, settle and sink, the building leaves the sector meshes, and a fast swing of the wrecking ball breaks
 // another one while a slow one only leans on it, and the drive's gun brings down a wall. Screenshots go to QA_SCREENSHOT_DIR (docs/screenshots).
 import assert from 'node:assert/strict';
