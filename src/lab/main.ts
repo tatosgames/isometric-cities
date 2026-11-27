@@ -1,15 +1,17 @@
 import {required} from '../required.ts';
 import {bindLabPanel,copyLabLink,labNavigation,labs,roadScenarios} from './lab-shell.ts';
+import {caseParts,query as urlQuery,search,upgradeUrl} from '../url-state.ts';
 
 const el=(id:string)=>required(document.getElementById(id),id);
-const query=new URLSearchParams(location.search),legacy=query.get('test');
-const roads=query.get('lab')==='strade' || roadScenarios.some(scenario=>scenario.legacy===legacy);
-const demolition=query.get('lab')==='demolizione';
-const flood=query.get('lab')==='inondazione';
-el('lab-navigation').append(labNavigation(roads?'strade':demolition?'demolizione':flood?'inondazione':undefined));
+upgradeUrl();
+const query=urlQuery();
+const roads=query.get('lab')==='roads';
+const demolition=query.get('lab')==='demolition';
+const flood=query.get('lab')==='flood';
+el('lab-navigation').append(labNavigation(roads?'roads':demolition?'demolition':flood?'flood':undefined));
 
 if(demolition || flood){
-  el('title').textContent=labs.find(lab=>lab.id===(flood?'inondazione':'demolizione'))!.title;
+  el('title').textContent=labs.find(lab=>lab.id===(flood?'flood':'demolition'))!.title;
   el('catalog').hidden=true;
   required(document.querySelector('main'),'lab view').hidden=false;
   const actions=el('road-actions');
@@ -22,24 +24,24 @@ if(demolition || flood){
   status.textContent='Loading the city…';
   (flood?import('./flood-lab.ts').then(({floodLab})=>floodLab()):import('./demolition-lab.ts').then(({demolitionLab})=>demolitionLab()))
     .then(currentParams=>{
-      actions.append(copyLabLink(()=>{const url=new URL(location.href);url.search=currentParams().toString();return url;}));
+      actions.append(copyLabLink(()=>{const url=new URL(location.href);url.search=search(currentParams());return url;}));
     })
     .catch(error=>{status.textContent=String(error);});
 }else if(roads){
-  const requested=query.get('scenario');
-  const scenario=roadScenarios.find(entry=>entry.id===requested || (!requested && entry.legacy===legacy))??roadScenarios[0];
+  const requested=caseParts(query)[0];
+  const scenario=roadScenarios.find(entry=>entry.id===requested)??roadScenarios[0];
   const select=required(document.querySelector<HTMLSelectElement>('#scenario'),'road scenario');
   for(const {id,title} of roadScenarios)select.add(new Option(title,id,id===scenario.id,id===scenario.id));
   const roadUrl=(id:string,params=new URLSearchParams(location.search))=>{
     const destination=new URL(location.href);
-    params.delete('test');
-    params.set('lab','strade');
-    params.set('scenario',id);
-    destination.search=params.toString();
+    params.set('lab','roads');
+    // A case that already names this scenario keeps its sample (`widths.principale`).
+    if(caseParts(params)[0]!==id)params.set('case',id);
+    destination.search=search(params);
     return destination;
   };
   select.onchange=()=>{location.href=roadUrl(select.value,new URLSearchParams()).href;};
-  el('title').textContent=labs.find(lab=>lab.id==='strade')!.title;
+  el('title').textContent=labs.find(lab=>lab.id==='roads')!.title;
   el('catalog').hidden=true;
   required(document.querySelector('main'),'road lab').hidden=false;
   const actions=el('road-actions');

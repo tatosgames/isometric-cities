@@ -1,35 +1,40 @@
 import * as T from 'three';
 import { staticShadowStyle } from './static-ground-shadow.ts';
 import { wind } from './wind.ts';
+import { pairs, query, search, setPairs } from '../url-state.ts';
 
 /**
- * Looks chosen with `?look=` (`matcap` is the default and `base` uses the original lighting):
+ * Looks chosen with `?look=` (`matcap` is the default and `base` uses the original lighting), followed by the
+ * Matcap values: `?look=sole`, `?look=preset:clay,tilt:1`.
  * - `sole`: the same lit materials with tone mapping, a warmer and stronger sun and a weaker sky fill.
  * - `matcap`: the folio/Soso Mart style. Lit materials read a toon matcap instead of the lights;
  *   anything that darkens `diffuseColor` (static ground shadow, cloud shadows, contact darkening) still shows.
  *   The real shadow map does not, so this look keeps the static shadow mask.
- *   Its look is one set of parameters (`MatcapTune`) read from and written to the URL, tuned live in `?lab=qualita`.
+ *   Its look is one set of parameters (`MatcapTune`) read from and written to the URL, tuned live in `?lab=quality`.
  */
 export type Look = 'base' | 'sole' | 'matcap';
 
+const LOOKS = ['base', 'sole', 'matcap'] as const;
+/** The look named in `?look=` (its first bare item), if any. */
+const namedLook = (q: URLSearchParams) => LOOKS.find(name => pairs(q, 'look').has(name));
+
 export function readLook(): Look {
-  const value = new URLSearchParams(location.search).get('look');
-  return value === 'base' || value === 'sole' ? value : 'matcap';
+  return namedLook(query()) ?? 'matcap';
 }
 
 /**
  * The matcap look failed on this device (a shader that does not compile, or a probe that comes back black):
- * reloads the page with `?look=base`. An explicit `?look=` in the URL is kept, to debug the look and to never loop.
+ * reloads the page with `?look=base`. A look named in the URL is kept, to debug the look and to never loop.
  */
 let fellBack = false;
 export function fallbackToBase(reason: 'probe' | 'shader') {
   if (fellBack) return;
   fellBack = true;
-  const url = new URL(location.href), forced = url.searchParams.has('look');
+  const q = query(), forced = namedLook(q) !== undefined;
   console.error(`[atlas:gl] matcap look failed (${reason}), ${forced ? 'kept: look forced in the URL' : 'fallback to base look'}`);
   if (forced) return;
-  url.searchParams.set('look', 'base');
-  location.replace(url);
+  setPairs(q, 'look', [['base', ''], ...pairs(q, 'look')]);
+  location.replace('?' + search(q) + location.hash);
 }
 
 export function lightLook(look: Look, renderer: T.WebGLRenderer, fill: T.HemisphereLight, sun: T.DirectionalLight) {
@@ -92,28 +97,30 @@ export interface MatcapTune {
 export const defaultTune: MatcapTune = {preset: 'toy', gain: 1.08, bounce: 0, shade: 1, clouds: 1, palette: 'neutral', glow: 0, tilt: 0};
 const numbers = ['gain', 'bounce', 'shade', 'clouds', 'glow', 'tilt'] as const;
 
-export function readTune(query: URLSearchParams): MatcapTune {
+export function readTune(q: URLSearchParams): MatcapTune {
   const tune = {...defaultTune};
-  const preset = query.get('matcap'), palette = query.get('palette');
+  const look = pairs(q, 'look'), preset = look.get('preset'), palette = look.get('palette');
   if (preset && preset in matcapPresets) tune.preset = preset as MatcapPresetId;
   if (palette && palette in palettes) tune.palette = palette as PaletteId;
   for (const key of numbers) {
-    const raw = query.get(key);
-    if (raw === null) continue;
-    // A bare `?tilt` keeps the old meaning: the full edge blur.
+    const raw = look.get(key);
+    if (raw === undefined) continue;
+    // A bare `tilt` in `?look=` keeps the old meaning: the full edge blur.
     const value = raw === '' ? 1 : Number(raw);
     if (Number.isFinite(value)) tune[key] = Math.max(0, Math.min(3, value));
   }
   return tune;
 }
 
-/** Writes only what differs from the defaults, so plain links stay plain. */
-export function writeTune(url: URL, tune: MatcapTune) {
-  url.searchParams.delete('matcap'); url.searchParams.delete('palette');
-  for (const key of numbers) url.searchParams.delete(key);
-  if (tune.preset !== defaultTune.preset) url.searchParams.set('matcap', tune.preset);
-  if (tune.palette !== defaultTune.palette) url.searchParams.set('palette', tune.palette);
-  for (const key of numbers) if (tune[key] !== defaultTune[key]) url.searchParams.set(key, String(+tune[key].toFixed(2)));
+/** Writes `?look=` with only what differs from the defaults, so plain links stay plain. */
+export function writeLook(url: URL, look: Look, tune: MatcapTune) {
+  const entries: [string, string][] = look === 'matcap' ? [] : [[look, '']];
+  if (tune.preset !== defaultTune.preset) entries.push(['preset', tune.preset]);
+  if (tune.palette !== defaultTune.palette) entries.push(['palette', tune.palette]);
+  for (const key of numbers) if (tune[key] !== defaultTune[key]) entries.push([key, String(+tune[key].toFixed(2))]);
+  const q = new URLSearchParams(url.search);
+  setPairs(q, 'look', entries);
+  url.search = search(q);
   return url;
 }
 

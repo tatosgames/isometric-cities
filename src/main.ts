@@ -16,7 +16,8 @@ import { compactScreen, type DynamicQualityConfig } from './render/dynamic-quali
 import {makeStaticGroundShadow} from './render/static-ground-shadow.ts';
 import { makeGameRenderer } from './render/game-renderer.ts';
 import { watchGlContext } from './render/gl-diagnostics.ts';
-import { writeTune } from './render/look-lab.ts';
+import { writeLook } from './render/look-lab.ts';
+import { has, query as urlQuery, readAt, search, setAt, upgradeUrl } from './url-state.ts';
 import { lookControls } from './lab/look-controls.ts';
 import { FLIGHT_TUNE } from './flight/flight.ts';
 import { runtimeLab } from './lab/lab-shell.ts';
@@ -37,18 +38,20 @@ const map=el('map');
 async function start(){
   if(!booting())return;
   bootProgress(12);
-  const query=new URLSearchParams(location.search);
+  upgradeUrl();
+  const query=urlQuery(),at=readAt(query);
   const pilot=query.get('area')==='pilot';
-  // `?lab=guida`: the tuning panel of the drive, listed in lab.html.
-  const lab=query.get('lab')==='guida';
-  const qualityLab=query.get('lab')==='qualita';
-  const showLab=lab || (qualityLab && (!query.has('preview') || query.has('diagnostics')));
-  const neutral=query.has('neutral');
+  // `?lab=drive`: the tuning panel of the drive, listed in lab.html.
+  const lab=query.get('lab')==='drive';
+  const qualityLab=query.get('lab')==='quality';
+  // `?lab=quality&mode=<profile>` previews one quality profile without the panel, unless diagnostics are on.
+  const showLab=lab || (qualityLab && (!query.has('mode') || has(query,'on','diagnostics')));
+  const neutral=has(query,'on','neutral');
   const {signal}=startup;
   // `stress` is a synthetic stage for load measurements; it is generated locally and never published.
   const stage=query.get('area')==='stress'?'stress':'city';
   const {data,core,poi,tones,index,sea,edited}=await loadStartupData({
-    pilot,editorPreview:query.has('editorPreview'),neutral,stage,signal
+    pilot,editorPreview:has(query,'on','editor'),neutral,stage,signal
   });
   signal.throwIfAborted();
   performance.mark('atlas:startup-data');
@@ -60,16 +63,17 @@ async function start(){
   const sessionKey='map-view:'+location.pathname+location.search;
   let resume: ReturnType<typeof parseViewState>=null;
   try{resume=parseViewState(sessionStorage.getItem(sessionKey));}catch{}
-  if(qualityLab && !resume){
-    try{resume=parseViewState(query.get('vista'));}catch{}
-  }
   function shareLabView(){
-    const url=new URL(location.href);
-    if(qualityLab && lastView)url.searchParams.set('vista',JSON.stringify({...lastView,selected:places.selected}));
+    const url=new URL(location.href),q=new URLSearchParams(url.search);
+    if(qualityLab && lastView){
+      const [x,,z]=lastView.target;
+      setAt(q,x,-z,lastView.zoom,lastView.turn,places.selected);
+      url.search=search(q);
+    }
     return url;
   }
   let losses=Number(resume?.losses)||0;
-  const tools=showLab?runtimeLab(lab?'guida':'qualita',shareLabView):null;
+  const tools=showLab?runtimeLab(lab?'drive':'quality',shareLabView):null;
   const labOutput=tools?document.createElement('output'):null;
   const decisions:string[]=[];
   let bufferReport='', cadenceReport='', contextReport='WebGL active';
@@ -78,8 +82,8 @@ async function start(){
   function showQualityLab(){
     if(labOutput)labOutput.textContent=[bufferReport,cadenceReport,contextReport,...decisions].filter(Boolean).join('\n');
   }
-  const game=makeGameRenderer({query,compact,losses,sky:query.get('sky')!=='0',
-    preview:qualityLab?query.get('preview'):null,
+  const game=makeGameRenderer({query,compact,losses,sky:!has(query,'off','sky'),
+    preview:qualityLab?query.get('mode'):null,
     ...(labOutput && {onDecision({mode,action,reason,from,to,targetFps,fps,p95Ms}){
       const metrics=fps===null || p95Ms===null?'':` · ${fps.toFixed(0)} FPS · p95 ${p95Ms.toFixed(1)} ms`;
       const effect=(entry:typeof from)=>`L${entry.stage} ${entry.shadows}/${entry.antialias}`;
@@ -98,16 +102,15 @@ async function start(){
     labOutput.setAttribute('aria-label','Rendering quality');
     if(qualityLab)tools.panel.append(lookControls({look,tune,
       navigate(next){
-        const url=shareLabView();url.searchParams.set('look',next);
-        location.assign(url.href);
+        location.assign(writeLook(shareLabView(),next,tune).href);
       },
       change(){
         game.retune();host.dataset.tilt=String(post().tilt>0);
-        history.replaceState(history.state,'',writeTune(new URL(location.href),tune));
+        history.replaceState(history.state,'',writeLook(new URL(location.href),look,tune));
         draw();
       }}));
     const diagnostics=document.createElement('details'),summary=document.createElement('summary');
-    summary.textContent='Diagnostics';diagnostics.open=qualityLab || query.has('diagnostics');
+    summary.textContent='Diagnostics';diagnostics.open=qualityLab || has(query,'on','diagnostics');
     diagnostics.append(summary,labOutput);tools.panel.append(diagnostics);
     map.append(tools.root);
     signal.addEventListener('abort',()=>tools.root.remove(),{once:true});
@@ -603,7 +606,7 @@ async function start(){
   drive=makeDrive({scene,camera,renderer,host,data,locations,...flightArea,flightTerrainCeiling:flightTerrain.ceiling,redraw:draw,
     demandLanding:(x,y)=>streamed?.demand(x,y)??true,releaseLanding:()=>streamed?.undemand(),
     hideBuilding,showBuilding,partsOf,buildingMaterial:city.materials.buildingMat,tones,
-    ...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && query.has('nobuses')),police:!query.has('nopolice'),endless:lab,onExit:leaveDrive,
+    ...(index?.roadCoverage?{streets:index.roadCoverage}:{}),altitude,groundAt,view,mapDirection:direction,compact,busArea:pilot?'pilot':'city',buses:!(lab && has(query,'off','buses')),police:!has(query,'off','police'),endless:lab,onExit:leaveDrive,
     ...(index?{zoning:{size:index.zoneSize,ids:new Set(index.zones.map(z=>z.id)),resident:residentZones}}:{})});
   const play=el('drive');
   function disablePlay(){
@@ -661,9 +664,9 @@ async function start(){
     if(lab && drive && tools){
       // Driving lab: every run starts where the map opens, with the tuning panel beside the game.
       const tested=drive;
-      // `start=x,y` (map metres) picks the street to test on, for example a steep one.
-      const [sx,sy]=(query.get('start')??'').split(',').map(Number);
-      if(Number.isFinite(sx) && Number.isFinite(sy)){
+      // `at=x,y` (map metres) picks the street to test on, for example a steep one.
+      if(at.point){
+        const [sx,sy]=at.point;
         // Look there first, so the zone with its walls is the one loaded before the run.
         view(new T.Vector3(sx,altitude(sx,sy),-sy),camera.zoom);
         tested.startAt([sx,sy]);
@@ -672,7 +675,9 @@ async function start(){
       return;
     }
   },{once:true});
-  const openingPlace=places.point(query.get('focus'));
+  // `at=<place>` opens on a place, `at=x,y,zoom[,turn[,place]]` on a saved view (a quality lab link).
+  const openingPlace=at.point ? new T.Vector3(at.point[0],altitude(...at.point),-at.point[1]) : places.point(at.place);
+  if(!resume && openingPlace && at.zoom)resume={target:openingPlace.toArray(),zoom:at.zoom,turn:at.turn??0,selected:at.place??null,losses:0};
   const initialZoom=()=>openingPlace ? Math.min(host.clientWidth,host.clientHeight)/270 : openingZoom();
   quality.updateViewport(host.clientWidth,host.clientHeight,physicalDpr);
   applyQuality(quality.config);

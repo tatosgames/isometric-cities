@@ -5,19 +5,20 @@ import {carGeometry,carVisualScale} from '../drive/car-model.ts';
 import {lodTransition} from '../render/sectors/lod-transition.ts';
 import {CAMERA_DISTANCE,fitPixels,mapViewDirection} from '../render/map-camera.ts';
 import {labCity} from './lab-city.ts';
+import {caseParts,has,query as urlQuery,search,setPairs,setSwitch,tuned} from '../url-state.ts';
 import type {Point} from '../data/types.ts';
 
-export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
+export async function sectorRoadLab(scenarioId:'lod'|'widths'|'sectors'){
   const el=(id:string)=>document.getElementById(id)!;
-  const query=new URLSearchParams(location.search),host=el('view');
+  const query=urlQuery(),host=el('view'),on=(item:string)=>has(query,'on',item);
   el('tools').hidden=true;
   const lab=await labCity(host,query);
   const {city,compact,renderer,scene,camera}=lab;
-  const widths=scenarioId==='larghezze';
+  const widths=scenarioId==='widths';
   type Section={name:string;line:Point[];cell:string;before:number;sides:number[]};
   const samples:Record<string,Section>=widths?await fetch('./data/road-width-lab/sections.json').then(r=>{if(!r.ok)throw Error('Samples missing');return r.json();}):{};
-  const selected=query.get('caso')??'ordinaria',section=samples[selected]??Object.values(samples)[0];
-  const previous=widths&&query.has('prima');
+  const selected=caseParts(query)[1]??'ordinaria',section=samples[selected]??Object.values(samples)[0];
+  const previous=widths&&on('before');
   const way=section??city.roads.find(r=>r.id==='30801332');
   if(!way)throw Error('The Calle San Nicolás way is missing');
   const path=way.line.map(p=>new T.Vector2(...p)),lengths=[0];
@@ -26,17 +27,19 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
   const toCamera=mapViewDirection();
   const car=new T.Mesh(carGeometry('#d8452f','#f4ead7',false),new T.MeshStandardMaterial({vertexColors:true,roughness:.8,flatShading:true}));
   car.scale.setScalar(carVisualScale);car.castShadow=true;scene.add(car);
-  const ui={legacy:query.has('raster'),reverse:query.has('inverso'),drive:!query.has('mappa'),delay:query.has('ritardo'),
-    pos:T.MathUtils.clamp(Number(query.get('pos')??(widths?50:0))||0,0,100)};
+  const ui={legacy:on('raster'),reverse:on('reverse'),drive:!on('map'),delay:on('delay'),
+    pos:T.MathUtils.clamp(tuned(query,'pos',widths?50:0),0,100)};
   const lod=scenarioId==='lod';
-  const options={mode:query.get('modo')??'visivo',ground:!query.has('noSuolo'),objects:!query.has('noRetino'),
-    manual:query.has('transizione'),progress:T.MathUtils.clamp(Number(query.get('transizione')??50)||0,0,100),
-    duration:Number(query.get('durata'))||250,span:Number(query.get('campo'))||185};
+  // `mode=current|stable|visual`: today's sectors, thresholds and priority, or thresholds with transitions.
+  const transition=tuned(query,'transition',NaN);
+  const options={mode:query.get('mode')??'visual',ground:!has(query,'off','ground'),objects:!has(query,'off','hatch'),
+    manual:Number.isFinite(transition),progress:T.MathUtils.clamp(Number.isFinite(transition)?transition:50,0,100),
+    duration:tuned(query,'duration',250),span:tuned(query,'span',185)};
   let changes=0,previousFrame=0,switchGap=0,switchNext=false;
   const ready=new Set<string>();
-  const stream=lab.stream({keep:!widths&&query.has('intera')?undefined:id=>pair.has(id),legacyRoads:ui.legacy,
+  const stream=lab.stream({keep:!widths&&on('whole')?undefined:id=>pair.has(id),legacyRoads:ui.legacy,
     widenedRoads:!previous,
-    ...(lod?{lod:{stable:options.mode!=='attuale',...(options.mode==='visivo'?{attach:lodTransition(options)}:{}),
+    ...(lod?{lod:{stable:options.mode!=='current',...(options.mode==='visual'?{attach:lodTransition(options)}:{}),
       observe(){changes++;}}}:{}),
     async loadLayers(s,signal){
       if(ui.delay&&s.id==='-1_-2')await new Promise<void>(r=>setTimeout(r,1800));
@@ -53,24 +56,23 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
   const gui=new GUI({container:el('gui'),title:widths?'Road width':'Calle San Nicolás boundary'});
   function currentParams(){
     const params=new URLSearchParams(query);
-    for(const [key,on] of [['raster',ui.legacy],['inverso',ui.reverse],['mappa',!ui.drive],['ritardo',ui.delay]] as const){
-      if(on)params.set(key,'1');else params.delete(key);
+    for(const [item,listed] of [['raster',ui.legacy],['reverse',ui.reverse],['map',!ui.drive],['delay',ui.delay]] as const){
+      setSwitch(params,'on',item,listed);
     }
-    params.set('pos',ui.pos.toFixed(2));
+    const tune:[string,string][]=[['pos',ui.pos.toFixed(2)]];
     if(lod){
-      params.set('modo',options.mode);params.set('campo',String(options.span));params.set('durata',String(options.duration));
-      for(const [key,on] of [['noSuolo',!options.ground],['noRetino',!options.objects]] as const){
-        if(on)params.set(key,'1');else params.delete(key);
-      }
-      if(options.manual)params.set('transizione',String(options.progress));else params.delete('transizione');
+      params.set('mode',options.mode);tune.push(['span',String(options.span)],['duration',String(options.duration)]);
+      setSwitch(params,'off','ground',!options.ground);setSwitch(params,'off','hatch',!options.objects);
+      if(options.manual)tune.push(['transition',String(options.progress)]);
     }
+    setPairs(params,'tune',tune);
     return params;
   }
-  const reload=()=>{location.search=currentParams().toString();};
+  const reload=()=>{location.search=search(currentParams());};
   if(lod){
     const redrawMaterials=()=>{renderer.shadowMap.needsUpdate=true;schedule();};
-    gui.add(options,'mode',{Current:'attuale','Thresholds and priority':'stabile','Thresholds and transitions':'visivo'}).name('Variant').onChange(reload);
-    if(options.mode==='visivo'){
+    gui.add(options,'mode',{Current:'current','Thresholds and priority':'stable','Thresholds and transitions':'visual'}).name('Variant').onChange(reload);
+    if(options.mode==='visual'){
       gui.add(options,'ground').name('Fade ground and roads').onChange(redrawMaterials);
       gui.add(options,'objects').name('Screen buildings and trees').onChange(redrawMaterials);
       gui.add(options,'manual').name('Inspect transition').onChange(redrawMaterials);
@@ -85,10 +87,10 @@ export async function sectorRoadLab(scenarioId:'lod'|'larghezze'|'settori'){
   }else if(widths){
     const settings={selected,previous};
     gui.add(settings,'selected',Object.keys(samples)).name('Section').onChange((value:string)=>{
-      query.set('caso',value);ui.pos=50;reload();
+      query.set('case','widths.'+value);ui.pos=50;reload();
     });
     gui.add(settings,'previous').name('Previous width').onChange((on:boolean)=>{
-      if(on)query.set('prima','1');else query.delete('prima');reload();
+      setSwitch(query,'on','before',on);reload();
     });
   }else{
     gui.add(ui,'legacy').name('Raster comparison').onChange(reload);

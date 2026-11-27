@@ -58,6 +58,7 @@ const DESTINATION='#3cc9b8';
 import type {DriveOptions,DriveState,Patrol,RouteField,Vehicle} from './drive-types.ts';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import {query,tuned} from '../url-state.ts';
 
 
 
@@ -245,7 +246,7 @@ export function makeDrive({scene,camera,renderer,host,data,locations,streets,alt
     tick++;
     return input;
   }
-  const runSeed=Number(new URLSearchParams(window.location.search).get('seed')??1)>>>0;
+  const runSeed=tuned(query(),'seed',1)>>>0;
   let randomState=runSeed;
   function random(){
     if(!endless)return Math.random();

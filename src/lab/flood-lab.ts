@@ -10,23 +10,26 @@ import {
 import { CAMERA_DISTANCE, GroundControls, fitPixels, mapViewDirection } from '../render/map-camera.ts';
 import { makeSea } from '../render/sea.ts';
 import { labCity } from './lab-city.ts';
+import { caseParts, has, query as urlQuery, readAt, search, setAt, setPairs, setSwitch, tuned } from '../url-state.ts';
 
 /**
- * Flood lab (`lab.html?lab=inondazione`): the flood module (`src/flood/`, through its index only) on the streamed city.
+ * Flood lab (`lab.html?lab=flood`): the flood module (`src/flood/`, through its index only) on the streamed city.
  *
- * `scenario=guiniguada`: the design flood of the barranco Guiniguada for a return period (`ritorno=10…1000`) or an
- * observed rainfall (`ritorno=1954|1989`), by the rational method of Norma 5.2-IC, entering 2.3 km above the mouth
+ * `case=guiniguada.<event>`: the design flood of the barranco Guiniguada for a return period (`10…1000`) or an
+ * observed rainfall (`1954|1989`), by the rational method of Norma 5.2-IC, entering 2.3 km above the mouth
  * and overflowing on the surface where the covered channel cannot take it, down to Vegueta–Triana.
- * `scenario=pioggia`: one hour of rain of the same return period over the view, roofs draining to the street.
+ * `case=rain.<event>`: one hour of rain of the same return period over the view, roofs draining to the street.
+ * `mode=depth|hazard|peak` colours the water, `off=play` opens paused, `at=x,y,zoom` places the view and `tune`
+ * holds the numbers: `speed`, `peak`, `culvert`, `rain`, `runoff`, `manning`, `theta`, `courant`, `froude`.
  *
  * Buildings past Clausen & Clark's collapse threshold come down with the demolition code. Shift + click places a
  * gauge. An estimate with the official method, not an official map: see docs/FLOOD.md.
  */
 
-type ScenarioId = 'guiniguada' | 'pioggia';
+type ScenarioId = 'guiniguada' | 'rain';
 const RETURN_PERIODS = [10, 25, 50, 100, 500, 1000] as const;
 type EventId = typeof RETURN_PERIODS[number] | keyof typeof HISTORIC;
-const VIEWS: Record<string, FloodView> = {profondita: 'depth', pericolo: 'hazard', massimo: 'peak'};
+const VIEWS: readonly FloodView[] = ['depth', 'hazard', 'peak'];
 const GUINIGUADA_BOX: Box = [-2450, -1750, 500, 500];
 /** On the barranco's OSM line, 2.3 km above its mouth: where the hydrograph enters the grid. */
 const GUINIGUADA_SOURCE = [-2309, -1582] as const;
@@ -35,11 +38,10 @@ const GAUGE_TONES = ['#1d5c8e', '#c2571a', '#6a3d9a', '#2f7d3b'];
 
 export async function floodLab() {
   const el = (id: string) => document.getElementById(id)!;
-  const query = new URLSearchParams(location.search), host = el('view');
+  const query = urlQuery(), host = el('view'), at = readAt(query), [scenarioName, asked = '100'] = caseParts(query);
   el('tools').hidden = true;
   document.body.classList.add('flood-lab');
-  const id: ScenarioId = query.get('scenario') === 'pioggia' ? 'pioggia' : 'guiniguada';
-  const asked = query.get('ritorno') ?? '100';
+  const id: ScenarioId = scenarioName === 'rain' ? 'rain' : 'guiniguada';
   const event: EventId = (asked in HISTORIC ? Number(asked) : RETURN_PERIODS.find(t => String(t) === asked) ?? 100) as EventId;
   const historic = event in HISTORIC ? HISTORIC[event as keyof typeof HISTORIC] : null;
   const [lab, sea, facilities] = await Promise.all([labCity(host, query), loadData('sea.json', isSea),
@@ -57,16 +59,16 @@ export async function floodLab() {
   });
   scene.add(makeSea(sea));
 
-  const number = (key: string, fallback: number) => query.has(key) && Number.isFinite(Number(query.get(key))) ? Number(query.get(key)) : fallback;
+  const number = (key: string, fallback: number) => tuned(query, key, fallback);
   const controls = new GroundControls(camera, renderer.domElement);
   controls.enableRotate = false; controls.zoomToCursor = true;
   controls.minZoom = .15; controls.maxZoom = 40;
   controls.listenToKeyEvents(window);
   // By default the lower course and the mouth, where the water meets the city.
-  const startX = number('x', id === 'guiniguada' ? -650 : 0), startY = number('y', id === 'guiniguada' ? -450 : 0);
+  const [startX, startY] = at.point ?? (id === 'guiniguada' ? [-650, -450] : [0, 0]);
   controls.target.set(startX, stream.altitude(startX, startY), -startY);
   camera.position.copy(controls.target).addScaledVector(mapViewDirection(), CAMERA_DISTANCE);
-  camera.zoom = number('zoom', Math.min(host.clientWidth, host.clientHeight) / (id === 'guiniguada' ? 1000 : 1100));
+  camera.zoom = at.zoom ?? Math.min(host.clientWidth, host.clientHeight) / (id === 'guiniguada' ? 1000 : 1100);
   fitPixels(camera, host.clientWidth, host.clientHeight);
   controls.update();
 
@@ -77,8 +79,8 @@ export async function floodLab() {
   const box: Box = id === 'guiniguada' ? GUINIGUADA_BOX : [startX - RAIN_HALF, startY - RAIN_HALF, startX + RAIN_HALF, startY + RAIN_HALF];
   const rainKm2 = (2 * RAIN_HALF / 1000) ** 2, storm = designRain(GUINIGUADA, rainfall, 1, rainKm2);
   const scenario: FloodScenario = id === 'guiniguada'
-    ? {peak: number('portata', design.peak), rise, start, culvert: number('tombino', 0), rain: 0, rainFor: 0, runoff: .9}
-    : {peak: 0, rise, start: 0, culvert: 0, rain: number('pioggia', storm), rainFor: 3600, runoff: number('deflusso', .9)};
+    ? {peak: number('peak', design.peak), rise, start, culvert: number('culvert', 0), rain: 0, rainFor: 0, runoff: .9}
+    : {peak: 0, rise, start: 0, culvert: 0, rain: number('rain', storm), rainFor: 3600, runoff: number('runoff', .9)};
   const flood = createFlood({terrain: city.terrain, buildings: city.buildings, sea: sea.water, box,
     source: id === 'guiniguada' ? GUINIGUADA_SOURCE : null, scenario, facilities: facilities.facilities,
     options: {manning: number('manning', .03), theta: number('theta', .7), courant: number('courant', .7), froude: number('froude', 1)}});
@@ -130,22 +132,21 @@ export async function floodLab() {
   });
 
   const settings = {
-    playing: query.get('pausa') !== '1', speed: number('velocita', 300),
-    view: VIEWS[query.get('vista') ?? ''] ?? 'depth' as FloodView, event: String(event)
+    playing: !has(query, 'off', 'play'), speed: number('speed', 300),
+    view: VIEWS.find(v => v === query.get('mode')) ?? 'depth', event: String(event)
   };
-  const navigate = (params: Record<string, string>) => {
-    const url = new URL(location.href); url.search = '';
-    url.searchParams.set('lab', 'inondazione');
-    for (const [k, v] of Object.entries({scenario: id, ritorno: settings.event, ...params})) url.searchParams.set(k, v);
+  const navigate = (scenario: string = id) => {
+    const url = new URL(location.href);
+    url.search = search(new URLSearchParams({lab: 'flood', case: scenario + '.' + settings.event}));
     location.assign(url.href);
   };
   const gui = new GUI({container: el('gui'), title: 'Flood'});
-  gui.add({id}, 'id', {'Barranco Guiniguada flood': 'guiniguada', 'Cloudburst over the view': 'pioggia'}).name('Scenario')
-    .onChange((next: string) => navigate({scenario: next}));
+  gui.add({id}, 'id', {'Barranco Guiniguada flood': 'guiniguada', 'Cloudburst over the view': 'rain'}).name('Scenario')
+    .onChange((next: string) => navigate(next));
   gui.add(settings, 'event', {
     ...Object.fromEntries(RETURN_PERIODS.map(t => [`T ${t} years`, String(t)])),
     ...Object.fromEntries(Object.entries(HISTORIC).map(([k, v]) => [v.label, k]))
-  }).name('Event').onChange(() => navigate({}));
+  }).name('Event').onChange(() => navigate());
   gui.add(settings, 'playing').name('Running');
   gui.add(settings, 'speed', 1, 1200, 1).name('Speed ×');
   gui.add(settings, 'view', {'Depth': 'depth', 'Hazard': 'hazard', 'Highest depth': 'peak'}).name('Colour');
@@ -254,12 +255,15 @@ export async function floodLab() {
   host.dataset.ready = 'true';
   return () => {
     const p = new URLSearchParams(query);
-    p.set('x', controls.target.x.toFixed(1)); p.set('y', (-controls.target.z).toFixed(1)); p.set('zoom', camera.zoom.toFixed(2));
-    p.set('scenario', id); p.set('ritorno', settings.event); p.set('velocita', String(settings.speed));
-    if (id === 'guiniguada') { p.set('portata', flood.scenario.peak.toFixed(0)); p.set('tombino', String(flood.scenario.culvert)); }
-    else { p.set('pioggia', flood.scenario.rain.toFixed(1)); p.set('deflusso', String(flood.scenario.runoff)); }
-    for (const k of ['manning', 'theta', 'courant', 'froude'] as const) p.set(k, String(flood.options[k]));
-    p.set('vista', Object.keys(VIEWS).find(k => VIEWS[k] === settings.view) ?? 'profondita');
+    p.set('case', id + '.' + settings.event);
+    setAt(p, controls.target.x, -controls.target.z, camera.zoom);
+    const values = id === 'guiniguada'
+      ? {peak: flood.scenario.peak.toFixed(0), culvert: flood.scenario.culvert}
+      : {rain: flood.scenario.rain.toFixed(1), runoff: flood.scenario.runoff};
+    setPairs(p, 'tune', Object.entries({speed: settings.speed, ...values, manning: flood.options.manning, theta: flood.options.theta,
+      courant: flood.options.courant, froude: flood.options.froude}).map(([k, v]) => [k, String(v)] as const));
+    if (settings.view !== 'depth') p.set('mode', settings.view); else p.delete('mode');
+    setSwitch(p, 'off', 'play', !settings.playing);
     return p;
   };
 }

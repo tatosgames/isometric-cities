@@ -1,13 +1,14 @@
 import Stats from 'three/addons/libs/stats.module.js';
 import type { WebGLRenderer } from 'three';
+import { has } from '../url-state.ts';
 
 /**
- * Debug overlay with `?stats` in the URL: three.js Stats (FPS, frame ms, heap MB where the browser exposes it)
+ * Debug overlay with `?on=stats` in the URL: three.js Stats (FPS, frame ms, heap MB where the browser exposes it)
  * plus draw calls and thousands of triangles for the whole frame, post-processing passes included.
  * Click the panel to cycle what it shows. Nothing is created without the parameter.
  */
 export function makeStatsOverlay(renderer: WebGLRenderer, query: URLSearchParams) {
-  if (!query.has('stats')) return null;
+  if (!has(query, 'on', 'stats')) return null;
   const stats = new Stats();
   const calls = stats.addPanel(new Stats.Panel('DC', '#ff8', '#221'));
   const triangles = stats.addPanel(new Stats.Panel('kTRI', '#f8f', '#212'));

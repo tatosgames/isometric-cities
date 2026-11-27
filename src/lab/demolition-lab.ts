@@ -12,9 +12,10 @@ import { aimShot, makeSlug, shotBlast, type Shot } from '../drive/drive-weapon.t
 import { nearestOnRing, pointInRing } from '../geometry.ts';
 import { CAMERA_DISTANCE, GroundControls, fitPixels, mapViewDirection } from '../render/map-camera.ts';
 import { labCity } from './lab-city.ts';
+import { query as urlQuery, readAt, setAt, setPairs, tuned } from '../url-state.ts';
 
 /**
- * Demolition lab (`lab.html?lab=demolizione`): a wrecking ball that hangs under the mouse, dynamite placed with a
+ * Demolition lab (`lab.html?lab=demolition`): a wrecking ball that hangs under the mouse, dynamite placed with a
  * click and the drive's gun fired at a clicked wall, all breaking the city's own buildings into the 2.5D pieces of `demolition/fracture.ts`. Debris is visual only.
  * Monuments (`landmark`) are drawn by their own models and stay standing. A reload brings the city back.
  */
@@ -27,7 +28,7 @@ interface Target {
   seen: number;
 }
 type Tool = 'ball' | 'dynamite' | 'gun';
-const TOOLS: Record<string, Tool> = {palla: 'ball', dinamite: 'dynamite', sparo: 'gun'};
+const TOOLS: readonly Tool[] = ['ball', 'dynamite', 'gun'];
 const KEYS: Record<string, Tool> = {1: 'ball', 2: 'dynamite', 3: 'gun'};
 
 const GRID = 32;
@@ -36,7 +37,7 @@ const key = (i: number, j: number) => (i + 32768) * 65536 + j + 32768;
 
 export async function demolitionLab() {
   const el = (id: string) => document.getElementById(id)!;
-  const query = new URLSearchParams(location.search), host = el('view');
+  const query = urlQuery(), host = el('view'), at = readAt(query);
   el('tools').hidden = true;
   const lab = await labCity(host, query);
   const {city, renderer, scene, camera, tones} = lab;
@@ -91,9 +92,9 @@ export async function demolitionLab() {
   scene.add(debris.root);
 
   const settings = {
-    tool: TOOLS[query.get('strumento') ?? ''] ?? 'ball',
-    height: Number(query.get('quota')) || 9, rope: 24, radius: 2.4, threshold: 7,
-    power: 24, blastRadius: 7, fuse: 1.1, standoff: Number(query.get('distanza')) || 25
+    tool: TOOLS.find(t => t === query.get('mode')) ?? 'ball',
+    height: tuned(query, 'height', 9), rope: 24, radius: 2.4, threshold: 7,
+    power: 24, blastRadius: 7, fuse: 1.1, standoff: tuned(query, 'standoff', 25)
   };
 
   /** The nearest point of a footprint's edge, and its distance, negative inside. */
@@ -271,11 +272,10 @@ export async function demolitionLab() {
   controls.minZoom = 1.5; controls.maxZoom = 40;
   controls.listenToKeyEvents(window);
   const road = city.roads.find(r => r.id === '30801332')?.line;
-  const startX = Number(query.get('x')) || (road ? (road[0][0] + road[road.length - 1][0]) / 2 : 0);
-  const startY = Number(query.get('y')) || (road ? (road[0][1] + road[road.length - 1][1]) / 2 : 0);
+  const [startX, startY] = at.point ?? (road ? [(road[0][0] + road[road.length - 1][0]) / 2, (road[0][1] + road[road.length - 1][1]) / 2] : [0, 0]);
   controls.target.set(startX, altitude(startX, startY), -startY);
   camera.position.copy(controls.target).addScaledVector(mapViewDirection(), CAMERA_DISTANCE);
-  camera.zoom = Number(query.get('zoom')) || Math.min(host.clientWidth, host.clientHeight) / 170;
+  camera.zoom = at.zoom ?? Math.min(host.clientWidth, host.clientHeight) / 170;
   fitPixels(camera, host.clientWidth, host.clientHeight);
   controls.update();
   cursor.copy(controls.target);
@@ -410,9 +410,9 @@ export async function demolitionLab() {
   host.dataset.ready = 'true';
   return () => {
     const p = new URLSearchParams(query);
-    p.set('x', controls.target.x.toFixed(1)); p.set('y', (-controls.target.z).toFixed(1)); p.set('zoom', camera.zoom.toFixed(2));
-    p.set('strumento', Object.keys(TOOLS).find(k => TOOLS[k] === settings.tool) ?? 'palla'); p.set('quota', String(settings.height));
-    p.set('distanza', String(settings.standoff));
+    setAt(p, controls.target.x, -controls.target.z, camera.zoom);
+    p.set('mode', settings.tool);
+    setPairs(p, 'tune', [['height', String(settings.height)], ['standoff', String(settings.standoff)]]);
     return p;
   };
 }

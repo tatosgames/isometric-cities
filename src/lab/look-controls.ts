@@ -5,7 +5,7 @@ const choices = (table: Record<string, {label: string}>) =>
   Object.fromEntries(Object.entries(table).map(([id, {label}]) => [label, id]));
 
 /**
- * `?lab=qualita` look panel: the look is one dropdown (changing it reloads, since lights and materials differ);
+ * `?lab=quality` look panel: the look is one dropdown (changing it reloads, since lights and materials differ);
  * Matcap then exposes its parameters, applied live and kept in the URL by `change`.
  */
 export function lookControls({look, tune, navigate, change}: {

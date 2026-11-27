@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
-// Look prototype (`?look=…&tilt=strength`): the folio-2019 edge blur used by Soso Mart, sharp in the middle band and
+// Look prototype (`?look=tilt:strength`): the folio-2019 edge blur used by Soso Mart, sharp in the middle band and
 // soft at the top and bottom of the frame. Gaussian weights from folio-2019 (MIT, Bruno Simon).
 function tiltPass(){
   return new ShaderPass({

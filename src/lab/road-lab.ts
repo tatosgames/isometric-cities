@@ -4,6 +4,7 @@ import type { Road } from '../data/types.ts';
 import { carGeometry,carVisualScale } from '../drive/car-model.ts';
 import { CAMERA_DISTANCE, fitPixels, mapViewDirection } from '../render/map-camera.ts';
 import { labCity } from './lab-city.ts';
+import { has, query as urlQuery, setPairs, setSwitch, tuned } from '../url-state.ts';
 
 // Both renderings are the game's: the published sectors, once as the map draws them (carriageway meshes on the
 // ground triangles) and once with the roads painted in the ground texture, as the map did before (`legacyRoads`).
@@ -33,7 +34,7 @@ function makeRoute(roads:Road[]){
 }
 
 export async function roadLab(){
-  const host=$('view'),query=new URLSearchParams(location.search);
+  const host=$('view'),query=urlQuery();
   const lab=await labCity(host,query);
   const {city,index,compact,renderer,scene,camera}=lab;
   const route=makeRoute(city.roads);
@@ -49,8 +50,8 @@ export async function roadLab(){
     refresh(){renderer.shadowMap.needsUpdate=true;schedule();}}));
   const car=new T.Mesh(carGeometry('#d8452f','#f4ead7',false),new T.MeshStandardMaterial({vertexColors:true,roughness:.8,flatShading:true}));
   car.scale.setScalar(carVisualScale);car.castShadow=true;car.receiveShadow=true;scene.add(car);
-  const initialMode=modes.find(mode=>String(mode)===query.get('variante'))??0;
-  const ui={variant:labels[initialMode],distance:T.MathUtils.clamp(Number(query.get('pos'))||0,0,100)};
+  const initialMode=query.get('mode')==='painted'?1:0;
+  const ui={variant:labels[initialMode],distance:T.MathUtils.clamp(tuned(query,'pos',0),0,100)};
   let mode:Mode=0,playing=false,measuring=false,last=0;
   const gui=new GUI({container:$('gui'),title:'Carriageway comparison'});
   const variant=gui.add(ui,'variant',labels).name('Rendering').onChange(()=>{select(labels.indexOf(ui.variant) as Mode);schedule();});
@@ -61,8 +62,8 @@ export async function roadLab(){
   const show=(n:Mode)=>streams.forEach((s,i)=>{s.group.visible=i===n;});
   const split=$('split') as HTMLInputElement, divider=$('divider');
   const compareInput=$('compare') as HTMLInputElement;
-  compareInput.checked=query.has('confronto');
-  split.value=query.get('divisore')??'50';
+  compareInput.checked=has(query,'on','compare');
+  split.value=String(tuned(query,'split',50));
   const compare=()=>compareInput.checked&&!measuring;
   const direction=mapViewDirection();
   function draw(time:number){
@@ -135,9 +136,9 @@ export async function roadLab(){
   $('status').textContent='Calle Pelota → Calle de Mendizábal → Lugar Mercadillos Municipales';
   return ()=>{
     const params=new URLSearchParams(query);
-    params.set('variante',String(mode));params.set('pos',ui.distance.toFixed(2));
-    if(compareInput.checked){params.set('confronto','1');params.set('divisore',split.value);}
-    else {params.delete('confronto');params.delete('divisore');}
+    if(mode)params.set('mode','painted');else params.delete('mode');
+    setSwitch(params,'on','compare',compareInput.checked);
+    setPairs(params,'tune',[['pos',ui.distance.toFixed(2)],...compareInput.checked?[['split',split.value] as const]:[]]);
     return params;
   };
 }

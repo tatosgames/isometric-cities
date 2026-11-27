@@ -1,23 +1,23 @@
 import './lab-shell.css';
 
 export const labs = [
-  {id:'qualita',title:'Rendering, effects & quality',href:'./index.html?lab=qualita',
+  {id:'quality',title:'Rendering, effects & quality',href:'./index.html?lab=quality',
     description:'Compare looks and rendering quality on the live map.'},
-  {id:'guida',title:'Driving & flight',href:'./index.html?lab=guida&area=pilot',
+  {id:'drive',title:'Driving & flight',href:'./index.html?lab=drive&area=pilot',
     description:'Tune, replay and measure driving or flying from Vegueta.'},
-  {id:'strade',title:'Map, LOD & roads',href:'./lab.html?lab=strade',
+  {id:'roads',title:'Map, LOD & roads',href:'./lab.html?lab=roads',
     description:'Compare road surfaces and widths, sector boundaries and detail transitions.'},
-  {id:'demolizione',title:'Demolition',href:'./lab.html?lab=demolizione',
+  {id:'demolition',title:'Demolition',href:'./lab.html?lab=demolition',
     description:'Knock buildings down with a wrecking ball or dynamite and watch them break apart.'},
-  {id:'inondazione',title:'Flood',href:'./lab.html?lab=inondazione',
+  {id:'flood',title:'Flood',href:'./lab.html?lab=flood',
     description:'Send a flood down the barranco Guiniguada or a cloudburst over the view, and read depth, danger and damage.'}
 ] as const;
 
 export const roadScenarios = [
-  {id:'mercado',title:'Mercado de Vegueta · Road surfaces',legacy:'strade'},
-  {id:'larghezze',title:'Carriageway widths',legacy:'larghezze'},
-  {id:'settori',title:'Calle San Nicolás · Sector boundaries',legacy:'settori'},
-  {id:'lod',title:'Detail transitions',legacy:'lod'}
+  {id:'mercado',title:'Mercado de Vegueta · Road surfaces'},
+  {id:'widths',title:'Carriageway widths'},
+  {id:'sectors',title:'Calle San Nicolás · Sector boundaries'},
+  {id:'lod',title:'Detail transitions'}
 ] as const;
 
 export function labNavigation(current?:typeof labs[number]['id']|'editor'){
@@ -61,7 +61,7 @@ export function copyLabLink(url:()=>URL){
   return button;
 }
 
-export function runtimeLab(current:'qualita'|'guida',url:()=>URL){
+export function runtimeLab(current:'quality'|'drive',url:()=>URL){
   const root=document.createElement('section'),bar=document.createElement('div');
   const panel=document.createElement('div'),toggle=document.createElement('button');
   root.className='lab-runtime';bar.className='lab-actions';

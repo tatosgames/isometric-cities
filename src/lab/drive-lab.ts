@@ -1,10 +1,11 @@
-// Tuning panel for the drive (`index.html?lab=guida`). It edits `TUNE` in place while the real game runs:
+// Tuning panel for the drive (`index.html?lab=drive`; `tune=path:value,…` keeps the changes). It edits `TUNE` in place while the real game runs:
 // the changed values live in the URL and can be copied as lines for `drive-tune.ts`.
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {SURFACES,TUNE} from '../drive/drive-tune.ts';
 import {FLIGHT_TUNE} from '../flight/flight.ts';
 import type {makeDrive} from '../drive/drive.ts';
 import './drive-lab.css';
+import {has,pairs,search,setPairs,setSwitch} from '../url-state.ts';
 
 type Unit={name: 'deg' | 'kmh' | '';scale: number};
 // `mirror` is the patrol profile for the values patrols take from the player.
@@ -103,7 +104,7 @@ export function driveLab({drive,host,compact,mount,begin}: {
       }
     }
   }
-  const state={police:!query.has('nopolice')};
+  const state={police:!has(query,'off','police')};
   gui.add(state,'police').name('Police').onChange((on: boolean)=>drive.setPolice(on));
   gui.add({run(){drive.respawn();}},'run').name('Back to start');
   const tree=TUNE as unknown as Record<string,unknown>;
@@ -143,10 +144,11 @@ export function driveLab({drive,host,compact,mount,begin}: {
 
   // Written when a change ends, not on every step of a drag: browsers limit how often the URL may change.
   function store(){
-    const values=leaves.filter(differs).map(leaf=>leaf.path+':'+shown[leaf.path]).join(',');
-    if(values)query.set('t',values);else query.delete('t');
-    if(state.police)query.delete('nopolice');else query.set('nopolice','1');
-    history.replaceState(null,'','?'+query.toString().replaceAll('%3A',':').replaceAll('%2C',','));
+    // Other `tune` values, such as the run's `seed`, stay as they are.
+    const others=[...pairs(query,'tune')].filter(([path])=>!leaves.some(leaf=>leaf.path===path));
+    setPairs(query,'tune',[...others,...leaves.filter(differs).map(leaf=>[leaf.path,String(shown[leaf.path])] as const)]);
+    setSwitch(query,'off','police',!state.police);
+    history.replaceState(null,'','?'+search(query));
   }
   function set(leaf: Leaf,value: number){
     const scale=leaf.unit.scale;
@@ -178,8 +180,8 @@ export function driveLab({drive,host,compact,mount,begin}: {
     store();release();
   });
 
-  for(const entry of (query.get('t')??'').split(',')){
-    const [path,value]=entry.split(':'),leaf=leaves.find(l=>l.path===path);
+  for(const [path,value] of pairs(query,'tune')){
+    const leaf=leaves.find(l=>l.path===path);
     if(leaf && value && Number.isFinite(Number(value)))set(leaf,Number(value)/leaf.unit.scale);
   }
   drive.retune();

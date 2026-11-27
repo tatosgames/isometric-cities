@@ -59,7 +59,7 @@ A trial cancelled with `insufficient-headroom` did not meet the requirements for
 
 The adapter can call `setMaxIndex(index)` to update the highest available level when the output device changes. Lowering the ceiling below the current level immediately applies the allowed level and emits `reduce / capability`. Raising it allows trials again under the normal thresholds.
 
-In Isometric Cities, open **Rendering quality** from `lab.html` or visit `?lab=qualita`. The panel shows the frame rate and p95 of every painted frame in the last second (`Now`, with `loading` while sectors stream and the 30 FPS cap at rest), the last controller window, the four latest decisions and the WebGL drawing-buffer dimensions in pixels. To keep the panel visible with a fixed preview, add `&diagnostics`.
+In Isometric Cities, open **Rendering quality** from `lab.html` or visit `?lab=quality`. The panel shows the frame rate and p95 of every painted frame in the last second (`Now`, with `loading` while sectors stream and the 30 FPS cap at rest), the last controller window, the four latest decisions and the WebGL drawing-buffer dimensions in pixels. To keep the panel visible with a fixed preview, add `&on=diagnostics`.
 
 ## References
 
