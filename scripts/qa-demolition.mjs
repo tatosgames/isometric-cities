@@ -20,7 +20,7 @@ try{
   },null,{timeout:180000});
 
   await page.goto(new URL('lab.html',origin).href);
-  assert.equal(await page.locator('#tests a').count(),4);
+  assert.equal(await page.locator('#tests a').count(),5);
   await page.getByRole('link',{name:'Demolition'}).click();
   await settled();
   assert.equal(await page.getByRole('navigation',{name:'Labs'}).locator('[aria-current=page]').textContent(),'Demolition');

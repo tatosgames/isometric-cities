@@ -12,7 +12,7 @@ try{
   const ready=()=>page.waitForSelector('#scene[data-lab-ready=true][data-drive]',{timeout:120000});
   // The catalogue of the lab links to it.
   await page.goto(new URL('lab.html',origin).href);
-  assert.equal(await page.locator('#tests a').count(),4);
+  assert.equal(await page.locator('#tests a').count(),5);
   await page.getByRole('link',{name:'Driving & flight'}).click();
   await ready();
   assert.equal(new URL(page.url()).searchParams.get('area'),'pilot');

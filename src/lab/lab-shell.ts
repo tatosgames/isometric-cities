@@ -8,7 +8,9 @@ export const labs = [
   {id:'strade',title:'Map, LOD & roads',href:'./lab.html?lab=strade',
     description:'Compare road surfaces and widths, sector boundaries and detail transitions.'},
   {id:'demolizione',title:'Demolition',href:'./lab.html?lab=demolizione',
-    description:'Knock buildings down with a wrecking ball or dynamite and watch them break apart.'}
+    description:'Knock buildings down with a wrecking ball or dynamite and watch them break apart.'},
+  {id:'inondazione',title:'Flood',href:'./lab.html?lab=inondazione',
+    description:'Send a flood down the barranco Guiniguada or a cloudburst over the view, and read depth, danger and damage.'}
 ] as const;
 
 export const roadScenarios = [

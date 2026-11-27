@@ -1,5 +1,24 @@
 # Local Verification · November 21, 2026
 
+## Flood lab · November 27, 2026
+
+`scripts/qa-flood-solver.mjs` (Node, now first in `npm test`):
+- **Lake at rest** over a bed of 1 m steps with a building in it: no face moves (|q| < 10⁻⁹ m²/s after 2,000 steps) and the volume holds.
+- **Dam break in a closed basin:** the volume holds to 10⁻⁹ and the surface settles within 2 cm of the mean.
+- **Valley ending in the sea**, with hydrograph, rain and a building: more than half the water reaches the sea, the balance closes to 10⁻⁶, and the volume that entered matches the hydrograph's integral within 2%.
+- **Published curves:** JRC 1 m → 40%, 2.5 m → 67.5%; FD2320 classes; scan-line fill of a footprint with a hole.
+
+`scripts/qa-flood.mjs` (browser, 1280 × 800, software WebGL), Guiniguada scenario after 93 simulated minutes at the default 250 m³/s:
+- 42.9 ha reached, 32.4 ha under more than 5 cm of water, deepest 6.8 m.
+- 273k of 658k m³ reached the sea; balance −6·10⁻¹⁴.
+- 478 of 9,178 buildings had more than 10 cm of water at their walls; 6.8% of the built value lost on the JRC curve.
+
+The hazard view draws, and the cloudburst over Triana (80 mm/h for 1 h) wets more than 1 ha with the balance closed. Screenshots: `flood-guiniguada-depth.png`, `flood-guiniguada-hazard.png`, `flood-rain.png`, kept out of Git. No page or console errors.
+
+The water follows the covered barranco under the GC-110, spreads at the mouth between the Teatro Pérez Galdós and the Mercado de Vegueta, then runs along the seafront and into Triana's streets towards San Telmo.
+
+Before the Froude limiter, the fastest cell read 245 m/s on the DEM's 1 m steps; after it, under 12 m/s. Typecheck and build passed. `qa-drive-lab.mjs` passed; its catalog now lists five labs, as does `qa-demolition.mjs`'s. `qa-demolition.mjs` times out in this container (software WebGL): the debris are still there after 20 s. It times out at the same step on the code before this change. [Model, sources and limits](FLOOD.md).
+
 ## Gun in the demolition lab · November 26, 2026
 
 `lab.html?lab=demolizione&strumento=sparo` (key 3): the drive's slug and blast, from `drive-weapon.ts` and `TUNE.weapon`, now including the blast values that were written into `drive.ts` (`blast` 22 m/s, `blastReach` 12 m, `push` 18 m/s, shared through `shotBlast`). Without a car, the slug leaves the road 25 m before the point clicked on the viewer's side (`Fired from`, `distanza=` in the URL), stepping further out while that point is inside a footprint, and flies level 1.1 m above the ground to the first wall in reach. The panel's Gun folder edits cooldown, slug speed, range and the three blast values. `scripts/qa-demolition.mjs` now also fires once at the building nearest the centre: a second click during the cooldown fires nothing, and a building comes down (frame `demolition-gun.png`, kept out of Git). Typecheck, build, `qa-demolition.mjs`, `qa-drive-fire.mjs` and the full `npm test` (exit 0) passed.
