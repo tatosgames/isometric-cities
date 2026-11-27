@@ -17,6 +17,21 @@ export function readLook(): Look {
   return value === 'base' || value === 'sole' ? value : 'matcap';
 }
 
+/**
+ * The matcap look failed on this device (a shader that does not compile, or a probe that comes back black):
+ * reloads the page with `?look=base`. An explicit `?look=` in the URL is kept, to debug the look and to never loop.
+ */
+let fellBack = false;
+export function fallbackToBase(reason: 'probe' | 'shader') {
+  if (fellBack) return;
+  fellBack = true;
+  const url = new URL(location.href), forced = url.searchParams.has('look');
+  console.error(`[atlas:gl] matcap look failed (${reason}), ${forced ? 'kept: look forced in the URL' : 'fallback to base look'}`);
+  if (forced) return;
+  url.searchParams.set('look', 'base');
+  location.replace(url);
+}
+
 export function lightLook(look: Look, renderer: T.WebGLRenderer, fill: T.HemisphereLight, sun: T.DirectionalLight) {
   if (look !== 'sole') return;
   renderer.toneMapping = T.NeutralToneMapping;
@@ -102,33 +117,22 @@ export function writeTune(url: URL, tune: MatcapTune) {
   return url;
 }
 
-function paintMatcap(texture: T.CanvasTexture<HTMLCanvasElement>, preset: MatcapPreset) {
-  const canvas = texture.image, size = canvas.width;
-  const context = canvas.getContext('2d')!;
-  const image = context.createImageData(size, size);
-  const light = new T.Vector3(-.35, .55, .76).normalize();
-  const {shade, mid, lit, bands: [a0, a1, b0, b1], rim} = preset;
-  const step = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
-  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
-    let x = (i + .5) / size * 2 - 1, y = 1 - (j + .5) / size * 2, r2 = x * x + y * y;
-    if (r2 > .999) { const k = Math.sqrt(.999 / r2); x *= k; y *= k; r2 = .999; }
-    const z = Math.sqrt(1 - r2), d = x * light.x + y * light.y + z * light.z;
-    const a = step(a0, a1, d), b = step(b0, b1, d), glow = Math.pow(1 - z, 3) * rim, o = (j * size + i) * 4;
-    for (let k = 0; k < 3; k++) image.data[o + k] = Math.min(255, (shade[k] + (mid[k] - shade[k]) * a) * (1 - b) + lit[k] * b + glow * 255);
-    image.data[o + 3] = 255;
-  }
-  context.putImageData(image, 0, 0);
-  texture.needsUpdate = true;
-}
-
-function makeMatcapTexture(size = 128) {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const texture = new T.CanvasTexture(canvas);
-  texture.colorSpace = T.SRGBColorSpace;
-  texture.generateMipmaps = false; texture.minFilter = T.LinearFilter;
-  return texture;
-}
+/**
+ * The toon matcap computed from the normal in the shader, instead of read from a painted texture.
+ * Some Android drivers (Adreno 630 on the Pixel 3) sampled the sRGB matcap texture painted on a canvas as black,
+ * which turned every lit surface black. The formula is the one the texture was painted with: three bands on the
+ * cosine to a light from the upper left, plus a rim, in sRGB and then decoded to linear like the texture was.
+ */
+const matcapShader = `
+  vec2 lookN = normal.xy * .99;
+  float lookR2 = dot(lookN, lookN);
+  if (lookR2 > .999) { lookN *= sqrt(.999 / lookR2); lookR2 = .999; }
+  float lookZ = sqrt(1. - lookR2);
+  float lookD = dot(vec3(lookN, lookZ), vec3(-.3495, .5493, .7590));
+  float lookA = smoothstep(lookBands.x, lookBands.y, lookD), lookB = smoothstep(lookBands.z, lookBands.w, lookD);
+  float lookRimT = 1. - lookZ, lookRimGlow = lookRimT * lookRimT * lookRimT * lookRim;
+  vec3 lookSrgb = min(vec3(1.), mix(lookShade, lookMid, lookA) * (1. - lookB) + lookLit * lookB + lookRimGlow);
+  vec3 lookMatcap = sRGBTransferEOTF(vec4(lookSrgb, 1.)).rgb;`;
 
 /** Post-processing settings of a tune, for `makeQualityOutput().setPost`. */
 export function tunePost(tune: MatcapTune) {
@@ -137,13 +141,16 @@ export function tunePost(tune: MatcapTune) {
 }
 
 export function makeMatcapLook(initial: MatcapTune) {
-  const matcap = {value: makeMatcapTexture()}, gain = {value: 1}, bounce = {value: 0};
-  let painted: MatcapPresetId | null = null;
+  const rgb = (c: RGB) => new T.Vector3(c[0] / 255, c[1] / 255, c[2] / 255);
+  const shade = {value: new T.Vector3()}, mid = {value: new T.Vector3()}, light = {value: new T.Vector3()};
+  const bands = {value: new T.Vector4()}, rim = {value: 0}, gain = {value: 1}, bounce = {value: 0};
   function set(tune: MatcapTune) {
-    if (painted !== tune.preset) { painted = tune.preset; paintMatcap(matcap.value, matcapPresets[tune.preset]); }
+    const preset: MatcapPreset = matcapPresets[tune.preset];
+    shade.value.copy(rgb(preset.shade)); mid.value.copy(rgb(preset.mid)); light.value.copy(rgb(preset.lit));
+    bands.value.fromArray(preset.bands); rim.value = preset.rim;
     gain.value = tune.gain; bounce.value = tune.bounce;
     staticShadowStyle.strength.value = tune.shade;
-    staticShadowStyle.tint.value.fromArray(matcapPresets[tune.preset].shadow);
+    staticShadowStyle.tint.value.fromArray(preset.shadow);
     wind.shade.value = tune.clouds;
   }
   set(initial);
@@ -156,25 +163,48 @@ export function makeMatcapLook(initial: MatcapTune) {
     const inner = material.onBeforeCompile, innerKey = material.customProgramCacheKey();
     material.onBeforeCompile = (shader, renderer) => {
       inner.call(material, shader, renderer);
-      shader.uniforms.lookMatcap = matcap; shader.uniforms.lookGain = gain; shader.uniforms.lookBounce = bounce;
-      shader.fragmentShader = 'uniform sampler2D lookMatcap; uniform float lookGain; uniform float lookBounce;\n'
+      Object.assign(shader.uniforms, {lookShade: shade, lookMid: mid, lookLit: light, lookBands: bands, lookRim: rim,
+        lookGain: gain, lookBounce: bounce});
+      shader.fragmentShader = 'uniform vec3 lookShade, lookMid, lookLit; uniform vec4 lookBands;'
+        + ' uniform float lookRim, lookGain, lookBounce;\n'
         + shader.fragmentShader.replace('#include <opaque_fragment>', `
         // Orthographic: one view direction, so the matcap depends on the normal only.
-        vec2 lookUv = normal.xy * .495 + .5;
-        outgoingLight = diffuseColor.rgb * texture2D(lookMatcap, lookUv).rgb * lookGain + totalEmissiveRadiance;
+        ${matcapShader}
+        outgoingLight = diffuseColor.rgb * lookMatcap * lookGain + totalEmissiveRadiance;
         // Walls face down the view (negative y): the street throws warm light back on them.
         outgoingLight += diffuseColor.rgb * vec3(1., .82, .64) * lookBounce * .45 * smoothstep(-.1, .6, -normal.y);
         #include <opaque_fragment>`);
     };
-    material.customProgramCacheKey = () => innerKey + '/look-matcap';
+    material.customProgramCacheKey = () => innerKey + '/look-matcap-A';
     material.needsUpdate = true;
   };
-  return {
-    set,
-    patch: (scene: T.Object3D) => scene.traverse(object => {
-      const material = (object as T.Mesh).material;
-      if (!material) return;
-      if (Array.isArray(material)) material.forEach(patch); else patch(material);
-    })
-  };
+  const patchScene = (scene: T.Object3D) => scene.traverse(object => {
+    const material = (object as T.Mesh).material;
+    if (!material) return;
+    if (Array.isArray(material)) material.forEach(patch); else patch(material);
+  });
+  /**
+   * Draws a white lit square facing the camera with the look, once, into a 4 × 4 target and reads it back.
+   * A driver that turns the matcap black (or NaN) raises no error: only the pixels tell. False means the look is unusable.
+   */
+  function probe(renderer: T.WebGLRenderer) {
+    const target = new T.WebGLRenderTarget(4, 4);
+    const scene = new T.Scene(), camera = new T.OrthographicCamera(-1, 1, 1, -1, 0, 2);
+    const mesh = new T.Mesh(new T.PlaneGeometry(2, 2), new T.MeshLambertMaterial({color: '#ffffff'}));
+    mesh.position.z = -1; scene.add(mesh); patchScene(scene);
+    const tuned = gain.value, previous = renderer.getRenderTarget(), pixels = new Uint8Array(4 * 4 * 4);
+    gain.value = 1;
+    try {
+      renderer.setRenderTarget(target); renderer.render(scene, camera);
+      renderer.readRenderTargetPixels(target, 0, 0, 4, 4, pixels);
+    } finally {
+      renderer.setRenderTarget(previous); gain.value = tuned;
+      target.dispose(); mesh.geometry.dispose(); mesh.material.dispose();
+    }
+    let sum = 0;
+    for (let i = 0; i < pixels.length; i += 4) sum += pixels[i] + pixels[i + 1] + pixels[i + 2];
+    // A face toward the camera takes the light band of every preset, well above black.
+    return sum / (16 * 3) > 40;
+  }
+  return {set, patch: patchScene, probe};
 }

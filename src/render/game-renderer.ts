@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { cityFillLight, citySun } from './city-light.ts';
 import { makeDynamicQuality, renderPixelRatio, type DynamicQualityConfig } from './dynamic-quality.ts';
-import { lightLook, makeMatcapLook, readLook, readTune, tunePost } from './look-lab.ts';
+import { fallbackToBase, lightLook, makeMatcapLook, readLook, readTune, tunePost } from './look-lab.ts';
 import { makeQualityOutput, type PostLook } from './quality-output.ts';
 import { wind } from './wind.ts';
 
@@ -21,6 +21,18 @@ export function makeGameRenderer({query,...quality}: Omit<QualityOptions,'solarS
   renderer.shadowMap.type=T.PCFShadowMap;
   renderer.shadowMap.autoUpdate=false;
   const matcap=look==='matcap'?makeMatcapLook(tune):null;
+  if(matcap){
+    // Black raises no error: check once that the look draws colour, and fall back to base if a shader fails.
+    renderer.debug.onShaderError=(gl,program,vertex,fragment)=>{
+      console.error('[atlas:gl] shader error',gl.getProgramInfoLog(program));
+      for(const shader of [vertex,fragment]){
+        const log=gl.getShaderInfoLog(shader);
+        if(log)console.error(log,gl.getShaderSource(shader));
+      }
+      fallbackToBase('shader');
+    };
+    if(!matcap.probe(renderer))fallbackToBase('probe');
+  }
   const output=makeQualityOutput(renderer,post());
   const fill=cityFillLight(),sun=citySun();
   lightLook(look,renderer,fill,sun);

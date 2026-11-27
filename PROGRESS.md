@@ -1,5 +1,7 @@
 # Checkpoints
 
+**Matcap without a texture.** The matcap look is computed in the shader instead of read from an sRGB texture painted on a canvas, which some Android drivers (Pixel 3, Adreno 630) read as black, turning the whole city black. If the look still draws black at start, or a shader does not compile, the page reloads with `?look=base`. [Verification](docs/QA.md#matcap-without-a-texture--november-27-2026).
+
 **Flood lab, phase 2.** The flood module is self-contained in `src/flood/` behind one entry point (`index.ts`, `createFlood`), so it can be reused or removed (see [FLOOD.md](docs/FLOOD.md#module)).
 - **Return periods:** the flood comes from Norma 5.2-IC with sources of Gran Canaria. The Guiniguada is not an ARPSI, so there is no official discharge. T100 gives 281 m³/s and T500 gives 367; the observed rains of 1954 and 1989 are replayed too.
 - **Collapse:** buildings reach partial damage or collapse by Clausen & Clark's criteria and come down with the demolition code.
