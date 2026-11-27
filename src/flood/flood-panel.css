@@ -15,7 +15,9 @@
 .flood-panel ol{list-style:none;margin:0;padding:0}
 .flood-panel li{display:grid;grid-template-columns:10px 1fr auto;gap:6px;align-items:center;padding:3px 0;border-top:1px solid var(--fp-rule)}
 .flood-panel li .fp-dot{width:8px;height:8px;border-radius:50%}
-.flood-panel li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flood-panel li span,.flood-panel li .fp-go{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flood-panel .fp-go{all:unset;cursor:pointer;min-width:0}
+.flood-panel .fp-go:hover,.flood-panel .fp-go:focus-visible{text-decoration:underline;text-underline-offset:2px}
 .flood-panel li small{color:var(--fp-muted);font:10px ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums}
 .flood-panel details{margin:10px 0 6px}
 .flood-panel summary{cursor:pointer;font:600 10px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--fp-muted)}

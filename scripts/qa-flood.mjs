@@ -44,6 +44,12 @@ try{
   assert.equal(s.gauges.length,1);assert.ok(s.gauges[0].depth>.1,'The gauge at the barranco stayed dry');
   assert.ok(await page.evaluate(()=>window.floodLab.history())>20,'Too short a history for the charts');
   assert.ok(await page.locator('.flood-panel .fp-facilities li').count()>1);
+  // A critical building in the list takes the view to it.
+  const before=await page.evaluate(()=>window.floodLab.target());
+  await page.locator('.flood-panel .fp-go').first().click();
+  await page.waitForFunction(b=>{const t=window.floodLab.target();return Math.hypot(t[0]-b[0],t[1]-b[1])>20 && t[2]>=2.9;},before,{timeout:15000});
+  await page.waitForTimeout(1500);
+  await view.screenshot({path:dir+'/flood-critical-building.png'});
   await page.waitForTimeout(300);
   await view.screenshot({path:dir+'/flood-guiniguada-depth.png'});
   await page.evaluate(()=>window.floodLab.set({view:'hazard'}));

@@ -102,7 +102,16 @@ export async function floodLab() {
 
   const label = historic ? historic.label : `T ${event}`;
   const models = 'LISFLOOD-FP 5 m · JRC · FD2320 · Clausen & Clark';
+  // A building picked in the report: the view glides to it and zooms in, its marker grows; dragging stops the glide.
+  let flight: {target: T.Vector3; zoom: number} | null = null;
+  function flyTo(index: number) {
+    const place = flood.focus(index);
+    if (!place) return;
+    flight = {target: new T.Vector3(place.x, stream.altitude(place.x, place.y), -place.y), zoom: Math.max(camera.zoom, 3)};
+  }
+  controls.addEventListener('start', () => { flight = null; });
   const panel = makeFloodPanel(el('settings'), flood, id === 'guiniguada' ? {
+    onSelect: flyTo,
     title: 'Guiniguada · ' + label, subtitle: `Qp ${design.peak.toFixed(0)} m³/s · Norma 5.2-IC`,
     design: t => hydrograph(t + start, design.peak, rise), until,
     method: [
@@ -112,6 +121,7 @@ export async function floodLab() {
     sources: [...Object.values(GUINIGUADA.sources), ...(historic ? [historic.source] : []),
       'Not an ARPSI: no official discharge', 'Facilities © OpenStreetMap']
   } : {
+    onSelect: flyTo,
     title: 'Cloudburst · ' + label, subtitle: `${storm.toFixed(1)} mm/h for 1 h · Norma 5.2-IC`,
     design: null, until: 2.5 * 3600,
     method: [['Pd', rainfall.toFixed(1) + ' mm/24 h'], ['I(T, 1 h)', storm.toFixed(1) + ' mm/h'],
@@ -203,6 +213,15 @@ export async function floodLab() {
       lab.game.setSize(w, h); fitPixels(camera, w, h);
     }
     flood.control(settings);
+    if (flight) {
+      // Exponential approach, about 0.6 s to get most of the way; the camera keeps its offset from the target.
+      const k = 1 - Math.exp(-dt * 6);
+      controls.target.lerp(flight.target, k);
+      camera.zoom += (flight.zoom - camera.zoom) * k;
+      camera.position.copy(controls.target).addScaledVector(mapViewDirection(), CAMERA_DISTANCE);
+      fitPixels(camera, w, h);
+      if (controls.target.distanceTo(flight.target) < .5 && Math.abs(camera.zoom - flight.zoom) < .01) flight = null;
+    }
     controls.update();
     const {busy} = stream.update(camera, controls.target, false);
     flood.tick(now / 1000);
@@ -226,6 +245,7 @@ export async function floodLab() {
     stats: () => flood.stats,
     set(values: Partial<typeof settings>) { Object.assign(settings, values); },
     gauge: placeGauge,
+    target: () => [controls.target.x, -controls.target.z, camera.zoom],
     design: () => ({...design, rise, start}),
     history: () => flood.history.length,
     collapsedAt: () => flood.stats?.collapsed.map(b => flood.area.buildings[b].rings[0][0]) ?? [],

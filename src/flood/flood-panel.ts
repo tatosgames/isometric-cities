@@ -19,6 +19,8 @@ export interface PanelSetup {
   /** Rows of the method table, and the sources. */
   method: readonly (readonly [string, string])[];
   sources: readonly string[];
+  /** Called with the index (in `flood.watched`) of a critical building picked in the list. */
+  onSelect?: (index: number) => void;
 }
 
 const GAUGE_TONES = ['#1d5c8e', '#c2571a', '#6a3d9a', '#2f7d3b'];
@@ -99,17 +101,23 @@ export function makeFloodPanel(container: HTMLElement, flood: Flood, setup: Pane
       }));
     }
     // Watched buildings: the worst first, then how many stay dry.
-    const rows = s.watched.map((w, k) => ({...w, facility: flood.watched[k].facility}))
+    const rows = s.watched.map((w, k) => ({...w, index: k, facility: flood.watched[k].facility}))
       .filter(w => w.state !== 'dry').sort((a, b) => SEVERITY.indexOf(a.state) - SEVERITY.indexOf(b.state) || b.depth - a.depth);
     const dry = s.watched.length - rows.length;
     const listKey = rows.slice(0, 8).map(r => r.facility.id + r.state + r.depth.toFixed(1)).join('|') + dry;
     if (listKey !== shownList) {
       shownList = listKey;
       facilities.replaceChildren(...rows.slice(0, 8).map(r => {
-        const li = document.createElement('li'), dot = document.createElement('i'), name = document.createElement('span'), small = document.createElement('small');
+        const li = document.createElement('li'), dot = document.createElement('i'), small = document.createElement('small');
+        // A button when the host can take the camera there.
+        const name = document.createElement(setup.onSelect ? 'button' : 'span');
         dot.className = 'fp-dot'; dot.style.background = STATE_TONES[r.state];
         name.textContent = r.facility.name || KIND_NAMES[r.facility.kind];
         name.title = KIND_NAMES[r.facility.kind] + ' · ' + STATE_NAMES[r.state];
+        if (setup.onSelect && name instanceof HTMLButtonElement) {
+          name.type = 'button'; name.className = 'fp-go';
+          name.addEventListener('click', () => setup.onSelect!(r.index));
+        }
         small.textContent = r.state === 'collapsed' || r.state === 'damaged' ? STATE_NAMES[r.state] : r.depth.toFixed(1) + ' m';
         li.append(dot, name, small); return li;
       }), (() => {

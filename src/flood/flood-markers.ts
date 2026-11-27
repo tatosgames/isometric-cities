@@ -19,8 +19,21 @@ export function makeFloodMarkers(places: readonly {x: number; y: number; top: nu
     mesh.setColorAt(i, colour.set(STATE_TONES.dry));
   });
   mesh.frustumCulled = false;
+  let focused = -1;
+  const place = (i: number, scale: number) => {
+    const p = places[i];
+    mesh.setMatrixAt(i, matrix.makeScale(scale, 1.6 * scale, scale).setPosition(p.x, p.top + 9 * scale, -p.y));
+  };
   return {
     mesh,
+    /** Makes one marker bigger (the building picked in the report); −1 for none. */
+    focus(i: number) {
+      if (i === focused) return;
+      if (focused >= 0) place(focused, 1);
+      focused = i;
+      if (i >= 0) place(i, 2.2);
+      mesh.instanceMatrix.needsUpdate = true;
+    },
     show(states: readonly BuildingState[]) {
       let changed = false;
       states.forEach((s, i) => {

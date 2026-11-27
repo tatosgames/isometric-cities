@@ -1,5 +1,11 @@
 # Local Verification · November 21, 2026
 
+## Flood lab: critical buildings take the view to them · November 27, 2026
+
+Requested by Luca: a building in the report's list is a button. The view glides to it and zooms in to at least 3, and its marker grows 2.2×. `qa-flood.mjs` clicks the first entry and checks that the view moved more than 20 m and zoomed in (frame `flood-critical-building.png`: the Rectorado of the ULPGC with water at its façade, its marker red).
+
+**How a facility finds its building.** OSM gives a point and tags (`amenity=school`, `hospital`…, with a name). The flood grid knows which building covers each 5 m cell. The point takes the building under it, or the nearest one within 12 m when the point sits at an entrance or in a courtyard. A point with no building within 12 m is left out: 65 of the 383 facilities match in the Guiniguada grid.
+
 ## Flood lab: lighter upload, simpler report · November 27, 2026
 
 **Lighter.**

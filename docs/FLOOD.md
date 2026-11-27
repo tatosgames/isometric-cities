@@ -151,7 +151,7 @@ The lower Guiniguada runs covered under the GC-110 (its OSM line has `layer=-1`)
 - four figures: area flooded, area of danger to all, buildings wet and down, value lost;
 - the hydrograph: the dashed design curve, against what overflows and what reaches the sea;
 - up to four gauges (Shift + click), with depth and speed;
-- the critical buildings, from the worst down;
+- the critical buildings, from the worst down. Clicking one takes the view to it (`onSelect` of the panel, `flood.focus` of the module) and enlarges its marker; dragging the map stops the glide;
 - the method, folded: seven values, the models and the sources in one line each.
 
 Each fact appears once (Luca, 27 November 2026). The discharge is in the chart rather than in a figure, the deepest point was dropped (it reads DEM pits), the full sources are in this file, and the lab's text readout keeps only the solver's health.

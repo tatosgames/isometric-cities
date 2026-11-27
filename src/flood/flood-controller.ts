@@ -43,10 +43,11 @@ export function createFlood(setup: FloodSetup) {
   const options: Required<FloodOptions> = {manning: .03, theta: .7, courant: .7, maxStep: 5, froude: 1, ...setup.options};
   const group = new T.Group();
   const water = makeFloodWater(area);
-  const markers = makeFloodMarkers(watched.map(({facility, building}) => {
+  const places = watched.map(({facility, building}) => {
     const b = area.buildings[building], [x, y] = b.rings[0][0];
     return {x: facility.x, y: facility.y, top: groundAt(x, y) + (b.heightOverride ?? b.height)};
-  }));
+  });
+  const markers = makeFloodMarkers(places);
   group.add(water.mesh, markers.mesh);
 
   /** Ground height (m) at a point of the grid, nearest cell. */
@@ -120,6 +121,11 @@ export function createFlood(setup: FloodSetup) {
       return true;
     },
     cellAt, groundAt,
+    /** Where a watched building stands (its OSM point and roof height), and its marker made bigger. */
+    focus(index: number) {
+      markers.focus(index);
+      return places[index] ?? null;
+    },
     /** Called with every frame's statistics. */
     onFrame(listener: (stats: FloodStats) => void) { listeners.add(listener); return () => listeners.delete(listener); },
     /** Moves the water's swell and swirls (real seconds). */
