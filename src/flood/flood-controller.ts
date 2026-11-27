@@ -69,9 +69,10 @@ export function createFlood(setup: FloodSetup) {
   let lastSea = 0, lastTime = 0;
 
   worker.onmessage = ({data}: MessageEvent<FloodFrame>) => {
-    water.show(data.state, view);
+    // The texture takes the frame's buffer; the one it held goes back to the worker.
+    const previous = water.show(data.state, view, data.rows);
     stats = data.stats; cost = data.cost; rate = data.rate;
-    send({type: 'buffer', buffer: data.state.buffer}, [data.state.buffer]);
+    if (previous.byteLength === data.state.byteLength) send({type: 'buffer', buffer: previous.buffer}, [previous.buffer]);
     markers.show(stats.watched.map(w => w.state));
     // One sample a simulated minute is plenty for a chart of hours.
     if (stats.time - lastTime >= 60 || !history.length) {

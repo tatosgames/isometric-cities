@@ -100,30 +100,23 @@ export async function floodLab() {
     }
   });
 
-  const label = historic ? 'Observed rainfall, ' + historic.label : `T = ${event} years`;
+  const label = historic ? historic.label : `T ${event}`;
+  const models = 'LISFLOOD-FP 5 m · JRC · FD2320 · Clausen & Clark';
   const panel = makeFloodPanel(el('settings'), flood, id === 'guiniguada' ? {
-    title: 'Barranco Guiniguada · ' + label,
-    subtitle: `Pd ${rainfall.toFixed(1)} mm/24 h → Qp ${design.peak.toFixed(0)} m³/s at ${(rise / 3600).toFixed(1)} h · Norma 5.2-IC`,
+    title: 'Guiniguada · ' + label, subtitle: `Qp ${design.peak.toFixed(0)} m³/s · Norma 5.2-IC`,
     design: t => hydrograph(t + start, design.peak, rise), until,
     method: [
-      ['Catchment area A', GUINIGUADA.area + ' km²'], ['Main channel Lc / drop', GUINIGUADA.length + ' km / ' + GUINIGUADA.drop + ' m'],
-      ["Daily rainfall Pd", rainfall.toFixed(1) + " mm"], ['Areal factor KA', design.areal.toFixed(3)],
-      ['Concentration time tc', design.concentration.toFixed(2) + ' h'], ['Torrentiality I1/Id', String(GUINIGUADA.torrentiality)],
-      ['Intensity I(T, tc)', design.intensity.toFixed(1) + ' mm/h'], ['Runoff coefficient C', String(GUINIGUADA.runoff)],
-      ['Uniformity Kt', design.uniformity.toFixed(3)], ['Peak Qp = I·C·A·Kt/3.6', design.peak.toFixed(0) + ' m³/s'],
-      ['Hydrograph', 'SCS gamma m 3.7, tp 0.667 tc'], ['Hydraulics', 'LISFLOOD-FP inertial, 5 m'],
-      ['Damage', 'JRC depth-damage (Europe)'], ['Collapse', 'Clausen & Clark: d·v ≥ 7 m²/s, v ≥ 2 m/s']],
+      ['A', GUINIGUADA.area + ' km²'], ['Pd', rainfall.toFixed(1) + ' mm/24 h'], ['tc', design.concentration.toFixed(2) + ' h'],
+      ['I(T, tc)', design.intensity.toFixed(1) + ' mm/h'], ['C · Kt', `${GUINIGUADA.runoff} · ${design.uniformity.toFixed(2)}`],
+      ['Qp', design.peak.toFixed(0) + ' m³/s'], ['Models', models]],
     sources: [...Object.values(GUINIGUADA.sources), ...(historic ? [historic.source] : []),
-      'Not an ARPSI of Gran Canaria (EPRI 3rd cycle, 2025): no official discharge exists for it',
-      'Critical buildings: © OpenStreetMap contributors']
+      'Not an ARPSI: no official discharge', 'Facilities © OpenStreetMap']
   } : {
-    title: 'Cloudburst over the view · ' + label,
-    subtitle: `${storm.toFixed(1)} mm/h for 1 h on ${rainKm2.toFixed(2)} km² · Norma 5.2-IC IDF`,
+    title: 'Cloudburst · ' + label, subtitle: `${storm.toFixed(1)} mm/h for 1 h · Norma 5.2-IC`,
     design: null, until: 2.5 * 3600,
-    method: [["Daily rainfall Pd", rainfall.toFixed(1) + " mm"], ['Torrentiality I1/Id', String(GUINIGUADA.torrentiality)],
-      ['Intensity I(T, 1 h)', storm.toFixed(1) + ' mm/h'], ['Runoff share', String(scenario.runoff)],
-      ['Hydraulics', 'LISFLOOD-FP inertial, 5 m']],
-    sources: [GUINIGUADA.sources.rainfall, GUINIGUADA.sources.torrentiality, 'Critical buildings: © OpenStreetMap contributors']
+    method: [['Pd', rainfall.toFixed(1) + ' mm/24 h'], ['I(T, 1 h)', storm.toFixed(1) + ' mm/h'],
+      ['Runoff', String(scenario.runoff)], ['Models', models]],
+    sources: [GUINIGUADA.sources.rainfall, GUINIGUADA.sources.torrentiality, 'Facilities © OpenStreetMap']
   });
 
   const settings = {
@@ -140,27 +133,27 @@ export async function floodLab() {
   gui.add({id}, 'id', {'Barranco Guiniguada flood': 'guiniguada', 'Cloudburst over the view': 'pioggia'}).name('Scenario')
     .onChange((next: string) => navigate({scenario: next}));
   gui.add(settings, 'event', {
-    ...Object.fromEntries(RETURN_PERIODS.map(t => [`T = ${t} years`, String(t)])),
-    ...Object.fromEntries(Object.entries(HISTORIC).map(([k, v]) => ['Observed ' + v.label, k]))
+    ...Object.fromEntries(RETURN_PERIODS.map(t => [`T ${t} years`, String(t)])),
+    ...Object.fromEntries(Object.entries(HISTORIC).map(([k, v]) => [v.label, k]))
   }).name('Event').onChange(() => navigate({}));
   gui.add(settings, 'playing').name('Running');
-  gui.add(settings, 'speed', 1, 1200, 1).name('Speed (× real time)');
-  gui.add(settings, 'view', {'Depth': 'depth', 'Hazard to people (FD2320)': 'hazard', 'Highest depth': 'peak'}).name('Colour');
+  gui.add(settings, 'speed', 1, 1200, 1).name('Speed ×');
+  gui.add(settings, 'view', {'Depth': 'depth', 'Hazard': 'hazard', 'Highest depth': 'peak'}).name('Colour');
   const retune = () => flood.retune();
   const manual = gui.addFolder('What if');
   if (id === 'guiniguada') {
-    manual.add(flood.scenario, 'peak', 0, 1200, 5).name('Peak discharge (m³/s)').onChange(retune);
-    manual.add(flood.scenario, 'culvert', 0, 300, 5).name('Covered channel takes (m³/s)').onChange(retune);
+    manual.add(flood.scenario, 'peak', 0, 1200, 5).name('Peak m³/s').onChange(retune);
+    manual.add(flood.scenario, 'culvert', 0, 300, 5).name('Culvert m³/s').onChange(retune);
   } else {
-    manual.add(flood.scenario, 'rain', 0, 200, 1).name('Rain (mm/h)').onChange(retune);
-    manual.add(flood.scenario, 'runoff', .1, 1, .05).name('Runoff share').onChange(retune);
+    manual.add(flood.scenario, 'rain', 0, 200, 1).name('Rain mm/h').onChange(retune);
+    manual.add(flood.scenario, 'runoff', .1, 1, .05).name('Runoff').onChange(retune);
   }
   manual.close();
   // The scheme's own constants: Bates et al. 2010, de Almeida et al. 2012 (see docs/FLOOD.md).
-  const solver = gui.addFolder('Solver (LISFLOOD-FP inertial)');
-  solver.add(flood.options, 'manning', .012, .08, .002).name('Manning n (s/m^⅓)').onChange(retune);
-  solver.add(flood.options, 'theta', .5, 1, .05).name('θ weighting (1 = Bates 2010)').onChange(retune);
-  solver.add(flood.options, 'courant', .2, .9, .05).name('Courant number').onChange(retune);
+  const solver = gui.addFolder('Solver');
+  solver.add(flood.options, 'manning', .012, .08, .002).name('Manning n').onChange(retune);
+  solver.add(flood.options, 'theta', .5, 1, .05).name('θ').onChange(retune);
+  solver.add(flood.options, 'courant', .2, .9, .05).name('Courant').onChange(retune);
   solver.add(flood.options, 'froude', .5, 3, .1).name('Froude limit').onChange(retune);
   solver.close();
   gui.add({restart() { location.reload(); }}, 'restart').name('Start again');
@@ -221,14 +214,12 @@ export async function floodLab() {
     report({time: s.time.toFixed(0), wet: s.wet.toFixed(0), reached: s.reached.toFixed(0), deepest: s.deepest.toFixed(2),
       balance: s.balance.toExponential(2), wetBuildings: s.wetBuildings, collapsed: s.collapsedBuildings, busy: String(busy),
       cells: flood.area.w * flood.area.h, watched: s.watched.length},
-    [`×${flood.rate.toFixed(0)} real time · Δt ${s.step.toFixed(2)} s · highest Froude ${s.froude.toFixed(2)}`,
-      `${(s.active / 1e3).toFixed(0)}k of ${(flood.area.w * flood.area.h / 1e3).toFixed(0)}k cells of ${flood.area.dx.toFixed(0)} m computed · ${flood.cost.toFixed(1)} ms of solver a frame`,
-      `entered ${(s.entered / 1e3).toFixed(0)}k m³ · to the sea ${(s.toSea / 1e3).toFixed(0)}k · stored ${(s.stored / 1e3).toFixed(0)}k · balance ${(s.balance * 100).toFixed(4)}%`,
-      `danger for some ${(s.hazard[1] / 1e4).toFixed(1)} ha · most ${(s.hazard[2] / 1e4).toFixed(1)} ha · all ${(s.hazard[3] / 1e4).toFixed(1)} ha`,
-      `buildings: ${s.wetBuildings} wet, ${s.deepBuildings} over 1 m, ${s.damagedBuildings} damaged, ${s.collapsedBuildings} down · ${renderer.info.render.calls} draw calls`].join('\n'));
+    // Only the solver's health: the event's figures are in the report.
+    [`×${flood.rate.toFixed(0)} · Δt ${s.step.toFixed(2)} s · Fr ${s.froude.toFixed(2)} · ${(s.active / 1e3).toFixed(0)}k cells · ${flood.cost.toFixed(0)} ms`,
+      `balance ${(s.balance * 100).toFixed(4)}% · ${renderer.info.render.calls} draw calls`].join('\n'));
   }
   frame = requestAnimationFrame(draw);
-  el('status').textContent = 'Drag to pan · wheel to zoom · shift + click places a gauge';
+  el('status').textContent = 'Shift + click: gauge';
 
   // Checks (`scripts/qa-flood.mjs`): read the state, change the speed, place a gauge, stop the loop.
   Object.assign(window, {floodLab: {

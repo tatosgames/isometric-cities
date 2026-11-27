@@ -23,7 +23,7 @@ export interface PanelSetup {
 
 const GAUGE_TONES = ['#1d5c8e', '#c2571a', '#6a3d9a', '#2f7d3b'];
 const KIND_NAMES: Record<FacilityKind, string> = {hospital: 'Hospital', health: 'Health', school: 'School', emergency: 'Emergency', care: 'Care home'};
-const STATE_NAMES: Record<BuildingState, string> = {dry: 'dry', wet: 'water at the walls', flooded: 'over 1 m', damaged: 'structural damage', collapsed: 'collapsed'};
+const STATE_NAMES: Record<BuildingState, string> = {dry: 'dry', wet: 'water at the walls', flooded: 'over 1 m', damaged: 'damaged', collapsed: 'down'};
 const SEVERITY: BuildingState[] = ['collapsed', 'damaged', 'flooded', 'wet', 'dry'];
 
 const clock = (s: number) => {
@@ -38,11 +38,11 @@ export function makeFloodPanel(container: HTMLElement, flood: Flood, setup: Pane
   root.innerHTML = `<span class="fp-clock" aria-label="Simulated time"></span><h2></h2><p class="fp-sub"></p>
     <div class="fp-kpis"></div>
     <h3>Hydrograph</h3><canvas class="fp-hydro" aria-label="Hydrograph"></canvas>
-    <p class="fp-legend"><span><i style="background:#242e28;opacity:.5"></i>design (Norma 5.2-IC)</span><span><i style="background:#1d5c8e"></i>overflowing</span><span><i style="background:#2b9a8c"></i>to the sea</span></p>
+    <p class="fp-legend"><span><i style="background:#242e28;opacity:.5"></i>design</span><span><i style="background:#1d5c8e"></i>overflow</span><span><i style="background:#2b9a8c"></i>to sea</span></p>
     <h3>Gauges</h3><canvas class="fp-gauges" aria-label="Gauges"></canvas>
-    <p class="fp-legend fp-gauge-legend"></p><p class="fp-hint">Shift + click on the map places a gauge (up to four).</p>
+    <p class="fp-legend fp-gauge-legend"></p>
     <h3>Critical buildings</h3><ol class="fp-facilities"></ol>
-    <details><summary>Method and sources</summary><table class="fp-method"></table><ol class="fp-sources"></ol></details>`;
+    <details><summary>Method</summary><table class="fp-method"></table><ol class="fp-sources"></ol></details>`;
   const q = <E extends Element>(s: string) => root.querySelector(s) as E;
   q<HTMLElement>('h2').textContent = setup.title;
   q<HTMLElement>('.fp-sub').textContent = setup.subtitle;
@@ -66,13 +66,12 @@ export function makeFloodPanel(container: HTMLElement, flood: Flood, setup: Pane
     if (!s || now < next) return;
     next = now + 250;
     q<HTMLElement>('.fp-clock').textContent = clock(s.time);
+    // Four figures: how much is under water, how much kills, what is hit, what it costs. The rest is in the charts.
     const figures: [string, string][] = [
-      [(s.wet / 1e4).toFixed(1) + ' ha', 'under water'],
-      [s.deepest.toFixed(1) + ' m', 'deepest'],
-      [s.inflow.toFixed(0) + ' m³/s', 'overflowing'],
-      [(s.hazard[3] / 1e4).toFixed(1) + ' ha', 'danger for all'],
+      [(s.wet / 1e4).toFixed(1) + ' ha', 'flooded'],
+      [(s.hazard[3] / 1e4).toFixed(1) + ' ha', 'danger to all'],
       [s.wetBuildings + ' / ' + s.collapsedBuildings, 'buildings wet / down'],
-      [(s.damage * 100).toFixed(1) + '%', 'built value lost']];
+      [(s.damage * 100).toFixed(1) + '%', 'value lost']];
     const key = figures.map(f => f[0]).join('|');
     if (key !== shownKpis) {
       shownKpis = key;
@@ -95,7 +94,7 @@ export function makeFloodPanel(container: HTMLElement, flood: Flood, setup: Pane
       legend.replaceChildren(...flood.gauges.map((_, k) => {
         const span = document.createElement('span'), i = document.createElement('i'), reading = s.gauges[k];
         i.style.background = GAUGE_TONES[k];
-        span.append(i, `G${k + 1} ${reading ? reading.depth.toFixed(2) + ' m · ' + reading.speed.toFixed(1) + ' m/s' : ''}`);
+        span.append(i, `${reading ? reading.depth.toFixed(2) + ' m · ' + reading.speed.toFixed(1) + ' m/s' : ''}`);
         return span;
       }));
     }
@@ -116,8 +115,7 @@ export function makeFloodPanel(container: HTMLElement, flood: Flood, setup: Pane
       }), (() => {
         const li = document.createElement('li'), dot = document.createElement('i'), name = document.createElement('span'), small = document.createElement('small');
         dot.className = 'fp-dot'; dot.style.background = STATE_TONES.dry;
-        name.textContent = rows.length > 8 ? `${rows.length - 8} more affected, ${dry} dry` : `${dry} of ${s.watched.length} dry`;
-        small.textContent = 'OSM';
+        name.textContent = rows.length > 8 ? `+${rows.length - 8} more · ${dry} dry` : `${dry} of ${s.watched.length} dry`;
         li.append(dot, name, small); return li;
       })());
     }

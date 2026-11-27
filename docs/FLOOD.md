@@ -37,7 +37,7 @@ The collapse uses the demolition code (`src/demolition/`), but from the lab, not
 
 **To take it out:** delete the following, then run `typecheck`.
 - `src/flood/`;
-- `src/lab/flood-lab.ts` and the `inondazione` entries in `src/lab/lab-shell.ts` and `src/lab/main.ts`, plus `.flood-lab` in `src/lab/lab.css`;
+- `src/lab/flood-lab.ts` and the `inondazione` entries in `src/lab/lab-shell.ts` and `src/lab/main.ts`, plus `.flood-lab` in `src/lab/lab.css`. The other labs' checks do not count the labs, and `main.ts` finds each lab by id, so nothing else changes;
 - `scripts/qa-flood*.mjs`, with `qa-flood-solver.mjs` also removed from the `test` script in `package.json`;
 - `scripts/flood_facilities.py`, `public/data/flood-facilities.json` and this file.
 
@@ -148,17 +148,13 @@ The lower Guiniguada runs covered under the GC-110 (its OSM line has `layer=-1`)
 
 **Report** (`flood-panel.ts`):
 - the event and its peak, with the clock;
-- six figures:
-  - area under water;
-  - deepest water;
-  - discharge overflowing;
-  - "danger for all" area;
-  - buildings wet and down;
-  - built value lost;
+- four figures: area flooded, area of danger to all, buildings wet and down, value lost;
 - the hydrograph: the dashed design curve, against what overflows and what reaches the sea;
 - up to four gauges (Shift + click), with depth and speed;
-- the critical buildings from the worst down;
-- the method table and its sources.
+- the critical buildings, from the worst down;
+- the method, folded: seven values, the models and the sources in one line each.
+
+Each fact appears once (Luca, 27 November 2026). The discharge is in the chart rather than in a figure, the deepest point was dropped (it reads DEM pits), the full sources are in this file, and the lab's text readout keeps only the solver's health.
 
 ## Look
 
@@ -189,7 +185,9 @@ There are no mirror glints and no whitecaps: from afar they speckled the water (
 
 ## Measures
 
-Node, one core, 592 × 452 grid (`scripts/qa-flood-solver.mjs` for the checks): 1.4 ms per step on a wet valley (11 ms before spans), drawn state 10 ms, statistics 7 ms. In the browser with software WebGL the Guiniguada runs at ×60–100 real time at its widest. The worker keeps its own clock, independent of the page's frame rate, and drops what it owes beyond a quarter of a second.
+Node, one core, 592 × 452 grid (`scripts/qa-flood-solver.mjs` for the checks): 1.4 ms per step on a wet valley (11 ms before spans), drawn state about 1 ms, statistics 7 ms.
+
+**The state for the GPU** is four half floats a cell (`RGBA16F`), with the surface stored above the ground; the ground is a separate texture uploaded once. That is 2.1 MB a frame instead of 4.3 MB. The texture takes the worker's buffer as its own data, so there is no copy on the main thread. The water mesh draws only the rows the water spans: about 8% of its 535k triangles in a narrow valley, all of them once the flood is at its widest. In the browser with software WebGL the Guiniguada runs at ×60–100 real time at its widest. The worker keeps its own clock, independent of the page's frame rate, and drops what it owes beyond a quarter of a second.
 
 ## Next
 

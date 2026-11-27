@@ -38,21 +38,22 @@ export const GUINIGUADA: Basin = {
   runoff: .75,
   torrentiality: 8,
   rainfall: {2: 28.7, 5: 59.15, 10: 79.36, 25: 104.89, 50: 123.83, 100: 142.63, 500: 186.08, 1000: 204.76},
+  // Short enough for a panel; docs/FLOOD.md has them in full.
   sources: {
-    area: 'Plan Hidrológico de Gran Canaria, descripción de la demarcación (2.3.4): 6,500 ha, highest point 1,891 m',
-    length: 'Estimate: 9.3 km mapped in OSM up to Santa Brígida, plus 15 km in a straight line to the head ×1.15 sinuosity',
-    runoff: 'Plan Hidrológico de Gran Canaria (Decreto 2/2019, art. 39.2): 0.75 for the Zona Este, which begins at the Guiniguada',
-    torrentiality: 'Cabildo de Gran Canaria, Salto del Negro hydrology annex: I1/Id = 8 (Norma 5.2-IC map)',
-    rainfall: 'Cabildo de Gran Canaria, Salto del Negro hydrology annex: station 183 (Capón), Gumbel fit (Ven Te Chow)'
+    area: 'A: Plan Hidrológico de Gran Canaria, 2.3.4',
+    length: 'Lc: estimate from OSM and the map',
+    runoff: 'C: Plan Hidrológico de Gran Canaria, art. 39.2',
+    torrentiality: 'I1/Id: Cabildo de Gran Canaria (Salto del Negro)',
+    rainfall: 'Pd: station 183 Capón, Gumbel (Cabildo de Gran Canaria)'
   }
 };
 
 /** Observed rainfalls to replay, with their source. */
 export const HISTORIC = {
   1954: {label: '22 Nov 1954', rainfall: 138.5,
-    source: 'Máyer Suárez (2001), Lluvias e inundaciones en la ciudad de Las Palmas de Gran Canaria (1950–1999): 138.5 mm in 24 h at Las Palmas'},
+    source: 'Pd observed: Máyer Suárez (2001), AEMET'},
   1989: {label: '16 Feb 1989', rainfall: 117.5,
-    source: 'Máyer Suárez (2001): 117.5 mm in 24 h at Las Palmas'}
+    source: 'Pd observed: Máyer Suárez (2001), AEMET'}
 } as const;
 
 /** Every intermediate value of the rational method, to be shown as well as used. */

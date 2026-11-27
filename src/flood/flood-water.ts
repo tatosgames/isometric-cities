@@ -24,7 +24,7 @@ const LIFT = .08;
  * normal, so facets turn a little lighter or darker against the sun; depth tints the water with the sea's palette,
  * a slow swell of tone runs along the current and soft foam marks its edge, as on the shore.
  */
-export function makeFloodWater({w, h, dx, dy, west, north}: {w: number; h: number; dx: number; dy: number; west: number; north: number}) {
+export function makeFloodWater({w, h, dx, dy, west, north, z}: {w: number; h: number; dx: number; dy: number; west: number; north: number; z: Float32Array}) {
   const n = w * h, position = new Float32Array(n * 3);
   for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
     const i = (r * w + c) * 3;
@@ -39,23 +39,29 @@ export function makeFloodWater({w, h, dx, dy, west, north}: {w: number; h: numbe
   const geometry = new T.BufferGeometry();
   geometry.setAttribute('position', new T.BufferAttribute(position, 3));
   geometry.setIndex(new T.BufferAttribute(index, 1));
-  const data = new Float32Array(n * 4);
-  const map = new T.DataTexture(data, w, h, T.RGBAFormat, T.FloatType);
+  // The state, in half floats with the surface above the ground; the ground itself, uploaded once.
+  const map = new T.DataTexture(new Uint16Array(n * 4), w, h, T.RGBAFormat, T.HalfFloatType);
   map.minFilter = map.magFilter = T.NearestFilter;
   map.needsUpdate = true;
+  const ground = new T.DataTexture(z.slice(), w, h, T.RedFormat, T.FloatType);
+  ground.minFilter = ground.magFilter = T.NearestFilter;
+  ground.needsUpdate = true;
+  const quads = (w - 1) * 6;
   const uniforms = {
-    floodMap: {value: map}, floodWidth: {value: w}, floodMode: {value: 0}, floodTime: {value: 0},
+    floodMap: {value: map}, floodGround: {value: ground}, floodWidth: {value: w}, floodMode: {value: 0}, floodTime: {value: 0},
     ...Object.fromEntries(Object.entries(TONES).map(([k, v]) => ['flood' + k[0].toUpperCase() + k.slice(1), {value: new T.Color(v)}]))
   };
   // Opaque: no blending, no sorting, and the depth test hides what is under the water.
   const material = new T.MeshBasicMaterial({side: T.DoubleSide});
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = `uniform sampler2D floodMap; uniform float floodWidth, floodTime;
+    shader.vertexShader = `uniform sampler2D floodMap, floodGround; uniform float floodWidth, floodTime;
       varying float vFlood; varying vec2 vFlow; varying vec3 vFloodAt;\n` +
       shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       int floodColumns = int(floodWidth);
-      vec4 floodState = texelFetch(floodMap, ivec2(gl_VertexID % floodColumns, gl_VertexID / floodColumns), 0);
+      ivec2 floodCell = ivec2(gl_VertexID % floodColumns, gl_VertexID / floodColumns);
+      vec4 floodState = texelFetch(floodMap, floodCell, 0);
+      floodState.r += texelFetch(floodGround, floodCell, 0).r;
       vec2 floodAt = vec2(transformed.x, -transformed.z), flow = floodState.ba;
       float floodSpeed = length(flow);
       vec2 along = floodSpeed > .05 ? flow / floodSpeed : vec2(.8, .6);
@@ -105,14 +111,21 @@ export function makeFloodWater({w, h, dx, dy, west, north}: {w: number; h: numbe
   mesh.frustumCulled = false;
   return {
     mesh,
-    /** Takes a state from the worker (copied: the buffer can go back at once). */
-    show(state: Float32Array, view: FloodView) {
-      data.set(state);
+    /**
+     * Takes a state from the worker as the texture's own data, without a copy, and draws only the rows of quads
+     * between `rows` (the water's span). Returns the buffer it replaced, already uploaded, for the worker to reuse.
+     */
+    show(state: Uint16Array<ArrayBuffer>, view: FloodView, [r0, r1]: readonly [number, number]) {
+      const previous = map.image.data as Uint16Array<ArrayBuffer>;
+      map.image.data = state;
       map.needsUpdate = true;
       uniforms.floodMode.value = view === 'hazard' ? 1 : 0;
+      const first = Math.max(0, r0 - 1), last = Math.min(h - 1, r1 + 1);
+      geometry.setDrawRange(first * quads, Math.max(0, last - first) * quads);
+      return previous;
     },
     /** Moves foam, streaks and ripples: real seconds, so the water keeps flowing when the flood is paused. */
     tick(seconds: number) { uniforms.floodTime.value = seconds % 3600; },
-    dispose() { geometry.dispose(); material.dispose(); map.dispose(); }
+    dispose() { geometry.dispose(); material.dispose(); map.dispose(); ground.dispose(); }
   };
 }

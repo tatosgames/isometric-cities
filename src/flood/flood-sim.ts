@@ -1,3 +1,4 @@
+import { DataUtils } from 'three';
 import { hydrograph, HYDROGRAPH_SHAPE } from './flood-hydrology.ts';
 import { buildingState, damageShare, hazardClass, hazardRating, type BuildingState } from './flood-impact.ts';
 import { makeFlood, type FloodForcing, type FloodGrid, type FloodOptions } from './flood-solver.ts';
@@ -118,6 +119,11 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
   // under the buildings instead of dipping into them.
   const drawn = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) drawn[4 * i] = z[i];
+  /**
+   * The same in half floats, as the GPU takes it, with the surface measured from the ground (the page has the
+   * ground once): half the bytes to copy and upload, and centimetres of precision up to 32 m of water.
+   */
+  const half = new Uint16Array(n * 4);
   /** The rows and columns of the box with one more cell around it: the walls next to its water. */
   function around() {
     const {r0, r1, c0, c1} = flood.box;
@@ -125,10 +131,11 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
   }
 
   /**
-   * The state to draw, four floats a cell: the height of the surface, the value shown (depth, hazard rating or
-   * highest depth), and the velocity east and north (m/s) for foam and streaks; copied into `out`.
+   * The state to draw, four half floats a cell: the water surface above the ground, the value shown (depth, hazard
+   * rating or highest depth), and the velocity east and north (m/s) for the swell; copied into `out`. Only the
+   * rows and columns around the water change.
    */
-  function pack(view: FloodView, out = new Float32Array(n * 4)) {
+  function pack(view: FloodView, out = new Uint16Array(n * 4)) {
     const {r0, r1, c0, c1} = around();
     if (r0 <= r1) {
       for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
@@ -149,8 +156,14 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
         }
         drawn[4 * i] = surface; drawn[4 * i + 1] = value; drawn[4 * i + 2] = u; drawn[4 * i + 3] = v;
       }
+      const toHalf = DataUtils.toHalfFloat;
+      for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
+        const k = 4 * i;
+        half[k] = toHalf(drawn[k] - z[i]); half[k + 1] = toHalf(drawn[k + 1]);
+        half[k + 2] = toHalf(drawn[k + 2]); half[k + 3] = toHalf(drawn[k + 3]);
+      }
     }
-    out.set(drawn);
+    out.set(half);
     return out;
   }
 
@@ -208,5 +221,5 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
       gauges: gauges.map(i => ({depth: depth[i], speed: flood.speed(i), surface: z[i] + depth[i]}))};
   }
 
-  return {flood, scenario, gauges, advance, pack, stats};
+  return {flood, scenario, gauges, advance, pack, stats, rows: () => { const {r0, r1} = around(); return [r0, r1] as [number, number]; }};
 }

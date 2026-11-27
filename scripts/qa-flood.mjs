@@ -27,7 +27,7 @@ try{
 
   const design=await page.evaluate(()=>window.floodLab.design());
   assert.equal(Math.round(design.peak),281,'T100 peak');
-  assert.ok(await page.locator('.flood-panel h2').textContent().then(t=>t.includes('T = 100 years')));
+  assert.ok(await page.locator('.flood-panel h2').textContent().then(t=>t.includes('T 100')));
   // Ninety minutes of the Guiniguada hydrograph, as fast as the worker goes.
   await page.evaluate(()=>window.floodLab.set({speed:2000}));
   await page.waitForFunction(()=>Number(document.querySelector('#view').dataset.time)>=5400,null,{timeout:240000});

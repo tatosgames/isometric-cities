@@ -17,7 +17,9 @@ export type FloodRequest =
 
 export interface FloodFrame {
   type: 'frame';
-  state: Float32Array<ArrayBuffer>;
+  /** Four half floats a cell (see `pack`), and the rows the water spans: the only ones worth drawing. */
+  state: Uint16Array<ArrayBuffer>;
+  rows: [number, number];
   stats: FloodStats;
   /** Simulated seconds per real second over the last frames: below `speed` when the solver cannot keep up. */
   rate: number;
@@ -52,11 +54,11 @@ function tick() {
   if (!out && (now - lastFrame >= GAP || drawn !== control.view)) {
     const n = sim.flood.grid.w * sim.flood.grid.h;
     const buffer = spare.pop();
-    const state = sim.pack(control.view, buffer && buffer.byteLength === n * 16 ? new Float32Array(buffer) : undefined);
+    const state = sim.pack(control.view, buffer && buffer.byteLength === n * 8 ? new Uint16Array(buffer) : undefined);
     const time = sim.flood.ledger.time, seconds = (now - rateFrom) / 1000;
     const rate = seconds > 0 ? (time - rateTime) / seconds : 0;
     if (seconds > 1) { rateFrom = now; rateTime = time; }
-    const frame: FloodFrame = {type: 'frame', state, stats: sim.stats(), rate, cost};
+    const frame: FloodFrame = {type: 'frame', state, rows: sim.rows(), stats: sim.stats(), rate, cost};
     scope.postMessage(frame, [state.buffer]);
     out++; lastFrame = now; drawn = control.view; cost = 0;
   }

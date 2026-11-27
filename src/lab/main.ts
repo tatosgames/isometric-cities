@@ -9,7 +9,7 @@ const flood=query.get('lab')==='inondazione';
 el('lab-navigation').append(labNavigation(roads?'strade':demolition?'demolizione':flood?'inondazione':undefined));
 
 if(demolition || flood){
-  el('title').textContent=labs[flood?4:3].title;
+  el('title').textContent=labs.find(lab=>lab.id===(flood?'inondazione':'demolizione'))!.title;
   el('catalog').hidden=true;
   required(document.querySelector('main'),'lab view').hidden=false;
   const actions=el('road-actions');
@@ -39,7 +39,7 @@ if(demolition || flood){
     return destination;
   };
   select.onchange=()=>{location.href=roadUrl(select.value,new URLSearchParams()).href;};
-  el('title').textContent=labs[2].title;
+  el('title').textContent=labs.find(lab=>lab.id==='strade')!.title;
   el('catalog').hidden=true;
   required(document.querySelector('main'),'road lab').hidden=false;
   const actions=el('road-actions');

@@ -1,5 +1,23 @@
 # Local Verification · November 21, 2026
 
+## Flood lab: lighter upload, simpler report · November 27, 2026
+
+**Lighter.**
+- The water state goes to the GPU in half floats, with the surface above a ground texture uploaded once: 2.1 MB a frame instead of 4.3 MB.
+- The worker's buffer becomes the texture's data without a copy on the main thread.
+- The water mesh draws only the rows the water spans. In a narrow synthetic valley that is rows 209–243 of 452.
+- Packing in the worker stays about 1 ms (0.8 ms before, plus the half-float conversion).
+
+**Fewer ties outside the module.** `qa-demolition.mjs` and `qa-drive-lab.mjs` no longer count the labs, and `src/lab/main.ts` finds the labs by id instead of by position.
+
+**Simpler report.**
+- Four figures instead of six; a one-line subtitle.
+- Shorter legends; the gauge hint left the panel.
+- A seven-row method with the sources in one line each.
+- Shorter control names; a two-line solver readout in place of five lines that repeated the report.
+
+`qa-flood-solver.mjs`, `qa-flood.mjs` and `qa-drive-lab.mjs` passed, and so did typecheck and build. Frame at 1440 × 900 checked by eye.
+
 ## Flood lab: return periods, gauges, critical buildings · November 27, 2026
 
 Luca asked for return periods, more data, a hydrograph, critical buildings that get damaged or collapse, a more professional look that stays light, and a module easy to take out.
