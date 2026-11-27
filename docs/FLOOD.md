@@ -187,7 +187,14 @@ There are no mirror glints and no whitecaps: from afar they speckled the water (
 
 Node, one core, 592 × 452 grid (`scripts/qa-flood-solver.mjs` for the checks): 1.4 ms per step on a wet valley (11 ms before spans), drawn state about 1 ms, statistics 7 ms.
 
-**The state for the GPU** is four half floats a cell (`RGBA16F`), with the surface stored above the ground; the ground is a separate texture uploaded once. That is 2.1 MB a frame instead of 4.3 MB. The texture takes the worker's buffer as its own data, so there is no copy on the main thread. The water mesh draws only the rows the water spans: about 8% of its 535k triangles in a narrow valley, all of them once the flood is at its widest. In the browser with software WebGL the Guiniguada runs at ×60–100 real time at its widest. The worker keeps its own clock, independent of the page's frame rate, and drops what it owes beyond a quarter of a second.
+**The state for the GPU** is four half floats a cell (`RGBA16F`), with the surface stored above the ground; the ground is a separate texture uploaded once. That is 2.1 MB for the whole grid instead of 4.3 MB, and only the rows the water spans go up (`copyTextureToTexture` from the worker's buffer, just before the water is drawn), so early in a flood about a tenth of it. The water mesh draws only those rows: about 8% of its 535k triangles in a narrow valley, all of them once the flood is at its widest. In the browser with software WebGL the Guiniguada runs at ×60–100 real time at its widest. The worker keeps its own clock, independent of the page's frame rate, and drops what it owes beyond a quarter of a second.
+
+**What the worker spends besides the hydraulics** (27 November 2026, same grid, about 100k cells computed): packing the state costs about 10 ms and the statistics about 7 ms. Sent every 40 ms they took almost half of the worker's time, as much as the solver. Now:
+- the state goes every 100 ms and the statistics every 250 ms (the report redraws four times a second); the dry cells that were already dry are skipped, and the volume is summed over the box, not the grid;
+- the chart samples and the reading of the buildings' walls (Clausen & Clark) run on the simulated clock, once a simulated minute (about 6 ms), so they no longer depend on how often frames are sent;
+- nothing is computed or sent while the water is paused, and the worker **holds at the end of the event** (`eventLength`: 3.2 times the hydrograph's rise, or the rain plus 90 minutes). Pausing and playing again runs on past it.
+
+At ×300, about 150 ms a second goes to frames and readings instead of about 450.
 
 ## Next
 

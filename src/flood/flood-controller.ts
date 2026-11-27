@@ -42,7 +42,8 @@ export function createFlood(setup: FloodSetup) {
   const scenario = {...setup.scenario};
   const options: Required<FloodOptions> = {manning: .03, theta: .7, courant: .7, maxStep: 5, froude: 1, ...setup.options};
   const group = new T.Group();
-  const water = makeFloodWater(area);
+  // Once uploaded, the water's buffer goes back to the worker for the next state.
+  const water = makeFloodWater(area, state => send({type: 'buffer', buffer: state.buffer}, [state.buffer]));
   const places = watched.map(({facility, building}) => {
     const b = area.buildings[building], [x, y] = b.rings[0][0];
     return {x: facility.x, y: facility.y, top: groundAt(x, y) + (b.heightOverride ?? b.height)};
@@ -67,21 +68,20 @@ export function createFlood(setup: FloodSetup) {
   const history: FloodSample[] = [];
   const listeners = new Set<(stats: FloodStats) => void>();
   let stats: FloodStats | null = null, cost = 0, rate = 0, view: FloodView = 'depth', control = '';
-  let lastSea = 0, lastTime = 0;
+  let lastSea = 0, lastTime = 0, ended = false;
 
   worker.onmessage = ({data}: MessageEvent<FloodFrame>) => {
-    // The texture takes the frame's buffer; the one it held goes back to the worker.
-    const previous = water.show(data.state, view, data.rows);
-    stats = data.stats; cost = data.cost; rate = data.rate;
-    if (previous.byteLength === data.state.byteLength) send({type: 'buffer', buffer: previous.buffer}, [previous.buffer]);
-    markers.show(stats.watched.map(w => w.state));
-    // One sample a simulated minute is plenty for a chart of hours.
-    if (stats.time - lastTime >= 60 || !history.length) {
-      const dt = stats.time - lastTime;
-      history.push({time: stats.time, inflow: stats.inflow, outflow: dt > 0 ? (stats.toSea - lastSea) / dt : 0,
-        gauges: stats.gauges.map(g => g.depth)});
-      lastSea = stats.toSea; lastTime = stats.time;
+    if (data.state) water.show(data.state, view, data.rows);
+    cost = data.cost; rate = data.rate; ended = data.ended;
+    // One sample a simulated minute, taken by the worker on its own clock.
+    for (const sample of data.samples) {
+      const dt = sample.time - lastTime;
+      history.push({time: sample.time, inflow: sample.inflow, outflow: dt > 0 ? (sample.toSea - lastSea) / dt : 0, gauges: sample.gauges});
+      lastSea = sample.toSea; lastTime = sample.time;
     }
+    if (!data.stats) return;
+    stats = data.stats;
+    markers.show(stats.watched.map(w => w.state));
     for (const listener of listeners) listener(stats);
   };
 
@@ -90,7 +90,8 @@ export function createFlood(setup: FloodSetup) {
     send({type: 'init', w: area.w, h: area.h, dx: area.dx, dy: area.dy, z: area.z, wall: area.wall, sea: area.sea,
       owner: area.owner, buildings: area.buildings.length, sources, scenario, options,
       watch: Int32Array.from(watched, w => w.building), gauges: gauges.map(g => g.cell)});
-    stats = null; history.length = 0; lastSea = lastTime = 0; control = '';
+    stats = null; history.length = 0; lastSea = lastTime = 0; control = ''; ended = false;
+    water.reset();
   }
   restart();
 
@@ -100,6 +101,8 @@ export function createFlood(setup: FloodSetup) {
     /** Solver milliseconds since the last frame, and simulated seconds per real second. */
     get cost() { return cost; },
     get rate() { return rate; },
+    /** The event is over and the worker holds: playing again (after a pause) runs on past it. */
+    get ended() { return ended; },
     /** Run at `speed` × real time or hold, drawn as `view`. Cheap to call every frame: only changes are sent. */
     control(next: {playing: boolean; speed: number; view: FloodView}) {
       view = next.view;

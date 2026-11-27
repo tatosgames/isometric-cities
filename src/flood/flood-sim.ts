@@ -33,6 +33,19 @@ export function forcing(s: FloodScenario, t: number): FloodForcing {
   };
 }
 
+/**
+ * How long the event lasts (simulated s from the clock's start): the hydrograph down to a few per cent of its peak
+ * (3.2 times its rise), or the rain and an hour and a half for the water to run off. The worker holds there.
+ */
+export function eventLength(s: FloodScenario) {
+  return Math.max(s.peak > 0 ? 3.2 * s.rise - s.start : 0, s.rain > 0 ? s.rainFor + 5400 : 0) || Infinity;
+}
+
+/** A sample of the event for the charts: inflow (m³/s), m³ gone to the sea so far, depth at the gauges (m). */
+export interface FloodSampleRaw { time: number; inflow: number; toSea: number; gauges: number[] }
+/** Simulated seconds between samples, and between readings of the buildings' walls (Clausen & Clark). */
+export const SAMPLE = 60;
+
 export type FloodView = 'depth' | 'hazard' | 'peak';
 
 export interface FloodStats {
@@ -90,6 +103,11 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
   const buildingForce = new Float32Array(buildings), buildingFlow = new Float32Array(buildings);
   const states = new Uint8Array(buildings), collapsed: number[] = [];
   for (let i = 0; i < n; i++) if (owner[i]) footprint[owner[i] - 1]++;
+  /** What `impact` last found of the buildings, read by `stats`. */
+  const impacts = {wet: 0, deep: 0, damaged: 0, damage: 0};
+  /** Samples the page has not taken yet, and the time of the next one. */
+  const samples: FloodSampleRaw[] = [];
+  let nextSample = 0;
 
   /** The cell west, east, north or south of `i` (k = 0–3), or −1 off the grid. */
   function neighbour(i: number, k: number) {
@@ -105,15 +123,66 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
     for (let i = 0; i < n; i++) if (owner[i] === b + 1) wall[i] = 0;
   }
 
-  function advance(seconds: number, budget = Infinity) {
-    return flood.advance(seconds, now, budget);
+  /**
+   * Reads the water at every building's walls: highest depth, depth × velocity, damage and collapse. It runs on the
+   * simulated clock, every `SAMPLE` seconds, so the outcome does not depend on how often the page asks for frames.
+   */
+  function impact() {
+    const {r0, r1, c0, c1} = around();
+    // The peak depth is read again from the cells' own peaks; the force is kept from reading to reading.
+    buildingPeak.fill(0);
+    for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
+      const b = owner[i] - 1;
+      if (b < 0) continue;
+      for (let k = 0; k < 4; k++) {
+        const j = neighbour(i, k);
+        if (j < 0 || wall[j]) continue;
+        if (peak[j] > buildingPeak[b]) buildingPeak[b] = peak[j];
+        const d = depth[j];
+        if (d <= .05) continue;
+        const v = flood.speed(j), force = d * v;
+        if (force > buildingForce[b]) { buildingForce[b] = force; buildingFlow[b] = v; }
+      }
+    }
+    let wet = 0, deep = 0, damaged = 0, lost = 0, all = 0;
+    for (let b = 0; b < buildings; b++) {
+      const d = buildingPeak[b];
+      if (d > .1) wet++;
+      if (d > 1) deep++;
+      const state = buildingState(d, buildingForce[b], buildingFlow[b]);
+      if (state === 'collapsed' && states[b] !== 4) { states[b] = 4; collapsed.push(b); breach(b); }
+      else if (state === 'damaged') { states[b] = 3; damaged++; }
+      // A building down is a total loss.
+      lost += (states[b] === 4 ? 1 : damageShare(d)) * footprint[b]; all += footprint[b];
+    }
+    impacts.wet = wet; impacts.deep = deep; impacts.damaged = damaged; impacts.damage = all ? lost / all : 0;
   }
 
-  /**
-   * The state to draw, two floats a cell: the height of the surface and the value shown (depth, hazard rating or
-   * highest depth). A wall cell takes the wettest of its neighbours, so the surface runs on under the buildings
-   * instead of dipping into them.
-   */
+  /** Every simulated minute: a sample for the charts and a reading of the buildings. */
+  function sample() {
+    samples.push({time: ledger.time, inflow: now(ledger.time).inflow, toSea: ledger.sea, gauges: gauges.map(i => depth[i])});
+    impact();
+    nextSample = ledger.time + SAMPLE;
+  }
+
+  /** Runs `seconds` more, or `budget` ms of compute, stopping on each minute for `sample`: returns the seconds run. */
+  function advance(seconds: number, budget = Infinity) {
+    const start = performance.now(), from = ledger.time, end = from + seconds;
+    if (ledger.time >= nextSample) sample();
+    while (ledger.time < end - 1e-9) {
+      const left = budget - (performance.now() - start);
+      if (left <= 0) break;
+      flood.advance(Math.min(end, nextSample) - ledger.time, now, left);
+      if (ledger.time >= nextSample - 1e-9) sample();
+    }
+    return ledger.time - from;
+  }
+
+  /** The samples since the last call. */
+  function takeSamples() {
+    return samples.splice(0, samples.length);
+  }
+
   // The drawn state is kept here and refreshed only inside the solver's box: outside it the water never came, so the
   // surface is the ground and the value 0. A wall cell takes the wettest of its neighbours, so the surface runs on
   // under the buildings instead of dipping into them.
@@ -132,62 +201,50 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
 
   /**
    * The state to draw, four half floats a cell: the water surface above the ground, the value shown (depth, hazard
-   * rating or highest depth), and the velocity east and north (m/s) for the swell; copied into `out`. Only the
-   * rows and columns around the water change.
+   * rating or highest depth), and the velocity east and north (m/s) for the swell. Only the rows of the box are
+   * written into `out` (see `rows`): outside them the water never came, and the page uploads those rows only.
    */
   function pack(view: FloodView, out = new Uint16Array(n * 4)) {
     const {r0, r1, c0, c1} = around();
-    if (r0 <= r1) {
-      for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
-        if (wall[i]) continue;
-        const d = view === 'peak' ? peak[i] : depth[i];
-        const flow = flood.flowAt(i), u = view === 'peak' ? 0 : flow.east, v = view === 'peak' ? 0 : flow.north;
-        drawn[4 * i] = z[i] + d;
-        drawn[4 * i + 1] = view === 'hazard' ? (d > 0 ? Math.max(.01, hazardRating(d, Math.hypot(u, v))) : 0) : d;
-        drawn[4 * i + 2] = u; drawn[4 * i + 3] = v;
-      }
-      for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
-        if (!wall[i]) continue;
-        let surface = z[i], value = 0, u = 0, v = 0;
-        for (let k = 0; k < 4; k++) {
-          const j = neighbour(i, k);
-          if (j < 0 || wall[j] || drawn[4 * j + 1] <= 0) continue;
-          if (drawn[4 * j] > surface) { surface = drawn[4 * j]; value = drawn[4 * j + 1]; u = drawn[4 * j + 2]; v = drawn[4 * j + 3]; }
-        }
-        drawn[4 * i] = surface; drawn[4 * i + 1] = value; drawn[4 * i + 2] = u; drawn[4 * i + 3] = v;
-      }
-      const toHalf = DataUtils.toHalfFloat;
-      for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
-        const k = 4 * i;
-        half[k] = toHalf(drawn[k] - z[i]); half[k + 1] = toHalf(drawn[k + 1]);
-        half[k + 2] = toHalf(drawn[k + 2]); half[k + 3] = toHalf(drawn[k + 3]);
-      }
+    if (r0 > r1) return out;
+    const toHalf = DataUtils.toHalfFloat;
+    for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
+      if (wall[i]) continue;
+      const k = 4 * i, d = view === 'peak' ? peak[i] : depth[i];
+      // A cell dry now and when last drawn has nothing new to say.
+      if (d === 0 && drawn[k + 1] === 0 && drawn[k + 2] === 0 && drawn[k + 3] === 0) continue;
+      let u = 0, v = 0;
+      if (view !== 'peak') { const flow = flood.flowAt(i); u = flow.east; v = flow.north; }
+      const value = view === 'hazard' ? (d > 0 ? Math.max(.01, hazardRating(d, Math.hypot(u, v))) : 0) : d;
+      drawn[k] = z[i] + d; drawn[k + 1] = value; drawn[k + 2] = u; drawn[k + 3] = v;
+      half[k] = toHalf(d); half[k + 1] = toHalf(value); half[k + 2] = toHalf(u); half[k + 3] = toHalf(v);
     }
-    out.set(half);
+    for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
+      if (!wall[i]) continue;
+      const k = 4 * i;
+      let surface = z[i], value = 0, u = 0, v = 0;
+      for (let m = 0; m < 4; m++) {
+        const j = neighbour(i, m);
+        if (j < 0 || wall[j] || drawn[4 * j + 1] <= 0) continue;
+        if (drawn[4 * j] > surface) { surface = drawn[4 * j]; value = drawn[4 * j + 1]; u = drawn[4 * j + 2]; v = drawn[4 * j + 3]; }
+      }
+      if (drawn[k] === surface && drawn[k + 1] === value && drawn[k + 2] === u && drawn[k + 3] === v) continue;
+      drawn[k] = surface; drawn[k + 1] = value; drawn[k + 2] = u; drawn[k + 3] = v;
+      half[k] = toHalf(surface - z[i]); half[k + 1] = toHalf(value); half[k + 2] = toHalf(u); half[k + 3] = toHalf(v);
+    }
+    out.set(half.subarray(4 * r0 * w, 4 * (r1 + 1) * w), 4 * r0 * w);
     return out;
   }
 
   function stats(): FloodStats {
     const cell = flood.area, hazard: [number, number, number, number] = [0, 0, 0, 0];
-    let wet = 0, reached = 0, deepest = 0, fastest = 0, froude = 0, active = 0;
+    let wet = 0, reached = 0, deepest = 0, fastest = 0, froude = 0, active = 0, stored = 0;
     const {r0, r1, c0, c1} = around();
-    // The peak depth is read again from the cells' own peaks; the force is kept from frame to frame.
-    buildingPeak.fill(0);
+    // Water is only ever inside the box: the stored volume is summed here, not over the whole grid.
     for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
-      const b = owner[i] - 1;
-      if (b >= 0) {
-        for (let k = 0; k < 4; k++) {
-          const j = neighbour(i, k);
-          if (j < 0 || wall[j]) continue;
-          if (peak[j] > buildingPeak[b]) buildingPeak[b] = peak[j];
-          const d = depth[j];
-          if (d <= .05) continue;
-          const v = flood.speed(j), force = d * v;
-          if (force > buildingForce[b]) { buildingForce[b] = force; buildingFlow[b] = v; }
-        }
-        continue;
-      }
+      if (wall[i]) continue;
       const d = depth[i];
+      stored += d;
       if (peak[i] > .05) reached += cell;
       if (d <= .05) continue;
       wet += cell;
@@ -198,28 +255,18 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
       const k = hazardClass(hazardRating(d, v));
       if (k) hazard[k - 1] += cell;
     }
-    let wetBuildings = 0, deepBuildings = 0, damagedBuildings = 0, lost = 0, all = 0;
-    for (let b = 0; b < buildings; b++) {
-      const d = buildingPeak[b];
-      if (d > .1) wetBuildings++;
-      if (d > 1) deepBuildings++;
-      const state = buildingState(d, buildingForce[b], buildingFlow[b]);
-      if (state === 'collapsed' && states[b] !== 4) { states[b] = 4; collapsed.push(b); breach(b); }
-      else if (state === 'damaged') { states[b] = 3; damagedBuildings++; }
-      // A building down is a total loss.
-      lost += (states[b] === 4 ? 1 : damageShare(d)) * footprint[b]; all += footprint[b];
-    }
-    const entered = ledger.inflow + ledger.rain, stored = flood.volume();
-    const left = ledger.sea + ledger.edge;
+    stored *= cell;
+    const entered = ledger.inflow + ledger.rain, left = ledger.sea + ledger.edge;
     for (let r = flood.box.r0, last = flood.box.r1; r <= last; r++) active += Math.max(0, flood.spans.to[r] - flood.spans.from[r] + 1);
     return {time: ledger.time, step: flood.stable(), active, froude, inflow: now(ledger.time).inflow, entered, toSea: ledger.sea, pastEdges: ledger.edge, stored,
       balance: entered > 0 ? (entered - left - stored) / entered : 0,
-      wet, reached, deepest, fastest, hazard, buildings, wetBuildings, deepBuildings, damage: all ? lost / all : 0,
-      damagedBuildings, collapsedBuildings: collapsed.length, collapsed: collapsed.slice(),
+      wet, reached, deepest, fastest, hazard, buildings, wetBuildings: impacts.wet, deepBuildings: impacts.deep, damage: impacts.damage,
+      damagedBuildings: impacts.damaged, collapsedBuildings: collapsed.length, collapsed: collapsed.slice(),
       watched: Array.from(watch, b => ({building: b, depth: buildingPeak[b], force: buildingForce[b],
         state: buildingState(buildingPeak[b], buildingForce[b], buildingFlow[b])})),
       gauges: gauges.map(i => ({depth: depth[i], speed: flood.speed(i), surface: z[i] + depth[i]}))};
   }
 
-  return {flood, scenario, gauges, advance, pack, stats, rows: () => { const {r0, r1} = around(); return [r0, r1] as [number, number]; }};
+  return {flood, scenario, gauges, advance, pack, stats, takeSamples, impact,
+    rows: () => { const {r0, r1} = around(); return [r0, r1] as [number, number]; }};
 }

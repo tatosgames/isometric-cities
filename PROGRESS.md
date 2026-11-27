@@ -1,5 +1,7 @@
 # Checkpoints
 
+**Flood lab, lighter worker.** The flood worker no longer runs flat out: the water goes to the page every 100 ms (wet rows only), the statistics every 250 ms, chart samples and building readings once a simulated minute, nothing while paused, and it holds at the end of the event. [Verification](docs/QA.md#flood-lab-a-lighter-worker--november-27-2026).
+
 **Matcap without a texture.** The matcap look is computed in the shader instead of read from an sRGB texture painted on a canvas, which some Android drivers (Pixel 3, Adreno 630) read as black, turning the whole city black. If the look still draws black at start, or a shader does not compile, the page reloads with `?look=base`. [Verification](docs/QA.md#matcap-without-a-texture--november-27-2026).
 
 **Flood lab, phase 2.** The flood module is self-contained in `src/flood/` behind one entry point (`index.ts`, `createFlood`), so it can be reused or removed (see [FLOOD.md](docs/FLOOD.md#module)).

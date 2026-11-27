@@ -24,7 +24,9 @@ const LIFT = .08;
  * normal, so facets turn a little lighter or darker against the sun; depth tints the water with the sea's palette,
  * a slow swell of tone runs along the current and soft foam marks its edge, as on the shore.
  */
-export function makeFloodWater({w, h, dx, dy, west, north, z}: {w: number; h: number; dx: number; dy: number; west: number; north: number; z: Float32Array}) {
+export function makeFloodWater({w, h, dx, dy, west, north, z}: {w: number; h: number; dx: number; dy: number; west: number; north: number; z: Float32Array},
+  /** Called with each state once it is on the GPU, or skipped for a newer one: the worker can reuse its buffer. */
+  release: (state: Uint16Array<ArrayBuffer>) => void) {
   const n = w * h, position = new Float32Array(n * 3);
   for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
     const i = (r * w + c) * 3;
@@ -43,6 +45,14 @@ export function makeFloodWater({w, h, dx, dy, west, north, z}: {w: number; h: nu
   const map = new T.DataTexture(new Uint16Array(n * 4), w, h, T.RGBAFormat, T.HalfFloatType);
   map.minFilter = map.magFilter = T.NearestFilter;
   map.needsUpdate = true;
+  /**
+   * The worker's state waiting to go up, and the rows of it that hold water. Only those rows are uploaded, from a
+   * texture that is never bound (`copyTextureToTexture` then reads its data straight into the map): early in a
+   * flood a tenth of the grid instead of all of it.
+   */
+  const staging = new T.DataTexture(null, w, h, T.RGBAFormat, T.HalfFloatType);
+  const region = new T.Box2(), corner = new T.Vector2();
+  let pending: Uint16Array<ArrayBuffer> | null = null;
   const ground = new T.DataTexture(z.slice(), w, h, T.RedFormat, T.FloatType);
   ground.minFilter = ground.magFilter = T.NearestFilter;
   ground.needsUpdate = true;
@@ -109,23 +119,42 @@ export function makeFloodWater({w, h, dx, dy, west, north, z}: {w: number; h: nu
   };
   const mesh = new T.Mesh(geometry, material);
   mesh.frustumCulled = false;
+  let rows: readonly [number, number] = [0, -1];
+  mesh.onBeforeRender = renderer => {
+    if (!pending) return;
+    const [r0, r1] = rows;
+    if (r0 <= r1) {
+      staging.image.data = pending;
+      region.min.set(0, r0); region.max.set(w, r1 + 1); corner.set(0, r0);
+      renderer.copyTextureToTexture(staging, map, region, corner);
+    }
+    const done = pending;
+    pending = null;
+    release(done);
+  };
   return {
     mesh,
     /**
-     * Takes a state from the worker as the texture's own data, without a copy, and draws only the rows of quads
-     * between `rows` (the water's span). Returns the buffer it replaced, already uploaded, for the worker to reuse.
+     * Takes a state from the worker, valid on the rows `rows` (the water's span), to upload before the next draw, and
+     * draws only those rows of quads. A state not yet uploaded gives way to the newer one: its rows are among its own.
      */
-    show(state: Uint16Array<ArrayBuffer>, view: FloodView, [r0, r1]: readonly [number, number]) {
-      const previous = map.image.data as Uint16Array<ArrayBuffer>;
-      map.image.data = state;
-      map.needsUpdate = true;
+    show(state: Uint16Array<ArrayBuffer>, view: FloodView, next: readonly [number, number]) {
+      if (pending) release(pending);
+      pending = state; rows = next;
       uniforms.floodMode.value = view === 'hazard' ? 1 : 0;
-      const first = Math.max(0, r0 - 1), last = Math.min(h - 1, r1 + 1);
+      const first = Math.max(0, next[0] - 1), last = Math.min(h - 1, next[1] + 1);
       geometry.setDrawRange(first * quads, Math.max(0, last - first) * quads);
-      return previous;
+    },
+    /** Dry again, for a new run: the whole map goes up once more. */
+    reset() {
+      if (pending) release(pending);
+      pending = null;
+      (map.image.data as Uint16Array).fill(0);
+      map.needsUpdate = true;
+      geometry.setDrawRange(0, 0);
     },
     /** Moves foam, streaks and ripples: real seconds, so the water keeps flowing when the flood is paused. */
     tick(seconds: number) { uniforms.floodTime.value = seconds % 3600; },
-    dispose() { geometry.dispose(); material.dispose(); map.dispose(); ground.dispose(); }
+    dispose() { geometry.dispose(); material.dispose(); map.dispose(); ground.dispose(); staging.dispose(); }
   };
 }
