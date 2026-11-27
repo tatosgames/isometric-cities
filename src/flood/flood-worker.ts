@@ -48,7 +48,7 @@ function tick() {
   if (!out && (now - lastFrame >= GAP || drawn !== control.view)) {
     const n = sim.flood.grid.w * sim.flood.grid.h;
     const buffer = spare.pop();
-    const state = sim.pack(control.view, buffer && buffer.byteLength === n * 8 ? new Float32Array(buffer) : undefined);
+    const state = sim.pack(control.view, buffer && buffer.byteLength === n * 16 ? new Float32Array(buffer) : undefined);
     const time = sim.flood.ledger.time, seconds = (now - rateFrom) / 1000;
     const rate = seconds > 0 ? (time - rateTime) / seconds : 0;
     if (seconds > 1) { rateFrom = now; rateTime = time; }

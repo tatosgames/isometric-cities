@@ -33,9 +33,9 @@ interface Setup {
 }
 const SETUPS: Record<ScenarioId, Setup> = {
   guiniguada: {title: 'Barranco Guiniguada flood', box: [-2450, -1750, 500, 500], source: [-2309, -1582],
-    scenario: {peak: 250, rise: 1800, culvert: 0, rain: 0, rainFor: 0, runoff: .9}},
+    scenario: {peak: 500, rise: 900, culvert: 0, rain: 0, rainFor: 0, runoff: .9}},
   pioggia: {title: 'Cloudburst over the view', box: 640,
-    scenario: {peak: 0, rise: 1800, culvert: 0, rain: 80, rainFor: 3600, runoff: .9}}
+    scenario: {peak: 0, rise: 900, culvert: 0, rain: 120, rainFor: 3600, runoff: .9}}
 };
 const VIEWS: Record<string, FloodView> = {profondita: 'depth', pericolo: 'hazard', massimo: 'peak'};
 
@@ -64,10 +64,10 @@ export async function floodLab() {
   const box = typeof setup.box === 'number' ? null : setup.box;
   const number = (key: string, fallback: number) => query.has(key) && Number.isFinite(Number(query.get(key))) ? Number(query.get(key)) : fallback;
   // By default the lower course and the mouth, where the water meets the city.
-  const startX = number('x', box ? -400 : 0), startY = number('y', box ? -300 : 0);
+  const startX = number('x', box ? -650 : 0), startY = number('y', box ? -450 : 0);
   controls.target.set(startX, stream.altitude(startX, startY), -startY);
   camera.position.copy(controls.target).addScaledVector(mapViewDirection(), CAMERA_DISTANCE);
-  camera.zoom = number('zoom', Math.min(host.clientWidth, host.clientHeight) / (box ? 1300 : 1100));
+  camera.zoom = number('zoom', Math.min(host.clientWidth, host.clientHeight) / (box ? 1000 : 1100));
   fitPixels(camera, host.clientWidth, host.clientHeight);
   controls.update();
 
@@ -84,9 +84,10 @@ export async function floodLab() {
     culvert: number('tombino', setup.scenario.culvert), rain: number('pioggia', setup.scenario.rain),
     rainFor: number('durata', setup.scenario.rainFor / 60) * 60, runoff: number('deflusso', setup.scenario.runoff)
   };
-  const options: Required<Pick<FloodOptions, 'manning' | 'theta'>> = {manning: number('manning', .03), theta: .7};
+  const options: Required<Pick<FloodOptions, 'manning' | 'theta' | 'courant' | 'froude'>> = {manning: number('manning', .03),
+    theta: number('theta', .7), courant: number('courant', .7), froude: number('froude', 1)};
   const settings = {
-    playing: query.get('pausa') !== '1', speed: number('velocita', 60),
+    playing: query.get('pausa') !== '1', speed: number('velocita', 90),
     view: VIEWS[query.get('vista') ?? ''] ?? 'depth' as FloodView,
     // The panel edits minutes; the scenario keeps seconds.
     riseMin: scenario.rise / 60, rainMin: scenario.rainFor / 60
@@ -127,7 +128,13 @@ export async function floodLab() {
   rain.add(scenario, 'rain', 0, 200, 5).name('Intensity (mm/h)').onChange(retune);
   rain.add(settings, 'rainMin', 0, 360, 10).name('Duration (min)').onChange(retune);
   rain.add(scenario, 'runoff', .1, 1, .05).name('Runoff share').onChange(retune);
-  gui.add(options, 'manning', .012, .08, .002).name('Manning n (s/m^⅓)').onChange(retune);
+  // The scheme's own constants: Bates et al. 2010, de Almeida et al. 2012 (see docs/FLOOD.md).
+  const solver = gui.addFolder('Solver (LISFLOOD-FP inertial)');
+  solver.add(options, 'manning', .012, .08, .002).name('Manning n (s/m^⅓)').onChange(retune);
+  solver.add(options, 'theta', .5, 1, .05).name('θ weighting (1 = Bates 2010)').onChange(retune);
+  solver.add(options, 'courant', .2, .9, .05).name('Courant number').onChange(retune);
+  solver.add(options, 'froude', .5, 3, .1).name('Froude limit').onChange(retune);
+  solver.close();
   gui.add({restart}, 'restart').name('Start again');
 
   const metrics = el('metrics');
@@ -150,6 +157,7 @@ export async function floodLab() {
     if (control !== sent) { send({type: 'control', playing: settings.playing, speed: settings.speed, view: settings.view}); sent = control; }
     controls.update();
     const {busy} = stream.update(camera, controls.target, false);
+    water.tick(now / 1000);
     lab.render(now, controls.target);
     if (!stats) return;
     const s = stats;
@@ -160,7 +168,8 @@ export async function floodLab() {
       `danger for some ${hectares(s.hazard[1])} · most ${hectares(s.hazard[2])} · all ${hectares(s.hazard[3])}`,
       `buildings with water at the walls ${s.wetBuildings} of ${s.buildings} · over 1 m ${s.deepBuildings} · value lost ${(s.damage * 100).toFixed(1)}%`,
       `entered ${(s.entered / 1e3).toFixed(0)}k m³ · to the sea ${(s.toSea / 1e3).toFixed(0)}k · stored ${(s.stored / 1e3).toFixed(0)}k · balance ${(s.balance * 100).toFixed(3)}%`,
-      `${area.w}×${area.h} cells of ${area.dx.toFixed(0)} m · ${cost.toFixed(1)} ms of solver a frame · ${renderer.info.render.calls} draw calls`].join('\n'));
+      `Δt ${s.step.toFixed(2)} s · highest Froude ${s.froude.toFixed(2)} · ${(s.active / 1e3).toFixed(0)}k of ${(area.w * area.h / 1e3).toFixed(0)}k cells of ${area.dx.toFixed(0)} m computed`,
+      `${cost.toFixed(1)} ms of solver a frame · ${renderer.info.render.calls} draw calls`].join('\n'));
   }
   frame = requestAnimationFrame(draw);
   el('status').textContent = setup.title + ' · drag to pan · wheel to zoom · the panel changes the scenario live';
@@ -177,7 +186,8 @@ export async function floodLab() {
     p.set('x', controls.target.x.toFixed(1)); p.set('y', (-controls.target.z).toFixed(1)); p.set('zoom', camera.zoom.toFixed(2));
     p.set('scenario', id); p.set('portata', String(scenario.peak)); p.set('salita', String(settings.riseMin));
     p.set('tombino', String(scenario.culvert)); p.set('pioggia', String(scenario.rain)); p.set('durata', String(settings.rainMin));
-    p.set('deflusso', String(scenario.runoff)); p.set('manning', String(options.manning)); p.set('velocita', String(settings.speed));
+    p.set('deflusso', String(scenario.runoff)); p.set('manning', String(options.manning));
+    p.set('theta', String(options.theta)); p.set('courant', String(options.courant)); p.set('froude', String(options.froude)); p.set('velocita', String(settings.speed));
     p.set('vista', Object.keys(VIEWS).find(k => VIEWS[k] === settings.view) ?? 'profondita');
     return p;
   };

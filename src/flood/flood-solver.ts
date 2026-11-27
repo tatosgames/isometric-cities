@@ -275,13 +275,28 @@ export function makeFlood(grid: FloodGrid, sources: ArrayLike<number>, options: 
   }
 
   /** Depth-averaged speed (m/s) of a cell, from the fluxes across its four faces. */
-  function speed(i: number) {
+  /**
+   * Depth-averaged velocity of a cell (m/s) towards the east and towards the north, from the fluxes across its four
+   * faces, 0 in water under 1 cm. A face can run deeper than the cell beside a step of the DEM: the speed is held to
+   * the same Froude number as the faces.
+   */
+  const velocity = {east: 0, north: 0};
+  function flowAt(i: number) {
     const d = depth[i];
-    if (d < .01) return 0;
-    const c = i % w;
-    const u = ((c > 0 ? qx[i - 1] : 0) + qx[i]) * .5, v = ((i >= w ? qy[i - w] : 0) + (i + w < n ? qy[i] : 0)) * .5;
-    return Math.hypot(u, v) / d;
+    velocity.east = velocity.north = 0;
+    if (d < .01) return velocity;
+    let u = ((i % w > 0 ? qx[i - 1] : 0) + qx[i]) * .5 / d;
+    // Rows grow southwards, and so does qy.
+    let v = -((i >= w ? qy[i - w] : 0) + (i + w < n ? qy[i] : 0)) * .5 / d;
+    const most = settings.froude * Math.sqrt(GRAVITY * d), fast = Math.hypot(u, v);
+    if (fast > most) { u *= most / fast; v *= most / fast; }
+    velocity.east = u; velocity.north = v;
+    return velocity;
+  }
+  function speed(i: number) {
+    const {east, north} = flowAt(i);
+    return Math.hypot(east, north);
   }
 
-  return {grid, settings, depth, peak, qx, qy, ledger, step, advance, volume, speed, stable, area, box};
+  return {grid, settings, depth, peak, qx, qy, ledger, step, advance, volume, speed, flowAt, stable, area, box, spans: {from, to}};
 }

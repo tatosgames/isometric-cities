@@ -57,7 +57,7 @@ function closed(g){
   assert.ok(Math.abs(s.balance)<1e-6,'Water balance off by '+s.balance);
   assert.ok(s.reached>0 && s.deepest>=0);
   const packed=sim.pack('depth');
-  assert.equal(packed.length,80*30*2);
+  assert.equal(packed.length,80*30*4);
   // Integrated inflow matches the hydrograph's integral, Qp·tp·Γ(4)·e³/3⁴.
   const expected=40*300*6*Math.exp(3)/81;
   const entered=sim.flood.ledger.inflow;

@@ -1,5 +1,16 @@
 # Local Verification · November 21, 2026
 
+## Flood lab: water look · November 27, 2026
+
+Luca could not see the water on the published lab. Muddy brown over the sandy ground, it read as earth. It is now turquoise to blue, with:
+- foam at the edge and along fast currents;
+- streaks that move with the flow;
+- ripples and a sun glint.
+
+The defaults are more dramatic: a 500 m³/s peak at 15 min, ×90 speed, and the view on the lower course. Cell speeds are held to the faces' Froude number: the fastest cell read 34 m/s beside a DEM step, and now reads 7 m/s. Checked on frames of the lower course and of the mouth at zoom 3, where the streets of Triana fill and the water parts around the blocks. `qa-flood-solver.mjs` and `qa-flood.mjs` passed again.
+
+Second pass, after Luca asked for opaque, low-poly water (to save work) with acceptable physics and the technical parameters in view. The water is now opaque, with no blending. A vertex swell tilts the 5 m triangles, drawn one normal per triangle; there is a white rim and crisp whitecaps on fast currents. The panel gains the scheme's θ, Courant number and Froude limit, and the readout gains Δt, the highest Froude number and the cells computed. Checked at zoom 3 on the mouth.
+
 ## Flood lab · November 27, 2026
 
 `scripts/qa-flood-solver.mjs` (Node, now first in `npm test`):

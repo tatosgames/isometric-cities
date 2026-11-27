@@ -34,12 +34,25 @@ The time step adapts to the deepest water (Courant 0.7, at most 5 s). Only the c
 
 | `scenario=` | What | Default |
 |---|---|---|
-| `guiniguada` | A flood comes down the barranco Guiniguada. It enters on its OSM line 2.3 km above the mouth (−2309, −1582), on a 2950 × 2250 m grid (592 × 452 cells) down to Vegueta–Triana. | Peak 250 m³/s at 30 min, culvert 0 |
-| `pioggia` | A cloudburst on a 1280 m square around the view. | 80 mm/h for 1 h, runoff 0.9 |
+| `guiniguada` | A flood comes down the barranco Guiniguada. It enters on its OSM line 2.3 km above the mouth (−2309, −1582), on a 2950 × 2250 m grid (592 × 452 cells) down to Vegueta–Triana. | Peak 500 m³/s at 15 min, culvert 0 |
+| `pioggia` | A cloudburst on a 1280 m square around the view. | 120 mm/h for 1 h, runoff 0.9 |
 
-The lower Guiniguada runs covered under the GC-110 (the OSM line has `layer=-1`). The DEM only sees the surface, so the scenario is the water that the covered channel cannot take. **The 250 m³/s peak is a placeholder:** it is to be replaced with the T = 100 and T = 500 discharges of the Plan de Gestión del Riesgo de Inundación de Gran Canaria and checked against the SNCZI flood maps (computed in Spain with Iber, a 2D model of the same family).
+The lower Guiniguada runs covered under the GC-110 (the OSM line has `layer=-1`). The DEM only sees the surface, so the scenario is the water that the covered channel cannot take. **The 500 m³/s peak is a placeholder,** chosen to be seen: it is to be replaced with the T = 100 and T = 500 discharges of the Plan de Gestión del Riesgo de Inundación de Gran Canaria and checked against the SNCZI flood maps (computed in Spain with Iber, a 2D model of the same family).
 
 URL: `portata` (m³/s), `salita` (min to peak), `tombino` (m³/s carried by the culvert), `pioggia` (mm/h), `durata` (min), `deflusso` (runoff share), `manning`, `velocita` (× real time), `vista=profondita|pericolo|massimo`, `pausa=1`, `x`, `y`, `zoom`.
+
+## Look
+
+`flood-water.ts` draws the water opaque and low poly in one draw call. Being opaque, it needs no blending or sorting.
+- **Facets:** a swell in the vertex shader tilts the 5 m triangles. It is taller and faster where the current runs, and none at the edge. Each triangle has its own normal (from screen derivatives), so its facets turn pale, dark or bright against the sun.
+- **Colour:** turquoise to blue with depth, with a little silt where the current is fast.
+- **Foam:** a white rim where the water meets the ground, and crisp whitecaps drifting downstream at the speed of currents above 1.5 m/s. The worker packs each cell's velocity next to its depth for this.
+- **Hazard view:** keeps the four classes on the same facets.
+
+**Technical parameters.** The Solver folder of the panel changes the scheme's constants live: Manning n, θ, Courant number and Froude limit (URL `manning`, `theta`, `courant`, `froude`). The readout shows:
+- the current Δt;
+- the highest Froude number v/√(gd) in water deeper than 5 cm;
+- how many cells are being computed.
 
 ## Limits
 

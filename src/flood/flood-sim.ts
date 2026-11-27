@@ -41,6 +41,11 @@ export type FloodView = 'depth' | 'hazard' | 'peak';
 
 export interface FloodStats {
   time: number;
+  /** Time step the scheme allows now (s), and the cells it computes. */
+  step: number;
+  active: number;
+  /** Highest Froude number v / √(g d) in water deeper than 5 cm: above 1 the flow is supercritical. */
+  froude: number;
   /** Discharge overflowing on the surface now (m³/s). */
   inflow: number;
   /** m³ entered (hydrograph and rain), left (to the sea, past the edges) and stored. */
@@ -95,8 +100,8 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
   // The drawn state is kept here and refreshed only inside the solver's box: outside it the water never came, so the
   // surface is the ground and the value 0. A wall cell takes the wettest of its neighbours, so the surface runs on
   // under the buildings instead of dipping into them.
-  const drawn = new Float32Array(n * 2);
-  for (let i = 0; i < n; i++) drawn[2 * i] = z[i];
+  const drawn = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) drawn[4 * i] = z[i];
   /** The rows and columns of the box with one more cell around it: the walls next to its water. */
   function around() {
     const {r0, r1, c0, c1} = flood.box;
@@ -104,27 +109,29 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
   }
 
   /**
-   * The state to draw, two floats a cell: the height of the surface and the value shown (depth, hazard rating or
-   * highest depth), copied into `out`.
+   * The state to draw, four floats a cell: the height of the surface, the value shown (depth, hazard rating or
+   * highest depth), and the velocity east and north (m/s) for foam and streaks; copied into `out`.
    */
-  function pack(view: FloodView, out = new Float32Array(n * 2)) {
+  function pack(view: FloodView, out = new Float32Array(n * 4)) {
     const {r0, r1, c0, c1} = around();
     if (r0 <= r1) {
       for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
         if (wall[i]) continue;
         const d = view === 'peak' ? peak[i] : depth[i];
-        drawn[2 * i] = z[i] + d;
-        drawn[2 * i + 1] = view === 'hazard' ? (d > 0 ? Math.max(.01, hazardRating(d, flood.speed(i))) : 0) : d;
+        const flow = flood.flowAt(i), u = view === 'peak' ? 0 : flow.east, v = view === 'peak' ? 0 : flow.north;
+        drawn[4 * i] = z[i] + d;
+        drawn[4 * i + 1] = view === 'hazard' ? (d > 0 ? Math.max(.01, hazardRating(d, Math.hypot(u, v))) : 0) : d;
+        drawn[4 * i + 2] = u; drawn[4 * i + 3] = v;
       }
       for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
         if (!wall[i]) continue;
-        let surface = z[i], value = 0;
+        let surface = z[i], value = 0, u = 0, v = 0;
         for (let k = 0; k < 4; k++) {
           const j = neighbour(i, k);
-          if (j < 0 || wall[j] || drawn[2 * j + 1] <= 0) continue;
-          if (drawn[2 * j] > surface) { surface = drawn[2 * j]; value = drawn[2 * j + 1]; }
+          if (j < 0 || wall[j] || drawn[4 * j + 1] <= 0) continue;
+          if (drawn[4 * j] > surface) { surface = drawn[4 * j]; value = drawn[4 * j + 1]; u = drawn[4 * j + 2]; v = drawn[4 * j + 3]; }
         }
-        drawn[2 * i] = surface; drawn[2 * i + 1] = value;
+        drawn[4 * i] = surface; drawn[4 * i + 1] = value; drawn[4 * i + 2] = u; drawn[4 * i + 3] = v;
       }
     }
     out.set(drawn);
@@ -133,7 +140,7 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
 
   function stats(): FloodStats {
     const cell = flood.area, hazard: [number, number, number, number] = [0, 0, 0, 0];
-    let wet = 0, reached = 0, deepest = 0, fastest = 0;
+    let wet = 0, reached = 0, deepest = 0, fastest = 0, froude = 0, active = 0;
     const {r0, r1, c0, c1} = around();
     buildingPeak.fill(0);
     for (let r = r0; r <= r1; r++) for (let c = c0, i = r * w + c0; c <= c1; c++, i++) {
@@ -152,6 +159,7 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
       deepest = Math.max(deepest, d);
       const v = flood.speed(i);
       fastest = Math.max(fastest, v);
+      froude = Math.max(froude, v / Math.sqrt(9.81 * d));
       const k = hazardClass(hazardRating(d, v));
       if (k) hazard[k - 1] += cell;
     }
@@ -164,7 +172,8 @@ export function makeFloodSim(grid: FloodGrid & {owner: Int32Array}, buildings: n
     }
     const entered = ledger.inflow + ledger.rain, stored = flood.volume();
     const left = ledger.sea + ledger.edge;
-    return {time: ledger.time, inflow: now(ledger.time).inflow, entered, toSea: ledger.sea, pastEdges: ledger.edge, stored,
+    for (let r = flood.box.r0, last = flood.box.r1; r <= last; r++) active += Math.max(0, flood.spans.to[r] - flood.spans.from[r] + 1);
+    return {time: ledger.time, step: flood.stable(), active, froude, inflow: now(ledger.time).inflow, entered, toSea: ledger.sea, pastEdges: ledger.edge, stored,
       balance: entered > 0 ? (entered - left - stored) / entered : 0,
       wet, reached, deepest, fastest, hazard, buildings, wetBuildings, deepBuildings, damage: all ? lost / all : 0};
   }
